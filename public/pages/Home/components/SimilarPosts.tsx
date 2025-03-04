@@ -3,7 +3,6 @@ import { Post, Tag, CurrentUser } from "@fider/models"
 import { PageTitle, Loader } from "@fider/components"
 import { ListPosts } from "./ListPosts"
 import { actions } from "@fider/services"
-
 import { i18n } from "@lingui/core"
 
 interface SimilarPostsProps {
@@ -49,7 +48,7 @@ export class SimilarPosts extends React.Component<SimilarPostsProps, SimilarPost
 
   private loadSimilarPosts = () => {
     if (this.state.loading) {
-      actions.searchPosts({ query: this.state.title, includeDuplicates: true }).then((x) => {
+      actions.searchPosts({ query: this.state.title, view: "make-post" }).then((x) => {
         if (x.ok) {
           this.setState({ loading: false, posts: x.data })
         }
