@@ -411,17 +411,15 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 		if q.Tags == nil {
 			q.Tags = []string{}
 		}
+
 		if q.Statuses == nil {
 			q.Statuses = []enum.PostStatus{}
 		}
+
 		if q.Limit != "all" {
 			if _, err := strconv.Atoi(q.Limit); err != nil {
 				q.Limit = "30"
 			}
-		}
-
-		if q.Offset == "" {
-			q.Offset = "0"
 		}
 
 		var (
@@ -430,53 +428,31 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 		)
 		if q.Query != "" {
 			scoreField := "ts_rank(setweight(to_tsvector(title), 'A') || setweight(to_tsvector(description), 'B'), to_tsquery('english', $3)) + similarity(title, $4) + similarity(description, $4)"
-			var sql string
-			if !q.IncludeDuplicates {
-				sql = fmt.Sprintf(`
-					SELECT DISTINCT ON (title) * FROM (%s) AS q
-					WHERE %s > 0.1
-					ORDER BY title, %s DESC
-					LIMIT %s OFFSET %s
-				`, innerQuery, scoreField, scoreField, q.Limit, q.Offset)
-			} else {
-				sql = fmt.Sprintf(`
-					SELECT * FROM (%s) AS q
-					WHERE %s > 0.1
-					ORDER BY %s DESC
-					LIMIT %s OFFSET %s
-				`, innerQuery, scoreField, scoreField, q.Limit, q.Offset)
-			}
-			err = trx.Select(&posts, sql, tenant.ID, pq.Array([]enum.PostStatus{
+			sql := fmt.Sprintf(`
+				SELECT * FROM (%s) AS q 
+				WHERE %s > 0.1
+				ORDER BY %s DESC
+				LIMIT %s
+			`, innerQuery, scoreField, scoreField, q.Limit)
+			statuses := []enum.PostStatus{
 				enum.PostOpen,
 				enum.PostStarted,
 				enum.PostPlanned,
 				enum.PostCompleted,
 				enum.PostDeclined,
-			}), ToTSQuery(q.Query), SanitizeString(q.Query))
+			}
+			if q.View == "make-post" {
+				statuses = append(statuses, enum.PostDuplicate, enum.PostDeclined)
+			}
+			err = trx.Select(&posts, sql, tenant.ID, pq.Array(statuses), ToTSQuery(q.Query), SanitizeString(q.Query))
 		} else {
 			condition, statuses, sort := getViewData(*q)
-			if q.Untagged {
-				condition += " AND NOT EXISTS (SELECT 1 FROM post_tags t WHERE t.post_id = q.id)"
-			}
-			var sql string
-			if !q.IncludeDuplicates {
-				sql = fmt.Sprintf(`
-					SELECT * FROM (
-						SELECT DISTINCT ON (title) * FROM (%s) AS q
-						WHERE 1 = 1 %s
-						ORDER BY title, %s DESC
-					) t
-					ORDER BY %s DESC
-					LIMIT %s OFFSET %s
-				`, innerQuery, condition, sort, sort, q.Limit, q.Offset)
-			} else {
-				sql = fmt.Sprintf(`
-					SELECT * FROM (%s) AS q
-					WHERE 1 = 1 %s
-					ORDER BY %s DESC
-					LIMIT %s OFFSET %s
-				`, innerQuery, condition, sort, q.Limit, q.Offset)
-			}
+			sql := fmt.Sprintf(`
+				SELECT * FROM (%s) AS q 
+				WHERE 1 = 1 %s
+				ORDER BY %s DESC
+				LIMIT %s
+			`, innerQuery, condition, sort, q.Limit)
 			params := []interface{}{tenant.ID, pq.Array(statuses)}
 			if len(q.Tags) > 0 {
 				params = append(params, pq.Array(q.Tags))
