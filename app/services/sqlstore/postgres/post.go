@@ -407,7 +407,9 @@ func getUserCommentCount(ctx context.Context, q *query.GetUserCommentCount) erro
 func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		innerQuery := buildPostQuery(user, "p.tenant_id = $1 AND p.status = ANY($2)")
-
+		if q.Untagged {
+			innerQuery = fmt.Sprintf("%s AND NOT EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id)", innerQuery)
+		}
 		if q.Tags == nil {
 			q.Tags = []string{}
 		}
@@ -421,6 +423,9 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 				q.Limit = "30"
 			}
 		}
+		if q.Offset == "" {
+			q.Offset = "0"
+		}
 
 		var (
 			posts []*dbPost
@@ -432,8 +437,8 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 				SELECT * FROM (%s) AS q 
 				WHERE %s > 0.1
 				ORDER BY %s DESC
-				LIMIT %s
-			`, innerQuery, scoreField, scoreField, q.Limit)
+				LIMIT %s OFFSET %s
+			`, innerQuery, scoreField, scoreField, q.Limit, q.Offset)
 			statuses := []enum.PostStatus{
 				enum.PostOpen,
 				enum.PostStarted,
@@ -451,8 +456,8 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 				SELECT * FROM (%s) AS q 
 				WHERE 1 = 1 %s
 				ORDER BY %s DESC
-				LIMIT %s
-			`, innerQuery, condition, sort, q.Limit)
+				LIMIT %s OFFSET %s
+			`, innerQuery, condition, sort, q.Limit, q.Offset)
 			params := []interface{}{tenant.ID, pq.Array(statuses)}
 			if len(q.Tags) > 0 {
 				params = append(params, pq.Array(q.Tags))
