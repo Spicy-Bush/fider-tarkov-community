@@ -407,7 +407,9 @@ func getUserCommentCount(ctx context.Context, q *query.GetUserCommentCount) erro
 func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		innerQuery := buildPostQuery(user, "p.tenant_id = $1 AND p.status = ANY($2)")
-
+		if q.Untagged {
+			innerQuery = fmt.Sprintf("%s AND NOT EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id)", innerQuery)
+		}
 		if q.Tags == nil {
 			q.Tags = []string{}
 		}
