@@ -1,0 +1,43 @@
+@import "~@fider/assets/styles/variables.scss";
+
+.c-vote-section {
+  &__buttons {
+    display: flex;
+    align-items: center;
+    gap: spacing(4);
+  }
+
+  &__count-wrapper {
+    display: flex;
+    align-items: center;
+    gap: spacing(2);
+    min-width: sizing(25);
+    text-align: center;
+  }
+
+  &__count {
+    font-size: get("font.size.2xl");
+    font-weight: get("font.weight.bold");
+    min-width: sizing(10);
+    text-align: center;
+  }
+
+  &__button {
+    width: sizing(30);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    
+    &--up {
+      &.voted {
+        color: get("colors.green.500");
+      }
+    }
+    
+    &--down {
+      &.voted {
+        color: get("colors.red.500");
+      }
+    }
+  }
+}

@@ -28,7 +28,7 @@ type dbPost struct {
 	Description    string         `db:"description"`
 	CreatedAt      time.Time      `db:"created_at"`
 	User           *dbUser        `db:"user"`
-	HasVoted       bool           `db:"has_voted"`
+	VoteType       sql.NullInt32  `db:"vote_type"`
 	VotesCount     int            `db:"votes_count"`
 	CommentsCount  int            `db:"comments_count"`
 	RecentVotes    int            `db:"recent_votes_count"`
@@ -45,6 +45,11 @@ type dbPost struct {
 }
 
 func (i *dbPost) toModel(ctx context.Context) *entity.Post {
+	voteType := 0
+	if i.VoteType.Valid {
+		voteType = int(i.VoteType.Int32)
+	}
+
 	post := &entity.Post{
 		ID:            i.ID,
 		Number:        i.Number,
@@ -52,7 +57,7 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 		Slug:          i.Slug,
 		Description:   i.Description,
 		CreatedAt:     i.CreatedAt,
-		HasVoted:      i.HasVoted,
+		VoteType:      voteType,
 		VotesCount:    i.VotesCount,
 		CommentsCount: i.CommentsCount,
 		Status:        enum.PostStatus(i.Status),
@@ -107,9 +112,9 @@ var (
 													),
 													agg_votes AS (
 															SELECT 
-															post_id, 
-																	COUNT(CASE WHEN post_votes.created_at > CURRENT_DATE - INTERVAL '30 days'  THEN 1 END) as recent,
-																	COUNT(*) as all
+																	post_id, 
+																	SUM(CASE WHEN post_votes.created_at > CURRENT_DATE - INTERVAL '30 days' THEN vote_type ELSE 0 END) as recent,
+																	SUM(vote_type) as all
 															FROM post_votes 
 															INNER JOIN posts
 															ON posts.id = post_votes.post_id
@@ -149,7 +154,7 @@ var (
 																d.slug AS original_slug,
 																d.status AS original_status,
 																COALESCE(agg_t.tags, ARRAY[]::text[]) AS tags,
-																COALESCE(%s, false) AS has_voted
+																%s AS vote_type
 													FROM posts p
 													INNER JOIN users u
 													ON u.id = p.user_id
@@ -503,9 +508,9 @@ func buildPostQuery(user *entity.User, filter string) string {
 	if user != nil && (user.IsCollaborator() || user.IsModerator()) {
 		tagCondition = ``
 	}
-	hasVotedSubQuery := "null"
+	voteTypeSubQuery := "NULL"
 	if user != nil {
-		hasVotedSubQuery = fmt.Sprintf("(SELECT true FROM post_votes WHERE post_id = p.id AND user_id = %d)", user.ID)
+		voteTypeSubQuery = fmt.Sprintf("(SELECT vote_type FROM post_votes WHERE post_id = p.id AND user_id = %d LIMIT 1)", user.ID)
 	}
-	return fmt.Sprintf(sqlSelectPostsWhere, tagCondition, hasVotedSubQuery, filter)
+	return fmt.Sprintf(sqlSelectPostsWhere, tagCondition, voteTypeSubQuery, filter)
 }

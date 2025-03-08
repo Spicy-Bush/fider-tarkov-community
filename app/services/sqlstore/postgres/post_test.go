@@ -76,7 +76,7 @@ func TestPostStorage_AddAndGet(t *testing.T) {
 
 	Expect(postByID.Result.ID).Equals(newPost.Result.ID)
 	Expect(postByID.Result.Number).Equals(1)
-	Expect(postByID.Result.HasVoted).IsFalse()
+	Expect(postByID.Result.voteType).Equals(0)
 	Expect(postByID.Result.VotesCount).Equals(0)
 	Expect(postByID.Result.Status).Equals(enum.PostOpen)
 	Expect(postByID.Result.Title).Equals("My new post")
@@ -87,7 +87,7 @@ func TestPostStorage_AddAndGet(t *testing.T) {
 
 	Expect(postBySlug.Result.ID).Equals(newPost.Result.ID)
 	Expect(postBySlug.Result.Number).Equals(1)
-	Expect(postBySlug.Result.HasVoted).IsFalse()
+	Expect(postBySlug.Result.voteType).Equals(0)
 	Expect(postBySlug.Result.VotesCount).Equals(0)
 	Expect(postBySlug.Result.Status).Equals(enum.PostOpen)
 	Expect(postBySlug.Result.Title).Equals("My new post")
@@ -251,7 +251,7 @@ func TestPostStorage_AddVote(t *testing.T) {
 	getPost := &query.GetPostByID{PostID: newPost.Result.ID}
 	err = bus.Dispatch(jonSnowCtx, getPost)
 	Expect(err).IsNil()
-	Expect(getPost.Result.HasVoted).IsFalse()
+	Expect(getPost.Result.voteType).Equals(0)
 	Expect(getPost.Result.VotesCount).Equals(1)
 
 	err = bus.Dispatch(jonSnowCtx, &cmd.AddVote{Post: newPost.Result, User: jonSnow})
@@ -260,7 +260,7 @@ func TestPostStorage_AddVote(t *testing.T) {
 	getPost = &query.GetPostByID{PostID: newPost.Result.ID}
 	err = bus.Dispatch(jonSnowCtx, getPost)
 	Expect(err).IsNil()
-	Expect(getPost.Result.HasVoted).IsTrue()
+	Expect(getPost.Result.voteType).Equals(1)
 	Expect(getPost.Result.VotesCount).Equals(2)
 }
 
@@ -282,7 +282,7 @@ func TestPostStorage_AddVote_Twice(t *testing.T) {
 	getPost := &query.GetPostByID{PostID: newPost.Result.ID}
 	err = bus.Dispatch(jonSnowCtx, getPost)
 	Expect(err).IsNil()
-	Expect(getPost.Result.HasVoted).IsTrue()
+	Expect(getPost.Result.voteType).Equals(1)
 	Expect(getPost.Result.VotesCount).Equals(1)
 }
 
@@ -304,7 +304,7 @@ func TestPostStorage_RemoveVote(t *testing.T) {
 	getPost := &query.GetPostByID{PostID: newPost.Result.ID}
 	err = bus.Dispatch(jonSnowCtx, getPost)
 	Expect(err).IsNil()
-	Expect(getPost.Result.HasVoted).IsFalse()
+	Expect(getPost.Result.voteType).Equals(0)
 	Expect(getPost.Result.VotesCount).Equals(0)
 }
 
@@ -327,7 +327,7 @@ func TestPostStorage_RemoveVote_Twice(t *testing.T) {
 	getPost := &query.GetPostByID{PostID: newPost.Result.ID}
 	err = bus.Dispatch(jonSnowCtx, getPost)
 	Expect(err).IsNil()
-	Expect(getPost.Result.HasVoted).IsFalse()
+	Expect(getPost.Result.voteType).Equals(0)
 	Expect(getPost.Result.VotesCount).Equals(0)
 }
 

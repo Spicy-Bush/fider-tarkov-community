@@ -22,11 +22,13 @@ type dbVote struct {
 		AvatarBlobKey string `db:"avatar_bkey"`
 	} `db:"user"`
 	CreatedAt time.Time `db:"created_at"`
+	VoteType  int       `db:"vote_type"`
 }
 
 func (v *dbVote) toModel(ctx context.Context) *entity.Vote {
 	vote := &entity.Vote{
 		CreatedAt: v.CreatedAt,
+		VoteType:  enum.VoteType(v.VoteType),
 		User: &entity.VoteUser{
 			ID:        v.User.ID,
 			Name:      v.User.Name,
@@ -43,9 +45,15 @@ func addVote(ctx context.Context, c *cmd.AddVote) error {
 			return nil
 		}
 
-		_, err := trx.Execute(
-			`INSERT INTO post_votes (tenant_id, user_id, post_id, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-			tenant.ID, c.User.ID, c.Post.ID, time.Now(),
+		_, err := trx.Execute(`DELETE FROM post_votes WHERE user_id = $1 AND post_id = $2 AND tenant_id = $3`,
+			c.User.ID, c.Post.ID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to remove existing vote")
+		}
+
+		_, err = trx.Execute(
+			`INSERT INTO post_votes (tenant_id, user_id, post_id, created_at, vote_type) VALUES ($1, $2, $3, $4, $5)`,
+			tenant.ID, c.User.ID, c.Post.ID, time.Now(), int(c.VoteType),
 		)
 
 		if err != nil {
@@ -88,6 +96,7 @@ func listPostVotes(ctx context.Context, q *query.ListPostVotes) error {
 		err := trx.Select(&votes, `
 		SELECT 
 			pv.created_at, 
+			pv.vote_type,
 			u.id AS user_id,
 			u.name AS user_name,
 			`+emailColumn+` AS user_email,

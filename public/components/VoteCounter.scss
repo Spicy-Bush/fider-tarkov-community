@@ -1,13 +1,15 @@
 @import "~@fider/assets/styles/variables.scss";
 
 .c-vote-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  
   &__button {
     font-size: get("font.size.lg");
-    // border: none;
     width: sizing(11);
     font-weight: get("font.weight.bold");
     cursor: pointer;
-    // background-color: transparent;
     text-align: center;
     margin: 0 auto;
     padding: 3px 0 8px 0;
@@ -21,16 +23,52 @@
       margin-bottom: -2px;
     }
 
-    &--voted,
-    &:hover {
+    &:hover:not(&--disabled) {
+      color: get("colors.primary.base");
+      svg {
+        color: get("colors.primary.base");
+      }
+    }
+    &--voted {
       color: get("colors.primary.base");
       svg {
         color: get("colors.primary.base");
       }
     }
 
+    &--down {
+      padding: 3px 0 8px 0;
+      
+      
+      &:hover:not(.c-vote-counter__button--disabled) {
+        color: get("colors.red.500");
+        svg {
+          color: get("colors.red.500");
+        }
+      }
+      
+      &.c-vote-counter__button--voted {
+        color: get("colors.red.500");
+        svg {
+          color: get("colors.red.500");
+        }
+      }
+    }
+
     &--disabled {
       @include disabled();
+    }
+  }
+  
+  &__count {
+    font-weight: get("font.weight.bold");
+    
+    &--negative {
+      color: get("colors.red.500");
+    }
+    
+    &--neutral {
+      color: get("colors.gray.700");
     }
   }
 }

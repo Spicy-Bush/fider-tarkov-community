@@ -39,15 +39,19 @@ export const deletePost = async (postNumber: number, text: string): Promise<Resu
 }
 
 export const addVote = async (postNumber: number): Promise<Result> => {
-  return http.post(`/api/v1/posts/${postNumber}/votes`).then(http.event("post", "vote"))
+  return http.post(`/api/v1/posts/${postNumber}/up`).then(http.event("post", "upvote"))
+}
+
+export const addDownVote = async (postNumber: number): Promise<Result> => {
+  return http.post(`/api/v1/posts/${postNumber}/down`).then(http.event("post", "downvote"))
 }
 
 export const removeVote = async (postNumber: number): Promise<Result> => {
   return http.delete(`/api/v1/posts/${postNumber}/votes`).then(http.event("post", "unvote"))
 }
 
-export const toggleVote = async (postNumber: number): Promise<Result<{ voted: boolean }>> => {
-  return http.post<{ voted: boolean }>(`/api/v1/posts/${postNumber}/votes/toggle`).then(http.event("post", "toggle-vote"))
+export const toggleVote = async (postNumber: number, _direction?: "up" | "down"): Promise<Result> => {
+  return http.post(`/api/v1/posts/${postNumber}/votes/toggle`).then(http.event("post", "toggle-vote"))
 }
 
 export const subscribe = async (postNumber: number): Promise<Result> => {

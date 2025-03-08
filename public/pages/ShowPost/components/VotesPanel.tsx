@@ -17,6 +17,8 @@ export const VotesPanel = (props: VotesPanelProps) => {
   const fider = useFider()
   const [isVotesModalOpen, setIsVotesModalOpen] = useState(false)
   const canShowAll = fider.session.isAuthenticated && Fider.session.user.isCollaborator
+  const totalVotes = Math.abs(props.post.votesCount);
+  const extraVotesCount = totalVotes - props.votes.length;
 
   const openModal = () => {
     if (canShowAll) {
@@ -25,9 +27,7 @@ export const VotesPanel = (props: VotesPanelProps) => {
   }
 
   const closeModal = () => setIsVotesModalOpen(false)
-
-  const extraVotesCount = props.post.votesCount - props.votes.length
-
+  
   return (
     <VStack spacing={4}>
       <VotesModal post={props.post} isOpen={isVotesModalOpen} onClose={closeModal} />
