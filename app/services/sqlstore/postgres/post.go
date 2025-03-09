@@ -462,7 +462,12 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 			}
 			err = trx.Select(&posts, sql, tenant.ID, pq.Array(statuses), ToTSQuery(q.Query), SanitizeString(q.Query))
 		} else {
-			condition, statuses, sort, extraParams := getViewData(*q, user.ID)
+			userID := 0
+			if user != nil {
+				userID = user.ID
+			}
+
+			condition, statuses, sort, extraParams := getViewData(*q, userID)
 			sql := fmt.Sprintf(`
 				SELECT * FROM (%s) AS q 
 				WHERE 1 = 1 %s
