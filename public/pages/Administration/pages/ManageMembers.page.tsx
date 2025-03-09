@@ -40,6 +40,11 @@ const UserListItem = (props: UserListItemProps) => {
         <Avatar user={props.user} />
         <VStack spacing={0}>
           <UserName user={props.user} showEmail={true} />
+          {props.user.providers && props.user.providers.length > 0 && (
+            <span className="text-muted">
+              Provider: {props.user.providers.map(p => `${p.name}: ${p.uid}`).join(", ")}
+            </span>
+          )}
           <span className="text-muted">
             {admin} {moderator} {collaborator} {blocked}
           </span>
@@ -111,11 +116,21 @@ export default class ManageMembersPage extends AdminBasePage<ManageMembersPagePr
   }
 
   private memberFilter = (query: string, user: User): boolean => {
-    return (
-      user.name.toLowerCase().indexOf(query.toLowerCase()) >= 0 ||
-      (user.email && user.email.toLowerCase().indexOf(query.toLowerCase()) >= 0) ||
-      false
-    )
+    const queryLower = query.toLowerCase();
+    if (user.name.toLowerCase().indexOf(queryLower) >= 0 ||
+        (user.email && user.email.toLowerCase().indexOf(queryLower) >= 0)) {
+      return true;
+    }
+
+    if (user.providers && user.providers.length > 0) {
+      for (const provider of user.providers) {
+        if (provider.uid.toLowerCase().indexOf(queryLower) >= 0) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
   }
 
   private handleSearchFilterChanged = (query: string) => {
@@ -179,7 +194,7 @@ export default class ManageMembersPage extends AdminBasePage<ManageMembersPagePr
           field="query"
           icon={this.state.query ? IconX : IconSearch}
           onIconClick={this.state.query ? this.clearSearch : undefined}
-          placeholder="Search for users by name / email ..."
+          placeholder="Search for users by name / email / provider id ..."
           value={this.state.query}
           onChange={this.handleSearchFilterChanged}
         />

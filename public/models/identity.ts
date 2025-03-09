@@ -26,6 +26,10 @@ export interface User {
   role: UserRole
   status: UserStatus
   avatarURL: string
+  providers?: Array<{
+    name: string
+    uid: string
+  }>
 }
 
 export interface UserNames {

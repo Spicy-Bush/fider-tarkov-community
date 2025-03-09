@@ -48,6 +48,10 @@ type GetAllUsers struct {
 	Result []*entity.User
 }
 
+type GetAllUserProviders struct {
+	Result []*entity.UserProvider
+}
+
 type GetAllUsersNames struct {
 	Result []*dto.UserNames
 }

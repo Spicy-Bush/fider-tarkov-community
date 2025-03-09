@@ -143,7 +143,27 @@ func ManageMembers() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		// Create an array of UserWithEmail structs from the allUsers.Result
+		// Create an array of UserWithEmail structs from the allUsers.Result & add the providers to each user
+		allProviders := &query.GetAllUserProviders{}
+		if err := bus.Dispatch(c, allProviders); err != nil {
+			return c.Failure(err)
+		}
+
+		userMap := make(map[int]*entity.User)
+		for _, user := range allUsers.Result {
+			userMap[user.ID] = user
+			user.Providers = []*entity.UserProvider{}
+		}
+
+		for _, p := range allProviders.Result {
+			if user, exists := userMap[p.UserID]; exists {
+				user.Providers = append(user.Providers, &entity.UserProvider{
+					Name: p.Name,
+					UID:  p.UID,
+				})
+			}
+		}
+
 		allUsersWithEmail := make([]entity.UserWithEmail, len(allUsers.Result))
 		for i, user := range allUsers.Result {
 			allUsersWithEmail[i] = entity.UserWithEmail{
