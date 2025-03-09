@@ -462,7 +462,7 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 			}
 			err = trx.Select(&posts, sql, tenant.ID, pq.Array(statuses), ToTSQuery(q.Query), SanitizeString(q.Query))
 		} else {
-			condition, statuses, sort := getViewData(*q)
+			condition, statuses, sort, extraParams := getViewData(*q, user.ID)
 			sql := fmt.Sprintf(`
 				SELECT * FROM (%s) AS q 
 				WHERE 1 = 1 %s
@@ -470,9 +470,7 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 				LIMIT %s OFFSET %s
 			`, innerQuery, condition, sort, q.Limit, q.Offset)
 			params := []interface{}{tenant.ID, pq.Array(statuses)}
-			if len(q.Tags) > 0 {
-				params = append(params, pq.Array(q.Tags))
-			}
+			params = append(params, extraParams...)
 			err = trx.Select(&posts, sql, params...)
 		}
 

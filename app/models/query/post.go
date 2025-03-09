@@ -43,6 +43,7 @@ type SearchPosts struct {
 	Statuses    []enum.PostStatus
 	Tags        []string
 	MyVotesOnly bool
+	MyPostsOnly bool
 	Untagged    bool
 	Count       int `json:"count,omitempty"`
 

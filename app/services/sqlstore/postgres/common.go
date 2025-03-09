@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
+	"github.com/lib/pq"
 )
 
 var onlyalphanumeric = regexp.MustCompile("[^a-zA-Z0-9 |]+")
@@ -26,11 +28,8 @@ func SanitizeString(input string) string {
 	return strings.ToValidUTF8(input, "")
 }
 
-func getViewData(query query.SearchPosts) (string, []enum.PostStatus, string) {
-	var (
-		condition string
-		sort      string
-	)
+func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus, string, []interface{}) {
+	var sort string
 	statusFilters := query.Statuses
 	if len(statusFilters) == 0 {
 		// Use a sensible default list of status filters
@@ -41,8 +40,27 @@ func getViewData(query query.SearchPosts) (string, []enum.PostStatus, string) {
 		}
 	}
 
+	extraParams := []interface{}{}
+	paramIndex := 3
+	conditions := []string{}
+
 	if query.MyVotesOnly {
-		condition = "AND vote_type IS NOT NULL"
+		conditions = append(conditions, "vote_type IS NOT NULL")
+	}
+	if query.MyPostsOnly {
+		conditions = append(conditions, fmt.Sprintf("user_id = $%d", paramIndex))
+		extraParams = append(extraParams, userID)
+		paramIndex++
+	}
+	if len(query.Tags) > 0 {
+		conditions = append(conditions, fmt.Sprintf("tags && $%d", paramIndex))
+		// Note: We pass the tags array here
+		extraParams = append(extraParams, pq.Array(query.Tags))
+		paramIndex++
+	}
+	condition := ""
+	if len(conditions) > 0 {
+		condition = "AND " + strings.Join(conditions, " AND ")
 	}
 
 	switch query.View {
@@ -53,8 +71,7 @@ func getViewData(query query.SearchPosts) (string, []enum.PostStatus, string) {
 	case "most-discussed":
 		sort = "comments_count"
 	case "my-votes":
-		// Depracated: You can instead filter on my votes only for more flexibility than using this view.
-		condition = "AND vote_type IS NOT NULL"
+		// Depracated: Use status filters instead
 		sort = "id"
 	case "planned":
 		// Depracated: Use status filters instead
@@ -93,13 +110,10 @@ func getViewData(query query.SearchPosts) (string, []enum.PostStatus, string) {
 	case "trending":
 		fallthrough
 	default:
-		sort = "((COALESCE(recent_votes_count, 0)*5 + COALESCE(recent_comments_count, 0) *3)-1) / pow((EXTRACT(EPOCH FROM current_timestamp - created_at)/3600) + 2, 1.4)"
+		sort = "((COALESCE(recent_votes_count, 0)*5 + COALESCE(recent_comments_count, 0) *3)-1) / " +
+			"pow((EXTRACT(EPOCH FROM current_timestamp - created_at)/3600) + 2, 1.4)"
 	}
-
-	if len(query.Tags) > 0 {
-		condition += " AND tags && $3"
-	}
-	return condition, statusFilters, sort
+	return condition, statusFilters, sort, extraParams
 }
 
 func buildAvatarURL(ctx context.Context, avatarType enum.AvatarType, id int, name, avatarBlobKey string) string {

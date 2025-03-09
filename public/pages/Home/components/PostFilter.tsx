@@ -9,7 +9,7 @@ import { i18n } from "@lingui/core"
 
 import { FilterState } from "./PostsContainer"
 
-type FilterType = "tag" | "status" | "myVotes"
+type FilterType = "tag" | "status" | "myVotes" | "myPosts"
 
 interface OptionItem {
   value: string | boolean
@@ -41,11 +41,14 @@ const FilterStateToFilterItems = (filterState: FilterState): FilterItem[] => {
   if (filterState.myVotes) {
     filterItems.push({ type: "myVotes", value: true })
   }
+  if (filterState.myPosts) {
+    filterItems.push({ type: "myPosts", value: true })
+  }
   return filterItems
 }
 
 const FilterItemsToFilterState = (filterItems: FilterItem[]): FilterState => {
-  const filterState: FilterState = { tags: [], statuses: [], myVotes: false }
+  const filterState: FilterState = { tags: [], statuses: [], myVotes: false, myPosts: false }
   filterItems.forEach((i) => {
     if (i.type === "tag") {
       filterState.tags.push(i.value as string)
@@ -53,6 +56,8 @@ const FilterItemsToFilterState = (filterItems: FilterItem[]): FilterState => {
       filterState.statuses.push(i.value as string)
     } else if (i.type === "myVotes") {
       filterState.myVotes = true
+    } else if (i.type === "myPosts") {
+      filterState.myPosts = true
     }
   })
   return filterState
@@ -75,6 +80,7 @@ export const PostFilter = (props: PostFilterProps) => {
 
   if (fider.session.isAuthenticated) {
     options.push({ value: true, label: i18n._("home.postfilter.option.myvotes", { message: "My Votes" }), type: "myVotes" })
+    options.push({ value: true, label: i18n._("home.postfilter.option.myposts", { message: "My Posts" }), type: "myPosts" })
   }
 
   PostStatus.All.filter((s) => s.filterable && props.countPerStatus[s.value]).forEach((s) => {

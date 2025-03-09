@@ -12,6 +12,7 @@ export interface SearchPostsParams {
   offset?: number
   tags?: string[]
   myVotes?: boolean
+  myPosts?: boolean
   statuses?: string[]
 }
 
@@ -26,6 +27,9 @@ export const searchPosts = async (params: SearchPostsParams): Promise<Result<Pos
   })
   if (params.myVotes) {
     qsParams += `&myvotes=true`
+  }
+  if (params.myPosts) {
+    qsParams += `&myposts=true`
   }
   return await http.get<Post[]>(`/api/v1/posts${qsParams}`)
 }
