@@ -86,6 +86,10 @@ func (action *CreateNewPost) Validate(ctx context.Context, user *entity.User) *v
 		result.AddFieldFailure("title", propertyMaxStringLen(ctx, "title", 100))
 	} else if env.Config.PostCreationWithTagsEnabled && len(action.TagSlugs) != len(action.Tags) {
 		result.AddFieldFailure("tags", propertyIsInvalid(ctx, "tags"))
+	} else if action.Description == "" {
+		result.AddFieldFailure("description", propertyIsRequired(ctx, "description"))
+	} else if len(action.Description) < 10 {
+		result.AddFieldFailure("description", i18n.T(ctx, "validation.custom.descriptivedescription"))
 	} else if matches, err := profanity.ContainsProfanity(ctx, action.Title); err == nil && len(matches) > 0 {
 		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.containsprofanity"))
 	} else if matches, err := profanity.ContainsProfanity(ctx, action.Description); err == nil && len(matches) > 0 {
