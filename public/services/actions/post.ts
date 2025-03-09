@@ -14,6 +14,7 @@ export interface SearchPostsParams {
   myVotes?: boolean
   myPosts?: boolean
   statuses?: string[]
+  date?: string
 }
 
 export const searchPosts = async (params: SearchPostsParams): Promise<Result<Post[]>> => {
@@ -24,6 +25,7 @@ export const searchPosts = async (params: SearchPostsParams): Promise<Result<Pos
     view: params.view,
     limit: params.limit,
     offset: params.offset,
+    date: params.date,
   })
   if (params.myVotes) {
     qsParams += `&myvotes=true`

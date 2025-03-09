@@ -82,6 +82,7 @@ func SearchPosts() web.HandlerFunc {
 			Offset:   strconv.Itoa(clientOffset),
 			Tags:     filteredTags,
 			Untagged: untagged,
+			Date:     c.QueryParam("date"),
 		}
 		if myVotesOnly, err := c.QueryParamAsBool("myvotes"); err == nil {
 			searchPosts.MyVotesOnly = myVotesOnly

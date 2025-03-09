@@ -22,6 +22,7 @@ func Index() web.HandlerFunc {
 			Limit:  c.QueryParam("limit"),
 			Tags:   c.QueryParamAsArray("tags"),
 			Offset: c.QueryParam("offset"),
+			Date:   c.QueryParam("date"),
 		}
 
 		if myVotesOnly, err := c.QueryParamAsBool("myvotes"); err == nil {

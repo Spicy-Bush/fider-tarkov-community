@@ -45,6 +45,7 @@ type SearchPosts struct {
 	MyVotesOnly bool
 	MyPostsOnly bool
 	Untagged    bool
+	Date        string
 	Count       int `json:"count,omitempty"`
 
 	Result []*entity.Post

@@ -58,6 +58,27 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 		extraParams = append(extraParams, pq.Array(query.Tags))
 		paramIndex++
 	}
+
+	if query.Date != "" {
+		var interval string
+		switch query.Date {
+		case "1d":
+			interval = "1 day"
+		case "7d":
+			interval = "7 days"
+		case "30d":
+			interval = "30 days"
+		case "6m":
+			interval = "6 months"
+		case "1y":
+			interval = "1 year"
+		}
+
+		if interval != "" {
+			conditions = append(conditions, fmt.Sprintf("created_at >= NOW() - INTERVAL '%s'", interval))
+		}
+	}
+
 	condition := ""
 	if len(conditions) > 0 {
 		condition = "AND " + strings.Join(conditions, " AND ")
