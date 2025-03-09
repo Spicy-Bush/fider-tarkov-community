@@ -48,7 +48,7 @@
   "home.postfilter.option.recent": "Recent",
   "home.postfilter.option.trending": "Trending",
   "home.postfilter.option.controversial": "Controversial",
-  "home.postinput.description.placeholder": "Describe your suggestion (optional)",
+  "home.postinput.description.placeholder": "Describe your suggestion...",
   "home.postscontainer.label.noresults": "No results matched your search, try something different.",
   "home.postscontainer.label.viewmore": "View more posts",
   "home.postscontainer.query.placeholder": "Search",

@@ -28,7 +28,7 @@ const Footer: React.FC = () => {
           </li>
         </ul>
       </nav>
-      <p>© {currentYear} - This website is not affiliated with BSG (Battlestate Games Ltd).</p>
+      <p>© {currentYear} - This website is proudly made by the Spicy Bush Team.</p>
     </footer>
   )
 }
