@@ -33,6 +33,8 @@ type dbPost struct {
 	CommentsCount  int            `db:"comments_count"`
 	RecentVotes    int            `db:"recent_votes_count"`
 	RecentComments int            `db:"recent_comments_count"`
+	Upvotes        int            `db:"upvotes"`
+	Downvotes      int            `db:"downvotes"`
 	Status         int            `db:"status"`
 	Response       sql.NullString `db:"response"`
 	RespondedAt    dbx.NullTime   `db:"response_date"`
@@ -114,7 +116,9 @@ var (
 															SELECT 
 																	post_id, 
 																	SUM(CASE WHEN post_votes.created_at > CURRENT_DATE - INTERVAL '30 days' THEN vote_type ELSE 0 END) as recent,
-																	SUM(vote_type) as all
+																	SUM(vote_type) as all,
+																	SUM(CASE WHEN vote_type > 0 THEN 1 ELSE 0 END) as upvotes,
+																	SUM(CASE WHEN vote_type < 0 THEN 1 ELSE 0 END) as downvotes
 															FROM post_votes 
 															INNER JOIN posts
 															ON posts.id = post_votes.post_id
@@ -131,7 +135,9 @@ var (
 																COALESCE(agg_s.all, 0) as votes_count,
 																COALESCE(agg_c.all, 0) as comments_count,
 																COALESCE(agg_s.recent, 0) AS recent_votes_count,
-																COALESCE(agg_c.recent, 0) AS recent_comments_count,																
+																COALESCE(agg_c.recent, 0) AS recent_comments_count,
+																COALESCE(agg_s.upvotes, 0) AS upvotes,
+																COALESCE(agg_s.downvotes, 0) AS downvotes,																
 																p.status, 
 																u.id AS user_id, 
 																u.name AS user_name, 
