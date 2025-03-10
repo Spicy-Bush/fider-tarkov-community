@@ -46,10 +46,10 @@ export const VotesPanel = (props: VotesPanelProps) => {
           )}
           {totalVotes > 1 ? (
             <Button variant="tertiary" size="small" disabled={!canShowAll} onClick={openModal}>
-              {totalVotes} votes
+              View Details
             </Button>
           ) : (
-            <span>{totalVotes} vote</span>
+            <span>View Details</span>
           )}
         </>
       ) : (
