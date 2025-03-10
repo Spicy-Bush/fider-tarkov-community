@@ -237,14 +237,26 @@ func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error 
 			respondedAt = c.Post.Response.RespondedAt
 		}
 
-		var users []*dbUser
-		err := trx.Select(&users, "SELECT user_id AS id FROM post_votes WHERE post_id = $1 AND tenant_id = $2", c.Post.ID, tenant.ID)
+		var votes []*struct {
+			UserID   int           `db:"user_id"`
+			VoteType enum.VoteType `db:"vote_type"`
+		}
+		err := trx.Select(&votes, "SELECT user_id, vote_type FROM post_votes WHERE post_id = $1 AND tenant_id = $2", c.Post.ID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get votes of post with id '%d'", c.Post.ID)
 		}
 
-		for _, u := range users {
-			err := bus.Dispatch(ctx, &cmd.AddVote{Post: c.Original, User: u.toModel(ctx)})
+		for _, vote := range votes {
+			getUser := &query.GetUserByID{UserID: vote.UserID}
+			if err := bus.Dispatch(ctx, getUser); err != nil {
+				return errors.Wrap(err, "failed to get user with id '%d'", vote.UserID)
+			}
+
+			err := bus.Dispatch(ctx, &cmd.AddVote{
+				Post:     c.Original,
+				User:     getUser.Result,
+				VoteType: vote.VoteType,
+			})
 			if err != nil {
 				return err
 			}
