@@ -3,7 +3,7 @@
 _Last Updated: 2025-02-10_
 
 1. Introduction  
-   Welcome to the Tarkov Community website (the “Site”). We provide a platform for the community to submit, track, and discuss bugs, feedback, and suggestions related to Escape from Tarkov (“the Game”). Our Site is not affiliated with Battlestate Games (“BSG”) and is powered by Fider.
+   Welcome to the Tarkov Community website (the “Site”). We provide a platform for the community to submit, track, and discuss bugs, feedback, and suggestions related to Escape from Tarkov (“the Game”). Our Site is made with <3 from the Spicy Bush Team and is powered by Fider.
 
    Your privacy is important to us. This Privacy Policy explains what information we collect, how we use that information, and the steps we take to protect it.
 

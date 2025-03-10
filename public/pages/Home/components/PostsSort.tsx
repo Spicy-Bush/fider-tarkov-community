@@ -11,6 +11,7 @@ interface PostsSortProps {
 export const PostsSort: React.FC<PostsSortProps> = ({ value = "trending", onChange }) => {
   const options = [
     { value: "trending", label: i18n._("home.postfilter.option.trending", { message: "Trending" }) },
+    { value: "controversial", label: i18n._("home.postfilter.option.controversial", { message: "Controversial" }) },
     { value: "most-wanted", label: i18n._("home.postfilter.option.mostwanted", { message: "Most Wanted" }) },
     { value: "most-discussed", label: i18n._("home.postfilter.option.mostdiscussed", { message: "Most Discussed" }) },
     { value: "recent", label: i18n._("home.postfilter.option.recent", { message: "Recent" }) },

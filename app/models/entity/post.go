@@ -16,7 +16,7 @@ type Post struct {
 	Description   string          `json:"description"`
 	CreatedAt     time.Time       `json:"createdAt"`
 	User          *User           `json:"user"`
-	HasVoted      bool            `json:"hasVoted"`
+	VoteType      int             `json:"voteType"`
 	VotesCount    int             `json:"votesCount"`
 	CommentsCount int             `json:"commentsCount"`
 	Status        enum.PostStatus `json:"status"`

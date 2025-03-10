@@ -82,10 +82,16 @@ func SearchPosts() web.HandlerFunc {
 			Offset:   strconv.Itoa(clientOffset),
 			Tags:     filteredTags,
 			Untagged: untagged,
+			Date:     c.QueryParam("date"),
 		}
 		if myVotesOnly, err := c.QueryParamAsBool("myvotes"); err == nil {
 			searchPosts.MyVotesOnly = myVotesOnly
 		}
+
+		if myPostsOnly, err := c.QueryParamAsBool("myposts"); err == nil {
+			searchPosts.MyPostsOnly = myPostsOnly
+		}
+
 		searchPosts.SetStatusesFromStrings(c.QueryParamAsArray("statuses"))
 
 		if err := bus.Dispatch(c, searchPosts); err != nil {
@@ -117,7 +123,7 @@ func CreatePost() web.HandlerFunc {
 		}
 
 		setAttachments := &cmd.SetAttachments{Post: newPost.Result, Attachments: action.Attachments}
-		addVote := &cmd.AddVote{Post: newPost.Result, User: c.User()}
+		addVote := &cmd.AddVote{Post: newPost.Result, User: c.User(), VoteType: enum.VoteTypeUp}
 		if err = bus.Dispatch(c, setAttachments, addVote); err != nil {
 			return c.Failure(err)
 		}
@@ -434,11 +440,27 @@ func DeleteComment() web.HandlerFunc {
 	}
 }
 
+// AddDownVote adds current user to given post list with -1 for votetype
+func AddDownVote() web.HandlerFunc {
+	return func(c *web.Context) error {
+		err := addOrRemove(c, func(post *entity.Post, user *entity.User) bus.Msg {
+			return &cmd.AddVote{Post: post, User: user, VoteType: enum.VoteTypeDown}
+		})
+
+		if err == nil {
+			// TODO: figure out prometheus metrics for downvotes later
+			metrics.TotalVotes.Inc()
+		}
+
+		return err
+	}
+}
+
 // AddVote adds current user to given post list of votes
 func AddVote() web.HandlerFunc {
 	return func(c *web.Context) error {
 		err := addOrRemove(c, func(post *entity.Post, user *entity.User) bus.Msg {
-			return &cmd.AddVote{Post: post, User: user}
+			return &cmd.AddVote{Post: post, User: user, VoteType: enum.VoteTypeUp}
 		})
 
 		if err == nil {
@@ -479,28 +501,33 @@ func ToggleVote() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		hasVoted := false
+		var existingVote enum.VoteType = 0
 		for _, vote := range listVotes.Result {
 			if vote.User.ID == c.User().ID {
-				hasVoted = true
+				existingVote = vote.VoteType
 				break
 			}
 		}
 
-		if hasVoted {
-			err := bus.Dispatch(c, &cmd.RemoveVote{Post: getPost.Result, User: c.User()})
-			if err != nil {
-				return c.Failure(err)
-			}
-			return c.Ok(web.Map{"voted": false})
+		// If they had UP, switch to DOWN
+		// If they had DOWN, switch to UP
+		// If none, set it to UP by default
+		var newVote enum.VoteType
+		switch existingVote {
+		case enum.VoteTypeUp:
+			newVote = enum.VoteTypeDown
+		case enum.VoteTypeDown:
+			newVote = enum.VoteTypeUp
+		default:
+			newVote = enum.VoteTypeUp
 		}
 
-		err = bus.Dispatch(c, &cmd.AddVote{Post: getPost.Result, User: c.User()})
+		err = bus.Dispatch(c, &cmd.AddVote{Post: getPost.Result, User: c.User(), VoteType: newVote})
 		if err != nil {
 			return c.Failure(err)
 		}
 		metrics.TotalVotes.Inc()
-		return c.Ok(web.Map{"voted": true})
+		return c.Ok(web.Map{"voted": (newVote == enum.VoteTypeUp)})
 	}
 }
 

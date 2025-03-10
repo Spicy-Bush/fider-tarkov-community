@@ -367,6 +367,22 @@ func getUserByProvider(ctx context.Context, q *query.GetUserByProvider) error {
 	})
 }
 
+func getAllUserProviders(ctx context.Context, q *query.GetAllUserProviders) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		err := trx.Select(&q.Result, `
+            SELECT user_id, provider, provider_uid
+            FROM user_providers
+            WHERE tenant_id = $1
+        `, tenant.ID)
+
+		if err != nil {
+			return errors.Wrap(err, "failed to get all user providers")
+		}
+
+		return nil
+	})
+}
+
 func getAllUsers(ctx context.Context, q *query.GetAllUsers) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var users []*dbUser

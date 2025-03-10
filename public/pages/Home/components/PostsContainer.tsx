@@ -10,11 +10,14 @@ import { PostFilter } from "./PostFilter"
 import { ListPosts } from "./ListPosts"
 import { i18n } from "@lingui/core"
 import { PostsSort } from "./PostsSort"
+import { DateFilter } from "./DateFilter"
 
 export interface FilterState {
   tags: string[]
   statuses: string[]
   myVotes: boolean
+  myPosts: boolean
+  date?: string
 }
 
 interface PostsContainerProps {
@@ -60,6 +63,8 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
         tags: querystring.getArray("tags"),
         statuses: querystring.getArray("statuses"),
         myVotes: querystring.get("myvotes") === "true",
+        myPosts: querystring.get("myposts") === "true",
+        date: querystring.get("date") || undefined,
       },
       limit: querystring.getNumber("limit") || 15,
       offset: 0,
@@ -110,6 +115,8 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
         tags: this.state.filterState.tags,
         statuses: this.state.filterState.statuses,
         myVotes: this.state.filterState.myVotes,
+        myPosts: this.state.filterState.myPosts,
+        date: this.state.filterState.date,
       })
       .then((response) => {
         if (response.ok) {
@@ -138,6 +145,8 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
           statuses: this.state.filterState.statuses,
           tags: this.state.filterState.tags,
           myvotes: this.state.filterState.myVotes ? "true" : undefined,
+          myposts: this.state.filterState.myPosts ? "true" : undefined,
+          date: this.state.filterState.date,
           query,
           view: this.state.view,
           limit: this.state.limit,
@@ -151,7 +160,9 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
           this.state.filterState.tags,
           this.state.filterState.statuses,
           this.state.filterState.myVotes,
-          reset
+          this.state.filterState.myPosts,
+          reset,
+          this.state.filterState.date
         )
       })
     })
@@ -164,13 +175,15 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
     tags: string[],
     statuses: string[],
     myVotes: boolean,
-    reset: boolean
+    myPosts: boolean,
+    reset: boolean,
+    date?: string
   ) {
     window.clearTimeout(this.timer)
     this.setState({ posts: reset ? undefined : this.state.posts, loading: true, offset: reset ? 0 : this.state.offset })
     this.timer = window.setTimeout(() => {
       actions
-        .searchPosts({ query, view, limit, tags, statuses, myVotes, offset: this.state.offset })
+        .searchPosts({ query, view, limit, tags, statuses, myVotes, myPosts, date, offset: this.state.offset })
         .then((response) => {
           if (response.ok && this.state.loading) {
             const posts: Post[] = response.data || []
@@ -183,6 +196,11 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
 
   private handleFilterChanged = (filterState: FilterState) => {
     this.changeFilterCriteria({ filterState }, true)
+  }
+
+  private handleDateFilterChanged = (date?: string) => {
+    const filterState = { ...this.state.filterState, date };
+    this.changeFilterCriteria({ filterState }, true);
   }
 
   private handleSearchFilterChanged = (query: string) => {
@@ -208,6 +226,10 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
                 activeFilter={this.state.filterState}
                 filtersChanged={this.handleFilterChanged}
                 countPerStatus={this.props.countPerStatus}
+              />
+              <DateFilter 
+                activeDate={this.state.filterState.date}
+                onChange={this.handleDateFilterChanged}
               />
               <PostsSort onChange={this.handleSortChanged} value={this.state.view} />
             </div>

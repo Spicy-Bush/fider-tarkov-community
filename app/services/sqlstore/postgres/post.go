@@ -28,11 +28,13 @@ type dbPost struct {
 	Description    string         `db:"description"`
 	CreatedAt      time.Time      `db:"created_at"`
 	User           *dbUser        `db:"user"`
-	HasVoted       bool           `db:"has_voted"`
+	VoteType       sql.NullInt32  `db:"vote_type"`
 	VotesCount     int            `db:"votes_count"`
 	CommentsCount  int            `db:"comments_count"`
 	RecentVotes    int            `db:"recent_votes_count"`
 	RecentComments int            `db:"recent_comments_count"`
+	Upvotes        int            `db:"upvotes"`
+	Downvotes      int            `db:"downvotes"`
 	Status         int            `db:"status"`
 	Response       sql.NullString `db:"response"`
 	RespondedAt    dbx.NullTime   `db:"response_date"`
@@ -45,6 +47,11 @@ type dbPost struct {
 }
 
 func (i *dbPost) toModel(ctx context.Context) *entity.Post {
+	voteType := 0
+	if i.VoteType.Valid {
+		voteType = int(i.VoteType.Int32)
+	}
+
 	post := &entity.Post{
 		ID:            i.ID,
 		Number:        i.Number,
@@ -52,7 +59,7 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 		Slug:          i.Slug,
 		Description:   i.Description,
 		CreatedAt:     i.CreatedAt,
-		HasVoted:      i.HasVoted,
+		VoteType:      voteType,
 		VotesCount:    i.VotesCount,
 		CommentsCount: i.CommentsCount,
 		Status:        enum.PostStatus(i.Status),
@@ -107,9 +114,11 @@ var (
 													),
 													agg_votes AS (
 															SELECT 
-															post_id, 
-																	COUNT(CASE WHEN post_votes.created_at > CURRENT_DATE - INTERVAL '30 days'  THEN 1 END) as recent,
-																	COUNT(*) as all
+																	post_id, 
+																	SUM(CASE WHEN post_votes.created_at > CURRENT_DATE - INTERVAL '30 days' THEN vote_type ELSE 0 END) as recent,
+																	SUM(vote_type) as all,
+																	SUM(CASE WHEN vote_type > 0 THEN 1 ELSE 0 END) as upvotes,
+																	SUM(CASE WHEN vote_type < 0 THEN 1 ELSE 0 END) as downvotes
 															FROM post_votes 
 															INNER JOIN posts
 															ON posts.id = post_votes.post_id
@@ -126,7 +135,9 @@ var (
 																COALESCE(agg_s.all, 0) as votes_count,
 																COALESCE(agg_c.all, 0) as comments_count,
 																COALESCE(agg_s.recent, 0) AS recent_votes_count,
-																COALESCE(agg_c.recent, 0) AS recent_comments_count,																
+																COALESCE(agg_c.recent, 0) AS recent_comments_count,
+																COALESCE(agg_s.upvotes, 0) AS upvotes,
+																COALESCE(agg_s.downvotes, 0) AS downvotes,																
 																p.status, 
 																u.id AS user_id, 
 																u.name AS user_name, 
@@ -149,7 +160,7 @@ var (
 																d.slug AS original_slug,
 																d.status AS original_status,
 																COALESCE(agg_t.tags, ARRAY[]::text[]) AS tags,
-																COALESCE(%s, false) AS has_voted
+																%s AS vote_type
 													FROM posts p
 													INNER JOIN users u
 													ON u.id = p.user_id
@@ -226,14 +237,26 @@ func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error 
 			respondedAt = c.Post.Response.RespondedAt
 		}
 
-		var users []*dbUser
-		err := trx.Select(&users, "SELECT user_id AS id FROM post_votes WHERE post_id = $1 AND tenant_id = $2", c.Post.ID, tenant.ID)
+		var votes []*struct {
+			UserID   int           `db:"user_id"`
+			VoteType enum.VoteType `db:"vote_type"`
+		}
+		err := trx.Select(&votes, "SELECT user_id, vote_type FROM post_votes WHERE post_id = $1 AND tenant_id = $2", c.Post.ID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get votes of post with id '%d'", c.Post.ID)
 		}
 
-		for _, u := range users {
-			err := bus.Dispatch(ctx, &cmd.AddVote{Post: c.Original, User: u.toModel(ctx)})
+		for _, vote := range votes {
+			getUser := &query.GetUserByID{UserID: vote.UserID}
+			if err := bus.Dispatch(ctx, getUser); err != nil {
+				return errors.Wrap(err, "failed to get user with id '%d'", vote.UserID)
+			}
+
+			err := bus.Dispatch(ctx, &cmd.AddVote{
+				Post:     c.Original,
+				User:     getUser.Result,
+				VoteType: vote.VoteType,
+			})
 			if err != nil {
 				return err
 			}
@@ -451,7 +474,12 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 			}
 			err = trx.Select(&posts, sql, tenant.ID, pq.Array(statuses), ToTSQuery(q.Query), SanitizeString(q.Query))
 		} else {
-			condition, statuses, sort := getViewData(*q)
+			userID := 0
+			if user != nil {
+				userID = user.ID
+			}
+
+			condition, statuses, sort, extraParams := getViewData(*q, userID)
 			sql := fmt.Sprintf(`
 				SELECT * FROM (%s) AS q 
 				WHERE 1 = 1 %s
@@ -459,9 +487,7 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 				LIMIT %s OFFSET %s
 			`, innerQuery, condition, sort, q.Limit, q.Offset)
 			params := []interface{}{tenant.ID, pq.Array(statuses)}
-			if len(q.Tags) > 0 {
-				params = append(params, pq.Array(q.Tags))
-			}
+			params = append(params, extraParams...)
 			err = trx.Select(&posts, sql, params...)
 		}
 
@@ -503,9 +529,9 @@ func buildPostQuery(user *entity.User, filter string) string {
 	if user != nil && (user.IsCollaborator() || user.IsModerator()) {
 		tagCondition = ``
 	}
-	hasVotedSubQuery := "null"
+	voteTypeSubQuery := "NULL"
 	if user != nil {
-		hasVotedSubQuery = fmt.Sprintf("(SELECT true FROM post_votes WHERE post_id = p.id AND user_id = %d)", user.ID)
+		voteTypeSubQuery = fmt.Sprintf("(SELECT vote_type FROM post_votes WHERE post_id = p.id AND user_id = %d LIMIT 1)", user.ID)
 	}
-	return fmt.Sprintf(sqlSelectPostsWhere, tagCondition, hasVotedSubQuery, filter)
+	return fmt.Sprintf(sqlSelectPostsWhere, tagCondition, voteTypeSubQuery, filter)
 }

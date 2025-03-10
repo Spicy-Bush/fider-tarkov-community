@@ -100,6 +100,7 @@ func (s Service) Init() {
 	bus.AddHandler(getUserByEmail)
 	bus.AddHandler(getUserByID)
 	bus.AddHandler(getUserByProvider)
+	bus.AddHandler(getAllUserProviders)
 	bus.AddHandler(getAllUsers)
 	bus.AddHandler(getAllUsersNames)
 

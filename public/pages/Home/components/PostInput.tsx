@@ -77,7 +77,7 @@ export const PostInput = (props: PostInputProps) => {
         onChange={handleDescriptionChange}
         value={description}
         minRows={5}
-        placeholder={i18n._("home.postinput.description.placeholder", { message: "Describe your suggestion (optional)" })}
+        placeholder={i18n._("home.postinput.description.placeholder", { message: "Describe your suggestion..." })}
       />
       <MultiImageUploader field="attachments" maxUploads={3} onChange={setAttachments} />
       <Button type="submit" variant="primary" onClick={submit}>

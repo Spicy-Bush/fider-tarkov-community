@@ -17,6 +17,10 @@ services:
     environment:
       POSTGRES_USER: fider
       POSTGRES_PASSWORD: fider_pw
+    networks:
+      bw-services:
+        aliases:
+          - pgdev
   pgtest:
     container_name: fider_pgtest
     restart: always
@@ -26,6 +30,8 @@ services:
     environment:
       POSTGRES_USER: fider_test
       POSTGRES_PASSWORD: fider_test_pw
+    networks:
+      - bw-services
   s3test:
     container_name: fider_s3test
     restart: always
@@ -39,6 +45,13 @@ services:
       MINIO_ACCESS_KEY: s3user
       MINIO_SECRET_KEY: s3user-s3cr3t
     command: server /data --console-address ":9001"
+    networks:
+      - bw-services
+
+networks:
+  bw-services:
+    external: true
+    name: bw-services
 
 volumes:
   pgdev-data:

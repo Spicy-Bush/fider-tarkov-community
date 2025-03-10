@@ -9,7 +9,7 @@ By accessing or using the Tarkov Community website (the “Site”), you agree t
 
 ## 2. Description of the Service
 - We provide a community-driven platform for users to submit, vote on, and discuss feedback, bug reports, and suggestions related to Escape from Tarkov (“the Game”).  
-- Not Affiliated with Battlestate Games (BSG): This Site is an independent project and is not affiliated with BSG.  
+- This Site is an independent project ran by the Spicy Bush Team. 
 - Powered by Fider: We utilise the Fider platform to manage posts and user interactions, though we host it ourselves.
 
 ---

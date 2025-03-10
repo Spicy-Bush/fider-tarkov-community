@@ -9,7 +9,7 @@ export interface Post {
   createdAt: string
   status: string
   user: User
-  hasVoted: boolean
+  voteType: number
   response: PostResponse | null
   votesCount: number
   commentsCount: number

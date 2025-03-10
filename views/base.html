@@ -28,6 +28,9 @@
   <meta property="og:type" content="website" />
   <meta property="og:url" content="{{ .private.currentURL }}" />
   <meta property="og:image" content="{{ .private.logo }}">
+  {{ if eq .public.settings.environment "development" }}
+  <meta name="robots" content="noindex">
+  {{ end }}
 </head>
 <body>
   {{block "noscript" .}}{{end}}

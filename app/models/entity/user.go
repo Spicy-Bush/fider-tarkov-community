@@ -47,8 +47,9 @@ func (u *User) IsModerator() bool {
 
 // UserProvider represents the relationship between an User and an Authentication provide
 type UserProvider struct {
-	Name string
-	UID  string
+	UserID int    `json:"user_id" db:"user_id"`
+	Name   string `json:"provider" db:"provider"`
+	UID    string `json:"provider_uid" db:"provider_uid"`
 }
 
 // UserWithEmail is a wrapper around User that includes the email field when marshaling to JSON
@@ -58,11 +59,22 @@ type UserWithEmail struct {
 
 func (umc UserWithEmail) MarshalJSON() ([]byte, error) {
 	type Alias User // Prevent recursion
+
+	providerInfo := make([]map[string]string, len(umc.User.Providers))
+	for i, provider := range umc.User.Providers {
+		providerInfo[i] = map[string]string{
+			"name": provider.Name,
+			"uid":  provider.UID,
+		}
+	}
+
 	return json.Marshal(&struct {
 		*Alias
-		Email string `json:"email"`
+		Email     string              `json:"email"`
+		Providers []map[string]string `json:"providers"`
 	}{
-		Alias: (*Alias)(umc.User),
-		Email: umc.User.Email,
+		Alias:     (*Alias)(umc.User),
+		Email:     umc.User.Email,
+		Providers: providerInfo,
 	})
 }

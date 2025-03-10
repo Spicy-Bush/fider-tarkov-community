@@ -16,6 +16,7 @@
   "validation.custom.differentemail": "Choose a different email.",
   "validation.custom.emailtaken": "This email is already in use by someone else",
   "validation.custom.descriptivetitle": "Title needs to be more descriptive.",
+  "validation.custom.descriptivedescription": "Description needs to be more descriptive.",
   "validation.custom.containsprofanity": "Excessive profanity is not allowed.",
   "validation.custom.duplicatetitle": "This has already been posted before.",
   "validation.custom.toomanyposts": "You have reached the maximum number of posts for today.",
