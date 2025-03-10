@@ -44,13 +44,9 @@ export const VotesPanel = (props: VotesPanelProps) => {
               <AvatarStack users={props.votes.map((x) => x.user)} overlap={false} />
             </HStack>
           )}
-          {totalVotes > 1 ? (
-            <Button variant="tertiary" size="small" disabled={!canShowAll} onClick={openModal}>
+          <Button variant="tertiary" size="small" disabled={!canShowAll} onClick={openModal}>
               View Details
-            </Button>
-          ) : (
-            <span>View Details</span>
-          )}
+          </Button>
         </>
       ) : (
         <span className="text-muted">
