@@ -75,41 +75,36 @@ func getNameFromBlobKey(ctx context.Context, q *query.GetNameFromBlobKey) error 
 func isImageFileInUse(ctx context.Context, q *query.IsImageFileInUse) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		usageLocations := []string{}
+		q.Result = false
 
-		var logoCount int
-		err := trx.Get(&logoCount, "SELECT COUNT(*) FROM tenants WHERE logo_bkey = $1 AND id = $2", q.BlobKey, tenant.ID)
-		if err != nil {
-			return errors.Wrap(err, "failed to check tenant logo usage")
+		var usageCount struct {
+			LogoCount       int `db:"logo_count"`
+			AvatarCount     int `db:"avatar_count"`
+			AttachmentCount int `db:"attachment_count"`
 		}
 
-		if logoCount > 0 {
+		err := trx.Get(&usageCount, `
+			SELECT 
+				(SELECT COUNT(*) FROM tenants WHERE logo_bkey = $1 AND id = $2) AS logo_count,
+				(SELECT COUNT(*) FROM users WHERE avatar_bkey = $1) AS avatar_count,
+				(SELECT COUNT(*) FROM attachments WHERE attachment_bkey = $1 AND tenant_id = $2) AS attachment_count
+		`, q.BlobKey, tenant.ID)
+
+		if err != nil {
+			return errors.Wrap(err, "failed to check file usage")
+		}
+
+		if usageCount.LogoCount > 0 {
 			usageLocations = append(usageLocations, "Tenant Logo")
 			q.Result = true
 		}
 
-		var avatarCount int
-		err = trx.Get(&avatarCount, "SELECT COUNT(*) FROM users WHERE avatar_bkey = $1", q.BlobKey)
-		if err != nil {
-			return errors.Wrap(err, "failed to check user avatar usage")
-		}
-
-		if avatarCount > 0 {
+		if usageCount.AvatarCount > 0 {
 			usageLocations = append(usageLocations, "User Avatar")
 			q.Result = true
 		}
 
-		var attachmentCount int
-		err = trx.Get(&attachmentCount, `
-			SELECT COUNT(*) 
-			FROM attachments a
-			WHERE a.attachment_bkey = $1 AND a.tenant_id = $2
-		`, q.BlobKey, tenant.ID)
-
-		if err != nil {
-			return errors.Wrap(err, "failed to check attachment usage")
-		}
-
-		if attachmentCount > 0 {
+		if usageCount.AttachmentCount > 0 {
 			q.Result = true
 
 			rows, err := trx.Query(`
@@ -173,18 +168,24 @@ func getImageFile(ctx context.Context, q *query.GetImageFile) error {
 		return errors.Wrap(err, "failed to get blob")
 	}
 
-	isInUseQuery := &query.IsImageFileInUse{
-		BlobKey: q.BlobKey,
-	}
-	if err := bus.Dispatch(ctx, isInUseQuery); err != nil {
-		return errors.Wrap(err, "failed to check if file is in use")
-	}
+	errChan := make(chan error, 2)
+	var isInUseQuery query.IsImageFileInUse
+	var nameQuery query.GetNameFromBlobKey
 
-	nameQuery := &query.GetNameFromBlobKey{
-		BlobKey: q.BlobKey,
-	}
-	if err := bus.Dispatch(ctx, nameQuery); err != nil {
-		return errors.Wrap(err, "failed to get name from blob key")
+	go func() {
+		isInUseQuery.BlobKey = q.BlobKey
+		errChan <- bus.Dispatch(ctx, &isInUseQuery)
+	}()
+
+	go func() {
+		nameQuery.BlobKey = q.BlobKey
+		errChan <- bus.Dispatch(ctx, &nameQuery)
+	}()
+
+	for i := 0; i < 2; i++ {
+		if err := <-errChan; err != nil {
+			return errors.Wrap(err, "failed to get file info")
+		}
 	}
 
 	q.Result = &dto.FileInfo{
@@ -194,6 +195,7 @@ func getImageFile(ctx context.Context, q *query.GetImageFile) error {
 		ContentType: blobQuery.Result.ContentType,
 		CreatedAt:   time.Now(), // TODO: add created at to blobs - why was this not added?
 		IsInUse:     isInUseQuery.Result,
+		UsedIn:      isInUseQuery.UsedIn,
 	}
 
 	return nil
@@ -301,27 +303,35 @@ func renameImageFile(ctx context.Context, c *cmd.RenameImageFile) error {
 
 func deleteImageFileReferences(ctx context.Context, c *cmd.DeleteImageFileReferences) error {
 	blob.EnsureAuthorizedPrefix(ctx, c.BlobKey)
+
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		_, err := trx.Execute(
-			"UPDATE tenants SET logo_bkey = NULL WHERE logo_bkey = $1 AND id = $2",
-			c.BlobKey, tenant.ID)
-		if err != nil {
-			return errors.Wrap(err, "failed to remove from tenant logos")
+		queries := []struct {
+			query string
+			args  []interface{}
+			desc  string
+		}{
+			{
+				query: "UPDATE tenants SET logo_bkey = NULL WHERE logo_bkey = $1 AND id = $2",
+				args:  []interface{}{c.BlobKey, tenant.ID},
+				desc:  "remove from tenant logos",
+			},
+			{
+				query: "UPDATE users SET avatar_bkey = '', avatar_type = $1 WHERE avatar_bkey = $2",
+				args:  []interface{}{enum.AvatarTypeLetter, c.BlobKey},
+				desc:  "remove from user avatars",
+			},
+			{
+				query: "DELETE FROM attachments WHERE attachment_bkey = $1 AND tenant_id = $2",
+				args:  []interface{}{c.BlobKey, tenant.ID},
+				desc:  "delete from attachments",
+			},
 		}
 
-		_, err = trx.Execute(
-			"UPDATE users SET avatar_bkey = '', avatar_type = $1 WHERE avatar_bkey = $2",
-			enum.AvatarTypeLetter,
-			c.BlobKey)
-		if err != nil {
-			return errors.Wrap(err, "failed to remove from user avatars")
-		}
-
-		_, err = trx.Execute(
-			"DELETE FROM attachments WHERE attachment_bkey = $1 AND tenant_id = $2",
-			c.BlobKey, tenant.ID)
-		if err != nil {
-			return errors.Wrap(err, "failed to delete from attachments")
+		for _, q := range queries {
+			_, err := trx.Execute(q.query, q.args...)
+			if err != nil {
+				return errors.Wrap(err, "failed to "+q.desc)
+			}
 		}
 
 		return nil
@@ -357,25 +367,33 @@ func updateImageFileReferences(ctx context.Context, c *cmd.UpdateImageFileRefere
 	blob.EnsureAuthorizedPrefix(ctx, c.NewBlobKey)
 
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		_, err := trx.Execute(
-			"UPDATE tenants SET logo_bkey = $1 WHERE logo_bkey = $2 AND id = $3",
-			c.NewBlobKey, c.OldBlobKey, tenant.ID)
-		if err != nil {
-			return errors.Wrap(err, "failed to update tenant logos")
+		queries := []struct {
+			query string
+			args  []interface{}
+			desc  string
+		}{
+			{
+				query: "UPDATE tenants SET logo_bkey = $1 WHERE logo_bkey = $2 AND id = $3",
+				args:  []interface{}{c.NewBlobKey, c.OldBlobKey, tenant.ID},
+				desc:  "update tenant logos",
+			},
+			{
+				query: "UPDATE users SET avatar_bkey = $1 WHERE avatar_bkey = $2",
+				args:  []interface{}{c.NewBlobKey, c.OldBlobKey},
+				desc:  "update user avatars",
+			},
+			{
+				query: "UPDATE attachments SET attachment_bkey = $1 WHERE attachment_bkey = $2",
+				args:  []interface{}{c.NewBlobKey, c.OldBlobKey},
+				desc:  "update attachments",
+			},
 		}
 
-		_, err = trx.Execute(
-			"UPDATE users SET avatar_bkey = $1 WHERE avatar_bkey = $2",
-			c.NewBlobKey, c.OldBlobKey)
-		if err != nil {
-			return errors.Wrap(err, "failed to update user avatars")
-		}
-
-		_, err = trx.Execute(
-			"UPDATE attachments SET attachment_bkey = $1 WHERE attachment_bkey = $2",
-			c.NewBlobKey, c.OldBlobKey)
-		if err != nil {
-			return errors.Wrap(err, "failed to update attachments")
+		for _, q := range queries {
+			_, err := trx.Execute(q.query, q.args...)
+			if err != nil {
+				return errors.Wrap(err, "failed to "+q.desc)
+			}
 		}
 
 		return nil
@@ -390,49 +408,41 @@ func listImageFiles(ctx context.Context, q *query.ListImageFiles) error {
 		return errors.Wrap(err, "failed to list blobs")
 	}
 
-	allFiles := make([]*dto.FileInfo, 0)
+	validPrefixes := []string{"files/", "attachments/", "avatars/", "logos/"}
+	filteredKeys := make([]string, 0, len(listQuery.Result))
 
 	for _, blobKey := range listQuery.Result {
-		if !strings.HasPrefix(blobKey, "files/") &&
-			!strings.HasPrefix(blobKey, "attachments/") &&
-			!strings.HasPrefix(blobKey, "avatars/") &&
-			!strings.HasPrefix(blobKey, "logos/") {
-			continue
+		valid := false
+		for _, prefix := range validPrefixes {
+			if strings.HasPrefix(blobKey, prefix) {
+				valid = true
+				break
+			}
 		}
 
-		blobQuery := &query.GetBlobByKey{
-			Key: blobKey,
+		if valid {
+			if q.Search != "" {
+				searchLower := strings.ToLower(q.Search)
+				if !strings.Contains(strings.ToLower(blobKey), searchLower) {
+					continue
+				}
+			}
+			filteredKeys = append(filteredKeys, blobKey)
 		}
-		blobErr := bus.Dispatch(ctx, blobQuery)
-		if blobErr != nil {
-			continue // ???
+	}
+
+	allFiles := make([]*dto.FileInfo, 0, len(filteredKeys))
+	batchSize := 20
+
+	for i := 0; i < len(filteredKeys); i += batchSize {
+		end := i + batchSize
+		if end > len(filteredKeys) {
+			end = len(filteredKeys)
 		}
 
-		isInUseQuery := &query.IsImageFileInUse{
-			BlobKey: blobKey,
-		}
-		if err := bus.Dispatch(ctx, isInUseQuery); err != nil {
-			return errors.Wrap(err, "failed to check if file is in use")
-		}
-
-		nameQuery := &query.GetNameFromBlobKey{
-			BlobKey: blobKey,
-		}
-		if err := bus.Dispatch(ctx, nameQuery); err != nil {
-			return errors.Wrap(err, "failed to get name from blob key")
-		}
-
-		fileInfo := &dto.FileInfo{
-			Name:        nameQuery.Result,
-			BlobKey:     blobKey,
-			Size:        blobQuery.Result.Size,
-			ContentType: blobQuery.Result.ContentType,
-			CreatedAt:   time.Now(),
-			IsInUse:     isInUseQuery.Result,
-			UsedIn:      isInUseQuery.UsedIn,
-		}
-
-		allFiles = append(allFiles, fileInfo)
+		batch := filteredKeys[i:end]
+		batchFiles := processFileBatch(ctx, batch)
+		allFiles = append(allFiles, batchFiles...)
 	}
 
 	filteredFiles := allFiles
@@ -441,8 +451,7 @@ func listImageFiles(ctx context.Context, q *query.ListImageFiles) error {
 		filteredFiles = make([]*dto.FileInfo, 0)
 		for _, file := range allFiles {
 			if strings.Contains(strings.ToLower(file.Name), searchLower) ||
-				strings.Contains(strings.ToLower(file.ContentType), searchLower) ||
-				strings.Contains(strings.ToLower(file.BlobKey), searchLower) {
+				strings.Contains(strings.ToLower(file.ContentType), searchLower) {
 				filteredFiles = append(filteredFiles, file)
 			}
 		}
@@ -490,4 +499,46 @@ func listImageFiles(ctx context.Context, q *query.ListImageFiles) error {
 	q.TotalPages = totalPages
 
 	return nil
+}
+
+func processFileBatch(ctx context.Context, blobKeys []string) []*dto.FileInfo {
+	results := make([]*dto.FileInfo, 0, len(blobKeys))
+
+	for _, blobKey := range blobKeys {
+		blobQuery := &query.GetBlobByKey{
+			Key: blobKey,
+		}
+		blobErr := bus.Dispatch(ctx, blobQuery)
+		if blobErr != nil {
+			continue
+		}
+
+		isInUseQuery := &query.IsImageFileInUse{
+			BlobKey: blobKey,
+		}
+		if err := bus.Dispatch(ctx, isInUseQuery); err != nil {
+			continue
+		}
+
+		nameQuery := &query.GetNameFromBlobKey{
+			BlobKey: blobKey,
+		}
+		if err := bus.Dispatch(ctx, nameQuery); err != nil {
+			continue
+		}
+
+		fileInfo := &dto.FileInfo{
+			Name:        nameQuery.Result,
+			BlobKey:     blobKey,
+			Size:        blobQuery.Result.Size,
+			ContentType: blobQuery.Result.ContentType,
+			CreatedAt:   time.Now(),
+			IsInUse:     isInUseQuery.Result,
+			UsedIn:      isInUseQuery.UsedIn,
+		}
+
+		results = append(results, fileInfo)
+	}
+
+	return results
 }
