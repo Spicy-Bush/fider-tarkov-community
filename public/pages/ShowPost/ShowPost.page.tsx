@@ -20,7 +20,6 @@ import {
   ImageViewer,
   Icon,
   Header,
-  PoweredByFider,
   Avatar,
   Dropdown,
 } from "@fider/components"
@@ -317,7 +316,6 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
             </div>
             <div className="p-show-post__action-col">
               <VotesPanel post={this.props.post} votes={this.props.votes} />
-              <PoweredByFider slot="show-post" className="mt-3" />
             </div>
           </div>
         </div>
