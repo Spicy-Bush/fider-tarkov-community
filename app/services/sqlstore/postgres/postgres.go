@@ -75,6 +75,16 @@ func (s Service) Init() {
 	bus.AddHandler(uploadImage)
 	bus.AddHandler(uploadImages)
 
+	bus.AddHandler(getNameFromBlobKey)
+	bus.AddHandler(isImageFileInUse)
+	bus.AddHandler(getImageFile)
+	bus.AddHandler(uploadImageFile)
+	bus.AddHandler(renameImageFile)
+	bus.AddHandler(deleteImageFile)
+	bus.AddHandler(deleteImageFileReferences)
+	bus.AddHandler(updateImageFileReferences)
+	bus.AddHandler(listImageFiles)
+
 	bus.AddHandler(addNewComment)
 	bus.AddHandler(updateComment)
 	bus.AddHandler(toggleCommentReaction)

@@ -107,6 +107,13 @@ func listBlobs(ctx context.Context, q *query.ListBlobs) error {
 }
 
 func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
+	// see: filemanagement page
+	if strings.HasPrefix(q.Key, "files/") {
+		user, ok := ctx.Value(app.UserCtxKey).(*entity.User)
+		if !ok || user == nil || !user.IsAdministrator() {
+			return blob.ErrNotFound
+		}
+	}
 	resp, err := DefaultClient.GetObjectWithContext(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(env.Config.BlobStorage.S3.BucketName),
 		Key:    aws.String(keyFullPathURL(ctx, q.Key)),

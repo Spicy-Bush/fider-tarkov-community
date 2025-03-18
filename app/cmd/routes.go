@@ -156,6 +156,7 @@ func routes(r *web.Engine) *web.Engine {
 
 		ui.Get("/admin/export", handlers.Page("Export · Site Settings", "", "Administration/pages/Export.page"))
 		ui.Get("/admin/export/posts.csv", handlers.ExportPostsToCSV())
+		ui.Get("/admin/files", handlers.FileManagementPage())
 		ui.Get("/admin/export/backup.zip", handlers.ExportBackupZip())
 		ui.Get("/admin/webhooks", handlers.ManageWebhooks())
 		ui.Post("/_api/admin/webhook", handlers.CreateWebhook())
@@ -248,6 +249,12 @@ func routes(r *web.Engine) *web.Engine {
 		adminApi.Post("/api/v1/tags", apiv1.CreateEditTag())
 		adminApi.Put("/api/v1/tags/:slug", apiv1.CreateEditTag())
 		adminApi.Delete("/api/v1/tags/:slug", apiv1.DeleteTag())
+
+		adminApi.Get("/api/v1/admin/files", handlers.ListFiles())
+		adminApi.Post("/api/v1/admin/files", handlers.UploadFile())
+		adminApi.Put("/api/v1/admin/files/:blobKey/*path", handlers.RenameFile())
+		adminApi.Delete("/api/v1/admin/files/:blobKey/*path", handlers.DeleteFile())
+		adminApi.Get("/api/v1/admin/files/:blobKey/usage/*path", handlers.GetFileUsage())
 
 		adminApi.Use(middlewares.BlockLockedTenants())
 

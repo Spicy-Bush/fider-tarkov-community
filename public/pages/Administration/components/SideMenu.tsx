@@ -41,15 +41,16 @@ export const SideMenu = (props: SiteMenuProps) => {
     <div className="js-admin-menu sm:hidden md:hidden lg:block">
       <VStack spacing={0} className="c-side-menu rounded-md shadow bg-white">
         <SideMenuItem name="general" title="General" href="/admin" isActive={activeItem === "general"} />
-        <SideMenuItem name="privacy" title="Privacy" href="/admin/privacy" isActive={activeItem === "privacy"} />
         <SideMenuItem name="members" title="Members" href="/admin/members" isActive={activeItem === "members"} />
         <SideMenuItem name="tags" title="Tags" href="/admin/tags" isActive={activeItem === "tags"} />
-        <SideMenuItem name="invitations" title="Invitations" href="/admin/invitations" isActive={activeItem === "invitations"} />
-        <SideMenuItem name="authentication" title="Authentication" href="/admin/authentication" isActive={activeItem === "authentication"} />
-        <SideMenuItem name="advanced" title="Advanced" href="/admin/advanced" isActive={activeItem === "advanced"} />
         {fider.session.user.isAdministrator && (
           <>
+            <SideMenuItem name="privacy" title="Privacy" href="/admin/privacy" isActive={activeItem === "privacy"} />
+            <SideMenuItem name="invitations" title="Invitations" href="/admin/invitations" isActive={activeItem === "invitations"} />
+            <SideMenuItem name="authentication" title="Authentication" href="/admin/authentication" isActive={activeItem === "authentication"} />
+            <SideMenuItem name="advanced" title="Advanced" href="/admin/advanced" isActive={activeItem === "advanced"} />
             {fider.settings.isBillingEnabled && <SideMenuItem name="billing" title="Billing" href="/admin/billing" isActive={activeItem === "billing"} />}
+            <SideMenuItem name="files" title="Files" href="/admin/files" isActive={activeItem === "files"} />
             <SideMenuItem name="webhooks" title="Webhooks" href="/admin/webhooks" isActive={activeItem === "webhooks"} />
             <SideMenuItem name="export" title="Export" href="/admin/export" isActive={activeItem === "export"} />
           </>
