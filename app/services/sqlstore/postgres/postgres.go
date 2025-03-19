@@ -101,6 +101,7 @@ func (s Service) Init() {
 	bus.AddHandler(deleteCurrentUser)
 	bus.AddHandler(changeUserEmail)
 	bus.AddHandler(changeUserRole)
+	bus.AddHandler(changeUserVisualRole)
 	bus.AddHandler(updateCurrentUserSettings)
 	bus.AddHandler(getCurrentUserSettings)
 	bus.AddHandler(registerUser)

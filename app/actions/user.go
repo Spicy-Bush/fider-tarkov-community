@@ -20,6 +20,11 @@ type CreateUser struct {
 	Reference string `json:"reference"`
 }
 
+type ChangeUserVisualRole struct {
+	VisualRole enum.VisualRole `route:"visualRole"`
+	UserID     int             `json:"userID"`
+}
+
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *CreateUser) IsAuthorized(ctx context.Context, user *entity.User) bool {
 	return user != nil && user.IsAdministrator()
@@ -59,6 +64,13 @@ type ChangeUserRole struct {
 	UserID int       `json:"userID"`
 }
 
+func (action *ChangeUserVisualRole) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	if user == nil {
+		return false
+	}
+	return user.IsAdministrator()
+}
+
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *ChangeUserRole) IsAuthorized(ctx context.Context, user *entity.User) bool {
 	if user == nil {
@@ -76,6 +88,28 @@ func (action *ChangeUserRole) Validate(ctx context.Context, user *entity.User) *
 
 	if user.ID == action.UserID {
 		result.AddFieldFailure("userID", "It is not allowed to change your own Role.")
+	}
+
+	userByID := &query.GetUserByID{UserID: action.UserID}
+	err := bus.Dispatch(ctx, userByID)
+	if err != nil {
+		if errors.Cause(err) == app.ErrNotFound {
+			result.AddFieldFailure("userID", "User not found.")
+		} else {
+			return validate.Error(err)
+		}
+	} else if userByID.Result.Tenant.ID != user.Tenant.ID {
+		result.AddFieldFailure("userID", "User not found.")
+	}
+	return result
+}
+
+func (action *ChangeUserVisualRole) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	if !action.VisualRole.IsValid() {
+		result.AddFieldFailure("visualRole", "Visual role is invalid.")
+		return result
 	}
 
 	userByID := &query.GetUserByID{UserID: action.UserID}

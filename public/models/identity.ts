@@ -19,11 +19,25 @@ export enum TenantStatus {
   Disabled = 4,
 }
 
+export enum VisualRole {
+  None = 0,
+  Visitor = 1,
+  Helpful = 2,
+  Administrator = 3,
+  Moderator = 4,
+  BSGCrew = 5,
+  Developer = 6,
+  Sherpa = 7,
+  TCStaff = 8,
+  Emissary = 9
+}
+
 export interface User {
   id: number
   name: string
   email?: string
   role: UserRole
+  visualRole?: VisualRole
   status: UserStatus
   avatarURL: string
   providers?: Array<{
@@ -76,8 +90,26 @@ export interface CurrentUser {
   avatarBlobKey: string
   avatarURL: string
   role: UserRole
+  visualRole?: VisualRole
   status: UserStatus
   isAdministrator: boolean
   isCollaborator: boolean
   isModerator: boolean
+}
+
+export const getVisualRoleName = (visualRole?: VisualRole): string => {
+  if (visualRole === undefined || visualRole === VisualRole.None) return "";
+  
+  switch (visualRole) {
+    case VisualRole.Visitor: return "Visitor";
+    case VisualRole.Helpful: return "Helpful";
+    case VisualRole.Administrator: return "Administrator";
+    case VisualRole.Moderator: return "Moderator";
+    case VisualRole.BSGCrew: return "BSG Crew";
+    case VisualRole.Developer: return "Developer";
+    case VisualRole.Sherpa: return "Sherpa";
+    case VisualRole.TCStaff: return "TC Staff";
+    case VisualRole.Emissary: return "Emissary";
+    default: return "";
+  }
 }

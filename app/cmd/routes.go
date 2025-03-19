@@ -171,6 +171,7 @@ func routes(r *web.Engine) *web.Engine {
 		ui.Post("/_api/admin/settings/emailauth", handlers.UpdateEmailAuthAllowed())
 		ui.Post("/_api/admin/oauth", handlers.SaveOAuthConfig())
 		ui.Post("/_api/admin/roles/:role/users", handlers.ChangeUserRole())
+		ui.Post("/_api/admin/visualroles/:visualRole/users", handlers.ChangeUserVisualRole())
 		ui.Put("/_api/admin/users/:userID/block", handlers.BlockUser())
 		ui.Delete("/_api/admin/users/:userID/block", handlers.UnblockUser())
 		ui.Post("/_api/admin/settings/profanity", handlers.UpdateProfanityWords())

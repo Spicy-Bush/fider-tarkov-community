@@ -1,7 +1,7 @@
 import "./UserName.scss"
 
 import React from "react"
-import { isAdministrator, isCollaborator, isModerator, UserRole } from "@fider/models"
+import { isAdministrator, isCollaborator, isModerator, UserRole, VisualRole, getVisualRoleName } from "@fider/models"
 import { classSet } from "@fider/services"
 
 interface UserNameProps {
@@ -9,6 +9,7 @@ interface UserNameProps {
     id: number
     name: string
     role?: UserRole
+    visualRole?: VisualRole
     email?: string
   }
   showEmail?: boolean
@@ -18,12 +19,45 @@ export const UserName = (props: UserNameProps) => {
   const isStaff = props.user.role && isCollaborator(props.user.role)
   const isMod = props.user.role && isModerator(props.user.role)
   const isAdmin = props.user.role && isAdministrator(props.user.role)
-  const className = classSet({
+  
+  const getDefaultVisualRole = (): VisualRole => {
+    if (!props.user.role) return VisualRole.Visitor
+    
+    if (isAdmin) return VisualRole.Administrator
+    if (isMod) return VisualRole.Moderator
+    if (isStaff) return VisualRole.BSGCrew
+    return VisualRole.Visitor
+  }
+  
+  let visualRole: VisualRole = VisualRole.None
+  
+  if (props.user.visualRole !== undefined && props.user.visualRole !== 0) {
+    visualRole = props.user.visualRole
+  } else {
+    visualRole = getDefaultVisualRole()
+  }
+  
+  const classNames: Record<string, boolean> = {
     "c-username": true,
-    "c-username--Moderator": isMod,
-    "c-username--BSG": isStaff,
-    "c-username--Admin": isAdmin,
-  })
+  }
+  
+  if (isAdmin) {
+    classNames["c-username--Admin"] = true
+  } else if (isMod) {
+    classNames["c-username--Moderator"] = true
+  } else if (isStaff) {
+    classNames["c-username--BSG"] = true
+  }
+  
+  if (visualRole !== VisualRole.None) {
+    classNames[`vr-${visualRole}`] = true
+  }
+  
+  const className = classSet(classNames)
+  const visualRoleName = getVisualRoleName(visualRole)
+
+  console.log("User visual role:", visualRole);
+  console.log("Class names:", classNames);
 
   return (
     <div className={className}>
@@ -40,6 +74,10 @@ export const UserName = (props: UserNameProps) => {
             ></path>
           </svg>
         </div>
+      )}
+      
+      {visualRoleName && visualRole !== VisualRole.Visitor && (
+        <span className="c-username--visualrole">({visualRoleName})</span>
       )}
     </div>
   )

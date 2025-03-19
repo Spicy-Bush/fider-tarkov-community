@@ -254,6 +254,7 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 			"name":            u.Name,
 			"email":           u.Email,
 			"role":            u.Role,
+			"visualRole":      u.VisualRole,
 			"status":          u.Status,
 			"avatarType":      u.AvatarType,
 			"avatarURL":       u.AvatarURL,
