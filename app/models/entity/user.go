@@ -95,8 +95,9 @@ func (umc UserWithEmail) MarshalJSON() ([]byte, error) {
 		VisualRole enum.VisualRole     `json:"visualRole"`
 		Providers  []map[string]string `json:"providers"`
 	}{
-		Alias:     (*Alias)(umc.User),
-		Email:     umc.User.Email,
-		Providers: providerInfo,
+		Alias:      (*Alias)(umc.User),
+		Email:      umc.User.Email,
+		VisualRole: umc.User.VisualRole,
+		Providers:  providerInfo,
 	})
 }
