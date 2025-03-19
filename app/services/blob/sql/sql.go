@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
@@ -81,6 +82,13 @@ func listBlobs(ctx context.Context, q *query.ListBlobs) error {
 }
 
 func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
+	// see: filemanagement page
+	if strings.HasPrefix(q.Key, "files/") {
+		user, ok := ctx.Value(app.UserCtxKey).(*entity.User)
+		if !ok || user == nil || !user.IsAdministrator() {
+			return blob.ErrNotFound
+		}
+	}
 	blob.EnsureAuthorizedPrefix(ctx, q.Key)
 
 	return using(ctx, func(tenantID sql.NullInt64) error {

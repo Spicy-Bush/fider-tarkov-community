@@ -110,7 +110,7 @@ export const PostFilter = (props: PostFilterProps) => {
           <HStack className="h-10 text-medium text-xs rounded-md uppercase border border-gray-400 text-gray-800 p-2 px-3">
             <Icon sprite={HeroIconFilter} className="h-5 pr-1" />
             {i18n._("home.filter.label", { message: "Filter" })}
-            {filterCount > 0 && <div className="bg-gray-200 inline-block rounded-full px-2 py-1 w-min-4 text-2xs text-center">{filterCount}</div>}
+            {filterCount > 0 && <div id="c-dropdown-buttoncount" className="bg-gray-200 inline-block rounded-full px-2 py-1 w-min-4 text-2xs text-center">{filterCount}</div>}
           </HStack>
         }
       >
@@ -123,7 +123,7 @@ export const PostFilter = (props: PostFilterProps) => {
                 <HStack spacing={2}>
                   <span className={isChecked ? "text-semibold" : ""}>{o.label}</span>
                   <div className="">
-                    {o.count && o.count > 0 && <span className="bg-gray-200 inline-block rounded-full px-1 w-min-4 text-2xs text-center">{o.count}</span>}
+                    {o.count && o.count > 0 && <span id="c-dropdown-buttoncount" className="bg-gray-200 inline-block rounded-full px-1 w-min-4 text-2xs text-center">{o.count}</span>}
                   </div>
                 </HStack>
               </Checkbox>

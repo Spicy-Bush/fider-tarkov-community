@@ -23,6 +23,7 @@ type dbUser struct {
 	Email         sql.NullString `db:"email"`
 	Tenant        *dbTenant      `db:"tenant"`
 	Role          sql.NullInt64  `db:"role"`
+	VisualRole    sql.NullInt64  `db:"visual_role"`
 	Status        sql.NullInt64  `db:"status"`
 	AvatarType    sql.NullInt64  `db:"avatar_type"`
 	AvatarBlobKey sql.NullString `db:"avatar_bkey"`
@@ -51,6 +52,7 @@ func (u *dbUser) toModel(ctx context.Context) *entity.User {
 		Email:         u.Email.String,
 		Tenant:        u.Tenant.toModel(),
 		Role:          enum.Role(u.Role.Int64),
+		VisualRole:    enum.VisualRole(u.VisualRole.Int64),
 		Providers:     make([]*entity.UserProvider, len(u.Providers)),
 		Status:        enum.UserStatus(u.Status.Int64),
 		AvatarType:    avatarType,
@@ -213,6 +215,20 @@ func changeUserRole(ctx context.Context, c *cmd.ChangeUserRole) error {
 		_, err := trx.Execute(cmd, c.UserID, tenant.ID, c.Role)
 		if err != nil {
 			return errors.Wrap(err, "failed to change user's role")
+		}
+		return nil
+	})
+}
+
+func changeUserVisualRole(ctx context.Context, c *cmd.ChangeUserVisualRole) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		_, err := trx.Execute(`
+			UPDATE users 
+			SET visual_role = $1
+			WHERE id = $2 AND tenant_id = $3
+		`, c.VisualRole, c.UserID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to update user's visual role")
 		}
 		return nil
 	})
@@ -387,7 +403,7 @@ func getAllUsers(ctx context.Context, q *query.GetAllUsers) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var users []*dbUser
 		err := trx.Select(&users, `
-			SELECT id, name, email, tenant_id, role, status, avatar_type, avatar_bkey
+			SELECT id, name, email, tenant_id, role, status, avatar_type, avatar_bkey, visual_role
 			FROM users 
 			WHERE tenant_id = $1 
 			AND status != $2
@@ -430,7 +446,7 @@ func getAllUsersNames(ctx context.Context, q *query.GetAllUsersNames) error {
 
 func queryUser(ctx context.Context, trx *dbx.Trx, filter string, args ...any) (*entity.User, error) {
 	user := dbUser{}
-	sql := fmt.Sprintf("SELECT id, name, email, tenant_id, role, status, avatar_type, avatar_bkey FROM users WHERE status != %d AND ", enum.UserDeleted)
+	sql := fmt.Sprintf("SELECT id, name, email, tenant_id, role, visual_role, status, avatar_type, avatar_bkey FROM users WHERE status != %d AND ", enum.UserDeleted)
 	err := trx.Get(&user, sql+filter, args...)
 	if err != nil {
 		return nil, err

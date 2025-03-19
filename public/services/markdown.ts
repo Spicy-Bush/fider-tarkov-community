@@ -33,19 +33,53 @@ const defaultLink = (href: string, title: string, text: string) => {
   return `<a class="text-link" href="${href}"${titleAttr} rel="noopener nofollow" target="_blank">${text}</a>`
 }
 
+const parseYouTubeLink = (href: string) => {
+  if (href.includes('youtube.com/watch')) {
+    const url = new URL(href);
+    const videoId = url.searchParams.get('v');
+    let timestamp = url.searchParams.get('t') || url.searchParams.get('start') || '0';
+
+    if (typeof timestamp === 'string' && timestamp.endsWith('s')) {
+      timestamp = timestamp.slice(0, -1);
+    }
+
+    return videoId ? { videoId, timestamp } : null;
+  }
+  
+  if (href.includes('youtu.be/')) {
+    const url = new URL(href);
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    const videoId = pathParts[0];
+    
+    let timestamp = url.searchParams.get('t') || '0';
+    
+    if (typeof timestamp === 'string' && timestamp.endsWith('s')) {
+      timestamp = timestamp.slice(0, -1);
+    }
+    
+    return { videoId, timestamp };
+  }
+  
+  return null;
+}
+
 const fullRenderer = new marked.Renderer()
 fullRenderer.image = () => ""
 
-// Only auto-embed if the href is a valid YouTube URL AND the link text equals the URL (i.e. a naked link).
 fullRenderer.link = (href: string | null, title: string, text: string) => {
   if (!href) return text
-  const youtubeRegex = /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})$/
-  const match = href.match(youtubeRegex)
-  if (match && text.trim() === href.trim()) {
-    const videoId = match[1]
-    const embedUrl = `https://www.youtube.com/embed/${videoId}`
-    return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="YouTube video"></iframe>`
+
+  if ((href.includes('youtube.com/watch') || href.includes('youtu.be/'))) {
+    const parsedLink = parseYouTubeLink(href)
+    
+    if (parsedLink) {
+      const { videoId, timestamp } = parsedLink
+      const embedUrl = `https://www.youtube.com/embed/${videoId}?start=${timestamp}`
+      
+      return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="YouTube video"></iframe>`
+    }
   }
+  
   return defaultLink(href, title, text)
 }
 

@@ -1,6 +1,7 @@
 import React from "react"
-import { Dropdown } from "@fider/components"
+import { Dropdown, Icon } from "@fider/components"
 import { HStack } from "@fider/components/layout"
+import HeroUpDown from "@fider/assets/images/heroicons-arrow-up-down.svg"
 import { i18n } from "@lingui/core"
 
 interface PostsSortProps {
@@ -23,9 +24,10 @@ export const PostsSort: React.FC<PostsSortProps> = ({ value = "trending", onChan
     <HStack>
       <Dropdown
         renderHandle={
-          <div className="h-10 flex flex-items-center text-medium text-xs rounded-md uppercase border border-gray-400 text-gray-800 p-2 px-3">
-            {i18n._("home.postsort.label", { message: "Sort by:" })} {selectedItem.label}
-          </div>
+          <HStack className="h-10 flex flex-items-center text-medium text-xs rounded-md uppercase border border-gray-400 text-gray-800 p-2 px-3">
+            <Icon sprite={HeroUpDown} className="h-5 pr-1" />
+            {selectedItem.label}
+            </HStack>
         }
       >
         {options.map((o) => (

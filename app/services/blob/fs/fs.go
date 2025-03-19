@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 
@@ -73,6 +74,13 @@ func listBlobs(ctx context.Context, q *query.ListBlobs) error {
 }
 
 func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
+	// see: filemanagement page
+	if strings.HasPrefix(q.Key, "files/") {
+		user, ok := ctx.Value(app.UserCtxKey).(*entity.User)
+		if !ok || user == nil || !user.IsAdministrator() {
+			return blob.ErrNotFound
+		}
+	}
 	fullPath := keyFullPath(ctx, q.Key)
 	stats, err := os.Stat(fullPath)
 	if err != nil {

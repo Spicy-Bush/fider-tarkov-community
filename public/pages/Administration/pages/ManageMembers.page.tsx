@@ -1,6 +1,6 @@
 import React from "react"
 import { Input, Avatar, UserName, Icon, Dropdown, Button } from "@fider/components"
-import { User, UserRole, UserStatus } from "@fider/models"
+import { User, UserRole, UserStatus, VisualRole } from "@fider/models"
 import { AdminBasePage } from "../components/AdminBasePage"
 import IconSearch from "@fider/assets/images/heroicons-search.svg"
 import IconX from "@fider/assets/images/heroicons-x.svg"
@@ -78,6 +78,18 @@ const UserListItem = (props: UserListItemProps) => {
         {isVisitor && !!blocked && (
           <Dropdown.ListItem onClick={actionSelected("unblock")}>Unblock User</Dropdown.ListItem>
         )}
+        
+        <Dropdown.Divider />
+        <Dropdown.ListItem onClick={actionSelected("visualrole-none")}>Set Visual Role: None</Dropdown.ListItem>
+        <Dropdown.ListItem onClick={actionSelected("visualrole-visitor")}>Set Visual Role: Visitor</Dropdown.ListItem>
+        <Dropdown.ListItem onClick={actionSelected("visualrole-helpful")}>Set Visual Role: Helpful</Dropdown.ListItem>
+        <Dropdown.ListItem onClick={actionSelected("visualrole-administrator")}>Set Visual Role: Administrator</Dropdown.ListItem>
+        <Dropdown.ListItem onClick={actionSelected("visualrole-moderator")}>Set Visual Role: Moderator</Dropdown.ListItem>
+        <Dropdown.ListItem onClick={actionSelected("visualrole-bsgcrew")}>Set Visual Role: BSG Crew</Dropdown.ListItem>
+        <Dropdown.ListItem onClick={actionSelected("visualrole-developer")}>Set Visual Role: Developer</Dropdown.ListItem>
+        <Dropdown.ListItem onClick={actionSelected("visualrole-sherpa")}>Set Visual Role: Sherpa</Dropdown.ListItem>
+        <Dropdown.ListItem onClick={actionSelected("visualrole-tcstaff")}>Set Visual Role: TC Staff</Dropdown.ListItem>
+        <Dropdown.ListItem onClick={actionSelected("visualrole-emissary")}>Set Visual Role: Emissary</Dropdown.ListItem>
       </Dropdown>
       
       )}
@@ -157,19 +169,48 @@ export default class ManageMembersPage extends AdminBasePage<ManageMembersPagePr
       }
       this.forceUpdate()
     }
+    
+    const changeVisualRole = async (visualRole: VisualRole) => {
+      try {
+        const response = await fetch(`/_api/admin/visualroles/${visualRole}/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userID: user.id }),
+        });
+        
+        if (response.ok) {
+          user.visualRole = visualRole;
+          this.forceUpdate();
+        }
+      } catch (error) {
+        console.error("Failed to change visual role:", error);
+      }
+    }
 
-    if (actionName === "to-administrator") {
-      await changeRole(UserRole.Administrator)
-    } else if (actionName === "to-moderator") {
-      await changeRole(UserRole.Moderator)
-    } else if (actionName === "to-collaborator") {
-      await changeRole(UserRole.Collaborator)
-    } else if (actionName === "to-visitor") {
-      await changeRole(UserRole.Visitor)
-    } else if (actionName === "block") {
-      await changeStatus(UserStatus.Blocked)
-    } else if (actionName === "unblock") {
-      await changeStatus(UserStatus.Active)
+    const actionHandlers: { [key: string]: () => Promise<void> } = {
+      "to-administrator": () => changeRole(UserRole.Administrator),
+      "to-moderator": () => changeRole(UserRole.Moderator),
+      "to-collaborator": () => changeRole(UserRole.Collaborator),
+      "to-visitor": () => changeRole(UserRole.Visitor),
+      "block": () => changeStatus(UserStatus.Blocked),
+      "unblock": () => changeStatus(UserStatus.Active),
+      "visualrole-none": () => changeVisualRole(VisualRole.None),
+      "visualrole-visitor": () => changeVisualRole(VisualRole.Visitor),
+      "visualrole-helpful": () => changeVisualRole(VisualRole.Helpful),
+      "visualrole-administrator": () => changeVisualRole(VisualRole.Administrator),
+      "visualrole-moderator": () => changeVisualRole(VisualRole.Moderator),
+      "visualrole-bsgcrew": () => changeVisualRole(VisualRole.BSGCrew),
+      "visualrole-developer": () => changeVisualRole(VisualRole.Developer),
+      "visualrole-sherpa": () => changeVisualRole(VisualRole.Sherpa),
+      "visualrole-tcstaff": () => changeVisualRole(VisualRole.TCStaff),
+      "visualrole-emissary": () => changeVisualRole(VisualRole.Emissary)
+    };
+
+    const handler = actionHandlers[actionName];
+    if (handler) {
+      await handler();
     }
   }
 
@@ -234,6 +275,9 @@ export default class ManageMembersPage extends AdminBasePage<ManageMembersPagePr
           </li>
           <li>
             <strong>Blocked</strong> users are unable to log into this site.
+          </li>
+          <li>
+            <strong>Visual Roles</strong> are display-only roles that affect a user's appearance in the UI.
           </li>
         </ul>
       </>

@@ -156,6 +156,7 @@ func routes(r *web.Engine) *web.Engine {
 
 		ui.Get("/admin/export", handlers.Page("Export · Site Settings", "", "Administration/pages/Export.page"))
 		ui.Get("/admin/export/posts.csv", handlers.ExportPostsToCSV())
+		ui.Get("/admin/files", handlers.FileManagementPage())
 		ui.Get("/admin/export/backup.zip", handlers.ExportBackupZip())
 		ui.Get("/admin/webhooks", handlers.ManageWebhooks())
 		ui.Post("/_api/admin/webhook", handlers.CreateWebhook())
@@ -170,6 +171,7 @@ func routes(r *web.Engine) *web.Engine {
 		ui.Post("/_api/admin/settings/emailauth", handlers.UpdateEmailAuthAllowed())
 		ui.Post("/_api/admin/oauth", handlers.SaveOAuthConfig())
 		ui.Post("/_api/admin/roles/:role/users", handlers.ChangeUserRole())
+		ui.Post("/_api/admin/visualroles/:visualRole/users", handlers.ChangeUserVisualRole())
 		ui.Put("/_api/admin/users/:userID/block", handlers.BlockUser())
 		ui.Delete("/_api/admin/users/:userID/block", handlers.UnblockUser())
 		ui.Post("/_api/admin/settings/profanity", handlers.UpdateProfanityWords())
@@ -248,6 +250,12 @@ func routes(r *web.Engine) *web.Engine {
 		adminApi.Post("/api/v1/tags", apiv1.CreateEditTag())
 		adminApi.Put("/api/v1/tags/:slug", apiv1.CreateEditTag())
 		adminApi.Delete("/api/v1/tags/:slug", apiv1.DeleteTag())
+
+		adminApi.Get("/api/v1/admin/files", handlers.ListFiles())
+		adminApi.Post("/api/v1/admin/files", handlers.UploadFile())
+		adminApi.Put("/api/v1/admin/files/:blobKey/*path", handlers.RenameFile())
+		adminApi.Delete("/api/v1/admin/files/:blobKey/*path", handlers.DeleteFile())
+		adminApi.Get("/api/v1/admin/files/:blobKey/usage/*path", handlers.GetFileUsage())
 
 		adminApi.Use(middlewares.BlockLockedTenants())
 

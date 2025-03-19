@@ -51,7 +51,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
   }
 
   const tagsList = (
-    <HStack spacing={2} align="center">
+    <HStack spacing={2} align="center" className="c-tags__list">
       {assignedTags.length > 0 &&
         assignedTags.map((tag) => <ShowTag key={tag.id} tag={tag} link />)}
       {canEdit && (
@@ -65,7 +65,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
   )
 
   const editTagsList = props.tags.length > 0 && (
-    <VStack justify="between" className="flex-items-start">
+    <VStack justify="between" className="flex-items-start c-tags__edit-list">
       {props.tags.map((tag) => (
         <TagListItem key={tag.id} tag={tag} assigned={assignedTags.indexOf(tag) >= 0} onClick={assignOrUnassignTag} />
       ))}
@@ -77,7 +77,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
 
   if (fider.isReadOnly) {
     return (
-      <VStack>
+      <VStack className="c-tags__container">
         <HStack spacing={2} className="text-category">
           <Trans id="label.tags">Tags</Trans>
         </HStack>
@@ -87,7 +87,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
   }
 
   return (
-    <VStack>
+    <VStack className="c-tags__container">
       <HStack spacing={2} align="center" className="text-primary-base text-xs">
         {!isEditing && tagsList}
         {isEditing && editTagsList}

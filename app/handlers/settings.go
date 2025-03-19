@@ -158,6 +158,27 @@ func ChangeUserRole() web.HandlerFunc {
 	}
 }
 
+// ChangeUserVisualRole changes given user visual role
+func ChangeUserVisualRole() web.HandlerFunc {
+	return func(c *web.Context) error {
+		action := new(actions.ChangeUserVisualRole)
+		if result := c.BindTo(action); !result.Ok {
+			return c.HandleValidation(result)
+		}
+
+		changeVisualRole := &cmd.ChangeUserVisualRole{
+			UserID:     action.UserID,
+			VisualRole: action.VisualRole,
+		}
+
+		if err := bus.Dispatch(c, changeVisualRole); err != nil {
+			return c.Failure(err)
+		}
+
+		return c.Ok(web.Map{})
+	}
+}
+
 // DeleteUser erases current user personal data and sign them out
 func DeleteUser() web.HandlerFunc {
 	return func(c *web.Context) error {

@@ -3,7 +3,7 @@ import NoDataIllustration from "@fider/assets/images/undraw-no-data.svg"
 
 import React, { useState } from "react"
 import { Post, Tag, PostStatus } from "@fider/models"
-import { Markdown, Hint, PoweredByFider, Icon, Header } from "@fider/components"
+import { Markdown, Hint, Icon, Header } from "@fider/components"
 import { SimilarPosts } from "./components/SimilarPosts"
 import { PostInput } from "./components/PostInput"
 import { PostsContainer } from "./components/PostsContainer"
@@ -80,7 +80,6 @@ What can we do better? This is the place for you to vote, discuss and share idea
             <Markdown text={fider.session.tenant.welcomeMessage || defaultWelcomeMessage} style="full" />
             <PostInput placeholder={fider.session.tenant.invitation || defaultInvitation} onTitleChanged={setTitle} />
           </VStack>
-          <PoweredByFider slot="home-input" className="sm:hidden md:hidden lg:block mt-3" />
         </div>
         <div className="p-home__posts-col p-4">
           {isLonely() ? (
@@ -90,7 +89,6 @@ What can we do better? This is the place for you to vote, discuss and share idea
           ) : (
             <PostsContainer posts={props.posts} tags={props.tags} countPerStatus={props.countPerStatus} />
           )}
-          <PoweredByFider slot="home-footer" className="lg:hidden xl:hidden mt-8" />
         </div>
       </div>
     </>

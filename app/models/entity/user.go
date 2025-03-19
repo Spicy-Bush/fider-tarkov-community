@@ -13,11 +13,32 @@ type User struct {
 	Tenant        *Tenant         `json:"-"`
 	Email         string          `json:"-"`
 	Role          enum.Role       `json:"role"`
+	VisualRole    enum.VisualRole `json:"visualRole"`
 	Providers     []*UserProvider `json:"-"`
 	AvatarBlobKey string          `json:"-"`
 	AvatarType    enum.AvatarType `json:"-"`
 	AvatarURL     string          `json:"avatarURL,omitempty"`
 	Status        enum.UserStatus `json:"status"`
+}
+
+// Map permission role to equivalent visual role
+func (u *User) GetVisualRole() enum.VisualRole {
+	if u.VisualRole != enum.VisualRoleNone {
+		return u.VisualRole
+	}
+
+	switch u.Role {
+	case enum.RoleVisitor:
+		return enum.VisualRoleVisitor
+	case enum.RoleCollaborator:
+		return enum.VisualRoleBSGCrew
+	case enum.RoleAdministrator:
+		return enum.VisualRoleAdministrator
+	case enum.RoleModerator:
+		return enum.VisualRoleModerator
+	default:
+		return enum.VisualRoleVisitor
+	}
 }
 
 // HasProvider returns true if current user has registered with given provider
@@ -70,11 +91,13 @@ func (umc UserWithEmail) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(&struct {
 		*Alias
-		Email     string              `json:"email"`
-		Providers []map[string]string `json:"providers"`
+		Email      string              `json:"email"`
+		VisualRole enum.VisualRole     `json:"visualRole"`
+		Providers  []map[string]string `json:"providers"`
 	}{
-		Alias:     (*Alias)(umc.User),
-		Email:     umc.User.Email,
-		Providers: providerInfo,
+		Alias:      (*Alias)(umc.User),
+		Email:      umc.User.Email,
+		VisualRole: umc.User.VisualRole,
+		Providers:  providerInfo,
 	})
 }
