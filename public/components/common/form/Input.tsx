@@ -22,6 +22,9 @@ interface InputProps {
   disabled?: boolean
   suffix?: string | JSX.Element
   placeholder?: string
+  type?: string
+  min?: number
+  max?: number
   onIconClick?: () => void
   onFocus?: () => void
   inputRef?: React.MutableRefObject<any>

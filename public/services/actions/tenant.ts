@@ -31,6 +31,10 @@ export interface UpdateTenantSettingsRequest {
   locale: string
 }
 
+export const updateGeneralSettings = async (data: { settings: any }): Promise<Result> => {
+  return await http.post("/_api/admin/settings/general-settings", data)
+}
+
 export const updateTenantSettings = async (request: UpdateTenantSettingsRequest): Promise<Result> => {
   return await http.post("/_api/admin/settings/general", request)
 }

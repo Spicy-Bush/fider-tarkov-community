@@ -16,20 +16,47 @@ const CACHE_TITLE_KEY = "PostInput-Title"
 const CACHE_DESCRIPTION_KEY = "PostInput-Description"
 
 export const PostInput = (props: PostInputProps) => {
-  const getCachedValue = (key: string): string => {
-    if (fider.session.isAuthenticated) {
-      return cache.session.get(key) || ""
-    }
-    return ""
-  }
-
   const fider = useFider()
   const titleRef = useRef<HTMLInputElement>()
+  
+  const getCachedValue = (key: string): string => 
+    fider.session.isAuthenticated ? (cache.session.get(key) || "") : ""
+  
   const [title, setTitle] = useState(getCachedValue(CACHE_TITLE_KEY))
   const [description, setDescription] = useState(getCachedValue(CACHE_DESCRIPTION_KEY))
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
   const [attachments, setAttachments] = useState<ImageUpload[]>([])
   const [error, setError] = useState<Failure | undefined>(undefined)
+  
+  const settings = fider.session.tenant.generalSettings || {
+    titleLengthMin: 15,
+    titleLengthMax: 100,
+    descriptionLengthMin: 150,
+    descriptionLengthMax: 1000,
+    maxImagesPerPost: 3,
+    maxImagesPerComment: 2,
+    postLimits: {} as Record<string, { count: number; hours: number }>,
+    commentLimits: {} as Record<string, { count: number; hours: number }>,
+    postingDisabledFor: [] as string[],
+    commentingDisabledFor: [] as string[],
+    postingGloballyDisabled: false,
+    commentingGloballyDisabled: false
+  }
+  
+  const { 
+    titleLengthMin, 
+    titleLengthMax, 
+    descriptionLengthMin, 
+    descriptionLengthMax, 
+    postingGloballyDisabled,
+    maxImagesPerPost
+  } = settings
+  
+  const isPostingDisabled = !fider.session.isAuthenticated || 
+    (fider.session.user?.role !== "administrator" && 
+     (postingGloballyDisabled || 
+      settings.postingDisabledFor?.includes(fider.session.user?.role || "") || 
+      false))
 
   useEffect(() => {
     props.onTitleChanged(title)
@@ -48,9 +75,6 @@ export const PostInput = (props: PostInputProps) => {
     props.onTitleChanged(value)
   }
 
-  const hideModal = () => setIsSignInModalOpen(false)
-  const clearError = () => setError(undefined)
-
   const handleDescriptionChange = (value: string) => {
     cache.session.set(CACHE_DESCRIPTION_KEY, value)
     setDescription(value)
@@ -60,7 +84,7 @@ export const PostInput = (props: PostInputProps) => {
     if (title) {
       const result = await actions.createPost(title, description, attachments)
       if (result.ok) {
-        clearError()
+        setError(undefined)
         cache.session.remove(CACHE_TITLE_KEY, CACHE_DESCRIPTION_KEY)
         location.href = `/posts/${result.data.number}/${result.data.slug}`
         event.preventEnable()
@@ -69,39 +93,92 @@ export const PostInput = (props: PostInputProps) => {
       }
     }
   }
+  
+  const titleValidation = {
+    showMinCounter: title.length > 0 && title.length < titleLengthMin,
+    showMaxCounter: title.length >= titleLengthMax * 0.9,
+    isOverMax: title.length > titleLengthMax
+  }
+  
+  const descValidation = {
+    showMinCounter: description.length > 0 && description.length < descriptionLengthMin,
+    showMaxCounter: description.length >= descriptionLengthMax * 0.9,
+    isOverMax: description.length > descriptionLengthMax
+  }
 
-  const details = () => (
-    <>
-      <TextArea
-        field="description"
-        onChange={handleDescriptionChange}
-        value={description}
-        minRows={5}
-        placeholder={i18n._("home.postinput.description.placeholder", { message: "Describe your suggestion..." })}
-      />
-      <MultiImageUploader field="attachments" maxUploads={3} onChange={setAttachments} />
-      <Button type="submit" variant="primary" onClick={submit}>
-        <Trans id="action.submit">Submit</Trans>
-      </Button>
-    </>
-  )
+  const isSubmitDisabled = title.length < titleLengthMin || 
+                           titleValidation.isOverMax || 
+                           (description.length > 0 && description.length < descriptionLengthMin) || 
+                           descValidation.isOverMax || 
+                           isPostingDisabled
 
   return (
     <>
-      <SignInModal isOpen={isSignInModalOpen} onClose={hideModal} />
+      <SignInModal isOpen={isSignInModalOpen} onClose={() => setIsSignInModalOpen(false)} />
       <Form error={error}>
-        <Input
-          field="title"
-          disabled={fider.isReadOnly}
-          noTabFocus={!fider.session.isAuthenticated}
-          inputRef={titleRef}
-          onFocus={handleTitleFocus}
-          maxLength={100}
-          value={title}
-          onChange={handleTitleChange}
-          placeholder={props.placeholder}
-        />
-        {title && details()}
+        {isPostingDisabled && fider.session.isAuthenticated && (
+          <div className="c-message c-message--warning">
+            <Trans id="home.postinput.disabled">
+              Posting has been disabled by the administrators.
+            </Trans>
+          </div>
+        )}
+        <div className="relative">
+          <Input
+            field="title"
+            disabled={fider.isReadOnly || isPostingDisabled}
+            noTabFocus={!fider.session.isAuthenticated}
+            inputRef={titleRef}
+            onFocus={handleTitleFocus}
+            maxLength={titleLengthMax}
+            value={title}
+            onChange={handleTitleChange}
+            placeholder={props.placeholder}
+          />
+          {titleValidation.showMinCounter && (
+            <div className="c-input-counter c-input-counter--min">
+              {titleLengthMin - title.length}
+            </div>
+          )}
+          {titleValidation.showMaxCounter && (
+            <div className={`c-input-counter c-input-counter--max ${titleValidation.isOverMax ? 'c-input-counter--error' : ''}`}>
+              {titleLengthMax - title.length}
+            </div>
+          )}
+        </div>
+        {title && (
+          <>
+            <div className="relative">
+              <TextArea
+                field="description"
+                onChange={handleDescriptionChange}
+                value={description}
+                minRows={5}
+                disabled={isPostingDisabled}
+                placeholder={i18n._("home.postinput.description.placeholder", { message: "Describe your suggestion..." })}
+              />
+              {descValidation.showMinCounter && (
+                <div className="c-input-counter c-input-counter--min">
+                  {descriptionLengthMin - description.length}
+                </div>
+              )}
+              {descValidation.showMaxCounter && (
+                <div className={`c-input-counter c-input-counter--max ${descValidation.isOverMax ? 'c-input-counter--error' : ''}`}>
+                  {descriptionLengthMax - description.length}
+                </div>
+              )}
+            </div>
+            <MultiImageUploader field="attachments" maxUploads={maxImagesPerPost} onChange={setAttachments} />
+            <Button 
+              type="submit" 
+              variant="primary" 
+              disabled={isSubmitDisabled} 
+              onClick={submit}
+            >
+              <Trans id="action.submit">Submit</Trans>
+            </Button>
+          </>
+        )}
       </Form>
     </>
   )

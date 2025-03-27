@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -18,19 +19,20 @@ import (
 )
 
 type dbTenant struct {
-	ID                 int    `db:"id"`
-	Name               string `db:"name"`
-	Subdomain          string `db:"subdomain"`
-	CNAME              string `db:"cname"`
-	Invitation         string `db:"invitation"`
-	WelcomeMessage     string `db:"welcome_message"`
-	Status             int    `db:"status"`
-	Locale             string `db:"locale"`
-	IsPrivate          bool   `db:"is_private"`
-	LogoBlobKey        string `db:"logo_bkey"`
-	CustomCSS          string `db:"custom_css"`
-	ProfanityWords     string `db:"profanity_words"`
-	IsEmailAuthAllowed bool   `db:"is_email_auth_allowed"`
+	ID                 int            `db:"id"`
+	Name               string         `db:"name"`
+	Subdomain          string         `db:"subdomain"`
+	CNAME              string         `db:"cname"`
+	Invitation         string         `db:"invitation"`
+	WelcomeMessage     string         `db:"welcome_message"`
+	Status             int            `db:"status"`
+	Locale             string         `db:"locale"`
+	IsPrivate          bool           `db:"is_private"`
+	LogoBlobKey        string         `db:"logo_bkey"`
+	CustomCSS          string         `db:"custom_css"`
+	ProfanityWords     string         `db:"profanity_words"`
+	IsEmailAuthAllowed bool           `db:"is_email_auth_allowed"`
+	GeneralSettings    dbx.NullString `db:"general_settings"`
 }
 
 func (t *dbTenant) toModel() *entity.Tenant {
@@ -52,6 +54,14 @@ func (t *dbTenant) toModel() *entity.Tenant {
 		CustomCSS:          t.CustomCSS,
 		ProfanityWords:     t.ProfanityWords,
 		IsEmailAuthAllowed: t.IsEmailAuthAllowed,
+		GeneralSettings:    &entity.GeneralSettings{},
+	}
+
+	if t.GeneralSettings.Valid {
+		var settings entity.GeneralSettings
+		if err := json.Unmarshal([]byte(t.GeneralSettings.String), &settings); err == nil {
+			tenant.GeneralSettings = &settings
+		}
 	}
 
 	return tenant
@@ -89,6 +99,41 @@ func (t *dbEmailVerification) toModel() *entity.EmailVerification {
 	}
 
 	return model
+}
+
+func updateGeneralSettings(ctx context.Context, c *cmd.UpdateGeneralSettings) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if c.Settings == nil {
+			c.Settings = &entity.GeneralSettings{
+				PostLimits:                 make(map[string]entity.PostLimit),
+				CommentLimits:              make(map[string]entity.CommentLimit),
+				TitleLengthMin:             10,
+				TitleLengthMax:             100,
+				DescriptionLengthMin:       10,
+				DescriptionLengthMax:       1000,
+				MaxImagesPerPost:           3,
+				MaxImagesPerComment:        2,
+				PostingDisabledFor:         []string{},
+				CommentingDisabledFor:      []string{},
+				PostingGloballyDisabled:    false,
+				CommentingGloballyDisabled: false,
+			}
+		}
+
+		settingsJSON, err := json.Marshal(c.Settings)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal general settings")
+		}
+
+		query := "UPDATE tenants SET general_settings = $1 WHERE id = $2"
+		_, err = trx.Execute(query, settingsJSON, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to update general settings")
+		}
+
+		tenant.GeneralSettings = c.Settings
+		return nil
+	})
 }
 
 func isCNAMEAvailable(ctx context.Context, q *query.IsCNAMEAvailable) error {
@@ -269,7 +314,7 @@ func getFirstTenant(ctx context.Context, q *query.GetFirstTenant) error {
 		tenant := dbTenant{}
 
 		err := trx.Get(&tenant, `
-			SELECT id, name, subdomain, cname, invitation, locale, welcome_message, status, is_private, logo_bkey, custom_css, is_email_auth_allowed, profanity_words
+			SELECT id, name, subdomain, cname, invitation, locale, welcome_message, status, is_private, logo_bkey, custom_css, is_email_auth_allowed, profanity_words, general_settings
 			FROM tenants
 			ORDER BY id LIMIT 1
 		`)
@@ -288,7 +333,7 @@ func getTenantByDomain(ctx context.Context, q *query.GetTenantByDomain) error {
 		tenant := dbTenant{}
 
 		err := trx.Get(&tenant, `
-			SELECT id, name, subdomain, cname, invitation, locale, welcome_message, status, is_private, logo_bkey, custom_css, is_email_auth_allowed, profanity_words
+			SELECT id, name, subdomain, cname, invitation, locale, welcome_message, status, is_private, logo_bkey, custom_css, is_email_auth_allowed, profanity_words, general_settings
 			FROM tenants t
 			WHERE subdomain = $1 OR subdomain = $2 OR cname = $3 
 			ORDER BY cname DESC

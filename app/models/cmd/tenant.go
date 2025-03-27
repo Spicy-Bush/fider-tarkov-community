@@ -16,6 +16,10 @@ type CreateTenant struct {
 	Result *entity.Tenant
 }
 
+type UpdateGeneralSettings struct {
+	Settings *entity.GeneralSettings
+}
+
 type UpdateTenantPrivacySettings struct {
 	IsPrivate bool
 }

@@ -150,7 +150,9 @@ func routes(r *web.Engine) *web.Engine {
 		ui.Get("/admin/members", handlers.ManageMembers())
 		ui.Get("/admin/tags", handlers.ManageTags())
 		ui.Get("/admin/authentication", handlers.ManageAuthentication())
+		ui.Get("/admin/content-settings", handlers.ContentSettingsPage())
 		ui.Get("/_api/admin/oauth/:provider", handlers.GetOAuthConfig())
+		ui.Post("/_api/admin/settings/general-settings", handlers.UpdateGeneralSettings())
 
 		// From this step, only Administrators are allowed
 		ui.Use(middlewares.IsAuthorized(enum.RoleAdministrator))

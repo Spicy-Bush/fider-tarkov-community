@@ -66,6 +66,7 @@ interface CommentEditorProps {
   onChange?: (value: string) => void
   onFocus?: React.FocusEventHandler<HTMLDivElement>
   className?: string
+  readOnly?: boolean
 }
 
 const Placeholder = ({ attributes, children }: RenderPlaceholderProps) => {
@@ -191,15 +192,15 @@ export const CommentEditor: React.FunctionComponent<CommentEditorProps> = (props
       }}
     >
       <Editable
-        readOnly={false}
-        className="slate-editor"
+        readOnly={props.readOnly || false}
+        className={`slate-editor ${props.readOnly ? 'slate-editor--disabled' : ''}`}
         renderElement={renderElement}
         onKeyDown={onKeyDown}
         onFocus={props.onFocus}
         placeholder={props.placeholder}
         renderPlaceholder={Placeholder}
       />
-      {target && filteredUsers.length > 0 && (
+      {target && filteredUsers.length > 0 && !props.readOnly && (
         <Portal>
           <div ref={ref} className="slate-editor--mentions" data-cy="mentions-portal">
             {filteredUsers.map((user, i) => (

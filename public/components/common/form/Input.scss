@@ -1,5 +1,30 @@
 @import "~@fider/assets/styles/variables.scss";
 
+.c-input-counter {
+  position: absolute;
+  right: 10px;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  
+  &--min {
+    bottom: 10px;
+    background-color: #f0f0f0;
+    color: #666;
+  }
+  
+  &--max {
+    bottom: 10px;
+    background-color: #f8f8f8;
+    color: #666;
+    
+    &.c-input-counter--error {
+      background-color: #fff0f0;
+      color: #d9534f;
+    }
+  }
+}
+
 .c-input {
   line-height: get("font.size.xl");
   background-color: get("colors.white");

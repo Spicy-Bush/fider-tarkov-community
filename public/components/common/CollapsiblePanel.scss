@@ -1,0 +1,45 @@
+@import "~@fider/assets/styles/variables.scss";
+
+.c-collapsible-panel {
+  border: 1px solid get("colors.gray.300");
+  border-radius: 4px;
+  margin-bottom: spacing(2);
+  
+  &--active {
+    border-color: get("colors.gray.400");
+  }
+  
+  &-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: spacing(1.5) spacing(2);
+    cursor: pointer;
+    user-select: none;
+    background-color: get("colors.gray.50");
+    
+    h3 {
+      margin: 0;
+      font-size: get("font.size.base");
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+    }
+  }
+  
+  &-icon {
+    margin-right: spacing(1);
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  &-arrow {
+    font-size: get("font.size.sm");
+    color: get("colors.gray.600");
+  }
+  
+  &-content {
+    padding: spacing(2);
+    border-top: 1px solid get("colors.gray.200");
+  }
+}

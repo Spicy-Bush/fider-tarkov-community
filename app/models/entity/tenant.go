@@ -17,6 +17,7 @@ type Tenant struct {
 	CustomCSS          string            `json:"-"`
 	IsEmailAuthAllowed bool              `json:"isEmailAuthAllowed"`
 	ProfanityWords     string            `json:"profanityWords"`
+	GeneralSettings    *GeneralSettings  `json:"generalSettings"`
 }
 
 func (t *Tenant) IsDisabled() bool {
@@ -28,4 +29,28 @@ type TenantContact struct {
 	Name      string `json:"name"`
 	Email     string `json:"email"`
 	Subdomain string `json:"subdomain"`
+}
+
+type PostLimit struct {
+	Count int `json:"count"`
+	Hours int `json:"hours"`
+}
+type CommentLimit struct {
+	Count int `json:"count"`
+	Hours int `json:"hours"`
+}
+
+type GeneralSettings struct {
+	PostLimits                 map[string]PostLimit    `json:"postLimits"`
+	CommentLimits              map[string]CommentLimit `json:"commentLimits"`
+	TitleLengthMin             int                     `json:"titleLengthMin"`
+	TitleLengthMax             int                     `json:"titleLengthMax"`
+	DescriptionLengthMin       int                     `json:"descriptionLengthMin"`
+	DescriptionLengthMax       int                     `json:"descriptionLengthMax"`
+	MaxImagesPerPost           int                     `json:"maxImagesPerPost"`
+	MaxImagesPerComment        int                     `json:"maxImagesPerComment"`
+	PostingDisabledFor         []string                `json:"postingDisabledFor"`
+	CommentingDisabledFor      []string                `json:"commentingDisabledFor"`
+	PostingGloballyDisabled    bool                    `json:"postingGloballyDisabled"`
+	CommentingGloballyDisabled bool                    `json:"commentingGloballyDisabled"`
 }
