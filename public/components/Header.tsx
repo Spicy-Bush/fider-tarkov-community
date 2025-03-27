@@ -32,7 +32,7 @@ export const Header = () => {
               </HStack>
             )}
             {!fider.session.isAuthenticated && (
-              <a href="#" className="uppercase text-sm" onClick={showModal}>
+              <a id="c-header-sign-in" href="#" className="uppercase text-sm" onClick={showModal}>
                 <Trans id="action.signin">Sign in</Trans>
               </a>
             )}
