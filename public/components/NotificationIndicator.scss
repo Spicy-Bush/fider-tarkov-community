@@ -5,19 +5,38 @@
 
   .c-notification-indicator-unread-counter {
     position: absolute;
-    top: 2px;
-    right: 2px;
+    top: -5px;
+    right: -8px;
     background-color: get("colors.red.500");
-    height: sizing(2);
-    width: sizing(2);
-    border-radius: 100%;
+    color: white !important;
+    font-size: 10px;
+    font-weight: bold;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    
+    &.is-max-count {
+      right: -16px;
+    }
   }
 }
 
 .c-notifications-container {
   max-height: 80vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   @include media("lg") {
     min-width: 400px;
+  }
+  
+  .overflow-y-auto {
+    overflow-y: auto;
+    padding-bottom: 10px;
+    scroll-behavior: smooth;
+    overflow-y: scroll;
   }
 }

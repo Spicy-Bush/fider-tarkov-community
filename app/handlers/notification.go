@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -12,12 +13,44 @@ import (
 // GetAllNotifications will get all the notifications for the new modal
 func GetAllNotifications() web.HandlerFunc {
 	return func(c *web.Context) error {
-		q := &query.GetActiveNotifications{}
+		notificationType := c.QueryParam("type")
+
+		pageParam := c.QueryParam("page")
+		page := 1
+		if pageParam != "" {
+			var err error
+			page, err = strconv.Atoi(pageParam)
+			if err != nil || page < 1 {
+				page = 1
+			}
+		}
+
+		perPageParam := c.QueryParam("perPage")
+		perPage := 10
+		if perPageParam != "" {
+			var err error
+			perPage, err = strconv.Atoi(perPageParam)
+			if err != nil || perPage < 1 {
+				perPage = 10
+			}
+		}
+
+		q := &query.GetActiveNotifications{
+			Type:    notificationType,
+			Page:    page,
+			PerPage: perPage,
+		}
+
 		if err := bus.Dispatch(c, q); err != nil {
 			return c.Failure(err)
 		}
 
-		return c.Ok(q.Result)
+		return c.Ok(web.Map{
+			"notifications": q.Result,
+			"total":         q.TotalCount,
+			"page":          q.Page,
+			"perPage":       q.PerPage,
+		})
 	}
 }
 
@@ -38,7 +71,10 @@ func TotalUnreadNotifications() web.HandlerFunc {
 // Notifications is the home for unread and recent notifications
 func Notifications() web.HandlerFunc {
 	return func(c *web.Context) error {
-		q := &query.GetActiveNotifications{}
+		q := &query.GetActiveNotifications{
+			Page:    1,
+			PerPage: 10,
+		}
 		if err := bus.Dispatch(c, q); err != nil {
 			return c.Failure(err)
 		}
@@ -48,6 +84,9 @@ func Notifications() web.HandlerFunc {
 			Title: "Notifications",
 			Data: web.Map{
 				"notifications": q.Result,
+				"total":         q.TotalCount,
+				"page":          q.Page,
+				"perPage":       q.PerPage,
 			},
 		})
 	}
@@ -82,5 +121,19 @@ func ReadAllNotifications() web.HandlerFunc {
 		}
 
 		return c.Ok(web.Map{})
+	}
+}
+
+// PurgeReadNotifications purges all read notifications for current user
+func PurgeReadNotifications() web.HandlerFunc {
+	return func(c *web.Context) error {
+		cmd := &cmd.PurgeReadNotifications{}
+		if err := bus.Dispatch(c, cmd); err != nil {
+			return c.Failure(err)
+		}
+
+		return c.Ok(web.Map{
+			"purgedCount": cmd.NumOfPurgedNotifications,
+		})
 	}
 }

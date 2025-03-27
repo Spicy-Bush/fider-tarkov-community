@@ -38,6 +38,7 @@ func (s Service) Init() {
 	bus.AddHandler(countUnreadNotifications)
 	bus.AddHandler(getNotificationByID)
 	bus.AddHandler(getActiveNotifications)
+	bus.AddHandler(purgeReadNotifications)
 	bus.AddHandler(addNewNotification)
 	bus.AddHandler(addSubscriber)
 	bus.AddHandler(removeSubscriber)
