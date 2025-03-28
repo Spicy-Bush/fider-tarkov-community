@@ -1,6 +1,8 @@
 package apiv1
 
 import (
+	"strconv"
+
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
@@ -25,7 +27,24 @@ func ListUsers() web.HandlerFunc {
 
 func ListTaggableUsers() web.HandlerFunc {
 	return func(c *web.Context) error {
-		allUsers := &query.GetAllUsersNames{}
+		name := c.QueryParam("name")
+
+		limit := 1
+		limitStr := c.QueryParam("limit")
+		if limitStr != "" {
+			parsedLimit, err := strconv.Atoi(limitStr)
+			if err == nil && parsedLimit > 0 {
+				limit = parsedLimit
+				if limit > 10 {
+					limit = 10
+				}
+			}
+		}
+
+		allUsers := &query.GetAllUsersNames{
+			Query: name,
+			Limit: limit,
+		}
 		if err := bus.Dispatch(c, allUsers); err != nil {
 			return c.Failure(err)
 		}

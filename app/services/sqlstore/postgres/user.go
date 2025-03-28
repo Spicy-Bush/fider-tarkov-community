@@ -423,14 +423,39 @@ func getAllUsers(ctx context.Context, q *query.GetAllUsers) error {
 func getAllUsersNames(ctx context.Context, q *query.GetAllUsersNames) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var users []*dbUser
-		err := trx.Select(&users, `
+		query := `
 			SELECT id, name
 			FROM users 
 			WHERE tenant_id = $1 
-			AND status != $2
-			ORDER BY id`, tenant.ID, enum.UserDeleted)
+			AND status != $2`
+
+		args := []any{tenant.ID, enum.UserDeleted}
+
+		if len(q.Query) < 2 || len(q.Query) > 10 {
+			q.Result = []*dto.UserNames{}
+			return nil
+		}
+
+		if q.Query != "" {
+			query += ` AND LOWER(name) LIKE LOWER($3)`
+			args = append(args, "%"+q.Query+"%")
+		}
+
+		query += ` ORDER BY id`
+
+		limit := 10
+		if q.Limit > 0 {
+			if q.Limit < limit {
+				limit = q.Limit
+			}
+		}
+
+		query += ` LIMIT $` + fmt.Sprintf("%d", len(args)+1)
+		args = append(args, limit)
+
+		err := trx.Select(&users, query, args...)
 		if err != nil {
-			return errors.Wrap(err, "failed to get all users")
+			return errors.Wrap(err, "failed to get filtered users")
 		}
 
 		q.Result = make([]*dto.UserNames, len(users))

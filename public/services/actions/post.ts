@@ -72,8 +72,8 @@ export const listVotes = async (postNumber: number): Promise<Result<Vote[]>> => 
   return http.get<Vote[]>(`/api/v1/posts/${postNumber}/votes`)
 }
 
-export const getTaggableUsers = async (userFilter: string): Promise<Result<UserNames[]>> => {
-  return http.get<UserNames[]>(`/api/v1/taggable-users${querystring.stringify({ query: userFilter })}`)
+export const getTaggableUsers = async (nameFilter: string): Promise<Result<UserNames[]>> => {
+  return http.get<UserNames[]>(`/api/v1/taggable-users${querystring.stringify({ name: nameFilter })}`)
 }
 
 export const createComment = async (postNumber: number, content: string, attachments: ImageUpload[]): Promise<Result> => {
