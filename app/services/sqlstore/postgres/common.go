@@ -85,8 +85,10 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 	}
 
 	switch query.View {
-	case "recent":
+	case "newest":
 		sort = "id"
+	case "recently-updated":
+		sort = "COALESCE(response_date, created_at)"
 	case "most-wanted":
 		sort = "votes_count"
 	case "most-discussed":
