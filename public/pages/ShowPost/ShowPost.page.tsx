@@ -167,7 +167,21 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
         highlightedComment = undefined
       }
     }
-    this.setState({ highlightedComment })
+    this.setState({ highlightedComment }, () => {
+      this.scrollToHighlightedComment()
+    })
+  }
+  
+  private scrollToHighlightedComment = () => {
+    const { highlightedComment } = this.state
+    if (highlightedComment) {
+      setTimeout(() => {
+        const element = document.getElementById(`comment-${highlightedComment}`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 100)
+    }
   }
 
   public onActionSelected = (action: "copy" | "delete" | "status" | "edit") => () => {
