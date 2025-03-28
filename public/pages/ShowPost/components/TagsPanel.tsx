@@ -1,14 +1,12 @@
 import React, { useState, useMemo, useEffect } from "react"
 import { Post, Tag } from "@fider/models"
 import { actions } from "@fider/services"
-import { ShowTag, Button, Input, Icon } from "@fider/components"
+import { ShowTag, Button, Input } from "@fider/components"
 import { TagListItem } from "./TagListItem"
 import { useFider } from "@fider/hooks"
 
 import { HStack, VStack } from "@fider/components/layout"
 import { Trans } from "@lingui/react/macro"
-import IconSearch from "@fider/assets/images/heroicons-search.svg"
-import IconX from "@fider/assets/images/heroicons-x.svg"
 
 export interface TagsPanelProps {
   post: Post
@@ -77,12 +75,6 @@ export const TagsPanel = (props: TagsPanelProps) => {
       if (!isEditing) {
         setSearchQuery("")
       }
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      setIsEditing(false)
     }
   }
 
@@ -190,7 +182,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
 
   const editTagsList = props.tags.length > 0 && (
     <VStack spacing={2} className="w-full">
-      <div onKeyDown={handleKeyDown} className="w-full">
+      <div className="w-full">
         <HStack spacing={2} justify="between" className="w-full">
           <div className="relative flex-grow">
             <Input
@@ -200,20 +192,6 @@ export const TagsPanel = (props: TagsPanelProps) => {
               value={searchQuery}
               onChange={setSearchQuery}
             />
-            {searchQuery && (
-              <button 
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                onClick={() => setSearchQuery("")}
-              >
-                <Icon sprite={IconX} className="h-4 w-4" />
-              </button>
-            )}
-            {!searchQuery && (
-              <Icon
-                sprite={IconSearch}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500"
-              />
-            )}
           </div>
           
           <div className="text-sm text-gray-500">
@@ -266,16 +244,6 @@ export const TagsPanel = (props: TagsPanelProps) => {
         </HStack>
       ) : (
         <div className="p-3 border rounded-md shadow-sm w-full">
-          <HStack justify="between" className="mb-3">
-            <h3 className="text-sm font-medium">
-              <Trans id="label.managetags">Manage Tags</Trans>
-            </h3>
-            {assignedTags.length > 0 && (
-              <div className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-                {assignedTags.length} <Trans id="label.tagsselected">selected</Trans>
-              </div>
-            )}
-          </HStack>
           {editTagsList}
         </div>
       )}
