@@ -93,9 +93,6 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 		sort = "votes_count"
 	case "most-discussed":
 		sort = "comments_count"
-	case "my-votes":
-		// Depracated: Use status filters instead
-		sort = "id"
 	case "planned":
 		// Depracated: Use status filters instead
 		sort = "response_date"

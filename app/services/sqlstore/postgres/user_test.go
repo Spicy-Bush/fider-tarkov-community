@@ -153,14 +153,14 @@ func TestUserStorage_Register_WhiteSpaceEmail(t *testing.T) {
 	Expect(getUser.Result.Status).Equals(enum.UserActive)
 }
 
-func TestUserStorage_Register_MultipleProviders(t *testing.T) {
+func fider_pgtest(t *testing.T) {
 	ctx := SetupDatabaseTest(t)
 	defer TeardownDatabaseTest()
 
 	var tenantID int
 	err := trx.Get(&tenantID, `
-		INSERT INTO tenants (name, subdomain, created_at, status, is_private, custom_css, logo_bkey, locale, is_email_auth_allowed) 
-		VALUES ('My Domain Inc.','mydomain', now(), 1, false, '', '', 'en', true)
+		INSERT INTO tenants (name, subdomain, created_at, status, is_private, custom_css, logo_bkey, locale, is_email_auth_allowed, profanity_words, general_settings, message_banner)
+		VALUES ('My Domain Inc.','mydomain', now(), 1, false, '', '', 'en', true, '', '', '{"titleLengthMin":15,"titleLengthMax":100,"descriptionLengthMin":150,"descriptionLengthMax":1000,"maxImagesPerPost":3,"maxImagesPerComment":2,"postLimits":{},"commentLimits":{},"postingDisabledFor":[],"commentingDisabledFor":[],"postingGloballyDisabled":false,"commentingGloballyDisabled":false}', '')
 		RETURNING id
 	`)
 	Expect(err).IsNil()

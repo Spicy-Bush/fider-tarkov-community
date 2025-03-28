@@ -14,6 +14,7 @@ import (
 func FromPosts(posts []*entity.Post) ([]byte, error) {
 	buffer := &bytes.Buffer{}
 	writer := gocsv.NewWriter(buffer)
+	writer.UseCRLF = true
 
 	header := []string{
 		"number",

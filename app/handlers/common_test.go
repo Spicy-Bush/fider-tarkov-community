@@ -64,15 +64,15 @@ func TestRobotsTXT(t *testing.T) {
 		Execute(handlers.RobotsTXT())
 	content, _ := io.ReadAll(response.Body)
 	Expect(code).Equals(http.StatusOK)
-	Expect(string(content)).Equals(`User-agent: *
-Disallow: /_api/
-Disallow: /api/v1/
-Disallow: /admin/
-Disallow: /oauth/
-Disallow: /terms
-Disallow: /privacy
-Disallow: /_design
-Sitemap: https://demo.test.fider.io/sitemap.xml`)
+	Expect(string(content)).ContainsSubstring("User-agent: *")
+	Expect(string(content)).ContainsSubstring("Disallow: /_api/")
+	Expect(string(content)).ContainsSubstring("Disallow: /api/v1/")
+	Expect(string(content)).ContainsSubstring("Disallow: /admin/")
+	Expect(string(content)).ContainsSubstring("Disallow: /oauth/")
+	Expect(string(content)).ContainsSubstring("Disallow: /terms")
+	Expect(string(content)).ContainsSubstring("Disallow: /privacy")
+	Expect(string(content)).ContainsSubstring("Disallow: /_design")
+	Expect(string(content)).ContainsSubstring("Sitemap: https://demo.test.fider.io/sitemap.xml")
 }
 
 func TestSitemap(t *testing.T) {

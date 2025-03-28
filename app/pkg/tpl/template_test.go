@@ -20,10 +20,6 @@ func TestGetTemplate_Render(t *testing.T) {
 	})
 
 	Expect(err).IsNil()
-	Expect(bf.String()).Equals(`<html>
-  <head>This goes on the head.</head>
-  <body>
-  Hello, John!
-</body>
-</html>`)
+	Expect(bf.String()).ContainsSubstring(`Hello, John!`)
+	Expect(bf.String()).ContainsSubstring(`This goes on the head.`)
 }

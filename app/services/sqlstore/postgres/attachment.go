@@ -96,7 +96,25 @@ func uploadImage(ctx context.Context, c *cmd.UploadImage) error {
 
 	src, _, err := image.Decode(bytes.NewReader(c.Image.Upload.Content))
 	if err != nil {
-		return errors.Wrap(err, "failed to decode image for WebP conversion")
+		fileBase := strings.TrimSuffix(
+			c.Image.Upload.FileName,
+			filepath.Ext(c.Image.Upload.FileName),
+		)
+
+		encodedName := base64.RawURLEncoding.EncodeToString([]byte(fileBase))
+		bkey := fmt.Sprintf("%s/%s-%s.webp", c.Folder, rand.String(64), encodedName)
+
+		err = bus.Dispatch(ctx, &cmd.StoreBlob{
+			Key:         bkey,
+			Content:     c.Image.Upload.Content,
+			ContentType: c.Image.Upload.ContentType,
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to upload new blob")
+		}
+
+		c.Image.BlobKey = bkey
+		return nil
 	}
 
 	var buf bytes.Buffer

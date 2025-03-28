@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
@@ -95,7 +96,7 @@ func (action *CreateNewPost) Validate(ctx context.Context, user *entity.User) *v
 		}
 	}
 
-	if action.Title == "" {
+	if len(strings.TrimSpace(action.Title)) == 0 {
 		result.AddFieldFailure("title", propertyIsRequired(ctx, "title"))
 	} else if len(action.Title) < generalSettings.TitleLengthMin {
 		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.titletooshort", i18n.Params{"min": generalSettings.TitleLengthMin}))
