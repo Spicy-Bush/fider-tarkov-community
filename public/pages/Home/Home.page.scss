@@ -1,10 +1,15 @@
 @import "~@fider/assets/styles/variables.scss";
 
+html, body {
+  height: 100%;
+}
+
 #p-home {
   display: grid;
   grid-template-columns: 1fr;
   column-gap: 0;
   row-gap: spacing(6);
+  flex-grow: 1;
 
   @include media("lg") {
     grid-template-columns: 1fr 1fr 1fr;

@@ -3,6 +3,7 @@ import React from "react"
 import { TextArea, Form, Button } from "@fider/components"
 import { Failure, actions, Fider } from "@fider/services"
 import { AdminBasePage } from "../components/AdminBasePage"
+import { CollapsiblePanel } from "@fider/components/common/CollapsiblePanel"
 
 interface AdvancedSettingsPageProps {
   customCSS: string
@@ -61,22 +62,24 @@ export default class AdvancedSettingsPage extends AdminBasePage<AdvancedSettings
   public content() {
     return (
       <Form error={this.state.error}>
-        <TextArea
-          field="customCSS"
-          label="Custom CSS"
-          disabled={!Fider.session.user.isAdministrator}
-          minRows={10}
-          value={this.state.customCSS}
-          onChange={this.setCustomCSS}
-        >
-          {}
-        </TextArea>
+        <CollapsiblePanel title="Custom CSS" defaultOpen={false}>
+          <TextArea
+            field="customCSS"
+            label="Custom CSS"
+            disabled={!Fider.session.user.isAdministrator}
+            minRows={10}
+            value={this.state.customCSS}
+            onChange={this.setCustomCSS}
+          >
+            {}
+          </TextArea>
 
-        <div className="field">
-          <Button variant="primary" onClick={this.handleSaveCustomCSS}>
-            Save Custom CSS
-          </Button>
-        </div>
+          <div className="field">
+            <Button variant="primary" onClick={this.handleSaveCustomCSS}>
+              Save Custom CSS
+            </Button>
+          </div>
+        </CollapsiblePanel>
 
         <TextArea
           field="profanityWords"

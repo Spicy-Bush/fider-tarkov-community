@@ -93,9 +93,7 @@ export const CommentEditor: React.FunctionComponent<CommentEditorProps> = (props
   const [index, setIndex] = useState(0)
   const [search, setSearch] = useState("")
 
-  useEffect(() => {
-    console.log("target changed", target)
-  }, [target])
+  useEffect(() => {}, [target])
 
   const renderElement = useCallback((props: RenderElementProps) => <SlateElement {...props} />, [])
   const editor = useMemo(() => withMentions(withReact(withHistory(createEditor()))), [])
@@ -182,8 +180,6 @@ export const CommentEditor: React.FunctionComponent<CommentEditorProps> = (props
             users.length === 0 && loadUsers()
             return
           }
-
-          console.log(JSON.stringify(descendant))
 
           props.onChange && props.onChange(serialize(descendant))
         }

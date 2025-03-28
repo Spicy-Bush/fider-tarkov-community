@@ -60,7 +60,6 @@ export const CommentInput = (props: CommentInputProps) => {
   }
 
   const editorFocused = () => {
-    console.log("focused")
     if (!fider.session.isAuthenticated) {
       setIsSignInModalOpen(true)
     }
