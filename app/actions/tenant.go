@@ -233,6 +233,25 @@ func (action *UpdateTenantEmailAuthAllowed) Validate(ctx context.Context, user *
 	return result
 }
 
+type UpdateMessageBanner struct {
+	MessageBanner string `json:"messageBanner"`
+}
+
+func (action *UpdateMessageBanner) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && user.Role == enum.RoleAdministrator || user.Role == enum.RoleCollaborator
+}
+
+func (action *UpdateMessageBanner) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	// DB has varchar(1000)
+	if len(action.MessageBanner) > 1000 {
+		result.AddFieldFailure("messageBanner", "Message banner must have less than 1000 characters.")
+	}
+
+	return result
+}
+
 type UpdateGeneralSettings struct {
 	Settings *entity.GeneralSettings `json:"settings"`
 }

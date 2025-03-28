@@ -25,6 +25,7 @@ export interface Tenant {
     postingGloballyDisabled: boolean
     commentingGloballyDisabled: boolean
   }
+  messageBanner: string
 }
 
 export enum TenantStatus {

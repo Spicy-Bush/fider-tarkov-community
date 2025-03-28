@@ -18,6 +18,7 @@ type Tenant struct {
 	IsEmailAuthAllowed bool              `json:"isEmailAuthAllowed"`
 	ProfanityWords     string            `json:"profanityWords"`
 	GeneralSettings    *GeneralSettings  `json:"generalSettings"`
+	MessageBanner      string            `json:"messageBanner"`
 }
 
 func (t *Tenant) IsDisabled() bool {

@@ -1,7 +1,7 @@
 import "./Home.page.scss"
 import NoDataIllustration from "@fider/assets/images/undraw-no-data.svg"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Post, Tag, PostStatus } from "@fider/models"
 import { Markdown, Hint, Icon, Header } from "@fider/components"
 import { SimilarPosts } from "./components/SimilarPosts"
@@ -9,6 +9,7 @@ import { PostInput } from "./components/PostInput"
 import { PostsContainer } from "./components/PostsContainer"
 import { useFider } from "@fider/hooks"
 import { VStack } from "@fider/components/layout"
+import { isContentDismissed, dismissContentByValue, DismissableContentTypes } from "@fider/services/device"
 
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
@@ -47,6 +48,26 @@ const Lonely = () => {
 const HomePage = (props: HomePageProps) => {
   const fider = useFider()
   const [title, setTitle] = useState("")
+  const [showMessageBanner, setShowMessageBanner] = useState(true)
+  
+  useEffect(() => {
+    if (fider.session.tenant.messageBanner) {
+      setShowMessageBanner(!isContentDismissed(
+        DismissableContentTypes.MESSAGE_BANNER, 
+        fider.session.tenant.messageBanner
+      ))
+    }
+  }, [fider.session.tenant.messageBanner])
+
+  const handleDismissMessage = () => {
+    if (fider.session.tenant.messageBanner) {
+      dismissContentByValue(
+        DismissableContentTypes.MESSAGE_BANNER, 
+        fider.session.tenant.messageBanner
+      )
+      setShowMessageBanner(false)
+    }
+  }
 
   const defaultWelcomeMessage = i18n._("home.form.defaultwelcomemessage", {
     message: `We'd love to hear what you're thinking about.
@@ -71,6 +92,27 @@ What can we do better? This is the place for you to vote, discuss and share idea
     return false
   }
 
+  const renderMessageBanner = () => {
+    if (fider.session.tenant.messageBanner !== "" && 
+        fider.session.tenant.messageBanner !== undefined && 
+        showMessageBanner) {
+      return (
+        <div className="p-home__message-banner">
+          <div className="p-home__message-banner-content">
+            <Markdown text={fider.session.tenant.messageBanner} style="full" />
+          </div>
+          <button 
+            className="p-home__message-banner-dismiss" 
+            onClick={handleDismissMessage}
+            aria-label="Dismiss message"
+          >
+          </button>
+        </div>
+      )
+    }
+    return null
+  }
+
   return (
     <>
       <Header />
@@ -87,7 +129,10 @@ What can we do better? This is the place for you to vote, discuss and share idea
           ) : title ? (
             <SimilarPosts title={title} tags={props.tags} />
           ) : (
-            <PostsContainer posts={props.posts} tags={props.tags} countPerStatus={props.countPerStatus} />
+            <>
+              {renderMessageBanner()}
+              <PostsContainer posts={props.posts} tags={props.tags} countPerStatus={props.countPerStatus} />
+            </>
           )}
         </div>
       </div>

@@ -1,0 +1,1 @@
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS message_banner varchar(1000) NOT NULL DEFAULT ''::varchar;

@@ -127,6 +127,7 @@ func (s Service) Init() {
 	bus.AddHandler(updateTenantEmailAuthAllowedSettings)
 	bus.AddHandler(updateTenantAdvancedSettings)
 	bus.AddHandler(updateGeneralSettings)
+	bus.AddHandler(UpdateMessageBanner)
 
 	bus.AddHandler(getVerificationByKey)
 	bus.AddHandler(saveVerificationKey)

@@ -11,6 +11,7 @@ const GeneralSettingsPage = () => {
   const fider = useFider()
   const [title, setTitle] = useState<string>(fider.session.tenant.name)
   const [welcomeMessage, setWelcomeMessage] = useState<string>(fider.session.tenant.welcomeMessage)
+  const [messageBanner, setMessageBanner] = useState<string>(fider.session.tenant.messageBanner)
   const [invitation, setInvitation] = useState<string>(fider.session.tenant.invitation)
   const [logo, setLogo] = useState<ImageUpload | undefined>(undefined)
   const [cname, setCNAME] = useState<string>(fider.session.tenant.cname)
@@ -19,6 +20,10 @@ const GeneralSettingsPage = () => {
 
   const handleSave = async (e: ButtonClickEvent) => {
     const result = await actions.updateTenantSettings({ title, cname, welcomeMessage, invitation, logo, locale })
+    const messageBannerResult = await actions.updateTenantMessageBanner(messageBanner)
+    if (messageBannerResult.error) {
+      setError(messageBannerResult.error)
+    }
     if (result.ok) {
       e.preventEnable()
       location.href = `/`
@@ -47,6 +52,15 @@ const GeneralSettingsPage = () => {
         <Input field="title" label="Your Fider board's title" maxLength={60} value={title} disabled={!fider.session.user.isAdministrator} onChange={setTitle}>
           <p className="text-muted">Keep it short and snappy. Your product / service name is usually best.</p>
         </Input>
+
+        <TextArea
+          field="messageBanner"
+          label="Message Banner"
+          value={messageBanner}
+          maxLength={1000}
+          disabled={!(fider.session.user.isAdministrator || fider.session.user.isCollaborator)}
+          onChange={setMessageBanner}
+        ></TextArea>
 
         <TextArea
           field="welcomeMessage"

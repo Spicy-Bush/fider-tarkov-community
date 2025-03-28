@@ -38,7 +38,7 @@ export const CommentInput = (props: CommentInputProps) => {
     commentingGloballyDisabled: false
   }
   
-  // Updated to safely check user role and handle when user might be undefined
+  // TODO: refactor the mess that is this check logic
   const isCommentingDisabled = !fider.session.isAuthenticated || 
     (fider.session.user?.role !== "administrator" && 
     (settings.commentingGloballyDisabled || 

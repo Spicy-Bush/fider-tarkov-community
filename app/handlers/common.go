@@ -42,6 +42,23 @@ func Health() web.HandlerFunc {
 	}
 }
 
+// UpdateMessageBanner updates the message banner for the tenant
+func UpdateMessageBanner() web.HandlerFunc {
+	return func(c *web.Context) error {
+		action := new(cmd.UpdateMessageBanner)
+		err := c.Bind(action)
+		if err != nil {
+			return c.Failure(err)
+		}
+		action.TenantID = c.Tenant().ID
+		err = bus.Dispatch(c, action)
+		if err != nil {
+			return c.Failure(err)
+		}
+		return c.Ok(web.Map{})
+	}
+}
+
 // LegalPage returns a legal page with content from a file
 func LegalPage(title, file string) web.HandlerFunc {
 	return func(c *web.Context) error {

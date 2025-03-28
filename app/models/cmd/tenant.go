@@ -63,3 +63,8 @@ type NewEmailVerification interface {
 type SetKeyAsVerified struct {
 	Key string
 }
+
+type UpdateMessageBanner struct {
+	MessageBanner string `json:"messageBanner"`
+	TenantID      int    `json:"tenantId"`
+}

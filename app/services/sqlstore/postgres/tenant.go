@@ -33,6 +33,7 @@ type dbTenant struct {
 	ProfanityWords     string         `db:"profanity_words"`
 	IsEmailAuthAllowed bool           `db:"is_email_auth_allowed"`
 	GeneralSettings    dbx.NullString `db:"general_settings"`
+	MessageBanner      string         `db:"message_banner"`
 }
 
 func (t *dbTenant) toModel() *entity.Tenant {
@@ -55,6 +56,7 @@ func (t *dbTenant) toModel() *entity.Tenant {
 		ProfanityWords:     t.ProfanityWords,
 		IsEmailAuthAllowed: t.IsEmailAuthAllowed,
 		GeneralSettings:    &entity.GeneralSettings{},
+		MessageBanner:      t.MessageBanner,
 	}
 
 	if t.GeneralSettings.Valid {
@@ -268,6 +270,17 @@ func saveVerificationKey(ctx context.Context, c *cmd.SaveVerificationKey) error 
 	})
 }
 
+func UpdateMessageBanner(ctx context.Context, c *cmd.UpdateMessageBanner) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		query := "UPDATE tenants SET message_banner = $1 WHERE id = $2"
+		_, err := trx.Execute(query, c.MessageBanner, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to update message banner")
+		}
+		return nil
+	})
+}
+
 func setKeyAsVerified(ctx context.Context, c *cmd.SetKeyAsVerified) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		query := "UPDATE email_verifications SET verified_at = $1 WHERE tenant_id = $2 AND key = $3 AND verified_at IS NULL"
@@ -314,7 +327,7 @@ func getFirstTenant(ctx context.Context, q *query.GetFirstTenant) error {
 		tenant := dbTenant{}
 
 		err := trx.Get(&tenant, `
-			SELECT id, name, subdomain, cname, invitation, locale, welcome_message, status, is_private, logo_bkey, custom_css, is_email_auth_allowed, profanity_words, general_settings
+			SELECT id, name, subdomain, cname, invitation, locale, welcome_message, status, is_private, logo_bkey, custom_css, is_email_auth_allowed, profanity_words, general_settings, message_banner
 			FROM tenants
 			ORDER BY id LIMIT 1
 		`)
@@ -333,7 +346,7 @@ func getTenantByDomain(ctx context.Context, q *query.GetTenantByDomain) error {
 		tenant := dbTenant{}
 
 		err := trx.Get(&tenant, `
-			SELECT id, name, subdomain, cname, invitation, locale, welcome_message, status, is_private, logo_bkey, custom_css, is_email_auth_allowed, profanity_words, general_settings
+			SELECT id, name, subdomain, cname, invitation, locale, welcome_message, status, is_private, logo_bkey, custom_css, is_email_auth_allowed, profanity_words, general_settings, message_banner
 			FROM tenants t
 			WHERE subdomain = $1 OR subdomain = $2 OR cname = $3 
 			ORDER BY cname DESC

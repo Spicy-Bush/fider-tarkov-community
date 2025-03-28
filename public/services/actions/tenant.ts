@@ -39,6 +39,12 @@ export const updateTenantSettings = async (request: UpdateTenantSettingsRequest)
   return await http.post("/_api/admin/settings/general", request)
 }
 
+export const updateTenantMessageBanner = async (messageBanner: string): Promise<Result> => {
+  return await http.post("/_api/admin/settings/message-banner", {
+    messageBanner,
+  })
+}
+
 export const updateTenantAdvancedSettings = async (customCSS: string): Promise<Result> => {
   return await http.post("/_api/admin/settings/advanced", { 
     customCSS,
