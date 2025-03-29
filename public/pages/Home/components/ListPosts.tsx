@@ -14,7 +14,15 @@ const ListPostItem = (props: { post: Post; user?: CurrentUser; tags: Tag[] }) =>
   return (
     <HStack spacing={4} align="start" className="c-posts-container__post">
       <div>
-        <VoteCounter post={props.post} />
+        <VStack spacing={2} align="center">
+          <VoteCounter post={props.post} />
+          {props.post.commentsCount > 0 && (
+            <VStack spacing={0} align="center" className="text-muted text-xs mt-1">
+              <span>{props.post.commentsCount}</span>
+              <Icon sprite={IconChatAlt2} className="h-3 w-3" />
+            </VStack>
+          )}
+        </VStack>
       </div>
       <VStack className="w-full" spacing={2}>
         {props.tags.length >= 1 && (
@@ -28,11 +36,6 @@ const ListPostItem = (props: { post: Post; user?: CurrentUser; tags: Tag[] }) =>
           <a className="text-title hover:text-primary-base" href={`/posts/${props.post.number}/${props.post.slug}`}>
             {props.post.title}
           </a>
-          {props.post.commentsCount > 0 && (
-            <HStack className="text-muted">
-              {props.post.commentsCount} <Icon sprite={IconChatAlt2} className="h-4 ml-1" />
-            </HStack>
-          )}
         </HStack>
         <Markdown className="text-gray-700" maxLength={300} text={props.post.description} style="plainText" />
         {props.post.status !== "open" && (
