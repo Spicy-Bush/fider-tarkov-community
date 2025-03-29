@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react"
 import { Button, ButtonClickEvent, Input, Form, TextArea, MultiImageUploader } from "@fider/components"
 import { SignInModal } from "@fider/components"
+import { PreviewPostModal } from "./PreviewPostModal"
 import { cache, actions, Failure } from "@fider/services"
 import { ImageUpload } from "@fider/models"
 import { useFider } from "@fider/hooks"
@@ -15,6 +16,7 @@ interface PostInputProps {
 
 const CACHE_TITLE_KEY = "PostInput-Title"
 const CACHE_DESCRIPTION_KEY = "PostInput-Description"
+
 
 export const PostInput = (props: PostInputProps) => {
   const fider = useFider()
@@ -31,6 +33,7 @@ export const PostInput = (props: PostInputProps) => {
   const [error, setError] = useState<Failure | undefined>(undefined)
   const [isPendingSubmission, setIsPendingSubmission] = useState(false)
   const [remainingSeconds, setRemainingSeconds] = useState(30)
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
   
   const settings = fider.session.tenant.generalSettings || {
     titleLengthMin: 15,
@@ -138,6 +141,10 @@ export const PostInput = (props: PostInputProps) => {
     submitPost(event)
   }
   
+  const showPreview = () => {
+    setIsPreviewModalOpen(true)
+  }
+  
   const titleValidation = {
     showMinCounter: title.length > 0 && title.length < titleLengthMin,
     showMaxCounter: title.length >= titleLengthMax * 0.9,
@@ -216,44 +223,44 @@ export const PostInput = (props: PostInputProps) => {
             </div>
             <MultiImageUploader field="attachments" maxUploads={maxImagesPerPost} onChange={setAttachments} />
             
-            <div className="c-pending-submission">
-              {isPendingSubmission ? (
-                <>
-                  <div className="send-now-button-wrapper">
-                    <Button 
-                      type="button"
-                      variant="secondary"
-                      onClick={submitNow}
-                    >
-                      <Trans id="action.sendnow">Send Now</Trans>
-                    </Button>
-                  </div>
-                  
-                  <div className="countdown-button-wrapper">
-                    <div className="countdown-display">
-                      <div className="countdown-spinner">
-                        <svg width="12" height="12" viewBox="0 0 24 24">
-                          <circle 
-                            cx="12" 
-                            cy="12" 
-                            r="10" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            strokeWidth="4" 
-                            strokeDasharray={Math.PI * 2 * 10}
-                            strokeDashoffset={(Math.PI * 2 * 10) * (1 - progressPercentage / 100)}
-                            transform="rotate(-90 12 12)"
-                          />
-                        </svg>
-                      </div>
-                      
-                      <span className="countdown-text">
-                        <Trans id="action.submitting">Submitting in {remainingSeconds}s...</Trans>
-                      </span>
+            {isPendingSubmission ? (
+              <div className="c-pending-submission">
+                <div className="send-now-button-wrapper">
+                  <Button 
+                    type="button"
+                    variant="secondary"
+                    onClick={submitNow}
+                  >
+                    <Trans id="action.sendnow">Send Now</Trans>
+                  </Button>
+                </div>
+                
+                <div className="countdown-button-wrapper">
+                  <div className="countdown-display">
+                    <div className="countdown-spinner">
+                      <svg width="12" height="12" viewBox="0 0 24 24">
+                        <circle 
+                          cx="12" 
+                          cy="12" 
+                          r="10" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="4" 
+                          strokeDasharray={Math.PI * 2 * 10}
+                          strokeDashoffset={(Math.PI * 2 * 10) * (1 - progressPercentage / 100)}
+                          transform="rotate(-90 12 12)"
+                        />
+                      </svg>
                     </div>
+                    
+                    <span className="countdown-text">
+                      <Trans id="action.submitting">Submitting in {remainingSeconds}s...</Trans>
+                    </span>
                   </div>
-                </>
-              ) : (
+                </div>
+              </div>
+            ) : (
+              <div className="c-post-actions">
                 <Button 
                   type="submit" 
                   variant="primary" 
@@ -262,11 +269,27 @@ export const PostInput = (props: PostInputProps) => {
                 >
                   <Trans id="action.submit">Submit</Trans>
                 </Button>
-              )}
-            </div>
+                <Button 
+                  type="button"
+                  variant="secondary"
+                  disabled={isSubmitDisabled} 
+                  onClick={showPreview}
+                >
+                  <Trans id="action.preview">Preview</Trans>
+                </Button>
+              </div>
+            )}
           </>
         )}
       </Form>
+      
+      <PreviewPostModal
+        isOpen={isPreviewModalOpen}
+        title={title}
+        description={description}
+        attachments={attachments}
+        onClose={() => setIsPreviewModalOpen(false)}
+      />
     </>
   )
 }

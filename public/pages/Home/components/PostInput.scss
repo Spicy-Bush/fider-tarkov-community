@@ -1,7 +1,7 @@
 .c-pending-submission {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
 }
 
 .c-submission-container {
@@ -29,4 +29,10 @@
 
 .countdown-spinner svg {
   display: block;
+}
+
+.c-post-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
