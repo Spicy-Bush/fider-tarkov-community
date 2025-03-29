@@ -6,6 +6,7 @@ import { ImageUpload } from "@fider/models"
 import { useFider } from "@fider/hooks"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
+import "./PostInput.scss"
 
 interface PostInputProps {
   placeholder: string
@@ -18,6 +19,7 @@ const CACHE_DESCRIPTION_KEY = "PostInput-Description"
 export const PostInput = (props: PostInputProps) => {
   const fider = useFider()
   const titleRef = useRef<HTMLInputElement>()
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
   
   const getCachedValue = (key: string): string => 
     fider.session.isAuthenticated ? (cache.session.get(key) || "") : ""
@@ -27,6 +29,8 @@ export const PostInput = (props: PostInputProps) => {
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
   const [attachments, setAttachments] = useState<ImageUpload[]>([])
   const [error, setError] = useState<Failure | undefined>(undefined)
+  const [isPendingSubmission, setIsPendingSubmission] = useState(false)
+  const [remainingSeconds, setRemainingSeconds] = useState(30)
   
   const settings = fider.session.tenant.generalSettings || {
     titleLengthMin: 15,
@@ -61,6 +65,29 @@ export const PostInput = (props: PostInputProps) => {
   useEffect(() => {
     props.onTitleChanged(title)
   }, [title])
+  
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+    
+    if (isPendingSubmission && remainingSeconds > 0) {
+      intervalId = setInterval(() => {
+        setRemainingSeconds(prev => {
+          if (prev <= 1) {
+            if (intervalId) clearInterval(intervalId);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else if (isPendingSubmission && remainingSeconds === 0) {
+      const event = {} as ButtonClickEvent;
+      submitPost(event);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isPendingSubmission, remainingSeconds]);
 
   const handleTitleFocus = () => {
     if (!fider.session.isAuthenticated && titleRef.current) {
@@ -79,19 +106,36 @@ export const PostInput = (props: PostInputProps) => {
     cache.session.set(CACHE_DESCRIPTION_KEY, value)
     setDescription(value)
   }
+  
+  const submitPost = async (event: ButtonClickEvent) => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    
+    const result = await actions.createPost(title, description, attachments)
+    setIsPendingSubmission(false)
+    setRemainingSeconds(30)
+    
+    if (result.ok) {
+      setError(undefined)
+      cache.session.remove(CACHE_TITLE_KEY, CACHE_DESCRIPTION_KEY)
+      location.href = `/posts/${result.data.number}/${result.data.slug}`
+      event.preventEnable()
+    } else if (result.error) {
+      setError(result.error)
+    }
+  }
 
   const submit = async (event: ButtonClickEvent) => {
     if (title) {
-      const result = await actions.createPost(title, description, attachments)
-      if (result.ok) {
-        setError(undefined)
-        cache.session.remove(CACHE_TITLE_KEY, CACHE_DESCRIPTION_KEY)
-        location.href = `/posts/${result.data.number}/${result.data.slug}`
-        event.preventEnable()
-      } else if (result.error) {
-        setError(result.error)
-      }
+      setRemainingSeconds(30)
+      setIsPendingSubmission(true)
     }
+  }
+  
+  const submitNow = (event: ButtonClickEvent) => {
+    submitPost(event)
   }
   
   const titleValidation = {
@@ -111,6 +155,8 @@ export const PostInput = (props: PostInputProps) => {
                            (description.length > 0 && description.length < descriptionLengthMin) || 
                            descValidation.isOverMax || 
                            isPostingDisabled
+
+  const progressPercentage = ((30 - remainingSeconds) / 30) * 100
 
   return (
     <>
@@ -169,14 +215,55 @@ export const PostInput = (props: PostInputProps) => {
               )}
             </div>
             <MultiImageUploader field="attachments" maxUploads={maxImagesPerPost} onChange={setAttachments} />
-            <Button 
-              type="submit" 
-              variant="primary" 
-              disabled={isSubmitDisabled} 
-              onClick={submit}
-            >
-              <Trans id="action.submit">Submit</Trans>
-            </Button>
+            
+            <div className="c-pending-submission">
+              {isPendingSubmission ? (
+                <>
+                  <div className="send-now-button-wrapper">
+                    <Button 
+                      type="button"
+                      variant="secondary"
+                      onClick={submitNow}
+                    >
+                      <Trans id="action.sendnow">Send Now</Trans>
+                    </Button>
+                  </div>
+                  
+                  <div className="countdown-button-wrapper">
+                    <div className="countdown-display">
+                      <div className="countdown-spinner">
+                        <svg width="12" height="12" viewBox="0 0 24 24">
+                          <circle 
+                            cx="12" 
+                            cy="12" 
+                            r="10" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="4" 
+                            strokeDasharray={Math.PI * 2 * 10}
+                            strokeDashoffset={(Math.PI * 2 * 10) * (1 - progressPercentage / 100)}
+                            transform="rotate(-90 12 12)"
+                          />
+                        </svg>
+                      </div>
+                      
+                      <span className="countdown-text">
+                        <Trans id="action.submitting">Submitting in {remainingSeconds}s...</Trans>
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <Button 
+                  type="submit" 
+                  variant="primary" 
+                  disabled={isSubmitDisabled} 
+                  onClick={submit}
+                >
+                  <Trans id="action.submit">Submit</Trans>
+                </Button>
+              )}
+            </div>
           </>
         )}
       </Form>
