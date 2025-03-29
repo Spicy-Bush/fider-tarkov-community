@@ -141,6 +141,11 @@ export const PostInput = (props: PostInputProps) => {
     submitPost(event)
   }
   
+  const cancelSubmission = () => {
+    setIsPendingSubmission(false)
+    setRemainingSeconds(30)
+  }
+  
   const showPreview = () => {
     setIsPreviewModalOpen(true)
   }
@@ -232,6 +237,14 @@ export const PostInput = (props: PostInputProps) => {
                     onClick={submitNow}
                   >
                     <Trans id="action.sendnow">Send Now</Trans>
+                  </Button>
+                  
+                  <Button 
+                    type="button"
+                    variant="danger"
+                    onClick={cancelSubmission}
+                  >
+                    <Trans id="action.cancel">Cancel</Trans>
                   </Button>
                 </div>
                 
