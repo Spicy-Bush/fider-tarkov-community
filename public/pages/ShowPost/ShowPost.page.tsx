@@ -19,12 +19,12 @@ import {
   Form,
   TextArea,
   MultiImageUploader,
-  ImageViewer,
   Icon,
   Header,
   Avatar,
   Dropdown,
 } from "@fider/components"
+import { ImageGallery } from "./components/ImageGallery"
 import { DiscussionPanel } from "./components/DiscussionPanel"
 
 import IconX from "@fider/assets/images/heroicons-x.svg"
@@ -306,9 +306,9 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
                             <Trans id="showpost.message.nodescription">No description provided.</Trans>
                           </em>
                         )}
-                        {this.props.attachments.map((x) => (
-                          <ImageViewer key={x} bkey={x} />
-                        ))}
+                        {this.props.attachments.length > 0 && (
+                          <ImageGallery bkeys={this.props.attachments} />
+                        )}
                       </>
                     )}
                   </VStack>
