@@ -70,6 +70,8 @@ func (s Service) Init() {
 	bus.AddHandler(markPostAsDuplicate)
 	bus.AddHandler(setPostResponse)
 	bus.AddHandler(postIsReferenced)
+	bus.AddHandler(lockPost)
+	bus.AddHandler(unlockPost)
 
 	bus.AddHandler(setAttachments)
 	bus.AddHandler(getAttachments)

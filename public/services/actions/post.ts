@@ -95,6 +95,14 @@ export const toggleCommentReaction = async (postNumber: number, commentID: numbe
   return http.post<ToggleReactionResponse>(`/api/v1/posts/${postNumber}/comments/${commentID}/reactions/${emoji}`)
 }
 
+export const lockPost = async (postNumber: number, message: string): Promise<Result> => {
+  return await http.put(`/api/v1/posts/${postNumber}/lock`, { message });
+};
+
+export const unlockPost = async (postNumber: number): Promise<Result> => {
+  return await http.delete(`/api/v1/posts/${postNumber}/lock`);
+};
+
 interface SetResponseInput {
   status: string
   text: string

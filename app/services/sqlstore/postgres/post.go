@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -44,6 +45,7 @@ type dbPost struct {
 	OriginalSlug   sql.NullString `db:"original_slug"`
 	OriginalStatus sql.NullInt64  `db:"original_status"`
 	Tags           []string       `db:"tags"`
+	LockedSettings sql.NullString `db:"locked_settings"`
 }
 
 func (i *dbPost) toModel(ctx context.Context) *entity.Post {
@@ -53,18 +55,19 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 	}
 
 	post := &entity.Post{
-		ID:            i.ID,
-		Number:        i.Number,
-		Title:         i.Title,
-		Slug:          i.Slug,
-		Description:   i.Description,
-		CreatedAt:     i.CreatedAt,
-		VoteType:      voteType,
-		VotesCount:    i.VotesCount,
-		CommentsCount: i.CommentsCount,
-		Status:        enum.PostStatus(i.Status),
-		User:          i.User.toModel(ctx),
-		Tags:          i.Tags,
+		ID:             i.ID,
+		Number:         i.Number,
+		Title:          i.Title,
+		Slug:           i.Slug,
+		Description:    i.Description,
+		CreatedAt:      i.CreatedAt,
+		VoteType:       voteType,
+		VotesCount:     i.VotesCount,
+		CommentsCount:  i.CommentsCount,
+		Status:         enum.PostStatus(i.Status),
+		User:           i.User.toModel(ctx),
+		Tags:           i.Tags,
+		LockedSettings: nil,
 	}
 
 	if i.Response.Valid {
@@ -82,6 +85,21 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 			}
 		}
 	}
+
+	if i.LockedSettings.Valid {
+		var lockedSettings entity.PostLockedSettings
+		err := json.Unmarshal([]byte(i.LockedSettings.String), &lockedSettings)
+		if err == nil && lockedSettings.Locked {
+			if lockedSettings.LockedBy != nil {
+				getUser := &query.GetUserByID{UserID: lockedSettings.LockedBy.ID}
+				if err := bus.Dispatch(ctx, getUser); err == nil {
+					lockedSettings.LockedBy = getUser.Result
+				}
+			}
+			post.LockedSettings = &lockedSettings
+		}
+	}
+
 	return post
 }
 
@@ -162,6 +180,7 @@ var (
 																d.slug AS original_slug,
 																d.status AS original_status,
 																COALESCE(agg_t.tags, ARRAY[]::text[]) AS tags,
+																p.locked_settings,
 																%s AS vote_type
 													FROM posts p
 													INNER JOIN users u
@@ -536,4 +555,55 @@ func buildPostQuery(user *entity.User, filter string) string {
 		voteTypeSubQuery = fmt.Sprintf("(SELECT vote_type FROM post_votes WHERE post_id = p.id AND user_id = %d LIMIT 1)", user.ID)
 	}
 	return fmt.Sprintf(sqlSelectPostsWhere, tagCondition, voteTypeSubQuery, filter)
+}
+
+func lockPost(ctx context.Context, c *cmd.LockPost) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		lockedSettings := map[string]interface{}{
+			"locked":   true,
+			"lockedAt": time.Now(),
+			"lockedBy": map[string]interface{}{
+				"id": user.ID,
+			},
+			"lockMessage": c.LockMessage,
+		}
+
+		lockedSettingsJSON, err := json.Marshal(lockedSettings)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal locked settings")
+		}
+
+		_, err = trx.Execute(`
+			UPDATE posts 
+			SET locked_settings = $3
+			WHERE id = $1 and tenant_id = $2
+		`, c.Post.ID, tenant.ID, lockedSettingsJSON)
+		if err != nil {
+			return errors.Wrap(err, "failed to lock post")
+		}
+
+		c.Post.LockedSettings = &entity.PostLockedSettings{
+			Locked:      true,
+			LockedAt:    time.Now(),
+			LockedBy:    user,
+			LockMessage: c.LockMessage,
+		}
+		return nil
+	})
+}
+
+func unlockPost(ctx context.Context, c *cmd.UnlockPost) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		_, err := trx.Execute(`
+			UPDATE posts 
+			SET locked_settings = NULL
+			WHERE id = $1 and tenant_id = $2
+		`, c.Post.ID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to unlock post")
+		}
+
+		c.Post.LockedSettings = nil
+		return nil
+	})
 }

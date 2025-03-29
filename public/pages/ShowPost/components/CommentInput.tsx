@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 
-import { Post, ImageUpload } from "@fider/models"
+import { Post, ImageUpload, isPostLocked } from "@fider/models"
 import { Avatar, UserName, Button, Form, MultiImageUploader } from "@fider/components"
 import { SignInModal } from "@fider/components"
 
@@ -40,6 +40,7 @@ export const CommentInput = (props: CommentInputProps) => {
   
   // TODO: refactor the mess that is this check logic
   const isCommentingDisabled = !fider.session.isAuthenticated || 
+    isPostLocked(props.post) || 
     (fider.session.user?.role !== "administrator" && 
     (settings.commentingGloballyDisabled || 
     settings.commentingDisabledFor?.includes(fider.session.user?.role || "") || false))

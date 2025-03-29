@@ -174,6 +174,20 @@ func UpdatePost() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
+		getPost := &query.GetPostByNumber{Number: action.Number}
+		if err := bus.Dispatch(c, getPost); err != nil {
+			return c.Failure(err)
+		}
+
+		if getPost.Result == nil {
+			return c.NotFound()
+		}
+
+		if getPost.Result.IsLocked() && !(c.IsAuthenticated() &&
+			(c.User().IsCollaborator() || c.User().IsAdministrator())) {
+			return c.BadRequest(web.Map{})
+		}
+
 		err := bus.Dispatch(c,
 			&cmd.UploadImages{
 				Images: action.Attachments,
@@ -343,6 +357,15 @@ func PostComment() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
+		if getPost.Result == nil {
+			return c.NotFound()
+		}
+
+		if getPost.Result.IsLocked() && !(c.IsAuthenticated() &&
+			(c.User().IsCollaborator() || c.User().IsAdministrator())) {
+			return c.BadRequest(web.Map{})
+		}
+
 		if err := bus.Dispatch(c, &cmd.UploadImages{Images: action.Attachments, Folder: "attachments"}); err != nil {
 			return c.Failure(err)
 		}
@@ -388,6 +411,15 @@ func UpdateComment() web.HandlerFunc {
 		getPost := &query.GetPostByID{PostID: action.Post.ID}
 		if err := bus.Dispatch(c, getPost); err != nil {
 			return c.Failure(err)
+		}
+
+		if getPost.Result == nil {
+			return c.NotFound()
+		}
+
+		if getPost.Result.IsLocked() && !(c.IsAuthenticated() &&
+			(c.User().IsCollaborator() || c.User().IsAdministrator())) {
+			return c.BadRequest(web.Map{})
 		}
 
 		contentToSave := entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
@@ -496,6 +528,11 @@ func ToggleVote() web.HandlerFunc {
 			return c.NotFound()
 		}
 
+		if getPost.Result.IsLocked() && !(c.IsAuthenticated() &&
+			(c.User().IsCollaborator() || c.User().IsAdministrator())) {
+			return c.BadRequest(web.Map{})
+		}
+
 		listVotes := &query.ListPostVotes{PostID: getPost.Result.ID}
 		if err := bus.Dispatch(c, listVotes); err != nil {
 			return c.Failure(err)
@@ -583,6 +620,11 @@ func addOrRemove(c *web.Context, getCommand func(post *entity.Post, user *entity
 		return c.Failure(err)
 	}
 
+	if getPost.Result.IsLocked() && !(c.IsAuthenticated() &&
+		(c.User().IsCollaborator() || c.User().IsAdministrator())) {
+		return c.BadRequest(web.Map{})
+	}
+
 	cmd := getCommand(getPost.Result, c.User())
 	err = bus.Dispatch(c, cmd)
 	if err != nil {
@@ -590,4 +632,41 @@ func addOrRemove(c *web.Context, getCommand func(post *entity.Post, user *entity
 	}
 
 	return c.Ok(web.Map{})
+}
+
+func LockOrUnlockPost() web.HandlerFunc {
+	return func(c *web.Context) error {
+		isLocking := c.Request.Method == "PUT"
+
+		if isLocking {
+			action := new(actions.LockPost)
+			if result := c.BindTo(action); !result.Ok {
+				return c.HandleValidation(result)
+			}
+
+			lockPost := &cmd.LockPost{
+				Post:        action.Post,
+				LockMessage: action.LockMessage,
+			}
+			if err := bus.Dispatch(c, lockPost); err != nil {
+				return c.Failure(err)
+			}
+		} else if c.Request.Method == "DELETE" {
+			action := new(actions.UnlockPost)
+			if result := c.BindTo(action); !result.Ok {
+				return c.HandleValidation(result)
+			}
+
+			unlockPost := &cmd.UnlockPost{
+				Post: action.Post,
+			}
+			if err := bus.Dispatch(c, unlockPost); err != nil {
+				return c.Failure(err)
+			}
+		} else {
+			return c.BadRequest(web.Map{})
+		}
+
+		return c.Ok(web.Map{})
+	}
 }

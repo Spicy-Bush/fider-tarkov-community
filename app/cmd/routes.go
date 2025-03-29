@@ -237,6 +237,8 @@ func routes(r *web.Engine) *web.Engine {
 		staffApi.Post("/api/v1/posts/:number/tags/:slug", apiv1.AssignTag())
 		staffApi.Delete("/api/v1/posts/:number/tags/:slug", apiv1.UnassignTag())
 		staffApi.Delete("/api/v1/posts/:number", apiv1.DeletePost())
+		staffApi.Put("/api/v1/posts/:number/lock", apiv1.LockOrUnlockPost())
+		staffApi.Delete("/api/v1/posts/:number/lock", apiv1.LockOrUnlockPost())
 	}
 
 	// Operations used to manage a site

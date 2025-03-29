@@ -482,3 +482,64 @@ func (action *DeleteComment) IsAuthorized(ctx context.Context, user *entity.User
 func (action *DeleteComment) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	return validate.Success()
 }
+
+type LockPost struct {
+	Number      int    `route:"number"`
+	LockMessage string `json:"message"`
+
+	Post *entity.Post
+}
+
+func (input *LockPost) OnPreExecute(ctx context.Context) error {
+	getPost := &query.GetPostByNumber{Number: input.Number}
+	if err := bus.Dispatch(ctx, getPost); err != nil {
+		return err
+	}
+
+	input.Post = getPost.Result
+	return nil
+}
+
+func (action *LockPost) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+}
+
+func (action *LockPost) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	if action.Post == nil {
+		result.AddFieldFailure("number", i18n.T(ctx, "validation.custom.invalidpost"))
+	}
+
+	return result
+}
+
+type UnlockPost struct {
+	Number int `route:"number"`
+
+	Post *entity.Post
+}
+
+func (input *UnlockPost) OnPreExecute(ctx context.Context) error {
+	getPost := &query.GetPostByNumber{Number: input.Number}
+	if err := bus.Dispatch(ctx, getPost); err != nil {
+		return err
+	}
+
+	input.Post = getPost.Result
+	return nil
+}
+
+func (action *UnlockPost) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator() || user.IsModerator())
+}
+
+func (action *UnlockPost) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	if action.Post == nil {
+		result.AddFieldFailure("number", i18n.T(ctx, "validation.custom.invalidpost"))
+	}
+
+	return result
+}

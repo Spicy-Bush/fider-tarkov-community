@@ -25,3 +25,12 @@ type SetPostResponse struct {
 	Text   string
 	Status enum.PostStatus
 }
+
+type LockPost struct {
+	Post        *entity.Post
+	LockMessage string
+}
+
+type UnlockPost struct {
+	Post *entity.Post
+}

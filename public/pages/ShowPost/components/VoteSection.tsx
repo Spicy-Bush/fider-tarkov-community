@@ -1,7 +1,7 @@
 import "./VoteSection.scss"
 
 import React, { useState } from "react"
-import { Post, PostStatus } from "@fider/models"
+import { Post, PostStatus, isPostLocked } from "@fider/models"
 import { actions, classSet } from "@fider/services"
 import { Button, Icon, SignInModal } from "@fider/components"
 import { useFider } from "@fider/hooks"
@@ -71,7 +71,7 @@ export const VoteSection = (props: VoteSectionProps) => {
   const hideModal = () => setIsSignInModalOpen(false)
 
   const status = PostStatus.Get(props.post.status)
-  const isDisabled = status.closed || fider.isReadOnly
+  const isDisabled = status.closed || fider.isReadOnly || isPostLocked(props.post)
 
   const countClassName = classSet({
     "c-vote-section__count": true,

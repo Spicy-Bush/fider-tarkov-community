@@ -1,12 +1,13 @@
 import "./VoteCounter.scss"
 
 import React, { useState } from "react"
-import { Post, PostStatus } from "@fider/models"
+import { Post, PostStatus, isPostLocked } from "@fider/models"
 import { actions, classSet } from "@fider/services"
 import { Icon, SignInModal } from "@fider/components"
 import { useFider } from "@fider/hooks"
 import FaCaretUp from "@fider/assets/images/fa-caretup.svg"
 import FaCaretDown from "@fider/assets/images/fa-caretdown.svg"
+
 
 export interface VoteCounterProps {
   post: Post
@@ -70,7 +71,7 @@ export const VoteCounter = (props: VoteCounterProps) => {
   const hideModal = () => setIsSignInModalOpen(false)
 
   const status = PostStatus.Get(props.post.status)
-  const isDisabled = status.closed || fider.isReadOnly
+  const isDisabled = status.closed || fider.isReadOnly || isPostLocked(props.post)
 
   const upvoteClassName = classSet({
     "c-vote-counter__button": true,
