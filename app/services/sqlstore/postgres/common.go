@@ -134,12 +134,10 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 		}
 	case "controversial":
 		sort = "CASE " +
-			"WHEN upvotes > 0 AND downvotes > 0 THEN " +
-			"(downvotes::float / GREATEST(upvotes, 1)) * " +
-			"(upvotes + downvotes) / " +
+			"WHEN upvotes > 0 OR downvotes > 0 THEN " +
+			"(upvotes + downvotes) * (1 - ABS(upvotes - downvotes)::float / GREATEST(upvotes + downvotes, 1)) / " +
 			"pow((EXTRACT(EPOCH FROM current_timestamp - created_at)/86400) + 1, 0.5) " +
-			"ELSE (downvotes::float) / " +
-			"pow((EXTRACT(EPOCH FROM current_timestamp - created_at)/86400) + 2, 1.2) " +
+			"ELSE 0 " +
 			"END"
 	case "trending":
 		fallthrough
