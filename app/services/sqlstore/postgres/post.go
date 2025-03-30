@@ -258,45 +258,7 @@ func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error 
 			respondedAt = c.Post.Response.RespondedAt
 		}
 
-		var votes []*struct {
-			UserID   int           `db:"user_id"`
-			VoteType enum.VoteType `db:"vote_type"`
-		}
-		err := trx.Select(&votes, "SELECT user_id, vote_type FROM post_votes WHERE post_id = $1 AND tenant_id = $2", c.Post.ID, tenant.ID)
-		if err != nil {
-			return errors.Wrap(err, "failed to get votes of post with id '%d'", c.Post.ID)
-		}
-
-		for _, vote := range votes {
-			var existingVote struct {
-				ID int `db:"id"`
-			}
-			err := trx.Get(&existingVote, "SELECT id FROM post_votes WHERE post_id = $1 AND user_id = $2 AND tenant_id = $3",
-				c.Original.ID, vote.UserID, tenant.ID)
-
-			if err == nil {
-				_, err = trx.Execute(`
-					UPDATE post_votes 
-					SET vote_type = $4, created_at = NOW()
-					WHERE id = $1 AND post_id = $2 AND tenant_id = $3
-				`, existingVote.ID, c.Original.ID, tenant.ID, vote.VoteType)
-
-				if err != nil {
-					return errors.Wrap(err, "failed to update existing vote on original post")
-				}
-			} else {
-				_, err = trx.Execute(`
-					INSERT INTO post_votes (user_id, post_id, tenant_id, vote_type, created_at) 
-					VALUES ($1, $2, $3, $4, NOW())
-				`, vote.UserID, c.Original.ID, tenant.ID, vote.VoteType)
-
-				if err != nil {
-					return errors.Wrap(err, "failed to add new vote to original post")
-				}
-			}
-		}
-
-		_, err = trx.Execute(`
+		_, err := trx.Execute(`
 		UPDATE posts 
 		SET response = '', original_id = $3, response_date = $4, response_user_id = $5, status = $6 
 		WHERE id = $1 and tenant_id = $2
@@ -316,6 +278,38 @@ func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error 
 				Status: c.Original.Status,
 			},
 		}
+
+		var votes []*struct {
+			UserID   int           `db:"user_id"`
+			VoteType enum.VoteType `db:"vote_type"`
+		}
+		err = trx.Select(&votes, "SELECT user_id, vote_type FROM post_votes WHERE post_id = $1 AND tenant_id = $2", c.Post.ID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get votes of post with id '%d'", c.Post.ID)
+		}
+
+		for _, vote := range votes {
+			_, err = trx.Execute(`
+				DELETE FROM post_votes 
+				WHERE post_id = $1 AND user_id = $2 AND tenant_id = $3
+			`, c.Original.ID, vote.UserID, tenant.ID)
+
+			if err != nil {
+				return errors.Wrap(err, "failed to remove existing vote on original post")
+			}
+		}
+
+		for _, vote := range votes {
+			_, err = trx.Execute(`
+				INSERT INTO post_votes (user_id, post_id, tenant_id, vote_type, created_at) 
+				VALUES ($1, $2, $3, $4, NOW())
+			`, vote.UserID, c.Original.ID, tenant.ID, vote.VoteType)
+
+			if err != nil {
+				return errors.Wrap(err, "failed to transfer vote to original post")
+			}
+		}
+
 		return nil
 	})
 }
