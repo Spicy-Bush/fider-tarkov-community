@@ -44,6 +44,7 @@ type SearchPosts struct {
 	Tags        []string
 	MyVotesOnly bool
 	MyPostsOnly bool
+	NotMyVotes  bool
 	Untagged    bool
 	Date        string
 	Count       int `json:"count,omitempty"`

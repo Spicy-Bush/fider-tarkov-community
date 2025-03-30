@@ -60,6 +60,7 @@
   "home.postfilter.option.newest": "Newest",
   "home.postfilter.option.recently-updated": "Recently Updated",
   "home.postfilter.option.trending": "Trending",
+  "home.postfilter.option.notmyvotes": "Not My Votes",
   "home.postinput.description.placeholder": "Describe your suggestion...",
   "home.postinput.disabled": "Posting has been disabled by the administrators.",
   "home.postscontainer.label.noresults": "No results matched your search, try something different.",

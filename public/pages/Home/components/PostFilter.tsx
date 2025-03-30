@@ -3,13 +3,12 @@ import { PostStatus, Tag } from "@fider/models"
 import { Checkbox, Dropdown, Icon } from "@fider/components"
 import { HStack } from "@fider/components/layout"
 import HeroIconFilter from "@fider/assets/images/heroicons-filter.svg"
-
 import { useFider } from "@fider/hooks"
 import { i18n } from "@lingui/core"
-
+import { Fider } from "@fider/services"
 import { FilterState } from "./PostsContainer"
 
-type FilterType = "tag" | "status" | "myVotes" | "myPosts"
+type FilterType = "tag" | "status" | "myVotes" | "myPosts" | "notMyVotes"
 
 interface OptionItem {
   value: string | boolean
@@ -44,11 +43,14 @@ const FilterStateToFilterItems = (filterState: FilterState): FilterItem[] => {
   if (filterState.myPosts) {
     filterItems.push({ type: "myPosts", value: true })
   }
+  if (filterState.notMyVotes && Fider.session.isAuthenticated) {
+    filterItems.push({ type: "notMyVotes", value: true })
+  }
   return filterItems
 }
 
 const FilterItemsToFilterState = (filterItems: FilterItem[]): FilterState => {
-  const filterState: FilterState = { tags: [], statuses: [], myVotes: false, myPosts: false }
+  const filterState: FilterState = { tags: [], statuses: [], myVotes: false, myPosts: false, notMyVotes: false }
   filterItems.forEach((i) => {
     if (i.type === "tag") {
       filterState.tags.push(i.value as string)
@@ -58,6 +60,8 @@ const FilterItemsToFilterState = (filterItems: FilterItem[]): FilterState => {
       filterState.myVotes = true
     } else if (i.type === "myPosts") {
       filterState.myPosts = true
+    } else if (i.type === "notMyVotes" && Fider.session.isAuthenticated) {
+      filterState.notMyVotes = true
     }
   })
   return filterState
@@ -81,6 +85,7 @@ export const PostFilter = (props: PostFilterProps) => {
   if (fider.session.isAuthenticated) {
     options.push({ value: true, label: i18n._("home.postfilter.option.myvotes", { message: "My Votes" }), type: "myVotes" })
     options.push({ value: true, label: i18n._("home.postfilter.option.myposts", { message: "My Posts" }), type: "myPosts" })
+    options.push({ value: true, label: i18n._("home.postfilter.option.notmyvotes", { message: "Hide My Votes" }), type: "notMyVotes" })
   }
 
   PostStatus.All.filter((s) => s.filterable && props.countPerStatus[s.value]).forEach((s) => {

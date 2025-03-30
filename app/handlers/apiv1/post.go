@@ -84,12 +84,17 @@ func SearchPosts() web.HandlerFunc {
 			Untagged: untagged,
 			Date:     c.QueryParam("date"),
 		}
+
 		if myVotesOnly, err := c.QueryParamAsBool("myvotes"); err == nil {
 			searchPosts.MyVotesOnly = myVotesOnly
 		}
 
 		if myPostsOnly, err := c.QueryParamAsBool("myposts"); err == nil {
 			searchPosts.MyPostsOnly = myPostsOnly
+		}
+
+		if notMyVotes, err := c.QueryParamAsBool("notmyvotes"); err == nil {
+			searchPosts.NotMyVotes = notMyVotes
 		}
 
 		searchPosts.SetStatusesFromStrings(c.QueryParamAsArray("statuses"))

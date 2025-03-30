@@ -17,6 +17,7 @@ export interface FilterState {
   statuses: string[]
   myVotes: boolean
   myPosts: boolean
+  notMyVotes: boolean
   date?: string
 }
 
@@ -64,6 +65,7 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
         statuses: querystring.getArray("statuses"),
         myVotes: querystring.get("myvotes") === "true",
         myPosts: querystring.get("myposts") === "true",
+        notMyVotes: querystring.get("notmyvotes") === "false" ? false : true,
         date: querystring.get("date") || undefined,
       },
       limit: querystring.getNumber("limit") || 15,
@@ -116,6 +118,7 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
         statuses: this.state.filterState.statuses,
         myVotes: this.state.filterState.myVotes,
         myPosts: this.state.filterState.myPosts,
+        notMyVotes: this.state.filterState.notMyVotes,
         date: this.state.filterState.date,
       })
       .then((response) => {
@@ -146,6 +149,7 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
           tags: this.state.filterState.tags,
           myvotes: this.state.filterState.myVotes ? "true" : undefined,
           myposts: this.state.filterState.myPosts ? "true" : undefined,
+          notmyvotes: this.state.filterState.notMyVotes ? "true" : undefined,
           date: this.state.filterState.date,
           query,
           view: this.state.view,
@@ -162,6 +166,7 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
           this.state.filterState.myVotes,
           this.state.filterState.myPosts,
           reset,
+          this.state.filterState.notMyVotes,
           this.state.filterState.date
         )
       })
@@ -177,13 +182,14 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
     myVotes: boolean,
     myPosts: boolean,
     reset: boolean,
+    notMyVotes: boolean,
     date?: string
   ) {
     window.clearTimeout(this.timer)
     this.setState({ posts: reset ? undefined : this.state.posts, loading: true, offset: reset ? 0 : this.state.offset })
     this.timer = window.setTimeout(() => {
       actions
-        .searchPosts({ query, view, limit, tags, statuses, myVotes, myPosts, date, offset: this.state.offset })
+        .searchPosts({ query, view, limit, tags, statuses, myVotes, myPosts, notMyVotes, date, offset: this.state.offset })
         .then((response) => {
           if (response.ok && this.state.loading) {
             const posts: Post[] = response.data || []

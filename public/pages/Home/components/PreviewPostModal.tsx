@@ -24,7 +24,8 @@ export const PreviewPostModal: React.FC<PreviewPostModalProps> = (props) => {
   }
   
   const validAttachments = props.attachments.filter(attachment => !attachment.remove)
-
+  const isAuthenticated = fider.session && fider.session.isAuthenticated
+    
   return (
     <Modal.Window isOpen={props.isOpen} center={false} onClose={closeModal}>
       <Modal.Header>
@@ -34,9 +35,8 @@ export const PreviewPostModal: React.FC<PreviewPostModalProps> = (props) => {
       <Modal.Content>
         <VStack spacing={8}>
           <HStack>
-            {fider.session.user && <Avatar user={fider.session.user} />}
-            <VStack spacing={1}>
-              {fider.session.user && <UserName user={fider.session.user} />}
+            {isAuthenticated ? ( <Avatar user={fider.session.user} />) : ( <div className="c-avatar" style={{ width: '24px', height: '24px', backgroundColor: '#e9ecef' }}></div> )}
+            <VStack spacing={1}> {isAuthenticated ? ( <UserName user={fider.session.user} /> ) : ( <span>Anonymous User</span> )}
               <Moment className="text-muted" locale={fider.currentLocale} date={currentDate} />
             </VStack>
           </HStack>

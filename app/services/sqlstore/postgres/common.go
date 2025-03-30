@@ -47,6 +47,11 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 	if query.MyVotesOnly {
 		conditions = append(conditions, "vote_type IS NOT NULL")
 	}
+
+	if query.NotMyVotes && userID > 0 {
+		conditions = append(conditions, "vote_type IS NULL")
+	}
+
 	if query.MyPostsOnly {
 		conditions = append(conditions, fmt.Sprintf("user_id = $%d", paramIndex))
 		extraParams = append(extraParams, userID)
