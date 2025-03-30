@@ -259,7 +259,6 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            onDoubleClick={scale !== 1 ? resetZoom : toggleFullscreen}
           >
             {!loadedPreview && <Loader />}
             <img 
