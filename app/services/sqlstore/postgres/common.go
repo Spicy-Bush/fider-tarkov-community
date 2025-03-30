@@ -102,7 +102,8 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 	case "newest":
 		sort = "id"
 	case "recently-updated":
-		sort = "COALESCE(response_date, created_at)"
+		// oh god dear please help me what the fuck im going insane
+		sort = "CASE WHEN status = " + fmt.Sprintf("%d", int(enum.PostOpen)) + " THEN -999999999 ELSE extract(epoch from COALESCE(response_date, created_at)) END"
 	case "most-wanted":
 		sort = "votes_count"
 	case "most-discussed":
