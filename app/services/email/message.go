@@ -31,11 +31,13 @@ func RenderMessage(ctx context.Context, templateName string, fromAddress string,
 		panic(err)
 	}
 
-	lines := strings.Split(bf.String(), "\n")
-	body := strings.TrimLeft(strings.Join(lines[2:], "\n"), " ")
+	content := strings.ReplaceAll(strings.ReplaceAll(bf.String(), "\r\n", "\n"), "\r", "\n")
+	lines := strings.Split(content, "\n")
+	subject := strings.TrimLeft(lines[0], "subject: ")
+	body := strings.Join(lines[2:], "\n")
 
 	return &Message{
-		Subject: strings.TrimLeft(lines[0], "subject: "),
+		Subject: subject,
 		Body:    body,
 	}
 }

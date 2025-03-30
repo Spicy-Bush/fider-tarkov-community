@@ -125,13 +125,14 @@ func routes(r *web.Engine) *web.Engine {
 		ui.Get("/settings", handlers.UserSettings())
 		ui.Get("/notifications", handlers.Notifications())
 		ui.Get("/notifications/:id", handlers.ReadNotification())
-		ui.Get("/_api/notifications/unread", handlers.GetAllNotifications())
+		ui.Get("/_api/notifications", handlers.GetAllNotifications())
 		ui.Get("/change-email/verify", handlers.VerifyChangeEmailKey())
 
 		ui.Delete("/_api/user", handlers.DeleteUser())
 		ui.Post("/_api/user/regenerate-apikey", handlers.RegenerateAPIKey())
 		ui.Post("/_api/user/settings", handlers.UpdateUserSettings())
 		ui.Post("/_api/user/change-email", handlers.ChangeUserEmail())
+		ui.Post("/_api/notifications/purge-read", handlers.PurgeReadNotifications())
 		ui.Post("/_api/notifications/read-all", handlers.ReadAllNotifications())
 		ui.Get("/_api/notifications/unread/total", handlers.TotalUnreadNotifications())
 
@@ -149,7 +150,10 @@ func routes(r *web.Engine) *web.Engine {
 		ui.Get("/admin/members", handlers.ManageMembers())
 		ui.Get("/admin/tags", handlers.ManageTags())
 		ui.Get("/admin/authentication", handlers.ManageAuthentication())
+		ui.Get("/admin/content-settings", handlers.ContentSettingsPage())
 		ui.Get("/_api/admin/oauth/:provider", handlers.GetOAuthConfig())
+		ui.Post("/_api/admin/settings/general-settings", handlers.UpdateGeneralSettings())
+		ui.Post("/_api/admin/settings/message-banner", handlers.UpdateMessageBanner())
 
 		// From this step, only Administrators are allowed
 		ui.Use(middlewares.IsAuthorized(enum.RoleAdministrator))
@@ -233,6 +237,8 @@ func routes(r *web.Engine) *web.Engine {
 		staffApi.Post("/api/v1/posts/:number/tags/:slug", apiv1.AssignTag())
 		staffApi.Delete("/api/v1/posts/:number/tags/:slug", apiv1.UnassignTag())
 		staffApi.Delete("/api/v1/posts/:number", apiv1.DeletePost())
+		staffApi.Put("/api/v1/posts/:number/lock", apiv1.LockOrUnlockPost())
+		staffApi.Delete("/api/v1/posts/:number/lock", apiv1.LockOrUnlockPost())
 	}
 
 	// Operations used to manage a site

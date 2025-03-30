@@ -31,7 +31,7 @@ func TestUploadImage(t *testing.T) {
 	err := bus.Dispatch(ctx, uploadImage)
 	Expect(err).IsNil()
 	Expect(uploadImage.Image.BlobKey).ContainsSubstring("avatars/")
-	Expect(uploadImage.Image.BlobKey).HasLen(73)
+	Expect(uploadImage.Image.BlobKey).HasLen(78)
 }
 
 func TestUploadImage_NoContent(t *testing.T) {
@@ -84,8 +84,8 @@ func TestUploadMultipleImages(t *testing.T) {
 	Expect(err).IsNil()
 
 	Expect(uploadImages.Images[0].BlobKey).ContainsSubstring("avatars/")
-	Expect(uploadImages.Images[0].BlobKey).HasLen(73)
+	Expect(uploadImages.Images[0].BlobKey).HasLen(78)
 
 	Expect(uploadImages.Images[1].BlobKey).ContainsSubstring("avatars/")
-	Expect(uploadImages.Images[1].BlobKey).HasLen(73)
+	Expect(uploadImages.Images[1].BlobKey).HasLen(78)
 }

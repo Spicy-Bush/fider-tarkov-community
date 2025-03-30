@@ -38,6 +38,7 @@ func (s Service) Init() {
 	bus.AddHandler(countUnreadNotifications)
 	bus.AddHandler(getNotificationByID)
 	bus.AddHandler(getActiveNotifications)
+	bus.AddHandler(purgeReadNotifications)
 	bus.AddHandler(addNewNotification)
 	bus.AddHandler(addSubscriber)
 	bus.AddHandler(removeSubscriber)
@@ -69,6 +70,8 @@ func (s Service) Init() {
 	bus.AddHandler(markPostAsDuplicate)
 	bus.AddHandler(setPostResponse)
 	bus.AddHandler(postIsReferenced)
+	bus.AddHandler(lockPost)
+	bus.AddHandler(unlockPost)
 
 	bus.AddHandler(setAttachments)
 	bus.AddHandler(getAttachments)
@@ -125,6 +128,8 @@ func (s Service) Init() {
 	bus.AddHandler(updateTenantPrivacySettings)
 	bus.AddHandler(updateTenantEmailAuthAllowedSettings)
 	bus.AddHandler(updateTenantAdvancedSettings)
+	bus.AddHandler(updateGeneralSettings)
+	bus.AddHandler(UpdateMessageBanner)
 
 	bus.AddHandler(getVerificationByKey)
 	bus.AddHandler(saveVerificationKey)

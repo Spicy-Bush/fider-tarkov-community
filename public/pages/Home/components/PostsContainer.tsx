@@ -6,18 +6,20 @@ import { Loader, Input } from "@fider/components"
 import { actions, navigator, querystring } from "@fider/services"
 import IconSearch from "@fider/assets/images/heroicons-search.svg"
 import IconX from "@fider/assets/images/heroicons-x.svg"
-import { PostFilter } from "./PostFilter"
+import { FilterPanel } from "./FilterPanel"
 import { ListPosts } from "./ListPosts"
 import { i18n } from "@lingui/core"
 import { PostsSort } from "./PostsSort"
-import { DateFilter } from "./DateFilter"
+import { Fider } from "@fider/services"
 
 export interface FilterState {
   tags: string[]
   statuses: string[]
   myVotes: boolean
   myPosts: boolean
+  notMyVotes: boolean
   date?: string
+  tagLogic?: "OR" | "AND"
 }
 
 interface PostsContainerProps {
@@ -42,7 +44,7 @@ const untaggedTag: Tag = {
   id: -1,
   slug: "untagged",
   name: "untagged",
-  color: "#cccccc",
+  color: "cccccc",
   isPublic: false,
 }
 
@@ -64,7 +66,9 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
         statuses: querystring.getArray("statuses"),
         myVotes: querystring.get("myvotes") === "true",
         myPosts: querystring.get("myposts") === "true",
+        notMyVotes: Fider.session.isAuthenticated ? (querystring.get("notmyvotes") === "false" ? false : true) : false,
         date: querystring.get("date") || undefined,
+        tagLogic: (querystring.get("taglogic") as "OR" | "AND") || "OR",
       },
       limit: querystring.getNumber("limit") || 15,
       offset: 0,
@@ -116,7 +120,9 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
         statuses: this.state.filterState.statuses,
         myVotes: this.state.filterState.myVotes,
         myPosts: this.state.filterState.myPosts,
+        notMyVotes: this.state.filterState.notMyVotes,
         date: this.state.filterState.date,
+        tagLogic: this.state.filterState.tagLogic,
       })
       .then((response) => {
         if (response.ok) {
@@ -146,7 +152,9 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
           tags: this.state.filterState.tags,
           myvotes: this.state.filterState.myVotes ? "true" : undefined,
           myposts: this.state.filterState.myPosts ? "true" : undefined,
+          notmyvotes: this.state.filterState.notMyVotes ? "true" : undefined,
           date: this.state.filterState.date,
+          taglogic: this.state.filterState.tagLogic,
           query,
           view: this.state.view,
           limit: this.state.limit,
@@ -162,7 +170,9 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
           this.state.filterState.myVotes,
           this.state.filterState.myPosts,
           reset,
-          this.state.filterState.date
+          this.state.filterState.notMyVotes,
+          this.state.filterState.date,
+          this.state.filterState.tagLogic
         )
       })
     })
@@ -177,13 +187,15 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
     myVotes: boolean,
     myPosts: boolean,
     reset: boolean,
-    date?: string
+    notMyVotes: boolean,
+    date?: string,
+    tagLogic?: "OR" | "AND"
   ) {
     window.clearTimeout(this.timer)
     this.setState({ posts: reset ? undefined : this.state.posts, loading: true, offset: reset ? 0 : this.state.offset })
     this.timer = window.setTimeout(() => {
       actions
-        .searchPosts({ query, view, limit, tags, statuses, myVotes, myPosts, date, offset: this.state.offset })
+        .searchPosts({ query, view, limit, tags, statuses, myVotes, myPosts, notMyVotes, date, tagLogic, offset: this.state.offset })
         .then((response) => {
           if (response.ok && this.state.loading) {
             const posts: Post[] = response.data || []
@@ -198,11 +210,6 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
     this.changeFilterCriteria({ filterState }, true)
   }
 
-  private handleDateFilterChanged = (date?: string) => {
-    const filterState = { ...this.state.filterState, date };
-    this.changeFilterCriteria({ filterState }, true);
-  }
-
   private handleSearchFilterChanged = (query: string) => {
     this.changeFilterCriteria({ query }, true)
   }
@@ -215,21 +222,52 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
     this.changeFilterCriteria({ query: "" }, true)
   }
 
+  private hasActiveFilters = (): boolean => {
+    const { filterState, query } = this.state
+    return (
+      filterState.tags.length > 0 ||
+      filterState.statuses.length > 0 ||
+      filterState.myVotes ||
+      filterState.myPosts ||
+      filterState.notMyVotes ||
+      !!filterState.date ||
+      !!query
+    )
+  }
+
+  private resetAllFilters = () => {
+    const defaultFilterState: FilterState = {
+      tags: [],
+      statuses: [],
+      myVotes: false,
+      myPosts: false,
+      notMyVotes: true,
+      date: undefined,
+      tagLogic: "OR"
+    }
+    
+    this.changeFilterCriteria({ 
+      filterState: defaultFilterState,
+      query: "",
+      view: "trending"
+    }, true)
+  }
+
   public render() {
+    const hasFilters = this.hasActiveFilters()
+    const hasNoPosts = !this.state.loading && (!this.state.posts || this.state.posts.length === 0)
+    const showResetButton = hasFilters && hasNoPosts
+
     return (
       <div className="c-posts-container">
         <div className="c-posts-container__header mb-5">
           {!this.state.query && (
             <div className="c-posts-container__filter-col">
-              <PostFilter
+              <FilterPanel
                 tags={[untaggedTag, ...this.props.tags]}
                 activeFilter={this.state.filterState}
                 filtersChanged={this.handleFilterChanged}
                 countPerStatus={this.props.countPerStatus}
-              />
-              <DateFilter 
-                activeDate={this.state.filterState.date}
-                onChange={this.handleDateFilterChanged}
               />
               <PostsSort onChange={this.handleSortChanged} value={this.state.view} />
             </div>
@@ -250,6 +288,16 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
           tags={this.props.tags}
           emptyText={i18n._("home.postscontainer.label.noresults", { message: "No results matched your search, try something different." })}
         />
+        {showResetButton && (
+          <div className="mt-4 text-center">
+            <button 
+              className="c-button c-button--default c-button--primary"
+              onClick={this.resetAllFilters}
+            >
+              {i18n._("home.postscontainer.resetfilters", { message: "Reset all filters" })}
+            </button>
+          </div>
+        )}
         {this.state.loading && <Loader />}
         {this.state.hasMore && <div ref={this.loadMoreRef} style={{ height: "1px" }}></div>}
       </div>

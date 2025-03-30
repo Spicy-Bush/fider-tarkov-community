@@ -56,9 +56,6 @@ export const UserName = (props: UserNameProps) => {
   const className = classSet(classNames)
   const visualRoleName = getVisualRoleName(visualRole)
 
-  console.log("User visual role:", visualRole);
-  console.log("Class names:", classNames);
-
   return (
     <div className={className}>
       <span>{props.user.name || "Anonymous"}</span>

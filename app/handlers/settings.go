@@ -20,7 +20,7 @@ import (
 // ChangeUserEmail register the intent of changing user email
 func ChangeUserEmail() web.HandlerFunc {
 	return func(c *web.Context) error {
-		if c.User().Role != enum.RoleAdministrator || c.User().Role != enum.RoleCollaborator {
+		if c.User().Role != enum.RoleAdministrator && c.User().Role != enum.RoleCollaborator {
 			return c.Redirect(c.BaseURL() + "/settings")
 		}
 
@@ -47,7 +47,7 @@ func ChangeUserEmail() web.HandlerFunc {
 // VerifyChangeEmailKey checks if key is correct and update user's email
 func VerifyChangeEmailKey() web.HandlerFunc {
 	return func(c *web.Context) error {
-		if c.User().Role != enum.RoleAdministrator || c.User().Role != enum.RoleCollaborator {
+		if c.User().Role != enum.RoleAdministrator && c.User().Role != enum.RoleCollaborator {
 			return c.Redirect(c.BaseURL() + "/settings")
 		}
 		key := c.QueryParam("k")

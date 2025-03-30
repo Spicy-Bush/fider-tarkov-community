@@ -114,10 +114,27 @@ func TestChangeUserRole_Authorized(t *testing.T) {
 func TestChangeUserRole_InvalidRole(t *testing.T) {
 	RegisterT(t)
 
-	targetUser := &entity.User{Role: enum.RoleVisitor}
-	currentUser := &entity.User{Role: enum.RoleAdministrator}
+	targetUser := &entity.User{
+		ID:     1,
+		Role:   enum.RoleVisitor,
+		Tenant: &entity.Tenant{ID: 1},
+	}
+	currentUser := &entity.User{
+		ID:     2,
+		Role:   enum.RoleAdministrator,
+		Tenant: &entity.Tenant{ID: 1},
+	}
 
-	action := actions.ChangeUserRole{UserID: targetUser.ID, Role: 4}
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserByID) error {
+		if q.UserID == targetUser.ID {
+			q.Result = targetUser
+			return nil
+		}
+		return app.ErrNotFound
+	})
+
+	invalidRole := enum.Role(5)
+	action := actions.ChangeUserRole{UserID: targetUser.ID, Role: invalidRole}
 	action.IsAuthorized(context.Background(), currentUser)
 	result := action.Validate(context.Background(), currentUser)
 	Expect(result.Err).Equals(app.ErrNotFound)

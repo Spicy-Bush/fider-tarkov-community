@@ -53,5 +53,7 @@ type GetAllUserProviders struct {
 }
 
 type GetAllUsersNames struct {
+	Query  string
+	Limit  int
 	Result []*dto.UserNames
 }

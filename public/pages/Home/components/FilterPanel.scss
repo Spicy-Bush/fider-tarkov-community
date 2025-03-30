@@ -1,0 +1,127 @@
+@import "~@fider/assets/styles/variables.scss";
+
+.c-filter-panel {
+  position: relative;
+  display: inline-block;
+  margin-right: spacing(4);
+  
+  &__button {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    
+    &:hover {
+      background-color: #f9fafb;
+    }
+  }
+  
+  &__content {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: 320px;
+    max-height: 500px;
+    background-color: #fff;
+    border: 1px solid #E0DCDD;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+    overflow: hidden;
+    
+    @include media("sm") {
+      width: 360px;
+    }
+  }
+  
+  &__tabs {
+    display: flex;
+    border-bottom: 1px solid #EEEBEB;
+  }
+  
+  &__tab {
+    flex: 1;
+    padding: spacing(2) spacing(1);
+    text-align: center;
+    font-size: 14px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    position: relative;
+    
+    &:hover {
+      background-color: #f9fafb;
+    }
+    
+    &--active {
+      border-bottom-color: var(--primary-color, #2d57ed);
+      font-weight: 600;
+    }
+    
+    &-count {
+      position: absolute;
+      top: 2px;
+      right: 4px;
+      font-size: 12px;
+      background-color: var(--primary-color, #2d57ed);
+      color: #fff;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+  
+  &__tab-content {
+    padding: spacing(3);
+    max-height: 350px;
+    overflow-y: auto;
+  }
+  
+  &__tag-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: spacing(1);
+    
+    @include media("sm") {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  
+  &__tag-item,
+  &__status-item,
+  &__user-item,
+  &__date-item {
+    padding: spacing(2);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+    
+    &:hover {
+      background-color: #FCFAFA;
+    }
+    
+    &--selected {
+      background-color: #f0f9ff;
+      border: 1px solid #c2c4ff;
+    }
+  }
+  
+  &__no-results {
+    text-align: center;
+    padding: spacing(3);
+    color: #756E71;
+  }
+  
+  &__actions {
+    display: flex;
+    justify-content: space-between;
+    padding: spacing(2) spacing(3);
+    border-top: 1px solid #EEEBEB;
+    background-color: #f9fafb;
+  }
+  
+  &__tag-check {
+    margin-left: auto;
+  }
+}

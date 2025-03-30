@@ -25,7 +25,9 @@ export const AdminPageContainer = (props: AdminPageContainerProps) => {
 
         <div className="c-admin-basepage">
           <SideMenu activeItem={props.name} />
-          <div>{props.children}</div>
+          <div id="c-admin-basepage-content">
+            {props.children}
+          </div>
         </div>
       </div>
     </>

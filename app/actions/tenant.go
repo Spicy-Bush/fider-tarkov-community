@@ -232,3 +232,80 @@ func (action *UpdateTenantEmailAuthAllowed) Validate(ctx context.Context, user *
 
 	return result
 }
+
+type UpdateMessageBanner struct {
+	MessageBanner string `json:"messageBanner"`
+}
+
+func (action *UpdateMessageBanner) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && user.Role == enum.RoleAdministrator || user.Role == enum.RoleCollaborator
+}
+
+func (action *UpdateMessageBanner) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	// DB has varchar(1000)
+	if len(action.MessageBanner) > 1000 {
+		result.AddFieldFailure("messageBanner", "Message banner must have less than 1000 characters.")
+	}
+
+	return result
+}
+
+type UpdateGeneralSettings struct {
+	Settings *entity.GeneralSettings `json:"settings"`
+}
+
+func (action *UpdateGeneralSettings) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && user.IsAdministrator()
+}
+
+func (action *UpdateGeneralSettings) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	if action.Settings == nil {
+		result.AddFieldFailure("settings", "Settings are required")
+		return result
+	}
+
+	if action.Settings.TitleLengthMin < 1 {
+		result.AddFieldFailure("settings.titleLengthMin", "Title minimum length must be at least 1")
+	}
+	if action.Settings.TitleLengthMax < action.Settings.TitleLengthMin {
+		result.AddFieldFailure("settings.titleLengthMax", "Title maximum length must be greater than or equal to minimum length")
+	}
+
+	if action.Settings.DescriptionLengthMin < 1 {
+		result.AddFieldFailure("settings.descriptionLengthMin", "Description minimum length must be at least 1")
+	}
+	if action.Settings.DescriptionLengthMax < action.Settings.DescriptionLengthMin {
+		result.AddFieldFailure("settings.descriptionLengthMax", "Description maximum length must be greater than or equal to minimum length")
+	}
+
+	if action.Settings.MaxImagesPerPost < 0 {
+		result.AddFieldFailure("settings.maxImagesPerPost", "Maximum images per post must be non-negative")
+	}
+	if action.Settings.MaxImagesPerComment < 0 {
+		result.AddFieldFailure("settings.maxImagesPerComment", "Maximum images per comment must be non-negative")
+	}
+
+	for role, limit := range action.Settings.PostLimits {
+		if limit.Count < 0 {
+			result.AddFieldFailure("settings.postLimits."+role+".count", "Post count must be non-negative")
+		}
+		if limit.Hours < 1 && limit.Count > 0 {
+			result.AddFieldFailure("settings.postLimits."+role+".hours", "Time period must be at least 1 hour")
+		}
+	}
+
+	for role, limit := range action.Settings.CommentLimits {
+		if limit.Count < 0 {
+			result.AddFieldFailure("settings.commentLimits."+role+".count", "Comment count must be non-negative")
+		}
+		if limit.Hours < 1 && limit.Count > 0 {
+			result.AddFieldFailure("settings.commentLimits."+role+".hours", "Time period must be at least 1 hour")
+		}
+	}
+
+	return result
+}

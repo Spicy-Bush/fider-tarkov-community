@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -44,6 +45,7 @@ type dbPost struct {
 	OriginalSlug   sql.NullString `db:"original_slug"`
 	OriginalStatus sql.NullInt64  `db:"original_status"`
 	Tags           []string       `db:"tags"`
+	LockedSettings sql.NullString `db:"locked_settings"`
 }
 
 func (i *dbPost) toModel(ctx context.Context) *entity.Post {
@@ -53,18 +55,19 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 	}
 
 	post := &entity.Post{
-		ID:            i.ID,
-		Number:        i.Number,
-		Title:         i.Title,
-		Slug:          i.Slug,
-		Description:   i.Description,
-		CreatedAt:     i.CreatedAt,
-		VoteType:      voteType,
-		VotesCount:    i.VotesCount,
-		CommentsCount: i.CommentsCount,
-		Status:        enum.PostStatus(i.Status),
-		User:          i.User.toModel(ctx),
-		Tags:          i.Tags,
+		ID:             i.ID,
+		Number:         i.Number,
+		Title:          i.Title,
+		Slug:           i.Slug,
+		Description:    i.Description,
+		CreatedAt:      i.CreatedAt,
+		VoteType:       voteType,
+		VotesCount:     i.VotesCount,
+		CommentsCount:  i.CommentsCount,
+		Status:         enum.PostStatus(i.Status),
+		User:           i.User.toModel(ctx),
+		Tags:           i.Tags,
+		LockedSettings: nil,
 	}
 
 	if i.Response.Valid {
@@ -82,6 +85,21 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 			}
 		}
 	}
+
+	if i.LockedSettings.Valid {
+		var lockedSettings entity.PostLockedSettings
+		err := json.Unmarshal([]byte(i.LockedSettings.String), &lockedSettings)
+		if err == nil && lockedSettings.Locked {
+			if lockedSettings.LockedBy != nil {
+				getUser := &query.GetUserByID{UserID: lockedSettings.LockedBy.ID}
+				if err := bus.Dispatch(ctx, getUser); err == nil {
+					lockedSettings.LockedBy = getUser.Result
+				}
+			}
+			post.LockedSettings = &lockedSettings
+		}
+	}
+
 	return post
 }
 
@@ -162,6 +180,7 @@ var (
 																d.slug AS original_slug,
 																d.status AS original_status,
 																COALESCE(agg_t.tags, ARRAY[]::text[]) AS tags,
+																p.locked_settings,
 																%s AS vote_type
 													FROM posts p
 													INNER JOIN users u
@@ -239,32 +258,7 @@ func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error 
 			respondedAt = c.Post.Response.RespondedAt
 		}
 
-		var votes []*struct {
-			UserID   int           `db:"user_id"`
-			VoteType enum.VoteType `db:"vote_type"`
-		}
-		err := trx.Select(&votes, "SELECT user_id, vote_type FROM post_votes WHERE post_id = $1 AND tenant_id = $2", c.Post.ID, tenant.ID)
-		if err != nil {
-			return errors.Wrap(err, "failed to get votes of post with id '%d'", c.Post.ID)
-		}
-
-		for _, vote := range votes {
-			getUser := &query.GetUserByID{UserID: vote.UserID}
-			if err := bus.Dispatch(ctx, getUser); err != nil {
-				return errors.Wrap(err, "failed to get user with id '%d'", vote.UserID)
-			}
-
-			err := bus.Dispatch(ctx, &cmd.AddVote{
-				Post:     c.Original,
-				User:     getUser.Result,
-				VoteType: vote.VoteType,
-			})
-			if err != nil {
-				return err
-			}
-		}
-
-		_, err = trx.Execute(`
+		_, err := trx.Execute(`
 		UPDATE posts 
 		SET response = '', original_id = $3, response_date = $4, response_user_id = $5, status = $6 
 		WHERE id = $1 and tenant_id = $2
@@ -284,6 +278,38 @@ func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error 
 				Status: c.Original.Status,
 			},
 		}
+
+		var votes []*struct {
+			UserID   int           `db:"user_id"`
+			VoteType enum.VoteType `db:"vote_type"`
+		}
+		err = trx.Select(&votes, "SELECT user_id, vote_type FROM post_votes WHERE post_id = $1 AND tenant_id = $2", c.Post.ID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get votes of post with id '%d'", c.Post.ID)
+		}
+
+		for _, vote := range votes {
+			_, err = trx.Execute(`
+				DELETE FROM post_votes 
+				WHERE post_id = $1 AND user_id = $2 AND tenant_id = $3
+			`, c.Original.ID, vote.UserID, tenant.ID)
+
+			if err != nil {
+				return errors.Wrap(err, "failed to remove existing vote on original post")
+			}
+		}
+
+		for _, vote := range votes {
+			_, err = trx.Execute(`
+				INSERT INTO post_votes (user_id, post_id, tenant_id, vote_type, created_at) 
+				VALUES ($1, $2, $3, $4, NOW())
+			`, vote.UserID, c.Original.ID, tenant.ID, vote.VoteType)
+
+			if err != nil {
+				return errors.Wrap(err, "failed to transfer vote to original post")
+			}
+		}
+
 		return nil
 	})
 }
@@ -536,4 +562,55 @@ func buildPostQuery(user *entity.User, filter string) string {
 		voteTypeSubQuery = fmt.Sprintf("(SELECT vote_type FROM post_votes WHERE post_id = p.id AND user_id = %d LIMIT 1)", user.ID)
 	}
 	return fmt.Sprintf(sqlSelectPostsWhere, tagCondition, voteTypeSubQuery, filter)
+}
+
+func lockPost(ctx context.Context, c *cmd.LockPost) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		lockedSettings := map[string]interface{}{
+			"locked":   true,
+			"lockedAt": time.Now(),
+			"lockedBy": map[string]interface{}{
+				"id": user.ID,
+			},
+			"lockMessage": c.LockMessage,
+		}
+
+		lockedSettingsJSON, err := json.Marshal(lockedSettings)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal locked settings")
+		}
+
+		_, err = trx.Execute(`
+			UPDATE posts 
+			SET locked_settings = $3
+			WHERE id = $1 and tenant_id = $2
+		`, c.Post.ID, tenant.ID, lockedSettingsJSON)
+		if err != nil {
+			return errors.Wrap(err, "failed to lock post")
+		}
+
+		c.Post.LockedSettings = &entity.PostLockedSettings{
+			Locked:      true,
+			LockedAt:    time.Now(),
+			LockedBy:    user,
+			LockMessage: c.LockMessage,
+		}
+		return nil
+	})
+}
+
+func unlockPost(ctx context.Context, c *cmd.UnlockPost) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		_, err := trx.Execute(`
+			UPDATE posts 
+			SET locked_settings = NULL
+			WHERE id = $1 and tenant_id = $2
+		`, c.Post.ID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to unlock post")
+		}
+
+		c.Post.LockedSettings = nil
+		return nil
+	})
 }

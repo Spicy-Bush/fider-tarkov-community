@@ -33,6 +33,9 @@ func Index() web.HandlerFunc {
 			searchPosts.MyPostsOnly = myPostsOnly
 		}
 
+		// by default, we want to show posts that the user has not voted on
+		searchPosts.NotMyVotes = true
+
 		searchPosts.SetStatusesFromStrings(c.QueryParamAsArray("statuses"))
 		getAllTags := &query.GetAllTags{}
 		countPerStatus := &query.CountPostPerStatus{}

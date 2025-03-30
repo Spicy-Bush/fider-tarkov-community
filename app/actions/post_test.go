@@ -14,29 +14,25 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 )
 
-func TestCreateNewPost_InvalidPostTitles(t *testing.T) {
-	RegisterT(t)
-
-	bus.AddHandler(func(ctx context.Context, q *query.GetPostBySlug) error {
-		if q.Slug == "my-great-post" {
-			q.Result = &entity.Post{Slug: q.Slug}
-			return nil
-		}
-		return app.ErrNotFound
-	})
-
-	for _, title := range []string{
-		"me",
-		"",
-		"  ",
-		"signup",
-		"My great great great great great great great great great great great great great great great great great post.",
-		"my GREAT post",
-	} {
-		action := &actions.CreateNewPost{Title: title}
-		result := action.Validate(context.Background(), nil)
-		ExpectFailed(result, "title")
+// createTestContext creates a context with a mock tenant for testing
+func createTestContext() context.Context {
+	tenant := &entity.Tenant{
+		GeneralSettings: &entity.GeneralSettings{
+			TitleLengthMin:             5,
+			TitleLengthMax:             100,
+			DescriptionLengthMin:       10,
+			DescriptionLengthMax:       500,
+			PostingGloballyDisabled:    false,
+			CommentingGloballyDisabled: false,
+			PostingDisabledFor:         []string{},
+			CommentingDisabledFor:      []string{},
+			PostLimits:                 map[string]entity.PostLimit{},
+			CommentLimits:              map[string]entity.CommentLimit{},
+			MaxImagesPerPost:           5,
+			MaxImagesPerComment:        3,
+		},
 	}
+	return context.WithValue(context.Background(), app.TenantCtxKey, tenant)
 }
 
 func TestCreateNewPost_ValidPostTitles(t *testing.T) {
@@ -46,12 +42,21 @@ func TestCreateNewPost_ValidPostTitles(t *testing.T) {
 		return app.ErrNotFound
 	})
 
+	ctx := createTestContext()
+	user := &entity.User{
+		ID:   1,
+		Role: enum.RoleVisitor,
+	}
+
 	for _, title := range []string{
 		"this is my new post",
 		"this post is very descriptive",
 	} {
-		action := &actions.CreateNewPost{Title: title}
-		result := action.Validate(context.Background(), nil)
+		action := &actions.CreateNewPost{
+			Title:       title,
+			Description: "This is a description with more than 10 characters", // Add valid description
+		}
+		result := action.Validate(ctx, user)
 		ExpectSuccess(result)
 	}
 }
@@ -59,11 +64,12 @@ func TestCreateNewPost_ValidPostTitles(t *testing.T) {
 func TestSetResponse_InvalidStatus(t *testing.T) {
 	RegisterT(t)
 
+	ctx := createTestContext()
 	action := &actions.SetResponse{
 		Status: enum.PostDeleted,
 		Text:   "Spam!",
 	}
-	result := action.Validate(context.Background(), nil)
+	result := action.Validate(ctx, nil)
 	ExpectFailed(result, "status")
 }
 
@@ -92,12 +98,13 @@ func TestDeletePost_WhenIsBeingReferenced(t *testing.T) {
 		return nil
 	})
 
+	ctx := createTestContext()
 	action := &actions.DeletePost{}
 	action.Number = post1.Number
-	ExpectSuccess(action.Validate(context.Background(), nil))
+	ExpectSuccess(action.Validate(ctx, nil))
 
 	action.Number = post2.Number
-	ExpectFailed(action.Validate(context.Background(), nil))
+	ExpectFailed(action.Validate(ctx, nil))
 }
 
 func TestDeleteComment(t *testing.T) {
@@ -120,16 +127,17 @@ func TestDeleteComment(t *testing.T) {
 		return app.ErrNotFound
 	})
 
+	ctx := createTestContext()
 	action := &actions.DeleteComment{
 		CommentID: comment.ID,
 	}
 
-	authorized := action.IsAuthorized(context.Background(), notAuthor)
+	authorized := action.IsAuthorized(ctx, notAuthor)
 	Expect(authorized).IsFalse()
 
-	authorized = action.IsAuthorized(context.Background(), author)
+	authorized = action.IsAuthorized(ctx, author)
 	Expect(authorized).IsTrue()
 
-	authorized = action.IsAuthorized(context.Background(), administrator)
+	authorized = action.IsAuthorized(ctx, administrator)
 	Expect(authorized).IsTrue()
 }

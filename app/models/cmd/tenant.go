@@ -16,6 +16,10 @@ type CreateTenant struct {
 	Result *entity.Tenant
 }
 
+type UpdateGeneralSettings struct {
+	Settings *entity.GeneralSettings
+}
+
 type UpdateTenantPrivacySettings struct {
 	IsPrivate bool
 }
@@ -58,4 +62,9 @@ type NewEmailVerification interface {
 
 type SetKeyAsVerified struct {
 	Key string
+}
+
+type UpdateMessageBanner struct {
+	MessageBanner string `json:"messageBanner"`
+	TenantID      int    `json:"tenantId"`
 }

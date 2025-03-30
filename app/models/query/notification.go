@@ -15,7 +15,11 @@ type GetNotificationByID struct {
 }
 
 type GetActiveNotifications struct {
-	Result []*entity.Notification
+	Result     []*entity.Notification
+	Type       string
+	Page       int
+	PerPage    int
+	TotalCount int
 }
 
 type GetActiveSubscribers struct {
@@ -24,4 +28,8 @@ type GetActiveSubscribers struct {
 	Event   enum.NotificationEvent
 
 	Result []*entity.User
+}
+
+type PurgeReadNotifications struct {
+	NumOfPurgedNotifications int
 }

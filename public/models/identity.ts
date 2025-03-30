@@ -10,6 +10,22 @@ export interface Tenant {
   isPrivate: boolean
   logoBlobKey: string
   isEmailAuthAllowed: boolean
+  profanityWords: string
+  generalSettings?: {
+    titleLengthMin: number
+    titleLengthMax: number
+    descriptionLengthMin: number
+    descriptionLengthMax: number
+    maxImagesPerPost: number
+    maxImagesPerComment: number
+    postLimits: Record<string, { count: number; hours: number }>
+    commentLimits: Record<string, { count: number; hours: number }>
+    postingDisabledFor: string[]
+    commentingDisabledFor: string[]
+    postingGloballyDisabled: boolean
+    commentingGloballyDisabled: boolean
+  }
+  messageBanner: string
 }
 
 export enum TenantStatus {

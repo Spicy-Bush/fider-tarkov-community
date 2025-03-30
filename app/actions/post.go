@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
@@ -64,32 +65,51 @@ func (action *CreateNewPost) IsAuthorized(ctx context.Context, user *entity.User
 func (action *CreateNewPost) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	result := validate.Success()
 
-	if user != nil && (!user.IsCollaborator() || !user.IsModerator() || !user.IsAdministrator()) {
-		q := &query.GetUserPostCount{
-			UserID: user.ID,
-			Since:  time.Now().Add(-24 * time.Hour),
-		}
-		if err := bus.Dispatch(ctx, q); err != nil {
-			return validate.Error(err)
-		}
-		if q.Result >= 10 {
-			result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.toomanyposts"))
+	tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	generalSettings := tenant.GeneralSettings
+
+	if generalSettings != nil && generalSettings.PostingGloballyDisabled && !(user.IsCollaborator() || user.IsAdministrator()) {
+		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.postinggloballydisabled"))
+		return result
+	}
+
+	for _, role := range generalSettings.PostingDisabledFor {
+		if user.Role.String() == role {
+			result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.postingdisabled"))
 			return result
 		}
 	}
 
-	if action.Title == "" {
+	if !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
+		if limit, ok := generalSettings.PostLimits[user.Role.String()]; ok && limit.Count > 0 {
+			q := &query.GetUserPostCount{
+				UserID: user.ID,
+				Since:  time.Now().Add(-time.Duration(limit.Hours) * time.Hour),
+			}
+			if err := bus.Dispatch(ctx, q); err != nil {
+				return validate.Error(err)
+			}
+			if q.Result >= limit.Count {
+				result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.toomanyposts"))
+				return result
+			}
+		}
+	}
+
+	if len(strings.TrimSpace(action.Title)) == 0 {
 		result.AddFieldFailure("title", propertyIsRequired(ctx, "title"))
-	} else if len(action.Title) < 10 {
-		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.descriptivetitle"))
-	} else if len(action.Title) > 100 {
-		result.AddFieldFailure("title", propertyMaxStringLen(ctx, "title", 100))
+	} else if len(action.Title) < generalSettings.TitleLengthMin {
+		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.titletooshort", i18n.Params{"min": generalSettings.TitleLengthMin}))
+	} else if len(action.Title) > generalSettings.TitleLengthMax {
+		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.titletoolong", i18n.Params{"max": generalSettings.TitleLengthMax}))
 	} else if env.Config.PostCreationWithTagsEnabled && len(action.TagSlugs) != len(action.Tags) {
 		result.AddFieldFailure("tags", propertyIsInvalid(ctx, "tags"))
 	} else if action.Description == "" {
 		result.AddFieldFailure("description", propertyIsRequired(ctx, "description"))
-	} else if len(action.Description) < 10 {
-		result.AddFieldFailure("description", i18n.T(ctx, "validation.custom.descriptivedescription"))
+	} else if len(action.Description) < generalSettings.DescriptionLengthMin {
+		result.AddFieldFailure("description", i18n.T(ctx, "validation.custom.descriptiontooshort", i18n.Params{"min": generalSettings.DescriptionLengthMin}))
+	} else if len(action.Description) > generalSettings.DescriptionLengthMax {
+		result.AddFieldFailure("description", i18n.T(ctx, "validation.custom.descriptiontoolong", i18n.Params{"max": generalSettings.DescriptionLengthMax}))
 	} else if matches, err := profanity.ContainsProfanity(ctx, action.Title); err == nil && len(matches) > 0 {
 		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.containsprofanity"))
 	} else if matches, err := profanity.ContainsProfanity(ctx, action.Description); err == nil && len(matches) > 0 {
@@ -104,7 +124,7 @@ func (action *CreateNewPost) Validate(ctx context.Context, user *entity.User) *v
 	}
 
 	messages, err := validate.MultiImageUpload(ctx, nil, action.Attachments, validate.MultiImageUploadOpts{
-		MaxUploads:   3,
+		MaxUploads:   generalSettings.MaxImagesPerPost,
 		MaxKilobytes: 7500,
 		ExactRatio:   false,
 	})
@@ -151,12 +171,21 @@ func (input *UpdatePost) IsAuthorized(ctx context.Context, user *entity.User) bo
 func (action *UpdatePost) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	result := validate.Success()
 
+	tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	generalSettings := tenant.GeneralSettings
+
+	if generalSettings != nil && generalSettings.PostingGloballyDisabled && !(user.IsCollaborator() || user.IsAdministrator()) {
+		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.postinggloballydisabled"))
+		return result
+	}
+
+	// TODO: refactor these if else blocks >.<
 	if action.Title == "" {
 		result.AddFieldFailure("title", propertyIsRequired(ctx, "title"))
-	} else if len(action.Title) < 10 {
-		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.descriptivetitle"))
-	} else if len(action.Title) > 100 {
-		result.AddFieldFailure("title", propertyMaxStringLen(ctx, "title", 100))
+	} else if len(action.Title) < generalSettings.TitleLengthMin {
+		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.titletooshort", i18n.Params{"min": generalSettings.TitleLengthMin}))
+	} else if len(action.Title) > generalSettings.TitleLengthMax {
+		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.titletoolong", i18n.Params{"max": generalSettings.TitleLengthMax}))
 	} else if matches, err := profanity.ContainsProfanity(ctx, action.Title); err == nil && len(matches) > 0 {
 		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.containsprofanity"))
 	} else if matches, err := profanity.ContainsProfanity(ctx, action.Description); err == nil && len(matches) > 0 {
@@ -179,7 +208,7 @@ func (action *UpdatePost) Validate(ctx context.Context, user *entity.User) *vali
 		}
 
 		messages, err := validate.MultiImageUpload(ctx, getAttachments.Result, action.Attachments, validate.MultiImageUploadOpts{
-			MaxUploads:   3,
+			MaxUploads:   generalSettings.MaxImagesPerPost,
 			MaxKilobytes: 7500,
 			ExactRatio:   false,
 		})
@@ -240,18 +269,34 @@ func (action *AddNewComment) IsAuthorized(ctx context.Context, user *entity.User
 func (action *AddNewComment) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	result := validate.Success()
 
-	// if not admin, collab or moderator, check if user has posted too many comments in the last 24 hours
-	if user != nil && !(user.IsCollaborator() || user.IsModerator() || user.IsAdministrator()) {
-		q := &query.GetUserCommentCount{
-			UserID: user.ID,
-			Since:  time.Now().Add(-24 * time.Hour),
-		}
-		if err := bus.Dispatch(ctx, q); err != nil {
-			return validate.Error(err)
-		}
-		if q.Result >= 50 {
-			result.AddFieldFailure("content", i18n.T(ctx, "validation.custom.toomanycomments"))
+	tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	generalSettings := tenant.GeneralSettings
+
+	if generalSettings != nil && generalSettings.CommentingGloballyDisabled && !(user.IsCollaborator() || user.IsAdministrator()) {
+		result.AddFieldFailure("content", i18n.T(ctx, "validation.custom.commentinggloballydisabled"))
+		return result
+	}
+
+	for _, role := range generalSettings.CommentingDisabledFor {
+		if user.Role.String() == role {
+			result.AddFieldFailure("content", i18n.T(ctx, "validation.custom.commentingdisabled"))
 			return result
+		}
+	}
+
+	if !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
+		if limit, ok := generalSettings.CommentLimits[user.Role.String()]; ok && limit.Count > 0 {
+			q := &query.GetUserCommentCount{
+				UserID: user.ID,
+				Since:  time.Now().Add(-time.Duration(limit.Hours) * time.Hour),
+			}
+			if err := bus.Dispatch(ctx, q); err != nil {
+				return validate.Error(err)
+			}
+			if q.Result >= limit.Count {
+				result.AddFieldFailure("content", i18n.T(ctx, "validation.custom.toomanycomments"))
+				return result
+			}
 		}
 	}
 
@@ -262,7 +307,7 @@ func (action *AddNewComment) Validate(ctx context.Context, user *entity.User) *v
 	}
 
 	messages, err := validate.MultiImageUpload(ctx, nil, action.Attachments, validate.MultiImageUploadOpts{
-		MaxUploads:   2,
+		MaxUploads:   generalSettings.MaxImagesPerComment,
 		MaxKilobytes: 7500,
 		ExactRatio:   false,
 	})
@@ -382,6 +427,14 @@ func (action *EditComment) IsAuthorized(ctx context.Context, user *entity.User) 
 func (action *EditComment) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	result := validate.Success()
 
+	tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	generalSettings := tenant.GeneralSettings
+
+	if generalSettings != nil && generalSettings.CommentingGloballyDisabled && !(user.IsCollaborator() || user.IsAdministrator()) {
+		result.AddFieldFailure("content", i18n.T(ctx, "validation.custom.commentinggloballydisabled"))
+		return result
+	}
+
 	if action.Content == "" {
 		result.AddFieldFailure("content", propertyIsRequired(ctx, "comment"))
 	} else if matches, err := profanity.ContainsProfanity(ctx, action.Content); err == nil && len(matches) > 0 {
@@ -396,7 +449,7 @@ func (action *EditComment) Validate(ctx context.Context, user *entity.User) *val
 		}
 
 		messages, err := validate.MultiImageUpload(ctx, getAttachments.Result, action.Attachments, validate.MultiImageUploadOpts{
-			MaxUploads:   2,
+			MaxUploads:   generalSettings.MaxImagesPerComment,
 			MaxKilobytes: 7500,
 			ExactRatio:   false,
 		})
@@ -428,4 +481,65 @@ func (action *DeleteComment) IsAuthorized(ctx context.Context, user *entity.User
 // Validate if current model is valid
 func (action *DeleteComment) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	return validate.Success()
+}
+
+type LockPost struct {
+	Number      int    `route:"number"`
+	LockMessage string `json:"message"`
+
+	Post *entity.Post
+}
+
+func (input *LockPost) OnPreExecute(ctx context.Context) error {
+	getPost := &query.GetPostByNumber{Number: input.Number}
+	if err := bus.Dispatch(ctx, getPost); err != nil {
+		return err
+	}
+
+	input.Post = getPost.Result
+	return nil
+}
+
+func (action *LockPost) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+}
+
+func (action *LockPost) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	if action.Post == nil {
+		result.AddFieldFailure("number", i18n.T(ctx, "validation.custom.invalidpost"))
+	}
+
+	return result
+}
+
+type UnlockPost struct {
+	Number int `route:"number"`
+
+	Post *entity.Post
+}
+
+func (input *UnlockPost) OnPreExecute(ctx context.Context) error {
+	getPost := &query.GetPostByNumber{Number: input.Number}
+	if err := bus.Dispatch(ctx, getPost); err != nil {
+		return err
+	}
+
+	input.Post = getPost.Result
+	return nil
+}
+
+func (action *UnlockPost) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator() || user.IsModerator())
+}
+
+func (action *UnlockPost) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	if action.Post == nil {
+		result.AddFieldFailure("number", i18n.T(ctx, "validation.custom.invalidpost"))
+	}
+
+	return result
 }

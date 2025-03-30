@@ -20,6 +20,7 @@ interface TextAreaProps {
   inputRef?: React.MutableRefObject<any>
   onFocus?: React.FocusEventHandler<HTMLTextAreaElement>
   className?: string
+  maxLength?: number
 }
 
 export const TextArea: React.FunctionComponent<TextAreaProps> = (props) => {
@@ -61,6 +62,7 @@ export const TextArea: React.FunctionComponent<TextAreaProps> = (props) => {
               placeholder={props.placeholder}
               ref={props.inputRef}
               onFocus={props.onFocus}
+              maxLength={props.maxLength}
             />
             <DisplayError fields={[props.field]} error={ctx.error} />
             {props.children}

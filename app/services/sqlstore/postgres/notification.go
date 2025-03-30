@@ -102,14 +102,50 @@ func getNotificationByID(ctx context.Context, q *query.GetNotificationByID) erro
 
 func getActiveNotifications(ctx context.Context, q *query.GetActiveNotifications) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		err := trx.Select(&q.Result, `
+		if q.Page < 1 {
+			q.Page = 1
+		}
+		if q.PerPage < 1 {
+			q.PerPage = 10
+		}
+
+		offset := (q.Page - 1) * q.PerPage
+
+		conditions := "n.tenant_id = $1 AND n.user_id = $2"
+		args := []interface{}{tenant.ID, user.ID}
+		argIndex := 3
+
+		if q.Type == "unread" {
+			conditions += " AND n.read = false"
+		} else if q.Type == "read" {
+			conditions += " AND n.read = true AND n.updated_at > CURRENT_DATE - INTERVAL '30 days'"
+		} else {
+			conditions += " AND (n.read = false OR n.updated_at > CURRENT_DATE - INTERVAL '30 days')"
+		}
+
+		countQuery := fmt.Sprintf(`
+			SELECT COUNT(*) 
+			FROM notifications n
+			WHERE %s
+		`, conditions)
+
+		err := trx.Scalar(&q.TotalCount, countQuery, args...)
+		if err != nil {
+			return errors.Wrap(err, "failed to count active notifications")
+		}
+
+		query := fmt.Sprintf(`
 			SELECT n.id, n.title, n.link, n.read, n.created_at, n.author_id, u.avatar_type, u.avatar_bkey, u.name
 			FROM notifications n
 			LEFT JOIN users u ON u.id = n.author_id
-			WHERE n.tenant_id = $1 AND n.user_id = $2
-			AND (n.read = false OR n.updated_at > CURRENT_DATE - INTERVAL '30 days')
-			ORDER BY n.updated_at DESC 
-		`, tenant.ID, user.ID)
+			WHERE %s
+			ORDER BY n.updated_at DESC
+			LIMIT $%d OFFSET $%d
+		`, conditions, argIndex, argIndex+1)
+
+		args = append(args, q.PerPage, offset)
+
+		err = trx.Select(&q.Result, query, args...)
 		if err != nil {
 			return errors.Wrap(err, "failed to get active notifications")
 		}
@@ -119,6 +155,29 @@ func getActiveNotifications(ctx context.Context, q *query.GetActiveNotifications
 			q.Result[i].AvatarURL = buildAvatarURL(ctx, q.Result[i].AvatarType, int(q.Result[i].AuthorID), q.Result[i].AuthorName, q.Result[i].AvatarBlobKey)
 		}
 
+		return nil
+	})
+}
+
+func purgeReadNotifications(ctx context.Context, c *cmd.PurgeReadNotifications) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if user == nil {
+			return nil
+		}
+
+		query := `
+			DELETE FROM notifications 
+			WHERE tenant_id = $1 
+			AND user_id = $2 
+			AND read = true
+		`
+
+		count, err := trx.Execute(query, tenant.ID, user.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to purge read notifications")
+		}
+
+		c.NumOfPurgedNotifications = int(count)
 		return nil
 	})
 }

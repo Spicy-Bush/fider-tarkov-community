@@ -47,16 +47,30 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 	if query.MyVotesOnly {
 		conditions = append(conditions, "vote_type IS NOT NULL")
 	}
+
+	if query.NotMyVotes && userID > 0 {
+		conditions = append(conditions, "vote_type IS NULL")
+	}
+
 	if query.MyPostsOnly {
 		conditions = append(conditions, fmt.Sprintf("user_id = $%d", paramIndex))
 		extraParams = append(extraParams, userID)
 		paramIndex++
 	}
+
 	if len(query.Tags) > 0 {
-		conditions = append(conditions, fmt.Sprintf("tags && $%d", paramIndex))
-		// Note: We pass the tags array here
-		extraParams = append(extraParams, pq.Array(query.Tags))
-		paramIndex++
+		if query.TagLogic == "AND" {
+			for _, tag := range query.Tags {
+				conditions = append(conditions, fmt.Sprintf("$%d = ANY(tags)", paramIndex))
+				extraParams = append(extraParams, tag)
+				paramIndex++
+			}
+		} else {
+			// by default, we use OR logic
+			conditions = append(conditions, fmt.Sprintf("tags && $%d", paramIndex))
+			extraParams = append(extraParams, pq.Array(query.Tags))
+			paramIndex++
+		}
 	}
 
 	if query.Date != "" {
@@ -85,15 +99,15 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 	}
 
 	switch query.View {
-	case "recent":
+	case "newest":
 		sort = "id"
+	case "recently-updated":
+		// oh god dear please help me what the fuck im going insane
+		sort = "CASE WHEN status = " + fmt.Sprintf("%d", int(enum.PostOpen)) + " THEN -999999999 ELSE extract(epoch from COALESCE(response_date, created_at)) END"
 	case "most-wanted":
 		sort = "votes_count"
 	case "most-discussed":
 		sort = "comments_count"
-	case "my-votes":
-		// Depracated: Use status filters instead
-		sort = "id"
 	case "planned":
 		// Depracated: Use status filters instead
 		sort = "response_date"
@@ -121,18 +135,24 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 		}
 	case "controversial":
 		sort = "CASE " +
-			"WHEN upvotes > 0 AND downvotes > 0 THEN " +
-			"(downvotes::float / GREATEST(upvotes, 1)) * " +
-			"(upvotes + downvotes) / " +
+			"WHEN upvotes > 0 OR downvotes > 0 THEN " +
+			"(upvotes + downvotes) * (1 - ABS(upvotes - downvotes)::float / GREATEST(upvotes + downvotes, 1)) / " +
 			"pow((EXTRACT(EPOCH FROM current_timestamp - created_at)/86400) + 1, 0.5) " +
-			"ELSE (downvotes::float) / " +
-			"pow((EXTRACT(EPOCH FROM current_timestamp - created_at)/86400) + 2, 1.2) " +
+			"ELSE 0 " +
 			"END"
 	case "trending":
 		fallthrough
 	default:
-		sort = "((COALESCE(recent_votes_count, 0)*5 + COALESCE(recent_comments_count, 0) *3)-1) / " +
-			"pow((EXTRACT(EPOCH FROM current_timestamp - created_at)/3600) + 2, 1.4)"
+		sort = "(" +
+			"COALESCE(recent_comments_count, 0)*3 + " +
+			"CASE " +
+			"  WHEN COALESCE(recent_votes_count, 0) >= 0 THEN COALESCE(recent_votes_count, 0)*5 " +
+			"  WHEN COALESCE(recent_votes_count, 0) > -10 THEN 0 " +
+			"  ELSE COALESCE(recent_votes_count, 0)*5 " +
+			"END + " +
+			"CASE WHEN (upvotes > 20) THEN upvotes/2 ELSE 0 END" +
+			") / " +
+			"pow((EXTRACT(EPOCH FROM current_timestamp - created_at)/86400) + 2, 0.8)"
 	}
 	return condition, statusFilters, sort, extraParams
 }

@@ -1,0 +1,38 @@
+.c-pending-submission {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.c-submission-container {
+  position: relative;
+}
+
+.c-submission-spinner {
+  display: inline-block;
+  margin-right: 5px;
+}
+
+.c-submission-spinner svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.c-timer-circle {
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.countdown-spinner {
+  margin-right: 8px;
+  display: inline-block;
+}
+
+.countdown-spinner svg {
+  display: block;
+}
+
+.c-post-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}

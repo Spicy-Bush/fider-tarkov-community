@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
-import { Comment, Post, ImageUpload } from "@fider/models"
+import { Comment, Post, ImageUpload, isPostLocked } from "@fider/models"
 import {
   Reactions,
   Avatar,
@@ -58,7 +58,11 @@ export const ShowComment = (props: ShowCommentProps) => {
 
   const canEditComment = (): boolean => {
     if (fider.session.isAuthenticated) {
-      return (fider.session.user.isCollaborator || fider.session.user.isModerator) || props.comment.user.id === fider.session.user.id
+      if (fider.session.user.isCollaborator || fider.session.user.isAdministrator) {
+        return true
+      }
+      
+      return props.comment.user.id === fider.session.user.id && !isPostLocked(props.post)
     }
     return false
   }
@@ -168,7 +172,7 @@ export const ShowComment = (props: ShowCommentProps) => {
   const classList = classSet({
     "flex-grow rounded-md p-2": true,
     "bg-gray-100": !props.highlighted,
-    "bg-gray-200": props.highlighted,
+    "highlighted-comment": props.highlighted,
   })
 
   return (

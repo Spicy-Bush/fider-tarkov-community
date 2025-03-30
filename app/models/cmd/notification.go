@@ -10,6 +10,10 @@ type PurgeExpiredNotifications struct {
 	NumOfDeletedNotifications int
 }
 
+type PurgeReadNotifications struct {
+	NumOfPurgedNotifications int
+}
+
 type MarkNotificationAsRead struct {
 	ID int
 }

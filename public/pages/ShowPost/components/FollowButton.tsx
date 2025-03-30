@@ -6,7 +6,7 @@ import IconPlus from "@fider/assets/images/heroicons-plus.svg"
 import IconCheck from "@fider/assets/images/heroicons-check.svg"
 import { VStack } from "@fider/components/layout"
 import { Trans } from "@lingui/macro"
-import { Post } from "@fider/models"
+import { Post, isPostLocked } from "@fider/models"
 
 export interface NotificationsPanelProps {
   post: Post
@@ -16,6 +16,7 @@ export interface NotificationsPanelProps {
 export const FollowButton = (props: NotificationsPanelProps) => {
   const fider = useFider()
   const [subscribed, setSubscribed] = useState(props.subscribed)
+  const isLocked = isPostLocked(props.post) || fider.isReadOnly
 
   const subscribeOrUnsubscribe = async () => {
     const action = subscribed ? actions.unsubscribe : actions.subscribe
@@ -31,14 +32,22 @@ export const FollowButton = (props: NotificationsPanelProps) => {
   }
 
   const button = subscribed ? (
-    <Button className="w-full text-gray-800 bg-white border border-gray-800 no-focus" onClick={subscribeOrUnsubscribe} disabled={fider.isReadOnly}>
+    <Button 
+      className="w-full text-gray-800 bg-white border border-gray-800 no-focus" 
+      onClick={subscribeOrUnsubscribe} 
+      disabled={isLocked}
+    >
       <Icon sprite={IconCheck} />{" "}
       <span>
         <Trans id="label.following">Following</Trans>
       </span>
     </Button>
   ) : (
-    <Button className="w-full text-blue-500 bg-white border border-blue-500 no-focus" onClick={subscribeOrUnsubscribe} disabled={fider.isReadOnly}>
+    <Button 
+      className="w-full text-blue-500 bg-white border border-blue-500 no-focus" 
+      onClick={subscribeOrUnsubscribe} 
+      disabled={isLocked}
+    >
       <Icon sprite={IconPlus} />
       <span>
         <Trans id="label.follow">Follow</Trans>

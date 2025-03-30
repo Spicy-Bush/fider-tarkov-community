@@ -2,7 +2,9 @@ import "./ShowPost.page.scss"
 
 import React from "react"
 
-import { Comment, Post, Tag, Vote, ImageUpload, CurrentUser, PostStatus } from "@fider/models"
+import { LockStatus } from "./components/LockStatus"
+import { PostLockingModal } from "./components/PostLockingModal"
+import { Comment, Post, Tag, Vote, ImageUpload, CurrentUser, PostStatus, isPostLocked } from "@fider/models"
 import { actions, clearUrlHash, Failure, Fider, notify, timeAgo } from "@fider/services"
 import IconDotsHorizontal from "@fider/assets/images/heroicons-dots-horizontal.svg"
 import IconChevronUp from "@fider/assets/images/heroicons-chevron-up.svg"
@@ -17,12 +19,12 @@ import {
   Form,
   TextArea,
   MultiImageUploader,
-  ImageViewer,
   Icon,
   Header,
   Avatar,
   Dropdown,
 } from "@fider/components"
+import { ImageGallery } from "./components/ImageGallery"
 import { DiscussionPanel } from "./components/DiscussionPanel"
 
 import IconX from "@fider/assets/images/heroicons-x.svg"
@@ -53,6 +55,8 @@ interface ShowPostPageState {
   attachments: ImageUpload[]
   newDescription: string
   highlightedComment?: number
+  showLockModal: boolean;
+  showUnlockModal: boolean;
   error?: Failure
 }
 
@@ -76,6 +80,8 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
       newTitle: this.props.post.title,
       newDescription: this.props.post.description,
       attachments: [],
+      showLockModal: false,
+      showUnlockModal: false,
     }
   }
 
@@ -101,6 +107,14 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
         error: result.error,
       })
     }
+  }
+
+  private setShowLockModal = (showLockModal: boolean) => {
+    this.setState({ showLockModal })
+  }
+  
+  private setShowUnlockModal = (showUnlockModal: boolean) => {
+    this.setState({ showUnlockModal })
   }
 
   private canDeletePost = () => {
@@ -167,10 +181,24 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
         highlightedComment = undefined
       }
     }
-    this.setState({ highlightedComment })
+    this.setState({ highlightedComment }, () => {
+      this.scrollToHighlightedComment()
+    })
+  }
+  
+  private scrollToHighlightedComment = () => {
+    const { highlightedComment } = this.state
+    if (highlightedComment) {
+      setTimeout(() => {
+        const element = document.getElementById(`comment-${highlightedComment}`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 100)
+    }
   }
 
-  public onActionSelected = (action: "copy" | "delete" | "status" | "edit") => () => {
+  public onActionSelected = (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock") => () => {
     if (action === "copy") {
       navigator.clipboard.writeText(window.location.href)
       notify.success(<Trans id="showpost.copylink.success">Link copied to clipboard</Trans>)
@@ -180,6 +208,11 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
       this.setShowResponseModal(true)
     } else if (action === "edit") {
       this.startEdit()
+    } else if (action === "lock") {
+      this.setShowLockModal(true)
+    }
+    else if (action === "unlock") {
+      this.setShowUnlockModal(true)
     }
   }
 
@@ -216,18 +249,29 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
                               <Trans id="action.edit">Edit</Trans>
                             </Dropdown.ListItem>
                             {(Fider.session.user.isCollaborator || Fider.session.user.isModerator || Fider.session.user.isAdministrator) && (
-                              <Dropdown.ListItem onClick={this.onActionSelected("status")}>
-                                <Trans id="action.respond">Respond</Trans>
-                              </Dropdown.ListItem>
-                            )}
-                          </>
-                        )}
-                        {this.canDeletePost() && (
-                          <Dropdown.ListItem onClick={this.onActionSelected("delete")} className="text-red-700">
-                            <Trans id="action.delete">Delete</Trans>
-                          </Dropdown.ListItem>
-                        )}
-                      </Dropdown>
+                              <>
+                                <Dropdown.ListItem onClick={this.onActionSelected("status")}>
+                                  <Trans id="action.respond">Respond</Trans>
+                                </Dropdown.ListItem>
+                              {!isPostLocked(this.props.post) ? (
+                                <Dropdown.ListItem onClick={this.onActionSelected("lock")}>
+                                  <Trans id="action.lock">Lock</Trans>
+                                </Dropdown.ListItem>
+                              ) : (
+                                <Dropdown.ListItem onClick={this.onActionSelected("unlock")}>
+                                  <Trans id="action.unlock">Unlock</Trans>
+                                </Dropdown.ListItem>
+                              )}
+                            </>
+                          )}
+                        </>
+                      )}
+                      {this.canDeletePost() && (
+                        <Dropdown.ListItem onClick={this.onActionSelected("delete")} className="text-red-700">
+                          <Trans id="action.delete">Delete</Trans>
+                        </Dropdown.ListItem>
+                      )}
+                    </Dropdown>
                     )}
                   </HStack>
 
@@ -239,6 +283,7 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
                     ) : (
                       <>
                         <h1 className="text-large">{this.props.post.title}</h1>
+                        {isPostLocked(this.props.post) && <LockStatus post={this.props.post} />}
                       </>
                     )}
                   </div>
@@ -261,9 +306,9 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
                             <Trans id="showpost.message.nodescription">No description provided.</Trans>
                           </em>
                         )}
-                        {this.props.attachments.map((x) => (
-                          <ImageViewer key={x} bkey={x} />
-                        ))}
+                        {this.props.attachments.length > 0 && (
+                          <ImageGallery bkeys={this.props.attachments} />
+                        )}
                       </>
                     )}
                   </VStack>
@@ -319,6 +364,12 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
             </div>
           </div>
         </div>
+        <PostLockingModal
+          post={this.props.post}
+          isOpen={this.state.showLockModal || this.state.showUnlockModal}
+          onClose={() => this.state.showLockModal ? this.setShowLockModal(false) : this.setShowUnlockModal(false)}
+          mode={this.state.showLockModal ? "lock" : "unlock"}
+        />
       </>
     )
   }

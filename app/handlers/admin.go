@@ -8,6 +8,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
@@ -22,6 +23,41 @@ func GeneralSettingsPage() web.HandlerFunc {
 			Page:  "Administration/pages/GeneralSettings.page",
 			Title: "General · Site Settings",
 		})
+	}
+}
+
+func ContentSettingsPage() web.HandlerFunc {
+	return func(c *web.Context) error {
+		return c.Page(http.StatusOK, web.Props{
+			Page:  "Administration/pages/ContentSettings.page",
+			Title: "Content Settings · Site Settings",
+			Data: web.Map{
+				"roles": []string{
+					enum.RoleVisitor.String(),
+					enum.RoleCollaborator.String(),
+					enum.RoleModerator.String(),
+					enum.RoleAdministrator.String(),
+				},
+			},
+		})
+	}
+}
+
+func UpdateGeneralSettings() web.HandlerFunc {
+	return func(c *web.Context) error {
+		action := new(actions.UpdateGeneralSettings)
+		if result := c.BindTo(action); !result.Ok {
+			return c.HandleValidation(result)
+		}
+
+		err := bus.Dispatch(c, &cmd.UpdateGeneralSettings{
+			Settings: action.Settings,
+		})
+		if err != nil {
+			return c.Failure(err)
+		}
+
+		return c.Ok(web.Map{})
 	}
 }
 

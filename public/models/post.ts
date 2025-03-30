@@ -14,6 +14,11 @@ export interface Post {
   votesCount: number
   commentsCount: number
   tags: string[]
+  lockedSettings?: PostLockedSettings
+}
+
+export function isPostLocked(post: Post): boolean {
+  return !!post.lockedSettings && post.lockedSettings.locked;
 }
 
 export class PostStatus {
@@ -37,6 +42,13 @@ export class PostStatus {
   }
 
   public static All = [PostStatus.Open, PostStatus.Planned, PostStatus.Started, PostStatus.Completed, PostStatus.Duplicate, PostStatus.Declined]
+}
+
+export interface PostLockedSettings {
+  locked: boolean;
+  lockedAt: string;
+  lockedBy: User;
+  lockMessage?: string;
 }
 
 export interface PostResponse {

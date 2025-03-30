@@ -1,7 +1,7 @@
-import React, { useState } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import { Post, Tag } from "@fider/models"
 import { actions } from "@fider/services"
-import { ShowTag, Button } from "@fider/components"
+import { ShowTag, Button, Input } from "@fider/components"
 import { TagListItem } from "./TagListItem"
 import { useFider } from "@fider/hooks"
 
@@ -19,6 +19,34 @@ export const TagsPanel = (props: TagsPanelProps) => {
 
   const [isEditing, setIsEditing] = useState(false)
   const [assignedTags, setAssignedTags] = useState(props.tags.filter((t) => props.post.tags.indexOf(t.slug) >= 0))
+  const [searchQuery, setSearchQuery] = useState("")
+  const [recentlyUsedTags, setRecentlyUsedTags] = useState<Tag[]>([])
+  
+  useEffect(() => {
+    if (isEditing) {
+      try {
+        const recentTagSlugs = JSON.parse(localStorage.getItem("fider_recent_tags") || "[]")
+        const recentTags = props.tags.filter(tag => recentTagSlugs.includes(tag.slug))
+        setRecentlyUsedTags(recentTags.slice(0, 5))
+      } catch (e) {
+        console.error("Failed to load recent tags", e)
+      }
+    }
+  }, [isEditing, props.tags])
+
+  const saveRecentTag = (tag: Tag) => {
+    try {
+      const recentTagSlugs = JSON.parse(localStorage.getItem("fider_recent_tags") || "[]")
+      const updatedRecentTags = [
+        tag.slug,
+        ...recentTagSlugs.filter((slug: string) => slug !== tag.slug)
+      ].slice(0, 10)
+      
+      localStorage.setItem("fider_recent_tags", JSON.stringify(updatedRecentTags))
+    } catch (e) {
+      console.error("Failed to save recent tags", e)
+    }
+  }
 
   const assignOrUnassignTag = async (tag: Tag) => {
     const idx = assignedTags.indexOf(tag)
@@ -34,6 +62,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
       const response = await actions.assignTag(tag.slug, props.post.number)
       if (response.ok) {
         nextAssignedTags = [...assignedTags, tag]
+        saveRecentTag(tag)
       }
     }
 
@@ -43,8 +72,40 @@ export const TagsPanel = (props: TagsPanelProps) => {
   const onSubtitleClick = () => {
     if (canEdit) {
       setIsEditing(!isEditing)
+      if (!isEditing) {
+        setSearchQuery("")
+      }
     }
   }
+
+  const clearAllTags = async () => {
+    if (assignedTags.length === 0) return
+    if (!window.confirm("Are you sure you want to remove all tags from this post?")) return
+    const promises = assignedTags.map(tag => actions.unassignTag(tag.slug, props.post.number))
+    await Promise.all(promises)
+    
+    setAssignedTags([])
+  }
+
+  const filteredTags = useMemo(() => {
+    if (!searchQuery.trim()) return props.tags
+    const query = searchQuery.toLowerCase()
+    return props.tags.filter(
+      tag => tag.name.toLowerCase().includes(query) || tag.slug.toLowerCase().includes(query)
+    )
+  }, [props.tags, searchQuery])
+
+  const groupedTags = useMemo(() => {
+    if (searchQuery.trim()) return null
+    
+    const groups: { [key: string]: Tag[] } = {}
+    props.tags.forEach(tag => {
+      const firstChar = tag.name.charAt(0).toUpperCase()
+      if (!groups[firstChar]) groups[firstChar] = []
+      groups[firstChar].push(tag)
+    })
+    return groups
+  }, [props.tags, searchQuery])
 
   if (!canEdit && assignedTags.length === 0) {
     return null
@@ -64,14 +125,103 @@ export const TagsPanel = (props: TagsPanelProps) => {
     </HStack>
   )
 
+  const renderTagsGrid = () => {
+    if (groupedTags && !searchQuery.trim()) {
+      return (
+        <>
+          {recentlyUsedTags.length > 0 && (
+            <div className="mb-4">
+              <div className="font-bold text-sm text-gray-600 mb-1">
+                <Trans id="label.recent">Recently Used</Trans>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {recentlyUsedTags.map(tag => (
+                  <TagListItem 
+                    key={`recent-${tag.id}`} 
+                    tag={tag} 
+                    assigned={assignedTags.indexOf(tag) >= 0} 
+                    onClick={assignOrUnassignTag} 
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {Object.entries(groupedTags).sort().map(([letter, tags]) => (
+            <div key={letter} className="mb-4">
+              <div className="font-bold text-sm text-gray-600 mb-1">{letter}</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {tags.map(tag => (
+                  <TagListItem 
+                    key={tag.id} 
+                    tag={tag} 
+                    assigned={assignedTags.indexOf(tag) >= 0} 
+                    onClick={assignOrUnassignTag} 
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </>
+      )
+    }
+    
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+        {filteredTags.map(tag => (
+          <TagListItem 
+            key={tag.id} 
+            tag={tag} 
+            assigned={assignedTags.indexOf(tag) >= 0} 
+            onClick={assignOrUnassignTag} 
+          />
+        ))}
+      </div>
+    )
+  }
+
   const editTagsList = props.tags.length > 0 && (
-    <VStack justify="between" className="flex-items-start c-tags__edit-list">
-      {props.tags.map((tag) => (
-        <TagListItem key={tag.id} tag={tag} assigned={assignedTags.indexOf(tag) >= 0} onClick={assignOrUnassignTag} />
-      ))}
-      <Button variant="secondary" size="small" onClick={onSubtitleClick}>
-        <Trans id="action.close">Close</Trans>
-      </Button>
+    <VStack spacing={2} className="w-full">
+      <div className="w-full">
+        <HStack spacing={2} justify="between" className="w-full">
+          <div className="relative flex-grow">
+            <Input
+              field="search"
+              className="w-full pr-9 pl-3"
+              placeholder="Search tags..."
+              value={searchQuery}
+              onChange={setSearchQuery}
+            />
+          </div>
+          
+          <div className="text-sm text-gray-500">
+            <span className="font-medium">{assignedTags.length}</span> / {props.tags.length}
+          </div>
+        </HStack>
+      </div>
+      
+      {filteredTags.length > 0 ? (
+        <div className="w-full max-h-64 overflow-y-auto pr-1">
+          {renderTagsGrid()}
+        </div>
+      ) : (
+        <div className="text-center text-gray-500 py-4">
+          <Trans id="label.notags">No tags found</Trans>
+        </div>
+      )}
+      
+      <HStack justify="between" className="w-full">
+        <div>
+          {assignedTags.length > 0 && (
+            <Button variant="danger" size="small" onClick={clearAllTags}>
+              <Trans id="action.cleartags">Clear All Tags</Trans>
+            </Button>
+          )}
+        </div>
+        <Button variant="secondary" size="small" onClick={onSubtitleClick}>
+          <Trans id="action.close">Close</Trans>
+        </Button>
+      </HStack>
     </VStack>
   )
 
@@ -88,10 +238,15 @@ export const TagsPanel = (props: TagsPanelProps) => {
 
   return (
     <VStack className="c-tags__container">
-      <HStack spacing={2} align="center" className="text-primary-base text-xs">
-        {!isEditing && tagsList}
-        {isEditing && editTagsList}
-      </HStack>
+      {!isEditing ? (
+        <HStack spacing={2} align="center" className="text-primary-base text-xs">
+          {tagsList}
+        </HStack>
+      ) : (
+        <div className="p-3 border rounded-md shadow-sm w-full">
+          {editTagsList}
+        </div>
+      )}
     </VStack>
   )
 }

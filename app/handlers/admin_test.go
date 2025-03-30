@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
-
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
@@ -160,6 +160,11 @@ func TestManageMembersHandler(t *testing.T) {
 	RegisterT(t)
 
 	bus.AddHandler(func(ctx context.Context, q *query.GetAllUsers) error {
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetAllUserProviders) error {
+		q.Result = []*entity.UserProvider{}
 		return nil
 	})
 

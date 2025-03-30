@@ -66,6 +66,7 @@ interface CommentEditorProps {
   onChange?: (value: string) => void
   onFocus?: React.FocusEventHandler<HTMLDivElement>
   className?: string
+  readOnly?: boolean
 }
 
 const Placeholder = ({ attributes, children }: RenderPlaceholderProps) => {
@@ -93,13 +94,20 @@ export const CommentEditor: React.FunctionComponent<CommentEditorProps> = (props
   const [search, setSearch] = useState("")
 
   useEffect(() => {
-    console.log("target changed", target)
-  }, [target])
+    if (target) {
+      const loadUsers = async () => {
+        const result = await actions.getTaggableUsers(search)
+        if (result.ok) {
+          setUsers(result.data)
+        }
+      }
+      loadUsers()
+    }
+  }, [search, target])
+  const filteredUsers = users
 
   const renderElement = useCallback((props: RenderElementProps) => <SlateElement {...props} />, [])
   const editor = useMemo(() => withMentions(withReact(withHistory(createEditor()))), [])
-
-  const filteredUsers = users.filter((user) => user.name.toLowerCase().startsWith(search.toLowerCase())).slice(0, 10)
 
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -156,50 +164,47 @@ export const CommentEditor: React.FunctionComponent<CommentEditorProps> = (props
 
         if (selection && Range.isCollapsed(selection)) {
           const [start] = Range.edges(selection)
-          const wordBefore = Editor.before(editor, start, { unit: "word" })
-          const before = wordBefore && Editor.before(editor, wordBefore)
-          const beforeRange = before && Editor.range(editor, before, start)
-          const beforeText = beforeRange && Editor.string(editor, beforeRange)
-          const beforeMatch = beforeText && beforeText.match(/^@(\w+)$/)
-          const after = Editor.after(editor, start)
-          const afterRange = Editor.range(editor, start, after)
-          const afterText = Editor.string(editor, afterRange)
-          const afterMatch = afterText.match(/^(\s|$)/)
-
-          if (beforeMatch && afterMatch) {
-            setTarget(beforeRange)
-            setSearch(beforeMatch[1])
-            setIndex(0)
-
-            // Load users when @ is typed
-            const loadUsers = async () => {
-              const result = await actions.getTaggableUsers("")
-              if (result.ok) {
-                setUsers(result.data)
+          
+          const currentPoint = { path: start.path, offset: start.offset }
+          const [node] = Editor.node(editor, start.path)
+          const textBeforeCursor = Node.string(node).slice(0, start.offset)
+          const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+          if (lastAtIndex !== -1) {
+            const potentialMention = textBeforeCursor.slice(lastAtIndex + 1)
+            const after = Editor.after(editor, currentPoint)
+            const isAtEndOrFollowedBySpace = !after || /^\s/.test(Editor.string(editor, Editor.range(editor, currentPoint, after)))
+            
+            if (!potentialMention.includes(' ') && isAtEndOrFollowedBySpace) {
+              const mentionRange = {
+                anchor: { path: start.path, offset: lastAtIndex },
+                focus: currentPoint
               }
+              
+              setTarget(mentionRange)
+              setSearch(potentialMention)
+              setIndex(0)
+              props.onChange && props.onChange(serialize(descendant))
+              return
             }
-            users.length === 0 && loadUsers()
-            return
           }
-
-          console.log(JSON.stringify(descendant))
 
           props.onChange && props.onChange(serialize(descendant))
         }
 
         setTarget(undefined)
+        props.onChange && props.onChange(serialize(descendant))
       }}
     >
       <Editable
-        readOnly={false}
-        className="slate-editor"
+        readOnly={props.readOnly || false}
+        className={`slate-editor ${props.readOnly ? 'slate-editor--disabled' : ''}`}
         renderElement={renderElement}
         onKeyDown={onKeyDown}
         onFocus={props.onFocus}
         placeholder={props.placeholder}
         renderPlaceholder={Placeholder}
       />
-      {target && filteredUsers.length > 0 && (
+      {target && filteredUsers.length > 0 && !props.readOnly && (
         <Portal>
           <div ref={ref} className="slate-editor--mentions" data-cy="mentions-portal">
             {filteredUsers.map((user, i) => (

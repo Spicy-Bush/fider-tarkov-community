@@ -13,8 +13,10 @@ export interface SearchPostsParams {
   tags?: string[]
   myVotes?: boolean
   myPosts?: boolean
+  notMyVotes?: boolean
   statuses?: string[]
   date?: string
+  tagLogic?: "OR" | "AND"
 }
 
 export const searchPosts = async (params: SearchPostsParams): Promise<Result<Post[]>> => {
@@ -26,12 +28,16 @@ export const searchPosts = async (params: SearchPostsParams): Promise<Result<Pos
     limit: params.limit,
     offset: params.offset,
     date: params.date,
+    tagLogic: params.tagLogic
   })
   if (params.myVotes) {
     qsParams += `&myvotes=true`
   }
   if (params.myPosts) {
     qsParams += `&myposts=true`
+  }
+  if (params.notMyVotes) {
+    qsParams += `&notmyvotes=true`
   }
   return await http.get<Post[]>(`/api/v1/posts${qsParams}`)
 }
@@ -72,8 +78,8 @@ export const listVotes = async (postNumber: number): Promise<Result<Vote[]>> => 
   return http.get<Vote[]>(`/api/v1/posts/${postNumber}/votes`)
 }
 
-export const getTaggableUsers = async (userFilter: string): Promise<Result<UserNames[]>> => {
-  return http.get<UserNames[]>(`/api/v1/taggable-users${querystring.stringify({ query: userFilter })}`)
+export const getTaggableUsers = async (nameFilter: string): Promise<Result<UserNames[]>> => {
+  return http.get<UserNames[]>(`/api/v1/taggable-users${querystring.stringify({ name: nameFilter })}`)
 }
 
 export const createComment = async (postNumber: number, content: string, attachments: ImageUpload[]): Promise<Result> => {
@@ -94,6 +100,14 @@ interface ToggleReactionResponse {
 export const toggleCommentReaction = async (postNumber: number, commentID: number, emoji: string): Promise<Result<ToggleReactionResponse>> => {
   return http.post<ToggleReactionResponse>(`/api/v1/posts/${postNumber}/comments/${commentID}/reactions/${emoji}`)
 }
+
+export const lockPost = async (postNumber: number, message: string): Promise<Result> => {
+  return await http.put(`/api/v1/posts/${postNumber}/lock`, { message });
+};
+
+export const unlockPost = async (postNumber: number): Promise<Result> => {
+  return await http.delete(`/api/v1/posts/${postNumber}/lock`);
+};
 
 interface SetResponseInput {
   status: string
