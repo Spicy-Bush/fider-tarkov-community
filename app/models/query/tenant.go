@@ -48,3 +48,7 @@ type GetTrialingTenantContacts struct {
 	// Output
 	Contacts []*entity.User
 }
+
+type GetTenantProfanityWords struct {
+	Result string
+}
