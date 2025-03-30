@@ -359,3 +359,16 @@ func getTenantByDomain(ctx context.Context, q *query.GetTenantByDomain) error {
 		return nil
 	})
 }
+
+func getTenantProfanityWords(ctx context.Context, q *query.GetTenantProfanityWords) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		var profanityWords string
+		err := trx.Get(&profanityWords, "SELECT profanity_words FROM tenants WHERE id = $1", tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get profanity words")
+		}
+
+		q.Result = profanityWords
+		return nil
+	})
+}
