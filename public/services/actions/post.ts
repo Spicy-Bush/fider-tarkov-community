@@ -16,6 +16,7 @@ export interface SearchPostsParams {
   notMyVotes?: boolean
   statuses?: string[]
   date?: string
+  tagLogic?: "OR" | "AND"
 }
 
 export const searchPosts = async (params: SearchPostsParams): Promise<Result<Post[]>> => {
@@ -27,6 +28,7 @@ export const searchPosts = async (params: SearchPostsParams): Promise<Result<Pos
     limit: params.limit,
     offset: params.offset,
     date: params.date,
+    tagLogic: params.tagLogic
   })
   if (params.myVotes) {
     qsParams += `&myvotes=true`

@@ -39,6 +39,7 @@
   "error.pagenotfound.title": "Page not found",
   "error.unauthorized.text": "You are not authorized to view this page.",
   "error.unauthorized.title": "Not Authorized",
+  "home.filter.tags.search": "Search tags...",
   "home.datefilter.label": "Date range",
   "home.datefilter.option.1d": "Last 24 hours",
   "home.datefilter.option.1y": "Last year",

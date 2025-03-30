@@ -47,7 +47,8 @@ type SearchPosts struct {
 	NotMyVotes  bool
 	Untagged    bool
 	Date        string
-	Count       int `json:"count,omitempty"`
+	TagLogic    string `json:"taglogic"`
+	Count       int    `json:"count,omitempty"`
 
 	Result []*entity.Post
 }

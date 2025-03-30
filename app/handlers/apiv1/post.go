@@ -41,6 +41,11 @@ func SearchPosts() web.HandlerFunc {
 
 		clientLimitParam := c.QueryParam("limit")
 		clientOffsetParam := c.QueryParam("offset")
+		tagLogicParam := c.QueryParam("tagLogic")
+
+		if tagLogicParam != "AND" && tagLogicParam != "OR" {
+			tagLogicParam = "OR"
+		}
 
 		var clientOffset int
 		if clientOffsetParam == "" {
@@ -83,6 +88,7 @@ func SearchPosts() web.HandlerFunc {
 			Tags:     filteredTags,
 			Untagged: untagged,
 			Date:     c.QueryParam("date"),
+			TagLogic: tagLogicParam,
 		}
 
 		if myVotesOnly, err := c.QueryParamAsBool("myvotes"); err == nil {

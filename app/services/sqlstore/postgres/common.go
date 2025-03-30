@@ -57,11 +57,20 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 		extraParams = append(extraParams, userID)
 		paramIndex++
 	}
+
 	if len(query.Tags) > 0 {
-		conditions = append(conditions, fmt.Sprintf("tags && $%d", paramIndex))
-		// Note: We pass the tags array here
-		extraParams = append(extraParams, pq.Array(query.Tags))
-		paramIndex++
+		if query.TagLogic == "AND" {
+			for _, tag := range query.Tags {
+				conditions = append(conditions, fmt.Sprintf("$%d = ANY(tags)", paramIndex))
+				extraParams = append(extraParams, tag)
+				paramIndex++
+			}
+		} else {
+			// by default, we use OR logic
+			conditions = append(conditions, fmt.Sprintf("tags && $%d", paramIndex))
+			extraParams = append(extraParams, pq.Array(query.Tags))
+			paramIndex++
+		}
 	}
 
 	if query.Date != "" {
