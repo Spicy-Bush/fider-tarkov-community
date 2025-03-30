@@ -78,9 +78,12 @@ func UpdateWebhook() web.HandlerFunc {
 			HttpMethod:  action.HttpMethod,
 			HttpHeaders: action.HttpHeaders,
 		}
-		if action.Status == enum.WebhookFailed {
-			updateWebhook.Status = enum.WebhookDisabled
-		}
+
+		// TODO: Handle status change correctly with some way of alerting the user without just outright disabling it
+		// if action.Status == enum.WebhookFailed {
+		//     updateWebhook.Status = enum.WebhookDisabled
+		// }
+
 		if err := bus.Dispatch(c, updateWebhook); err != nil {
 			return c.Failure(err)
 		}
