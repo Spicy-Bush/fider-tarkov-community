@@ -86,6 +86,7 @@
   "home.postinput.description.placeholder": "Describe your suggestion...",
   "home.postinput.disabled": "Posting has been disabled by the administrators.",
   "home.postscontainer.label.noresults": "No results matched your search, try something different.",
+  "home.postscontainer.resetfilters": "Reset your filter to default?",
   "home.postscontainer.label.viewmore": "View more posts",
   "home.postscontainer.query.placeholder": "Search",
   "home.postsort.label": "Sort by:",

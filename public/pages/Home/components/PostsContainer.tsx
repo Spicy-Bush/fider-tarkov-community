@@ -222,7 +222,42 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
     this.changeFilterCriteria({ query: "" }, true)
   }
 
+  private hasActiveFilters = (): boolean => {
+    const { filterState, query } = this.state
+    return (
+      filterState.tags.length > 0 ||
+      filterState.statuses.length > 0 ||
+      filterState.myVotes ||
+      filterState.myPosts ||
+      filterState.notMyVotes ||
+      !!filterState.date ||
+      !!query
+    )
+  }
+
+  private resetAllFilters = () => {
+    const defaultFilterState: FilterState = {
+      tags: [],
+      statuses: [],
+      myVotes: false,
+      myPosts: false,
+      notMyVotes: true,
+      date: undefined,
+      tagLogic: "OR"
+    }
+    
+    this.changeFilterCriteria({ 
+      filterState: defaultFilterState,
+      query: "",
+      view: "trending"
+    }, true)
+  }
+
   public render() {
+    const hasFilters = this.hasActiveFilters()
+    const hasNoPosts = !this.state.loading && (!this.state.posts || this.state.posts.length === 0)
+    const showResetButton = hasFilters && hasNoPosts
+
     return (
       <div className="c-posts-container">
         <div className="c-posts-container__header mb-5">
@@ -253,6 +288,16 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
           tags={this.props.tags}
           emptyText={i18n._("home.postscontainer.label.noresults", { message: "No results matched your search, try something different." })}
         />
+        {showResetButton && (
+          <div className="mt-4 text-center">
+            <button 
+              className="c-button c-button--default c-button--primary"
+              onClick={this.resetAllFilters}
+            >
+              {i18n._("home.postscontainer.resetfilters", { message: "Reset all filters" })}
+            </button>
+          </div>
+        )}
         {this.state.loading && <Loader />}
         {this.state.hasMore && <div ref={this.loadMoreRef} style={{ height: "1px" }}></div>}
       </div>
