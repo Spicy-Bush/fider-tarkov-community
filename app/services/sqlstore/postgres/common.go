@@ -142,8 +142,16 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 	case "trending":
 		fallthrough
 	default:
-		sort = "((COALESCE(recent_votes_count, 0)*5 + COALESCE(recent_comments_count, 0) *3)-1) / " +
-			"pow((EXTRACT(EPOCH FROM current_timestamp - created_at)/3600) + 2, 1.4)"
+		sort = "(" +
+			"COALESCE(recent_comments_count, 0)*3 + " +
+			"CASE " +
+			"  WHEN COALESCE(recent_votes_count, 0) >= 0 THEN COALESCE(recent_votes_count, 0)*5 " +
+			"  WHEN COALESCE(recent_votes_count, 0) > -10 THEN 0 " +
+			"  ELSE COALESCE(recent_votes_count, 0)*5 " +
+			"END + " +
+			"CASE WHEN (upvotes > 20) THEN upvotes/2 ELSE 0 END" +
+			") / " +
+			"pow((EXTRACT(EPOCH FROM current_timestamp - created_at)/86400) + 2, 0.8)"
 	}
 	return condition, statusFilters, sort, extraParams
 }

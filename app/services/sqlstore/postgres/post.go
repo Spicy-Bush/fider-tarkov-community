@@ -268,18 +268,31 @@ func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error 
 		}
 
 		for _, vote := range votes {
-			getUser := &query.GetUserByID{UserID: vote.UserID}
-			if err := bus.Dispatch(ctx, getUser); err != nil {
-				return errors.Wrap(err, "failed to get user with id '%d'", vote.UserID)
+			var existingVote struct {
+				ID int `db:"id"`
 			}
+			err := trx.Get(&existingVote, "SELECT id FROM post_votes WHERE post_id = $1 AND user_id = $2 AND tenant_id = $3",
+				c.Original.ID, vote.UserID, tenant.ID)
 
-			err := bus.Dispatch(ctx, &cmd.AddVote{
-				Post:     c.Original,
-				User:     getUser.Result,
-				VoteType: vote.VoteType,
-			})
-			if err != nil {
-				return err
+			if err == nil {
+				_, err = trx.Execute(`
+					UPDATE post_votes 
+					SET vote_type = $4, created_at = NOW()
+					WHERE id = $1 AND post_id = $2 AND tenant_id = $3
+				`, existingVote.ID, c.Original.ID, tenant.ID, vote.VoteType)
+
+				if err != nil {
+					return errors.Wrap(err, "failed to update existing vote on original post")
+				}
+			} else {
+				_, err = trx.Execute(`
+					INSERT INTO post_votes (user_id, post_id, tenant_id, vote_type, created_at) 
+					VALUES ($1, $2, $3, $4, NOW())
+				`, vote.UserID, c.Original.ID, tenant.ID, vote.VoteType)
+
+				if err != nil {
+					return errors.Wrap(err, "failed to add new vote to original post")
+				}
 			}
 		}
 
