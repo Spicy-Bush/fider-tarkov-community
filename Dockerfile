@@ -5,7 +5,7 @@
 FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.22.4-alpine3.19 AS server-builder 
 
 # Install build dependencies
-RUN apk add --no-cache make gcc musl-dev git
+RUN apk add --no-cache make gcc musl-dev git bash curl ca-certificates tzdata
 
 WORKDIR /server
 
@@ -24,9 +24,19 @@ COPY misc/ ./misc/
 COPY etc/ ./etc/
 
 # Build the application
-ARG COMMITHASH
-RUN CGO_ENABLED=0 COMMITHASH=${COMMITHASH} GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -ldflags="-s -w" -o fider .
+ARG COMMITHASH=""
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+ENV CGO_ENABLED=0
+ENV GOOS=${TARGETOS}
+ENV GOARCH=${TARGETARCH}
+ENV COMMITHASH=${COMMITHASH}
+# Print Go information for debugging
+RUN go version && \
+    go env && \
+    echo "Building fider..." && \
+    go build -v -ldflags="-s -w" -o fider . || \
+    (echo "Go build failed!" && ls -la && exit 1)
 
 #################
 ### UI Build Step
