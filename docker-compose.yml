@@ -135,8 +135,7 @@ services:
       -c max_wal_size=1GB
       -c min_wal_size=80MB
       -c log_statement=none
-      -c ssl=on
-      -c ssl_prefer_server_ciphers=on
+      -c ssl=off
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
