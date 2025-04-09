@@ -1,3 +1,5 @@
+version: '3.9'
+
 x-common-env: &fider-env
   GO_ENV: ${env_string}
   # Public Host Name
@@ -6,7 +8,7 @@ x-common-env: &fider-env
   # Connection string to the PostgreSQL database
   DATABASE_URL: ${database_url}
 
-  # Generate a secure secret, for example using https://jwtsecret.com
+  # JWT Secret
   JWT_SECRET: ${jwt_secret}
 
   # From which account e-mails will be sent
@@ -17,19 +19,9 @@ x-common-env: &fider-env
   # Either EMAIL_MAILGUN_* or EMAIL_SMTP_* or EMAIL_AWSSES_* is required
   ###
 
-  # EMAIL_MAILGUN_API: key-yourkeygoeshere
-  # EMAIL_MAILGUN_DOMAIN: yourdomain.com
-  # EMAIL_MAILGUN_REGION: US
-
   EMAIL_SMTP_HOST: ${mailhog_host}
   EMAIL_SMTP_PORT: ${mailhog_smtp_port}
-  # EMAIL_SMTP_USERNAME: user@yourdomain.com
-  # EMAIL_SMTP_PASSWORD: 
-  # EMAIL_SMTP_ENABLE_STARTTLS: 'true'
-
-  # EMAIL_AWSSES_REGION: us-east-1
-  # EMAIL_AWSSES_ACCESS_KEY_ID: youraccesskeygoeshere
-  # EMAIL_AWSSES_SECRET_ACCESS_KEY: yoursecretkeygoeshere  
+  
   LOG_LEVEL: ${fider_log_level}
   DISABLE_EMAIL_NOTIFICATIONS: true
   LOG_CONSOLE: true
@@ -40,52 +32,97 @@ x-common-env: &fider-env
   DATABASE_MAX_IDLE_CONNS: ${FIDER_IDLE_CONNS}
   DATABASE_MAX_OPEN_CONNS: ${FIDER_OPEN_CONNS}
 
-
   GOOGLE_ANALYTICS: ${GOOGLE_ANALYTICS}
   GOOGLE_ADSENSE: ${GOOGLE_ADSENSE}
 
   METRICS_ENABLED: ${METRICS_ENABLED}
   METRICS_PORT: 4000
 
-
-
 x-common-build-args: &common-build-args
-  DOCKER_USER_GID: ${DOCKER_USER_GID}
-  DOCKER_USER_UID: ${DOCKER_USER_UID}
+  DOCKER_USER_GID: ${DOCKER_USER_GID:-1000}
+  DOCKER_USER_UID: ${DOCKER_USER_UID:-1000}
 
 services:
   fider:
-    #image: spicybush/fider-tarkov-community-dev
     build:
       context: ./
       dockerfile: Dockerfile
       args: *common-build-args
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${github_repo}:${image_tag:-latest}
     environment: *fider-env
     ports:
       - "${http_port}:3000" 
       - "${METRICS_PORT}:4000" 
-    hostname: tarkov-community-${env_string}
-    #container_name: fider
-    restart: always
+    hostname: tarkov-community-${stack_env}
+    restart: unless-stopped
     networks:
-      bw-services:
-        aliases:
-          - fider
+      - fider-network
+    deploy:
+      resources:
+        limits:
+          cpus: '${FIDER_CPU_LIMIT:-4}'
+          memory: ${FIDER_MEMORY_LIMIT:-2G}
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD", "/app/fider", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+      mailhog:
+        condition: service_started
+        restart: true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 64M
 
   mailhog:
-    image: mailhog/mailhog:latest
-    restart: always
+    image: mailhog/mailhog:v1.0.1
+    restart: unless-stopped
     ports:
       - "${mailhog_web_port}:8025"
       - "${mailhog_smtp_port}:1025"
     networks:
-      bw-services:
-        aliases:
-          - fider      
+      - fider-network
+    deploy:
+      resources:
+        limits:
+          cpus: '${MAILHOG_CPU_LIMIT:-0.3}'
+          memory: ${MAILHOG_MEMORY_LIMIT:-256M}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8025"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
   postgres:
-    #container_name: fider_pgdev
-    restart: always
-    image: postgres:12
+    image: postgres:16.8-alpine
+    restart: unless-stopped
     command: >
       postgres
       -c max_connections=${PG_MAX_CONNS}
@@ -94,22 +131,43 @@ services:
       -c work_mem=${PG_WORK_MEM}
       -c maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM}
       -c checkpoint_completion_target=0.9
-      -c wal_buffers=${PG_WAL_BUFF} 
+      -c wal_buffers=${PG_WAL_BUFF}
+      -c max_wal_size=1GB
+      -c min_wal_size=80MB
+      -c log_statement=none
+      -c ssl=off
     volumes:
-      - pgdev-data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     ports:
       - "${postgres_dev_db_port}:5432"
     environment:
       POSTGRES_USER: ${postgres_user}
       POSTGRES_PASSWORD: ${postgres_password}
+      POSTGRES_DB: ${postgres_db:-fider}
     networks:
-      bw-services:
-        aliases:
-          - fider      
+      - fider-network
+    deploy:
+      resources:
+        limits:
+          cpus: '${POSTGRES_CPU_LIMIT:-4}'
+          memory: ${POSTGRES_MEMORY_LIMIT:-4G}
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=${postgres_password} pg_isready -U ${postgres_user} -d ${postgres_db:-fider} || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
   pgadmin:
-    image: dpage/pgadmin4
-    #container_name: pgadmin4
-    restart: always
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
     ports:
       - "${pgadmin_port}:80"
     environment:
@@ -118,51 +176,54 @@ services:
     volumes:
       - pgadmin-data:/var/lib/pgadmin
     networks:
-      bw-services:
-        aliases:
-          - fider      
+      - fider-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
 
   tunnel:
-    image: cloudflare/cloudflared
+    image: cloudflare/cloudflared:latest
     restart: unless-stopped
     command: tunnel run
     environment:
-      - TUNNEL_TOKEN=${cloudflared}
+      TUNNEL_TOKEN: ${cloudflared}
     networks:
-      bw-services:
-        aliases:
-          - fider       
-    
-
-  # pgtest:
-  #   container_name: fider_pgtest
-  #   restart: always
-  #   image: postgres:12
-  #   ports:
-  #     - "${postgres_test_db_port}:5432"
-  #   environment:
-  #     POSTGRES_USER: fider_test
-  #     POSTGRES_PASSWORD: fider_test_pw
-  # s3test:
-  #   container_name: fider_s3test
-  #   restart: always
-  #   image: minio/minio:RELEASE.2021-07-27T02-40-15Z
-  #   ports:
-  #     - "${minio_port}:9000"
-  #     - "${minio2_port}:9001"
-  #   volumes:
-  #     - s3test-data:/data
-  #   environment:
-  #     MINIO_ACCESS_KEY: s3user
-  #     MINIO_SECRET_KEY: s3user-s3cr3t
-  #   command: server /data --console-address ":${minio2_port}"
+      - fider-network
+    deploy:
+      resources:
+        limits:
+          cpus: '${TUNNEL_CPU_LIMIT:-0.3}'
+          memory: ${TUNNEL_MEMORY_LIMIT:-256M}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
-  pgdev-data:
+  pgdata:
+    name: tarkov-pgdata-${stack_env}
   pgadmin-data:
-#  s3test-data:
+    name: tarkov-pgadmin-${stack_env}
 
 networks:
-  bw-services:
-    external: true
-    name: bw-services
+  fider-network:
+    name: tarkov-network-${stack_env}
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
