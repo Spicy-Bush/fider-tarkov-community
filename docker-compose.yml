@@ -53,7 +53,7 @@ services:
     ports:
       - "${http_port}:3000" 
       - "${METRICS_PORT}:4000" 
-    hostname: tarkov-community-${env_string}
+    hostname: tarkov-community-${stack_env}
     restart: unless-stopped
     networks:
       - fider-network
@@ -214,15 +214,15 @@ services:
 
 volumes:
   pgdata:
-    name: tarkov-pgdata-${env_string}
+    name: tarkov-pgdata-${stack_env}
   pgadmin-data:
-    name: tarkov-pgadmin-${env_string}
+    name: tarkov-pgadmin-${stack_env}
 
 networks:
   fider-network:
-    name: tarkov-network-${env_string}
+    name: tarkov-network-${stack_env}
     driver: bridge
     driver_opts:
-      com.docker.network.bridge.name: tarkov-network-${env_string}
+      com.docker.network.bridge.name: tarkov-network-${stack_env}
       com.docker.network.bridge.enable_icc: "true"
       com.docker.network.bridge.enable_ip_masquerade: "true"
