@@ -185,9 +185,9 @@ services:
         limits:
           cpus: '0.5'
           memory: 512M
-    depends_on:
-      postgres:
-        condition: service_healthy
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
     logging:
       driver: "json-file"
       options:
