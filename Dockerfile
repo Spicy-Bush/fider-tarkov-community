@@ -37,6 +37,8 @@ WORKDIR /ui
 
 # Copy only files needed for dependencies
 COPY package.json package-lock.json tsconfig.json .nvmrc ./
+# Install make for the build commands
+RUN apk add --no-cache make
 RUN npm ci --no-audit --prefer-offline --no-fund
 
 # Copy only what's needed for UI build
