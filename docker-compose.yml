@@ -60,8 +60,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: 2G
+          cpus: '${FIDER_CPU_LIMIT:-4}'
+          memory: ${FIDER_MEMORY_LIMIT:-2G}
       restart_policy:
         condition: on-failure
         max_attempts: 3
@@ -75,8 +75,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        restart: true
       mailhog:
         condition: service_started
+        restart: true
     logging:
       driver: "json-file"
       options:
@@ -102,13 +104,14 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 256M
+          cpus: '${MAILHOG_CPU_LIMIT:-0.3}'
+          memory: ${MAILHOG_MEMORY_LIMIT:-256M}
     healthcheck:
       test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:8025"]
-      interval: 30s
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 15s
     logging:
       driver: "json-file"
       options:
@@ -131,7 +134,7 @@ services:
       -c wal_buffers=${PG_WAL_BUFF}
       -c max_wal_size=1GB
       -c min_wal_size=80MB
-      -c log_statement=all
+      -c log_statement=none
       -c ssl=on
       -c ssl_prefer_server_ciphers=on
     volumes:
@@ -142,19 +145,21 @@ services:
       POSTGRES_USER: ${postgres_user}
       POSTGRES_PASSWORD: ${postgres_password}
       POSTGRES_DB: ${postgres_db:-fider}
+      POSTGRES_HOST_AUTH_METHOD: trust
+      PGDATA: /var/lib/postgresql/data/pgdata
     networks:
       - fider-network
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: 4G
+          cpus: '${POSTGRES_CPU_LIMIT:-4}'
+          memory: ${POSTGRES_MEMORY_LIMIT:-4G}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${postgres_user}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${postgres_user} || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
     logging:
       driver: "json-file"
       options:
@@ -202,8 +207,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 256M
+          cpus: '${TUNNEL_CPU_LIMIT:-0.3}'
+          memory: ${TUNNEL_MEMORY_LIMIT:-256M}
     logging:
       driver: "json-file"
       options:
@@ -223,5 +228,6 @@ networks:
     name: tarkov-network-${stack_env}
     driver: bridge
     driver_opts:
+      com.docker.network.bridge.name: tarkov-network-${stack_env}
       com.docker.network.bridge.enable_icc: "true"
       com.docker.network.bridge.enable_ip_masquerade: "true"
