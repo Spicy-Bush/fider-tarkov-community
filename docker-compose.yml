@@ -121,7 +121,7 @@ services:
       - no-new-privileges:true
 
   postgres:
-    image: postgres:16.2-alpine
+    image: postgres:16.8-alpine
     restart: unless-stopped
     command: >
       postgres
@@ -166,7 +166,7 @@ services:
       - no-new-privileges:true
 
   pgadmin:
-    image: dpage/pgadmin4:8.0
+    image: dpage/pgadmin4:latest
     restart: unless-stopped
     ports:
       - "${pgadmin_port}:80"
@@ -194,7 +194,7 @@ services:
       - no-new-privileges:true
 
   tunnel:
-    image: cloudflare/cloudflared:2024.4.0
+    image: cloudflare/cloudflared:latest
     restart: unless-stopped
     command: tunnel run
     environment:
