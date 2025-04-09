@@ -72,13 +72,13 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    depends_on:
-      postgres:
-        condition: service_healthy
-        restart: true
-      mailhog:
-        condition: service_started
-        restart: true
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#        restart: true
+#      mailhog:
+#        condition: service_started
+#        restart: true
     logging:
       driver: "json-file"
       options:
@@ -154,12 +154,12 @@ services:
         limits:
           cpus: '${POSTGRES_CPU_LIMIT:-4}'
           memory: ${POSTGRES_MEMORY_LIMIT:-4G}
-    healthcheck:
-      test: ["CMD-SHELL", "PGPASSWORD=${postgres_password} pg_isready -U ${postgres_user} -d ${postgres_db:-fider} || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
+#    healthcheck:
+#      test: ["CMD-SHELL", "PGPASSWORD=${postgres_password} pg_isready -U ${postgres_user} -d ${postgres_db:-fider} || exit 1"]
+#      interval: 15s
+#      timeout: 10s
+#      retries: 10
+#      start_period: 30s
     logging:
       driver: "json-file"
       options:
