@@ -228,6 +228,5 @@ networks:
     name: tarkov-network-${stack_env}
     driver: bridge
     driver_opts:
-      com.docker.network.bridge.name: tarkov-network-${stack_env}
       com.docker.network.bridge.enable_icc: "true"
       com.docker.network.bridge.enable_ip_masquerade: "true"
