@@ -47,8 +47,8 @@ WORKDIR /ui
 
 # Copy only files needed for dependencies
 COPY package.json package-lock.json tsconfig.json .nvmrc ./
-# Install make for the build commands
-RUN apk add --no-cache make
+# Install make and required dependencies for the build
+RUN apk add --no-cache make bash python3 g++
 RUN npm ci --no-audit --prefer-offline --no-fund
 
 # Copy only what's needed for UI build
@@ -62,10 +62,21 @@ COPY Makefile ./
 COPY favicon.png ./
 COPY robots.txt ./
 COPY robots-dev.txt ./
+COPY locale/ ./locale/
 
-# Build with production settings
+# Build with production settings - with diagnostic information
 ENV NODE_ENV=production
-RUN make build-ssr build-ui
+RUN node --version && \
+    npm --version && \
+    npx lingui --version || echo "Lingui version check failed" && \
+    ls -la && \
+    echo "===== Running UI Build =====" && \
+    # Run the commands directly instead of using make to see exactly what fails
+    mkdir -p dist && \
+    npx lingui extract public/ && \
+    npx lingui compile && \
+    node esbuild.config.js && \
+    npx webpack-cli
 
 ################
 ### Runtime Step
