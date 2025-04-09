@@ -144,8 +144,6 @@ services:
       POSTGRES_USER: ${postgres_user}
       POSTGRES_PASSWORD: ${postgres_password}
       POSTGRES_DB: ${postgres_db:-fider}
-      POSTGRES_HOST_AUTH_METHOD: trust
-      PGDATA: /var/lib/postgresql/data/pgdata
     networks:
       - fider-network
     deploy:
