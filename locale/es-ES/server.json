@@ -49,6 +49,7 @@
   "email.change_status.others": "El estado de <strong>{title} ({postLink})</strong> ha cambiado a <strong>{status}</strong>.",
   "email.delete_post.text": "<strong>{title}</strong> ha sido <strong>eliminado</strong>.",
   "email.new_comment.text": "<strong>{userName}</strong> dejó un comentario en <strong>{title} ({postLink})</strong>.",
+  "email.new_mention.text": "<strong>{userName}</strong> te mencionó en <strong>{title} ({postLink})</strong>.",
   "email.new_post.text": "<strong>{userName}</strong> dejó un comentario en <strong>{title} ({postLink})</strong>.",
   "email.signin_email.subject": "Iniciar sesión en {siteName}",
   "email.signin_email.text": "Nos ha pedido que le enviemos un enlace de inicio de sesión y aquí está.",

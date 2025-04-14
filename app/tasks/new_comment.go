@@ -30,7 +30,11 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 		}
 
 		author := c.User()
-		title := fmt.Sprintf("**%s** left a comment on **%s**", author.Name, post.Title)
+		title := i18n.T(c, "email.new_comment.text", dto.Props{
+			"userName": author.Name,
+			"title":    post.Title,
+			"postLink": fmt.Sprintf("#%d", post.Number),
+		})
 		link := fmt.Sprintf("/posts/%d/%s", post.Number, post.Slug)
 		for _, user := range users {
 			if user.ID != author.ID {
@@ -47,7 +51,11 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 		}
 
 		// Web notification - mentions
-		title = fmt.Sprintf("**%s** mentioned you in **%s**", author.Name, post.Title)
+		title = i18n.T(c, "email.new_mention.text", dto.Props{
+			"userName": author.Name,
+			"title":    post.Title,
+			"postLink": fmt.Sprintf("#%d", post.Number),
+		})
 
 		if comment.Mentions != nil {
 
@@ -150,7 +158,11 @@ func NotifyAboutUpdatedComment(content string, post *entity.Post) worker.Task {
 		})
 
 		author := c.User()
-		title := fmt.Sprintf("**%s** mentioned you in **%s**", author.Name, post.Title)
+		title := i18n.T(c, "email.new_mention.text", dto.Props{
+			"userName": author.Name,
+			"title":    post.Title,
+			"postLink": fmt.Sprintf("#%d", post.Number),
+		})
 		link := fmt.Sprintf("/posts/%d/%s", post.Number, post.Slug)
 		if mentions != nil {
 
