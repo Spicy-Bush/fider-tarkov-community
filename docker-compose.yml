@@ -54,7 +54,7 @@ x-common-build-args: &common-build-args
   DOCKER_USER_UID: ${DOCKER_USER_UID}
 
 services:
-fider:
+  fider:
     build:
       context: ./
       dockerfile: Dockerfile
