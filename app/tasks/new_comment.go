@@ -30,7 +30,7 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 		}
 
 		author := c.User()
-		title := i18n.T(c, "email.new_comment.text", dto.Props{
+		title := i18n.T(c, "email.new_comment.text", i18n.Params{
 			"userName": author.Name,
 			"title":    post.Title,
 			"postLink": fmt.Sprintf("#%d", post.Number),
@@ -51,7 +51,7 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 		}
 
 		// Web notification - mentions
-		title = i18n.T(c, "email.new_mention.text", dto.Props{
+		title = i18n.T(c, "email.new_mention.text", i18n.Params{
 			"userName": author.Name,
 			"title":    post.Title,
 			"postLink": fmt.Sprintf("#%d", post.Number),
@@ -158,7 +158,7 @@ func NotifyAboutUpdatedComment(content string, post *entity.Post) worker.Task {
 		})
 
 		author := c.User()
-		title := i18n.T(c, "email.new_mention.text", dto.Props{
+		title := i18n.T(c, "email.new_mention.text", i18n.Params{
 			"userName": author.Name,
 			"title":    post.Title,
 			"postLink": fmt.Sprintf("#%d", post.Number),
