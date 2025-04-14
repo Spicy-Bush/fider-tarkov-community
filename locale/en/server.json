@@ -58,6 +58,7 @@
   "email.change_status.others": "Status of <strong>{title} ({postLink})</strong> has changed to <strong>{status}</strong>.",
   "email.delete_post.text": "<strong>{title}</strong> has been <strong>deleted</strong>.",
   "email.new_comment.text": "<strong>{userName}</strong> left a comment on <strong>{title} ({postLink})</strong>.",
+  "email.new_mention.text": "<strong>{userName}</strong> mentioned you in <strong>{title} ({postLink})</strong>.",
   "email.new_post.text": "<strong>{userName}</strong> created a new post <strong>{title} ({postLink})</strong>.",
   "email.signin_email.subject": "Sign in to {siteName}",
   "email.signin_email.text": "You asked us to send you a sign-in link and here it is.",

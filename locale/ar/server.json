@@ -49,6 +49,7 @@
   "email.change_status.others": "تم تغيير حالة <strong>{title} ({postLink})</strong> إلى <strong>{status}</strong>.",
   "email.delete_post.text": "<strong>{title}</strong> تم <strong>حذفه</strong>.",
   "email.new_comment.text": "<strong>{userName}</strong> ترك تعليقًا على <strong>{title} ({postLink})</strong>.",
+  "email.new_mention.text": "<strong>{userName}</strong> ذكرك في <strong>{title} ({postLink})</strong>.",
   "email.new_post.text": "<strong>{userName}</strong> أنشأ منشورًا جديدًا <strong>{title} ({postLink})</strong>.",
   "email.signin_email.subject": "تسجيل الدخول إلى {siteName}",
   "email.signin_email.text": "طلبت منا إرسال رابط تسجيل الدخول لك وها هو.",

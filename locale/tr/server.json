@@ -49,6 +49,7 @@
   "email.change_status.others": "<strong>{title} ({postLink})</strong> kaydının durumu <strong>{status}</strong> olarak değişmiştir.",
   "email.delete_post.text": "<strong>{title}</strong> <strong>silinmiştir</strong>.",
   "email.new_comment.text": "<strong>{userName}</strong>, <strong>{title} ({postLink})</strong> kaydına yorum eklemiştir.",
+  "email.new_mention.text": "<strong>{userName}</strong>, <strong>{title} ({postLink})</strong> kaydında sizden bahsetmiştir.",
   "email.new_post.text": "<strong>{userName}</strong>, <strong>{title} ({postLink})</strong> yeni bir kayıt oluşturmuştur.",
   "email.signin_email.subject": "{siteName} sayfasına giriş yapın",
   "email.signin_email.text": "Bizden bir giriş bağlantısı talep etmiştiniz, işte burada bulabilirsiniz.",
