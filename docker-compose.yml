@@ -54,12 +54,12 @@ x-common-build-args: &common-build-args
   DOCKER_USER_UID: ${DOCKER_USER_UID}
 
 services:
-  fider:
-    #image: spicybush/fider-tarkov-community-dev
+fider:
     build:
       context: ./
       dockerfile: Dockerfile
       args: *common-build-args
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${github_repo}:${image_tag:-latest}
     environment: *fider-env
     ports:
       - "${http_port}:3000" 
