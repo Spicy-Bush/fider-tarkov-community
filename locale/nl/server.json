@@ -49,6 +49,7 @@
   "email.change_status.others": "Status van <strong>{title} ({postLink})</strong> is aangepast naar <strong>{status}</strong>.",
   "email.delete_post.text": "<strong>{title}</strong> is <strong>verwijderd</strong>.",
   "email.new_comment.text": "<strong>{userName}</strong> heeft een reactie achtergelaten op <strong>{title} ({postLink})</strong>.",
+  "email.new_mention.text": "<strong>{userName}</strong> heeft je genoemd in <strong>{title} ({postLink})</strong>.",
   "email.new_post.text": "<strong>{userName}</strong> heeft een nieuw bericht gemaakt <strong>{title} ({postLink})</strong>.",
   "email.signin_email.subject": "Log in bij {siteName}",
   "email.signin_email.text": "Je hebt ons gevraagd om een link om in te loggen en hier is-ie dan.",
@@ -58,5 +59,10 @@
   "email.signup_email.confirmation": "Via de onderstaande link kun je jouw emailadres bevestigen en de activatie voltooien.",
   "email.footer.subscription_notice": "Je ontvangt deze e-mail omdat je bent geabonneerd op dit bericht. Je kunt {view}, {unsubscribe} of {change}.",
   "email.footer.subscription_notice2": "Je ontvangt deze e-mail omdat je bent geabonneerd op dit bericht. Je kunt {change}.",
-  "email.footer.subscription_notice3": "Je ontvangt deze e-mail omdat je bent geabonneerd op dit bericht. Je kunt {view} of {change}."
+  "email.footer.subscription_notice3": "Je ontvangt deze e-mail omdat je bent geabonneerd op dit bericht. Je kunt {view} of {change}.",
+  "web.new_comment.text": "**{userName}** heeft een reactie achtergelaten op **{title}**.",
+  "web.new_mention.text": "**{userName}** heeft je genoemd in **{title}**.",
+  "web.new_post.text": "**{userName}** heeft een nieuw bericht geplaatst **{title}**.",
+  "web.delete_post.text": "**{userName}** heeft **{title}** verwijderd",
+  "web.change_status.text": "**{userName}** heeft de status van **{title}** gewijzigd naar **{status}**."
 }

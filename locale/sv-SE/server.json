@@ -49,6 +49,7 @@
   "email.change_status.others": "Status för <strong>{title} ({postLink})</strong> har ändrats till <strong>{status}</strong>.",
   "email.delete_post.text": "<strong>{title}</strong> har <strong>raderats</strong>.",
   "email.new_comment.text": "<strong>{userName}</strong> skrev en kommentar på <strong>{title} ({postLink})</strong>.",
+  "email.new_mention.text": "<strong>{userName}</strong> nämnde dig i <strong>{title} ({postLink})</strong>.",
   "email.new_post.text": "<strong>{userName}</strong> skapade ett nytt inlägg <strong>{title} ({postLink})</strong>.",
   "email.signin_email.subject": "Logga in på {siteName}",
   "email.signin_email.text": "Du bad oss att skicka dig en inloggningslänk och här är den.",
@@ -58,5 +59,10 @@
   "email.signup_email.confirmation": "Via länken nedan kan du bekräfta din e-postadress och slutföra aktiveringsprocessen.",
   "email.footer.subscription_notice": "Du får detta e-postmeddelande eftersom du prenumererar på det här inlägget. Du kan {view}, {unsubscribe} eller {change}.",
   "email.footer.subscription_notice2": "Du får detta e-postmeddelande eftersom du prenumererar på det här inlägget. Du kan {change}.",
-  "email.footer.subscription_notice3": "Du får detta e-postmeddelande eftersom du prenumererar på det här inlägget. Du kan {view} eller {change}."
+  "email.footer.subscription_notice3": "Du får detta e-postmeddelande eftersom du prenumererar på det här inlägget. Du kan {view} eller {change}.",
+  "web.new_comment.text": "**{userName}** lämnade en kommentar på **{title}**.",
+  "web.new_mention.text": "**{userName}** nämnde dig i **{title}**.",
+  "web.new_post.text": "**{userName}** skapade ett nytt inlägg **{title}**.",
+  "web.delete_post.text": "**{userName}** raderade **{title}**",
+  "web.change_status.text": "**{userName}** ändrade status för **{title}** till **{status}**."
 }

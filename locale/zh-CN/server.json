@@ -49,6 +49,7 @@
   "email.change_status.others": "状态 <strong>{title} ({postLink})</strong> 已更改为 <strong>{status}</strong>.",
   "email.delete_post.text": "<strong>{title}</strong> 已经 <strong>删除了</strong>.",
   "email.new_comment.text": "<strong>{userName}</strong> 发表评论 <strong>{title} ({postLink})</strong>.",
+  "email.new_mention.text": "<strong>{userName}</strong> 在 <strong>{title} ({postLink})</strong> 中提到了你.",
   "email.new_post.text": "<strong>{userName}</strong> 创建了一个新帖子 <strong>{title} ({postLink})</strong>.",
   "email.signin_email.subject": "登录到 {siteName}",
   "email.signin_email.text": "您要求我们向您发送登录链接，现在是.",
@@ -58,5 +59,10 @@
   "email.signup_email.confirmation": "通过下面的链接，您可以验证您的电子邮件地址并完成激活过程.",
   "email.footer.subscription_notice": "您收到此电子邮件是因为您订阅了此帖子。你可以 {view}, {unsubscribe} 或者 {change}.",
   "email.footer.subscription_notice2": "您收到此电子邮件是因为您订阅了此帖子。你可以 {change}.",
-  "email.footer.subscription_notice3": "您收到此电子邮件是因为您订阅了此帖子。你可以 {view} 或者 {change}."
+  "email.footer.subscription_notice3": "您收到此电子邮件是因为您订阅了此帖子。你可以 {view} 或者 {change}.",
+  "web.new_comment.text": "**{userName}** 在 **{title}** 留下了评论。",
+  "web.new_mention.text": "**{userName}** 在 **{title}** 中提到了你。",
+  "web.new_post.text": "**{userName}** 创建了新帖子 **{title}**。",
+  "web.delete_post.text": "**{userName}** 删除了 **{title}**",
+  "web.change_status.text": "**{userName}** 将 **{title}** 的状态更改为 **{status}**。"
 }

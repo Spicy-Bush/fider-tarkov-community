@@ -1,8 +1,6 @@
 package tasks
 
 import (
-	"fmt"
-
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -23,7 +21,6 @@ func NotifyAboutDeletedPost(post *entity.Post, deleteCommentAdded bool) worker.T
 		tenant := c.Tenant()
 		baseURL, logoURL := web.BaseURL(c), web.LogoURL(c)
 		author := c.User()
-		title := fmt.Sprintf("**%s** deleted **%s**", author.Name, post.Title)
 
 		// Webhook
 		webhookProps := webhook.Props{}
@@ -50,6 +47,12 @@ func NotifyAboutDeletedPost(post *entity.Post, deleteCommentAdded bool) worker.T
 		if err != nil {
 			return c.Failure(err)
 		}
+
+		// Get localized title after database operations
+		title := i18n.T(c, "web.delete_post.text", i18n.Params{
+			"userName": author.Name,
+			"title":    post.Title,
+		})
 
 		for _, user := range users {
 			if user.ID != author.ID {

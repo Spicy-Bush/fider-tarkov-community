@@ -49,6 +49,7 @@
   "email.change_status.others": "Stav príspevku <strong>{title} ({postLink})</strong> sa zmenil na <strong>{status}</strong>.",
   "email.delete_post.text": "Príspevok <strong>{title}</strong> bol <strong>vymazaný</strong>.",
   "email.new_comment.text": "<strong>{userName}</strong> zanechal komentár na príspevku <strong>{title} ({postLink})</strong>.",
+  "email.new_mention.text": "<strong>{userName}</strong> ťa spomenul v príspevku <strong>{title} ({postLink})</strong>.",
   "email.new_post.text": "<strong>{userName}</strong> vytvoril nový príspevok <strong>{title} ({postLink})</strong>.",
   "email.signin_email.subject": "Prihláste sa do {siteName}",
   "email.signin_email.text": "Požiadali ste nás, aby sme vám poslali odkaz na prihlásenie, a tu je.",
@@ -58,5 +59,10 @@
   "email.signup_email.confirmation": "Prostredníctvom nižšie uvedeného odkazu si môžete overiť svoju emailovú adresu a dokončiť proces aktivácie.",
   "email.footer.subscription_notice": "Tento email ste dostali, pretože ste sa prihlásili na odber tohto príspevku. Môžete {view}, {unsubscribe} or {change}.",
   "email.footer.subscription_notice2": "Tento email ste dostali, pretože ste sa prihlásili na odber tohto príspevku. Môžete {change}.",
-  "email.footer.subscription_notice3": "Tento email ste dostali, pretože ste sa prihlásili na odber tohto príspevku. Môžete {view} alebo {change}."
+  "email.footer.subscription_notice3": "Tento email ste dostali, pretože ste sa prihlásili na odber tohto príspevku. Môžete {view} alebo {change}.",
+  "web.new_comment.text": "**{userName}** zanechal komentár k **{title}**.",
+  "web.new_mention.text": "**{userName}** ťa spomenul v **{title}**.",
+  "web.new_post.text": "**{userName}** vytvoril nový príspevok **{title}**.",
+  "web.delete_post.text": "**{userName}** vymazal príspevok **{title}**",
+  "web.change_status.text": "**{userName}** zmenil stav príspevku **{title}** na **{status}**."
 }

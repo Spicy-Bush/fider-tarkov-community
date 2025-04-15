@@ -49,6 +49,7 @@
   "email.change_status.others": "تم تغيير حالة <strong>{title} ({postLink})</strong> إلى <strong>{status}</strong>.",
   "email.delete_post.text": "<strong>{title}</strong> تم <strong>حذفه</strong>.",
   "email.new_comment.text": "<strong>{userName}</strong> ترك تعليقًا على <strong>{title} ({postLink})</strong>.",
+  "email.new_mention.text": "<strong>{userName}</strong> ذكرك في <strong>{title} ({postLink})</strong>.",
   "email.new_post.text": "<strong>{userName}</strong> أنشأ منشورًا جديدًا <strong>{title} ({postLink})</strong>.",
   "email.signin_email.subject": "تسجيل الدخول إلى {siteName}",
   "email.signin_email.text": "طلبت منا إرسال رابط تسجيل الدخول لك وها هو.",
@@ -58,5 +59,10 @@
   "email.signup_email.confirmation": "من خلال الرابط أدناه يمكنك التحقق من عنوان بريدك الإلكتروني وإكمال عملية التفعيل.",
   "email.footer.subscription_notice": "أنت تتلقى هذا البريد الإلكتروني لأنك مشترك في هذا المنشور. يمكنك {view}، {unsubscribe} أو {change}.",
   "email.footer.subscription_notice2": "أنت تتلقى هذا البريد الإلكتروني لأنك مشترك في هذا المنشور. يمكنك {change}.",
-  "email.footer.subscription_notice3": "أنت تتلقى هذا البريد الإلكتروني لأنك مشترك في هذا المنشور. يمكنك {view} أو {change}."
+  "email.footer.subscription_notice3": "أنت تتلقى هذا البريد الإلكتروني لأنك مشترك في هذا المنشور. يمكنك {view} أو {change}.",
+  "web.new_comment.text": "**{userName}** ترك تعليقًا على **{title}**.",
+  "web.new_mention.text": "**{userName}** ذكرك في **{title}**.",
+  "web.new_post.text": "**{userName}** أنشأ منشورًا جديدًا **{title}**.",
+  "web.delete_post.text": "**{userName}** حذف **{title}**",
+  "web.change_status.text": "**{userName}** غيّر حالة **{title}** إلى **{status}**."
 }

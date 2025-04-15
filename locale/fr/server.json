@@ -49,6 +49,7 @@
   "email.change_status.others": "Le statut de <strong>{title} ({postLink})</strong> a été changé à <strong>{status}</strong>.",
   "email.delete_post.text": "<strong>{title}</strong> a été <strong>supprimé</strong>.",
   "email.new_comment.text": "<strong>{userName}</strong> a laissé un commentaire sur <strong>{title} ({postLink})</strong>.",
+  "email.new_mention.text": "<strong>{userName}</strong> vous a mentionné dans <strong>{title} ({postLink})</strong>.",
   "email.new_post.text": "<strong>{userName}</strong> a créé un nouveau message <strong>{title} ({postLink})</strong>.",
   "email.signin_email.subject": "Se connecter à {siteName}",
   "email.signin_email.text": "Vous nous avez demandé de vous envoyer un lien de connexion et le voici.",
@@ -58,5 +59,10 @@
   "email.signup_email.confirmation": "En cliquant sur le lien ci-dessous, vous pouvez vérifier votre adresse e-mail et terminer le processus d'activation.",
   "email.footer.subscription_notice": "Vous recevez cet e-mail parce que vous êtes abonné à ce message. Vous pouvez {view}, {unsubscribe} ou {change}.",
   "email.footer.subscription_notice2": "Vous recevez cet e-mail parce que vous êtes abonné à ce message. Vous pouvez {change}.",
-  "email.footer.subscription_notice3": "Vous recevez cet e-mail parce que vous êtes abonné à ce message. Vous pouvez {view} ou {change}."
+  "email.footer.subscription_notice3": "Vous recevez cet e-mail parce que vous êtes abonné à ce message. Vous pouvez {view} ou {change}.",
+  "web.new_comment.text": "**{userName}** a laissé un commentaire sur **{title}**.",
+  "web.new_mention.text": "**{userName}** vous a mentionné dans **{title}**.",
+  "web.new_post.text": "**{userName}** a créé un nouveau post **{title}**.",
+  "web.delete_post.text": "**{userName}** a supprimé **{title}**",
+  "web.change_status.text": "**{userName}** a changé le statut de **{title}** en **{status}**."
 }
