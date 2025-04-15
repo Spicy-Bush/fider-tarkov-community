@@ -62,7 +62,7 @@ services:
       context: ./
       dockerfile: Dockerfile
       args: *common-build-args
-    pull_policy: build_if_not_exists
+    #pull_policy: always
     environment: *fider-env
     ports:
       - "${http_port}:3000" 
