@@ -107,7 +107,7 @@ services:
         aliases:
           - fider      
   pgadmin:
-    image: dpage/pgadmin4
+    image: dpage/pgadmin4:latest
     #container_name: pgadmin4
     restart: always
     ports:
@@ -123,7 +123,7 @@ services:
           - fider      
 
   tunnel:
-    image: cloudflare/cloudflared
+    image: cloudflare/cloudflared:latest
     restart: unless-stopped
     command: tunnel run
     environment:
