@@ -59,5 +59,10 @@
   "email.signup_email.confirmation": "Attraverso il link qui sotto puoi verificare il tuo indirizzo email e completare il processo di attivazione.",
   "email.footer.subscription_notice": "Stai ricevendo questa email perché sei iscritto a questo post. Puoi {view}, {unsubscribe} o {change}.",
   "email.footer.subscription_notice2": "Stai ricevendo questa email perché sei iscritto a questo post. Puoi {change}.",
-  "email.footer.subscription_notice3": "Stai ricevendo questa email perché sei iscritto a questo post. Puoi {view} o {change}."
+  "email.footer.subscription_notice3": "Stai ricevendo questa email perché sei iscritto a questo post. Puoi {view} o {change}.",
+  "web.new_comment.text": "**{userName}** ha lasciato un commento su **{title} ({postLink})**.",
+  "web.new_mention.text": "**{userName}** ti ha menzionato in **{title} ({postLink})**.",
+  "web.new_post.text": "**{userName}** ha creato un nuovo post **{title} ({postLink})**.",
+  "web.delete_post.text": "**{userName}** ha cancellato **{title}**",
+  "web.change_status.text": "**{userName}** ha cambiato lo stato di **{title}** in **{status}**."
 }

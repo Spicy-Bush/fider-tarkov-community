@@ -26,7 +26,11 @@ func NotifyAboutNewPost(post *entity.Post) worker.Task {
 		}
 
 		author := c.User()
-		title := fmt.Sprintf("New post: **%s**", post.Title)
+		title := i18n.T(c, "web.new_post.text", i18n.Params{
+			"userName": author.Name,
+			"title":    post.Title,
+			"postLink": fmt.Sprintf("#%d", post.Number),
+		})
 		link := fmt.Sprintf("/posts/%d/%s", post.Number, post.Slug)
 		for _, user := range users {
 			if user.ID != author.ID {

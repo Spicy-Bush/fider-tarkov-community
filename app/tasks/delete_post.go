@@ -23,7 +23,10 @@ func NotifyAboutDeletedPost(post *entity.Post, deleteCommentAdded bool) worker.T
 		tenant := c.Tenant()
 		baseURL, logoURL := web.BaseURL(c), web.LogoURL(c)
 		author := c.User()
-		title := fmt.Sprintf("**%s** deleted **%s**", author.Name, post.Title)
+		title := i18n.T(c, "web.delete_post.text", i18n.Params{
+			"userName": author.Name,
+			"title":    post.Title,
+		})
 
 		// Webhook
 		webhookProps := webhook.Props{}

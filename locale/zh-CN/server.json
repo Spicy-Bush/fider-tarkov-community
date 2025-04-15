@@ -59,5 +59,10 @@
   "email.signup_email.confirmation": "通过下面的链接，您可以验证您的电子邮件地址并完成激活过程.",
   "email.footer.subscription_notice": "您收到此电子邮件是因为您订阅了此帖子。你可以 {view}, {unsubscribe} 或者 {change}.",
   "email.footer.subscription_notice2": "您收到此电子邮件是因为您订阅了此帖子。你可以 {change}.",
-  "email.footer.subscription_notice3": "您收到此电子邮件是因为您订阅了此帖子。你可以 {view} 或者 {change}."
+  "email.footer.subscription_notice3": "您收到此电子邮件是因为您订阅了此帖子。你可以 {view} 或者 {change}.",
+  "web.new_comment.text": "**{userName}** 在 **{title} ({postLink})** 留下了评论。",
+  "web.new_mention.text": "**{userName}** 在 **{title} ({postLink})** 中提到了你。",
+  "web.new_post.text": "**{userName}** 创建了新帖子 **{title} ({postLink})**。",
+  "web.delete_post.text": "**{userName}** 删除了 **{title}**",
+  "web.change_status.text": "**{userName}** 将 **{title}** 的状态更改为 **{status}**。"
 }

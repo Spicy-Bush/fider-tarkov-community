@@ -59,5 +59,10 @@
   "email.signup_email.confirmation": "من خلال الرابط أدناه يمكنك التحقق من عنوان بريدك الإلكتروني وإكمال عملية التفعيل.",
   "email.footer.subscription_notice": "أنت تتلقى هذا البريد الإلكتروني لأنك مشترك في هذا المنشور. يمكنك {view}، {unsubscribe} أو {change}.",
   "email.footer.subscription_notice2": "أنت تتلقى هذا البريد الإلكتروني لأنك مشترك في هذا المنشور. يمكنك {change}.",
-  "email.footer.subscription_notice3": "أنت تتلقى هذا البريد الإلكتروني لأنك مشترك في هذا المنشور. يمكنك {view} أو {change}."
+  "email.footer.subscription_notice3": "أنت تتلقى هذا البريد الإلكتروني لأنك مشترك في هذا المنشور. يمكنك {view} أو {change}.",
+  "web.new_comment.text": "**{userName}** ترك تعليقًا على **{title} ({postLink})**.",
+  "web.new_mention.text": "**{userName}** ذكرك في **{title} ({postLink})**.",
+  "web.new_post.text": "**{userName}** أنشأ منشورًا جديدًا **{title} ({postLink})**.",
+  "web.delete_post.text": "**{userName}** حذف **{title}**",
+  "web.change_status.text": "**{userName}** غيّر حالة **{title}** إلى **{status}**."
 }

@@ -59,5 +59,10 @@
   "email.signup_email.confirmation": "Via de onderstaande link kun je jouw emailadres bevestigen en de activatie voltooien.",
   "email.footer.subscription_notice": "Je ontvangt deze e-mail omdat je bent geabonneerd op dit bericht. Je kunt {view}, {unsubscribe} of {change}.",
   "email.footer.subscription_notice2": "Je ontvangt deze e-mail omdat je bent geabonneerd op dit bericht. Je kunt {change}.",
-  "email.footer.subscription_notice3": "Je ontvangt deze e-mail omdat je bent geabonneerd op dit bericht. Je kunt {view} of {change}."
+  "email.footer.subscription_notice3": "Je ontvangt deze e-mail omdat je bent geabonneerd op dit bericht. Je kunt {view} of {change}.",
+  "web.new_comment.text": "**{userName}** heeft een reactie achtergelaten op **{title} ({postLink})**.",
+  "web.new_mention.text": "**{userName}** heeft je genoemd in **{title} ({postLink})**.",
+  "web.new_post.text": "**{userName}** heeft een nieuw bericht geplaatst **{title} ({postLink})**.",
+  "web.delete_post.text": "**{userName}** heeft **{title}** verwijderd",
+  "web.change_status.text": "**{userName}** heeft de status van **{title}** gewijzigd naar **{status}**."
 }

@@ -59,5 +59,10 @@
   "email.signup_email.confirmation": "Prostredníctvom nižšie uvedeného odkazu si môžete overiť svoju emailovú adresu a dokončiť proces aktivácie.",
   "email.footer.subscription_notice": "Tento email ste dostali, pretože ste sa prihlásili na odber tohto príspevku. Môžete {view}, {unsubscribe} or {change}.",
   "email.footer.subscription_notice2": "Tento email ste dostali, pretože ste sa prihlásili na odber tohto príspevku. Môžete {change}.",
-  "email.footer.subscription_notice3": "Tento email ste dostali, pretože ste sa prihlásili na odber tohto príspevku. Môžete {view} alebo {change}."
+  "email.footer.subscription_notice3": "Tento email ste dostali, pretože ste sa prihlásili na odber tohto príspevku. Môžete {view} alebo {change}.",
+  "web.new_comment.text": "**{userName}** zanechal komentár k **{title} ({postLink})**.",
+  "web.new_mention.text": "**{userName}** ťa spomenul v **{title} ({postLink})**.",
+  "web.new_post.text": "**{userName}** vytvoril nový príspevok **{title} ({postLink})**.",
+  "web.delete_post.text": "**{userName}** vymazal príspevok **{title}**",
+  "web.change_status.text": "**{userName}** zmenil stav príspevku **{title}** na **{status}**."
 }
