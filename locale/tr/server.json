@@ -60,9 +60,9 @@
   "email.footer.subscription_notice": "Bu e-postayı, bu öneriye dair bildirimlere abone olduğunuz için aldınız. {view}, {unsubscribe} veya {change}.",
   "email.footer.subscription_notice2": "Bu e-postayı, bu öneriye dair bildirimlere abone olduğunuz için aldınız. {change} ebilirsiniz.",
   "email.footer.subscription_notice3": "Bu e-postayı, bu öneriye dair bildirimlere abone olduğunuz için aldınız. {view} yebilir veya {change} ebilirsiniz.",
-  "web.new_comment.text": "**{userName}**, **{title} ({postLink})** hakkında yorum bırakmıştır.",
-  "web.new_mention.text": "**{userName}**, **{title} ({postLink})** içerisinde sizden bahsetmiştir.",
-  "web.new_post.text": "**{userName}**, **{title} ({postLink})** başlıklı yeni ileti oluşturmuştur.",
+  "web.new_comment.text": "**{userName}**, **{title}** hakkında yorum bırakmıştır.",
+  "web.new_mention.text": "**{userName}**, **{title}** içerisinde sizden bahsetmiştir.",
+  "web.new_post.text": "**{userName}**, **{title}** başlıklı yeni ileti oluşturmuştur.",
   "web.delete_post.text": "**{userName}**, **{title}** kaydını silmiştir.",
   "web.change_status.text": "**{userName}**, **{title}** durumunu **{status}** olarak değiştirmiştir."
 }

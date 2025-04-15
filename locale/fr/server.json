@@ -60,9 +60,9 @@
   "email.footer.subscription_notice": "Vous recevez cet e-mail parce que vous êtes abonné à ce message. Vous pouvez {view}, {unsubscribe} ou {change}.",
   "email.footer.subscription_notice2": "Vous recevez cet e-mail parce que vous êtes abonné à ce message. Vous pouvez {change}.",
   "email.footer.subscription_notice3": "Vous recevez cet e-mail parce que vous êtes abonné à ce message. Vous pouvez {view} ou {change}.",
-  "web.new_comment.text": "**{userName}** a laissé un commentaire sur **{title} ({postLink})**.",
-  "web.new_mention.text": "**{userName}** vous a mentionné dans **{title} ({postLink})**.",
-  "web.new_post.text": "**{userName}** a créé un nouveau post **{title} ({postLink})**.",
+  "web.new_comment.text": "**{userName}** a laissé un commentaire sur **{title}**.",
+  "web.new_mention.text": "**{userName}** vous a mentionné dans **{title}**.",
+  "web.new_post.text": "**{userName}** a créé un nouveau post **{title}**.",
   "web.delete_post.text": "**{userName}** a supprimé **{title}**",
   "web.change_status.text": "**{userName}** a changé le statut de **{title}** en **{status}**."
 }

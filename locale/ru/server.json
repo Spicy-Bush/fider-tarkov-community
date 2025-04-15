@@ -60,9 +60,9 @@
   "email.footer.subscription_notice": "Вы получили это сообщение, потому что подписаны на этот пост. Вы можете {view}, {unsubscribe} или {change}.",
   "email.footer.subscription_notice2": "Вы получили это сообщение, потому что подписаны на этот пост. Вы можете {change}.",
   "email.footer.subscription_notice3": "Вы получили это сообщение, потому что подписаны на этот пост. Вы можете {view} или {change}.",
-  "web.new_comment.text": "**{userName}** оставил комментарий к **{title} ({postLink})**.",
-  "web.new_mention.text": "**{userName}** упомянул вас в **{title} ({postLink})**.",
-  "web.new_post.text": "**{userName}** создал новый пост **{title} ({postLink})**.",
+  "web.new_comment.text": "**{userName}** оставил комментарий к **{title}**.",
+  "web.new_mention.text": "**{userName}** упомянул вас в **{title}**.",
+  "web.new_post.text": "**{userName}** создал новый пост **{title}**.",
   "web.delete_post.text": "**{userName}** удалил **{title}**",
   "web.change_status.text": "**{userName}** изменил статус **{title}** на **{status}**."
 }

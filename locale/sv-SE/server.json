@@ -60,9 +60,9 @@
   "email.footer.subscription_notice": "Du får detta e-postmeddelande eftersom du prenumererar på det här inlägget. Du kan {view}, {unsubscribe} eller {change}.",
   "email.footer.subscription_notice2": "Du får detta e-postmeddelande eftersom du prenumererar på det här inlägget. Du kan {change}.",
   "email.footer.subscription_notice3": "Du får detta e-postmeddelande eftersom du prenumererar på det här inlägget. Du kan {view} eller {change}.",
-  "web.new_comment.text": "**{userName}** lämnade en kommentar på **{title} ({postLink})**.",
-  "web.new_mention.text": "**{userName}** nämnde dig i **{title} ({postLink})**.",
-  "web.new_post.text": "**{userName}** skapade ett nytt inlägg **{title} ({postLink})**.",
+  "web.new_comment.text": "**{userName}** lämnade en kommentar på **{title}**.",
+  "web.new_mention.text": "**{userName}** nämnde dig i **{title}**.",
+  "web.new_post.text": "**{userName}** skapade ett nytt inlägg **{title}**.",
   "web.delete_post.text": "**{userName}** raderade **{title}**",
   "web.change_status.text": "**{userName}** ändrade status för **{title}** till **{status}**."
 }

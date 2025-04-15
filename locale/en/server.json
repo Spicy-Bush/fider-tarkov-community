@@ -69,9 +69,9 @@
   "email.footer.subscription_notice": "You are receiving this email because you are subscribed to this post. You can {view}, {unsubscribe} or {change}.",
   "email.footer.subscription_notice2": "You are receiving this email because you are subscribed to this post. You can {change}.",
   "email.footer.subscription_notice3": "You are receiving this email because you are subscribed to this post. You can {view} or {change}.",
-  "web.new_comment.text": "**{userName}** left a comment on **{title} ({postLink})**.",
-  "web.new_mention.text": "**{userName}** mentioned you in **{title} ({postLink})**.",
-  "web.new_post.text": "**{userName}** created a new post **{title} ({postLink})**.",
+  "web.new_comment.text": "**{userName}** left a comment on **{title}**.",
+  "web.new_mention.text": "**{userName}** mentioned you in **{title}**.",
+  "web.new_post.text": "**{userName}** created a new post **{title}**.",
   "web.change_status.text": "**{userName}** changed status of **{title}** to **{status}**.",
   "web.delete_post.text": "**{userName}** deleted **{title}**"
 }

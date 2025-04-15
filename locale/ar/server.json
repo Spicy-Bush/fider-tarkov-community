@@ -60,9 +60,9 @@
   "email.footer.subscription_notice": "أنت تتلقى هذا البريد الإلكتروني لأنك مشترك في هذا المنشور. يمكنك {view}، {unsubscribe} أو {change}.",
   "email.footer.subscription_notice2": "أنت تتلقى هذا البريد الإلكتروني لأنك مشترك في هذا المنشور. يمكنك {change}.",
   "email.footer.subscription_notice3": "أنت تتلقى هذا البريد الإلكتروني لأنك مشترك في هذا المنشور. يمكنك {view} أو {change}.",
-  "web.new_comment.text": "**{userName}** ترك تعليقًا على **{title} ({postLink})**.",
-  "web.new_mention.text": "**{userName}** ذكرك في **{title} ({postLink})**.",
-  "web.new_post.text": "**{userName}** أنشأ منشورًا جديدًا **{title} ({postLink})**.",
+  "web.new_comment.text": "**{userName}** ترك تعليقًا على **{title}**.",
+  "web.new_mention.text": "**{userName}** ذكرك في **{title}**.",
+  "web.new_post.text": "**{userName}** أنشأ منشورًا جديدًا **{title}**.",
   "web.delete_post.text": "**{userName}** حذف **{title}**",
   "web.change_status.text": "**{userName}** غيّر حالة **{title}** إلى **{status}**."
 }

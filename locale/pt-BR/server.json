@@ -60,9 +60,9 @@
   "email.footer.subscription_notice": "Você está recebendo este e-mail porque se inscreveu nesta postagem. Você pode {view}, {unsubscribe} ou {change}.",
   "email.footer.subscription_notice2": "Você está recebendo este e-mail porque se inscreveu nesta postagem. Você pode {change}.",
   "email.footer.subscription_notice3": "Você está recebendo este e-mail porque se inscreveu nesta postagem. Você pode {view} ou {change}.",
-  "web.new_comment.text": "**{userName}** deixou um comentário em **{title} ({postLink})**.",
-  "web.new_mention.text": "**{userName}** mencionou você em **{title} ({postLink})**.",
-  "web.new_post.text": "**{userName}** criou um novo post **{title} ({postLink})**.",
+  "web.new_comment.text": "**{userName}** deixou um comentário em **{title}**.",
+  "web.new_mention.text": "**{userName}** mencionou você em **{title}**.",
+  "web.new_post.text": "**{userName}** criou um novo post **{title}**.",
   "web.delete_post.text": "**{userName}** removeu **{title}**",
   "web.change_status.text": "**{userName}** alterou o status de **{title}** para **{status}**."
 }
