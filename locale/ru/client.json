@@ -86,7 +86,7 @@
   "home.postinput.description.placeholder": "Опишите Ваше предложение...",
   "home.postinput.disabled": "Возможность создания поста отключена администратором",
   "home.postscontainer.label.noresults": "По Вашему запросу ничего не найдено, попробуйте что-то другое",
-  "home.postscontainer.resetfilters": "Сбросить настройки фильтров до стандартных?",
+  "home.postscontainer.resetfilters": "Сбросить фильтр",
   "home.postscontainer.label.viewmore": "Показать больше постов",
   "home.postscontainer.query.placeholder": "Поиск",
   "home.postsort.label": "Сортировать по:",
