@@ -86,6 +86,7 @@
   "home.postinput.description.placeholder": "Popíšte svoj návrh (voliteľné)",
   "home.postinput.disabled": "",
   "home.postscontainer.label.noresults": "Vášmu vyhľadávaniu nezodpovedajú žiadne výsledky, skúste niečo iné.",
+  "home.postscontainer.resetfilters": "Obnoviť filter na predvolené nastavenia?",
   "home.postscontainer.label.viewmore": "Zobraziť ďalšie príspevky",
   "home.postscontainer.query.placeholder": "Hľadať",
   "home.postsort.label": "",

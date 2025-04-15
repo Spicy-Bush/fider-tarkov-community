@@ -55,11 +55,14 @@ x-common-build-args: &common-build-args
 
 services:
   fider:
+    # Image is specified first to prioritize pulling from registry
+    # Will only build if the image doesn't exist in the registry
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${github_repo}:${image_tag:-latest}
     build:
       context: ./
       dockerfile: Dockerfile
       args: *common-build-args
-    image: ${IMAGE_REGISTRY:-ghcr.io}/${github_repo}:${image_tag:-latest}
+    #pull_policy: always
     environment: *fider-env
     ports:
       - "${http_port}:3000" 
