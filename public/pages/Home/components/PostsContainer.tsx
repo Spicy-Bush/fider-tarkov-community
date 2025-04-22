@@ -56,6 +56,7 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
   constructor(props: PostsContainerProps) {
     super(props)
     const view = querystring.get("view") || "trending"
+    const notMyVotesParam = querystring.get("notmyvotes");
     this.state = {
       posts: this.props.posts,
       loading: false,
@@ -66,7 +67,7 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
         statuses: querystring.getArray("statuses"),
         myVotes: querystring.get("myvotes") === "true",
         myPosts: querystring.get("myposts") === "true",
-        notMyVotes: Fider.session.isAuthenticated ? (querystring.get("notmyvotes") === "false" ? false : true) : false,
+        notMyVotes: Fider.session.isAuthenticated ? (notMyVotesParam === "false" ? false : true) : false,
         date: querystring.get("date") || undefined,
         tagLogic: (querystring.get("taglogic") as "OR" | "AND") || "OR",
       },
@@ -152,7 +153,7 @@ export class PostsContainer extends React.Component<PostsContainerProps, PostsCo
           tags: this.state.filterState.tags,
           myvotes: this.state.filterState.myVotes ? "true" : undefined,
           myposts: this.state.filterState.myPosts ? "true" : undefined,
-          notmyvotes: this.state.filterState.notMyVotes ? "true" : undefined,
+          notmyvotes: this.state.filterState.notMyVotes ? "true" : "false",
           date: this.state.filterState.date,
           taglogic: this.state.filterState.tagLogic,
           query,
