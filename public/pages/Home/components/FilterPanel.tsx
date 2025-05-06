@@ -5,7 +5,7 @@ import { HStack } from "@fider/components/layout"
 import { useFider } from "@fider/hooks"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
-import { FilterState } from "./PostsContainer"
+import { FilterState } from "@fider/hooks/usePostFilters"
 import HeroIconFilter from "@fider/assets/images/heroicons-filter.svg"
 import IconSearch from "@fider/assets/images/heroicons-search.svg"
 import IconX from "@fider/assets/images/heroicons-x.svg"
@@ -93,7 +93,12 @@ export const FilterPanel = (props: FilterPanelProps) => {
   }
   
   const applyFilters = () => {
-    props.filtersChanged(localFilter)
+    props.filtersChanged({
+      ...localFilter,
+      query: props.activeFilter.query,
+      view: props.activeFilter.view,
+      limit: props.activeFilter.limit
+    })
     setIsExpanded(false)
   }
   
@@ -103,9 +108,12 @@ export const FilterPanel = (props: FilterPanelProps) => {
       statuses: [],
       myVotes: false,
       myPosts: false,
-      notMyVotes: fider.session.isAuthenticated ? false : false,
+      notMyVotes: false,
       date: undefined,
-      tagLogic: "OR"
+      tagLogic: "OR",
+      query: "",
+      view: "trending",
+      limit: 15
     }
     setLocalFilter(emptyFilter)
     props.filtersChanged(emptyFilter)

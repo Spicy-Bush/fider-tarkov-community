@@ -16,31 +16,10 @@ func Index() web.HandlerFunc {
 	return func(c *web.Context) error {
 		c.SetCanonicalURL("")
 
-		searchPosts := &query.SearchPosts{
-			Query:  c.QueryParam("query"),
-			View:   c.QueryParam("view"),
-			Limit:  c.QueryParam("limit"),
-			Tags:   c.QueryParamAsArray("tags"),
-			Offset: c.QueryParam("offset"),
-			Date:   c.QueryParam("date"),
-		}
-
-		if myVotesOnly, err := c.QueryParamAsBool("myvotes"); err == nil {
-			searchPosts.MyVotesOnly = myVotesOnly
-		}
-
-		if myPostsOnly, err := c.QueryParamAsBool("myposts"); err == nil {
-			searchPosts.MyPostsOnly = myPostsOnly
-		}
-
-		// by default, we want to show posts that the user has not voted on
-		searchPosts.NotMyVotes = true
-
-		searchPosts.SetStatusesFromStrings(c.QueryParamAsArray("statuses"))
 		getAllTags := &query.GetAllTags{}
 		countPerStatus := &query.CountPostPerStatus{}
 
-		if err := bus.Dispatch(c, searchPosts, getAllTags, countPerStatus); err != nil {
+		if err := bus.Dispatch(c, getAllTags, countPerStatus); err != nil {
 			return c.Failure(err)
 		}
 
@@ -55,7 +34,7 @@ func Index() web.HandlerFunc {
 			Page:        "Home/Home.page",
 			Description: description,
 			Data: web.Map{
-				"posts":          searchPosts.Result,
+				"posts":          []interface{}{},
 				"tags":           getAllTags.Result,
 				"countPerStatus": countPerStatus.Result,
 			},

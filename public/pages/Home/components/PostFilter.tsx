@@ -6,7 +6,7 @@ import HeroIconFilter from "@fider/assets/images/heroicons-filter.svg"
 import { useFider } from "@fider/hooks"
 import { i18n } from "@lingui/core"
 import { Fider } from "@fider/services"
-import { FilterState } from "./PostsContainer"
+import { FilterState } from "@fider/hooks/usePostFilters"
 
 type FilterType = "tag" | "status" | "myVotes" | "myPosts" | "notMyVotes"
 
@@ -31,10 +31,10 @@ export interface FilterItem {
 
 const FilterStateToFilterItems = (filterState: FilterState): FilterItem[] => {
   const filterItems: FilterItem[] = []
-  filterState.statuses.forEach((s) => {
+  filterState.statuses.forEach((s: string) => {
     filterItems.push({ type: "status", value: s })
   })
-  filterState.tags.forEach((t) => {
+  filterState.tags.forEach((t: string) => {
     filterItems.push({ type: "tag", value: t })
   })
   if (filterState.myVotes) {
@@ -50,7 +50,16 @@ const FilterStateToFilterItems = (filterState: FilterState): FilterItem[] => {
 }
 
 const FilterItemsToFilterState = (filterItems: FilterItem[]): FilterState => {
-  const filterState: FilterState = { tags: [], statuses: [], myVotes: false, myPosts: false, notMyVotes: false }
+  const filterState: FilterState = {
+    tags: [],
+    statuses: [],
+    myVotes: false,
+    myPosts: false,
+    notMyVotes: false,
+    query: "",
+    view: "trending",
+    limit: 15
+  }
   filterItems.forEach((i) => {
     if (i.type === "tag") {
       filterState.tags.push(i.value as string)
