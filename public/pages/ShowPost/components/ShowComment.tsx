@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
-import { Comment, Post, ImageUpload, isPostLocked } from "@fider/models"
+import { Comment, Post, ImageUpload, isPostLocked, UserRole } from "@fider/models"
 import {
   Reactions,
   Avatar,
@@ -34,7 +34,8 @@ export const ShowComment = (props: ShowCommentProps) => {
   const node = useRef<HTMLDivElement | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [newContent, setNewContent] = useState<string>(props.comment.content)
-  const [isDeleteConfirmationModalOpen, setIsDeleteConfirmationModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [attachments, setAttachments] = useState<ImageUpload[]>([])
   const [localReactionCounts, setLocalReactionCounts] = useState(props.comment.reactionCounts)
   const emojiSelectorRef = useRef<HTMLDivElement>(null)
@@ -56,15 +57,42 @@ export const ShowComment = (props: ShowCommentProps) => {
     }
   }, [props.highlighted])
 
-  const canEditComment = (): boolean => {
-    if (fider.session.isAuthenticated) {
-      if (fider.session.user.isCollaborator || fider.session.user.isAdministrator) {
-        return true
-      }
-      
-      return props.comment.user.id === fider.session.user.id && !isPostLocked(props.post)
+  const canEditComment = () => {
+    if (!fider.session.isAuthenticated) {
+      return false
     }
-    return false
+
+    // If user is collaborator or admin, they can edit any comment
+    if (fider.session.user.isCollaborator || fider.session.user.isAdministrator) {
+      return true
+    }
+
+    // If user is moderator, they can only edit comments from regular users
+    if (fider.session.user.isModerator) {
+      return props.comment.user.role === UserRole.Visitor
+    }
+
+    // Regular users can only edit their own comments
+    return fider.session.user.id === props.comment.user.id
+  }
+
+  const canDeleteComment = () => {
+    if (!fider.session.isAuthenticated) {
+      return false
+    }
+
+    // If user is collaborator or admin, they can delete any comment
+    if (fider.session.user.isCollaborator || fider.session.user.isAdministrator) {
+      return true
+    }
+
+    // If user is moderator, they can only delete comments from regular users
+    if (fider.session.user.isModerator) {
+      return props.comment.user.role === UserRole.Visitor
+    }
+
+    // Regular users can only delete their own comments
+    return fider.session.user.id === props.comment.user.id
   }
 
   const clearError = () => setError(undefined)
@@ -84,19 +112,29 @@ export const ShowComment = (props: ShowCommentProps) => {
     }
   }
 
-  const closeModal = async () => {
-    setIsDeleteConfirmationModalOpen(false)
-  }
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    setError(undefined)
 
-  const deleteComment = async () => {
-    const response = await actions.deleteComment(props.post.number, props.comment.id)
-    if (response.ok) {
-      location.reload()
+    const result = await actions.deleteComment(props.post.number, props.comment.id)
+    if (result.ok) {
+      setShowDeleteModal(false)
+      notify.success(t({ id: "action.deletecomment.success", message: "Comment deleted successfully" }))
+      // Reload the page to reflect the changes
+      window.location.reload()
+    } else {
+      setError(result.error)
     }
+    setIsDeleting(false)
   }
 
   const toggleReaction = async (emoji: string) => {
-    const response = await actions.toggleCommentReaction(props.post.number, comment.id, emoji)
+    if (isPostLocked(props.post)) {
+      notify.error(t({ id: "action.reaction.locked", message: "Cannot add reactions to comments on locked posts" }))
+      return
+    }
+
+    const response = await actions.toggleCommentReaction(props.post.number, props.comment.id, emoji)
     if (response.ok) {
       const added = response.data.added
 
@@ -123,40 +161,38 @@ export const ShowComment = (props: ShowCommentProps) => {
   }
 
   const onActionSelected = (action: string) => () => {
-    if (action === "copylink") {
-      window.location.hash = `#comment-${props.comment.id}`
-      copyToClipboard(window.location.href).then(
-        () => notify.success(t({ id: "showpost.comment.copylink.success", message: "Successfully copied comment link to clipboard" })),
-        () => notify.error(t({ id: "showpost.comment.copylink.error", message: "Could not copy comment link, please copy page URL" }))
-      )
-    } else if (action === "edit") {
+    if (action === "edit") {
       setIsEditing(true)
-      clearError()
     } else if (action === "delete") {
-      setIsDeleteConfirmationModalOpen(true)
+      setShowDeleteModal(true)
+    } else if (action === "copylink") {
+      const url = `${window.location.origin}${window.location.pathname}#comment-${props.comment.id}`
+      copyToClipboard(url)
+      notify.success(t({ id: "action.copylink.success", message: "Link copied to clipboard" }))
     }
   }
 
   const modal = () => {
     return (
-      <Modal.Window isOpen={isDeleteConfirmationModalOpen} onClose={closeModal} center={false} size="small">
+      <Modal.Window isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)}>
         <Modal.Header>
-          <Trans id="modal.deletecomment.header">Delete Comment</Trans>
+          <Trans id="action.deletecomment.title">Delete Comment</Trans>
         </Modal.Header>
         <Modal.Content>
           <p>
-            <Trans id="modal.deletecomment.text">
-              This process is irreversible. <strong>Are you sure?</strong>
-            </Trans>
+            <Trans id="action.deletecomment.message">Are you sure you want to delete this comment? This action cannot be undone.</Trans>
           </p>
         </Modal.Content>
-
         <Modal.Footer>
-          <Button variant="danger" onClick={deleteComment}>
-            <Trans id="action.delete">Delete</Trans>
-          </Button>
-          <Button variant="tertiary" onClick={closeModal}>
+          <Button variant="tertiary" onClick={() => setShowDeleteModal(false)}>
             <Trans id="action.cancel">Cancel</Trans>
+          </Button>
+          <Button variant="danger" onClick={handleDelete} disabled={isDeleting}>
+            {isDeleting ? (
+              <Trans id="action.deleting">Deleting...</Trans>
+            ) : (
+              <Trans id="action.delete">Delete</Trans>
+            )}
           </Button>
         </Modal.Footer>
       </Modal.Window>
@@ -202,6 +238,11 @@ export const ShowComment = (props: ShowCommentProps) => {
                       <Dropdown.ListItem onClick={onActionSelected("edit")}>
                         <Trans id="action.edit">Edit</Trans>
                       </Dropdown.ListItem>
+                    </>
+                  )}
+                  {canDeleteComment() && (
+                    <>
+                      <Dropdown.Divider />
                       <Dropdown.ListItem onClick={onActionSelected("delete")} className="text-red-700">
                         <Trans id="action.delete">Delete</Trans>
                       </Dropdown.ListItem>
@@ -227,7 +268,9 @@ export const ShowComment = (props: ShowCommentProps) => {
               <>
                 <Markdown text={comment.content} style="full" />
                 {comment.attachments && comment.attachments.map((x) => <ImageViewer key={x} bkey={x} />)}
-                <Reactions reactions={localReactionCounts} emojiSelectorRef={emojiSelectorRef} toggleReaction={toggleReaction} />
+                {!isPostLocked(props.post) && (
+                  <Reactions reactions={localReactionCounts} emojiSelectorRef={emojiSelectorRef} toggleReaction={toggleReaction} />
+                )}
               </>
             )}
           </div>

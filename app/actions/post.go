@@ -159,10 +159,21 @@ func (input *UpdatePost) OnPreExecute(ctx context.Context) error {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (input *UpdatePost) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user != nil && (user.IsCollaborator() || user.IsModerator()) {
+	if user == nil {
+		return false
+	}
+
+	// If user is collaborator or admin, they can edit any post
+	if user.IsCollaborator() || user.IsAdministrator() {
 		return true
 	}
 
+	// If user is moderator, they can only edit posts from regular users
+	if user.IsModerator() {
+		return input.Post.User.Role == enum.RoleVisitor
+	}
+
+	// Regular users can only edit their own posts within 1 hour
 	timeAgo := time.Now().UTC().Sub(input.Post.CreatedAt)
 	return input.Post.User.ID == user.ID && timeAgo <= 1*time.Hour
 }
@@ -222,19 +233,43 @@ func (action *UpdatePost) Validate(ctx context.Context, user *entity.User) *vali
 }
 
 type ToggleCommentReaction struct {
-	Number   int    `route:"number"`
-	Comment  int    `route:"id"`
-	Reaction string `route:"reaction"`
+	Number    int    `route:"number"`
+	CommentID int    `route:"id"`
+	Reaction  string `route:"reaction"`
+
+	Post    *entity.Post
+	Comment *entity.Comment
+}
+
+// OnPreExecute prefetches Post and Comment for later use
+func (action *ToggleCommentReaction) OnPreExecute(ctx context.Context) error {
+	getPost := &query.GetPostByNumber{Number: action.Number}
+	commentByID := &query.GetCommentByID{CommentID: action.CommentID}
+	if err := bus.Dispatch(ctx, getPost, commentByID); err != nil {
+		return err
+	}
+
+	action.Post = getPost.Result
+	action.Comment = commentByID.Result
+	return nil
 }
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *ToggleCommentReaction) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil
+	if user == nil {
+		return false
+	}
+
+	// If post is locked, only collaborators and administrators can add reactions
+	if action.Post.IsLocked() {
+		return user.IsCollaborator() || user.IsAdministrator()
+	}
+
+	return true
 }
 
 // Validate if current model is valid
 func (action *ToggleCommentReaction) Validate(ctx context.Context, user *entity.User) *validate.Result {
-
 	result := validate.Success()
 
 	allowedEmojis := []string{"👍", "👎", "❤️", "🤔", "👏", "😂", "😲"}
@@ -375,7 +410,21 @@ type DeletePost struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *DeletePost) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsModerator() || user.IsCollaborator())
+	if user == nil {
+		return false
+	}
+
+	// If user is collaborator or admin, they can delete any post
+	if user.IsCollaborator() || user.IsAdministrator() {
+		return true
+	}
+
+	// If user is moderator, they can only delete posts from regular users
+	if user.IsModerator() {
+		return action.Post.User.Role == enum.RoleVisitor
+	}
+
+	return false
 }
 
 // Validate if current model is valid
@@ -420,7 +469,19 @@ func (action *EditComment) IsAuthorized(ctx context.Context, user *entity.User) 
 
 	action.Post = postByNumber.Result
 	action.Comment = commentByID.Result
-	return user.ID == action.Comment.User.ID || user.IsCollaborator() || user.IsModerator()
+
+	// If user is collaborator or admin, they can edit any comment
+	if user.IsCollaborator() || user.IsAdministrator() {
+		return true
+	}
+
+	// If user is moderator, they can only edit comments from regular users
+	if user.IsModerator() {
+		return action.Comment.User.Role == enum.RoleVisitor
+	}
+
+	// Regular users can only edit their own comments
+	return user.ID == action.Comment.User.ID
 }
 
 // Validate if current model is valid
@@ -475,7 +536,18 @@ func (action *DeleteComment) IsAuthorized(ctx context.Context, user *entity.User
 		return false
 	}
 
-	return user.ID == commentByID.Result.User.ID || user.IsCollaborator() || user.IsModerator()
+	// If user is collaborator or admin, they can delete any comment
+	if user.IsCollaborator() || user.IsAdministrator() {
+		return true
+	}
+
+	// If user is moderator, they can only delete comments from regular users
+	if user.IsModerator() {
+		return commentByID.Result.User.Role == enum.RoleVisitor
+	}
+
+	// Regular users can only delete their own comments
+	return user.ID == commentByID.Result.User.ID
 }
 
 // Validate if current model is valid

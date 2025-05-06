@@ -335,13 +335,12 @@ func ToggleReaction() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		getComment := &query.GetCommentByID{CommentID: action.Comment}
-		if err := bus.Dispatch(c, getComment); err != nil {
+		if err := action.OnPreExecute(c); err != nil {
 			return c.Failure(err)
 		}
 
 		toggleReaction := &cmd.ToggleCommentReaction{
-			Comment: getComment.Result,
+			Comment: action.Comment,
 			Emoji:   action.Reaction,
 			User:    c.User(),
 		}

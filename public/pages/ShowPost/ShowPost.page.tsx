@@ -4,7 +4,7 @@ import React from "react"
 
 import { LockStatus } from "./components/LockStatus"
 import { PostLockingModal } from "./components/PostLockingModal"
-import { Comment, Post, Tag, Vote, ImageUpload, CurrentUser, PostStatus, isPostLocked } from "@fider/models"
+import { Comment, Post, Tag, Vote, ImageUpload, CurrentUser, PostStatus, isPostLocked, UserRole } from "@fider/models"
 import { actions, clearUrlHash, Failure, Fider, notify, timeAgo } from "@fider/services"
 import IconDotsHorizontal from "@fider/assets/images/heroicons-dots-horizontal.svg"
 import IconChevronUp from "@fider/assets/images/heroicons-chevron-up.svg"
@@ -62,10 +62,21 @@ interface ShowPostPageState {
 
 const oneHour = 3600
 const canEditPost = (user: CurrentUser, post: Post) => {
-  if (user.isCollaborator || user.isModerator) {
+  if (!user) {
+    return false
+  }
+
+  // If user is collaborator or admin, they can edit any post
+  if (user.isCollaborator || user.isAdministrator) {
     return true
   }
 
+  // If user is moderator, they can only edit posts from regular users
+  if (user.isModerator) {
+    return post.user.role === UserRole.Visitor
+  }
+
+  // Regular users can only edit their own posts within 1 hour
   return user.id === post.user.id && timeAgo(post.createdAt) <= oneHour
 }
 
@@ -121,12 +132,27 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
     const status = PostStatus.Get(this.props.post.status)
     if (
       !Fider.session.isAuthenticated ||
-      (!(Fider.session.user.isAdministrator || Fider.session.user.isModerator || Fider.session.user.isCollaborator)) ||
       status.closed
     ) {
       return false
     }
-    return true
+
+    const user = Fider.session.user
+    if (!user) {
+      return false
+    }
+
+    // If user is collaborator or admin, they can delete any post
+    if (user.isCollaborator || user.isAdministrator) {
+      return true
+    }
+
+    // If user is moderator, they can only delete posts from regular users
+    if (user.isModerator) {
+      return this.props.post.user.role === UserRole.Visitor
+    }
+
+    return false
   }
 
   private setNewTitle = (newTitle: string) => {
