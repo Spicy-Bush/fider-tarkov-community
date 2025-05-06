@@ -13,6 +13,18 @@ import { HStack, VStack } from "./layout"
 
 import { Trans } from "@lingui/react/macro"
 
+const NotificationSkeleton = () => {
+  return (
+    <HStack spacing={4} className="px-3 pr-5 py-4">
+      <div className="skeleton h-10 w-10 rounded-full"></div>
+      <div className="flex-grow">
+        <div className="skeleton h-4 w-3/4 mb-2"></div>
+        <div className="skeleton h-3 w-1/4"></div>
+      </div>
+    </HStack>
+  )
+}
+
 export const NotificationItem = ({ notification }: { notification: Notification }) => {
   const openNotification = () => {
     window.location.href = `/notifications/${notification.id}`
@@ -62,6 +74,7 @@ export const NotificationIndicator = () => {
   const [unreadTotal, setUnreadTotal] = useState(0)
   const [readTotal, setReadTotal] = useState(0)
   const [purging, setPurging] = useState(false)
+  const [initialLoad, setInitialLoad] = useState(true)
   
   const unreadContainerRef = useRef<HTMLDivElement>(null)
   const readContainerRef = useRef<HTMLDivElement>(null)
@@ -78,6 +91,7 @@ export const NotificationIndicator = () => {
 
   useEffect(() => {
     if (showingNotifications) {
+      setInitialLoad(true)
       loadNotifications("unread", 1, true)
       loadNotifications("read", 1, true)
     }
@@ -106,6 +120,7 @@ export const NotificationIndicator = () => {
     }
     
     setLoading(false)
+    setInitialLoad(false)
   }
 
   const handleScroll = (type: string) => {
@@ -113,12 +128,14 @@ export const NotificationIndicator = () => {
     if (!container) return
     
     const { scrollTop, scrollHeight, clientHeight } = container
+    if (scrollHeight === 0) return
+    
     const scrolledToBottom = scrollHeight - scrollTop - clientHeight < 50
     
     if (scrolledToBottom) {
-      if (type === "unread" && (unread || []).length < unreadTotal && !loading) {
+      if (type === "unread" && unread.length < unreadTotal && !loading) {
         loadNotifications("unread", unreadPage + 1)
-      } else if (type === "read" && (read || []).length < readTotal && !loading) {
+      } else if (type === "read" && read.length < readTotal && !loading) {
         loadNotifications("read", readPage + 1)
       }
     }
@@ -213,7 +230,13 @@ export const NotificationIndicator = () => {
                 className="overflow-y-auto"
                 style={{ maxHeight: "400px" }}
               >
-                {unreadTotal > 0 ? (
+                {(loading && initialLoad) ? (
+                  <VStack spacing={0} className="py-2" divide={false}>
+                    {Array(5).fill(null).map((_, i) => (
+                      <NotificationSkeleton key={i} />
+                    ))}
+                  </VStack>
+                ) : unreadTotal > 0 ? (
                   <>
                     <div className="flex justify-between items-center px-4 mt-4">
                       <p className="text-subtitle mb-0">
@@ -234,10 +257,12 @@ export const NotificationIndicator = () => {
                         <NotificationItem key={n.id} notification={n} />
                       ))}
                     </VStack>
-                    {loading && unread.length < unreadTotal && (
-                      <div className="text-center py-2">
-                        <span className="text-muted">Loading more...</span>
-                      </div>
+                    {loading && !initialLoad && unread.length < unreadTotal && (
+                      <VStack spacing={0} className="py-2" divide={false}>
+                        {Array(3).fill(null).map((_, i) => (
+                          <NotificationSkeleton key={i} />
+                        ))}
+                      </VStack>
                     )}
                   </>
                 ) : (
@@ -257,7 +282,13 @@ export const NotificationIndicator = () => {
                 className="overflow-y-auto"
                 style={{ maxHeight: "400px" }}
               >
-                {readTotal > 0 ? (
+                {(loading && initialLoad) ? (
+                  <VStack spacing={0} className="py-2" divide={false}>
+                    {Array(5).fill(null).map((_, i) => (
+                      <NotificationSkeleton key={i} />
+                    ))}
+                  </VStack>
+                ) : readTotal > 0 ? (
                   <>
                     <div className="flex justify-between items-center px-4 mt-4">
                       <p className="text-subtitle mb-0">
@@ -278,10 +309,12 @@ export const NotificationIndicator = () => {
                         <NotificationItem key={n.id} notification={n} />
                       ))}
                     </VStack>
-                    {loading && read.length < readTotal && (
-                      <div className="text-center py-2">
-                        <span className="text-muted">Loading more...</span>
-                      </div>
+                    {loading && !initialLoad && read.length < readTotal && (
+                      <VStack spacing={0} className="py-2" divide={false}>
+                        {Array(3).fill(null).map((_, i) => (
+                          <NotificationSkeleton key={i} />
+                        ))}
+                      </VStack>
                     )}
                   </>
                 ) : (

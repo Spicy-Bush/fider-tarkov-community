@@ -1,4 +1,5 @@
 @import "~@fider/assets/styles/variables.scss";
+@import "~@fider/assets/styles/skeleton.scss";
 
 .c-notification-indicator {
   position: relative;
@@ -38,5 +39,14 @@
     padding-bottom: 10px;
     scroll-behavior: smooth;
     overflow-y: scroll;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
   }
 }

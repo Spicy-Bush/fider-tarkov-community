@@ -2,7 +2,7 @@ import "./PostsContainer.scss"
 
 import React, { useEffect, useRef, useState } from "react"
 import { Post, Tag, CurrentUser } from "@fider/models"
-import { Loader, Input } from "@fider/components"
+import { Input } from "@fider/components"
 import { actions } from "@fider/services"
 import IconSearch from "@fider/assets/images/heroicons-search.svg"
 import IconX from "@fider/assets/images/heroicons-x.svg"
@@ -28,7 +28,7 @@ const untaggedTag: Tag = {
 }
 
 export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [posts, setPosts] = useState<Post[]>([])
   const [hasMore, setHasMore] = useState(true)
   const timerRef = useRef<number>()
@@ -78,7 +78,6 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
     if (timerRef.current) {
       clearTimeout(timerRef.current)
     }
-    setPosts(reset ? [] : posts)
     setLoading(true)
     
     timerRef.current = window.setTimeout(() => {
@@ -175,6 +174,7 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
       <ListPosts
         posts={posts}
         tags={props.tags}
+        loading={loading}
         emptyText={i18n._("home.postscontainer.label.noresults", { message: "No results matched your search, try something different." })}
       />
       {showResetButton && (
@@ -187,7 +187,6 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
           </button>
         </div>
       )}
-      {loading && <Loader />}
       {hasMore && <div ref={loadMoreRef} style={{ height: "1px" }}></div>}
     </div>
   )
