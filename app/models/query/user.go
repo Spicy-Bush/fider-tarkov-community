@@ -107,9 +107,15 @@ type UserCommentResult struct {
 
 // SearchUserContent searches through the user's content
 type SearchUserContent struct {
-	UserID int
-	Query  string
-	Result struct {
+	UserID      int
+	Query       string
+	ContentType string
+	VoteType    int
+	Limit       int
+	Offset      int
+	SortBy      string
+	SortOrder   string
+	Result      struct {
 		Posts    []UserPostResult    `json:"posts"`
 		Comments []UserCommentResult `json:"comments"`
 	}

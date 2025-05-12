@@ -13,6 +13,7 @@ import IconSort from "@fider/assets/images/heroicons-arrow-up-down.svg"
 import IconBan from "@fider/assets/images/heroicons-block.svg"
 import IconVolumeOff from "@fider/assets/images/heroicons-muted.svg"
 import IconThumbsUp from "@fider/assets/images/heroicons-thumbsup.svg"
+import IconChevronUp from "@fider/assets/images/heroicons-chevron-up.svg"
 import { HStack, VStack } from "@fider/components/layout"
 import "./UserProfile.scss"
 import IconWarning from "@fider/assets/images/heroicons-exclamation.svg"
@@ -22,7 +23,7 @@ import { DangerZone } from "../MySettings/components/DangerZone"
 import { ImageUploader } from "@fider/components"
 import { ModerationModal } from "@fider/components/ModerationModal"
 
-type ContentType = "all" | "posts" | "comments"
+type ContentType = "all" | "posts" | "comments" | "voted"
 type SortField = "createdAt" | "title"
 type SortOrder = "asc" | "desc"
 type ProfileTab = "search" | "standing" | "settings"
@@ -100,13 +101,17 @@ interface UserProfilePageState {
 export default function UserProfilePage(props: UserProfilePageProps) {
     const [searchQuery, setSearchQuery] = useState("")
   const [contentType, setContentType] = useState<ContentType>("all")
+  const [voteType, setVoteType] = useState<"up" | "down" | undefined>(undefined)
   const [sortField, setSortField] = useState<SortField>("createdAt")
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
-  const [currentPage, setCurrentPage] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string>()
   const [activeTab, setActiveTab] = useState<ProfileTab>('search')
+  const [hasMore, setHasMore] = useState(true)
+  const [showBackToTop, setShowBackToTop] = useState(false)
   const timerRef = useRef<number>()
+  const containerRef = useRef<HTMLDivElement>(null)
 
     const [settingsState, setSettingsState] = useState<UserProfilePageState>({
     showModal: false,
@@ -148,8 +153,6 @@ export default function UserProfilePage(props: UserProfilePageProps) {
     isHoveringAvatar: false
   })
 
-  const ITEMS_PER_PAGE = 10
-
   useEffect(() => {
     loadStats(props.user.id)
     loadStanding(props.user.id)
@@ -160,19 +163,14 @@ export default function UserProfilePage(props: UserProfilePageProps) {
       clearTimeout(timerRef.current)
     }
 
-    if (!searchQuery) {
-      setSearchResults({ posts: [], comments: [] })
-      return
-    }
+    setSearchResults({ posts: [], comments: [] })
+    setHasMore(true)
+    
+    if (activeTab !== 'search') return
 
     setIsLoading(true)
     timerRef.current = window.setTimeout(() => {
-      actions.searchUserContent(props.user.id, searchQuery).then((result) => {
-        if (result.ok) {
-          setSearchResults(result.data)
-        }
-        setIsLoading(false)
-      })
+      loadSearchResults(0)
     }, 500)
 
     return () => {
@@ -180,7 +178,82 @@ export default function UserProfilePage(props: UserProfilePageProps) {
         clearTimeout(timerRef.current)
       }
     }
-  }, [searchQuery, props.user.id])
+  }, [searchQuery, contentType, voteType, sortField, sortOrder, props.user.id, activeTab])
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+      setShowBackToTop(scrollTop > 300)
+      
+      if (
+        containerRef.current &&
+        activeTab === 'search' &&
+        !isLoading &&
+        !loadingMore &&
+        hasMore
+      ) {
+        const containerBottom = containerRef.current.getBoundingClientRect().bottom
+        const windowHeight = window.innerHeight
+        
+        if (containerBottom <= windowHeight + 200) {
+          loadMoreResults()
+        }
+      }
+    }
+    
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [activeTab, isLoading, loadingMore, hasMore])
+
+  const loadSearchResults = (offset: number) => {
+    const options = {
+      contentType: contentType === 'all' ? '' : contentType,
+      voteType: contentType === 'voted' ? voteType : undefined,
+      limit: 10,
+      offset,
+      sortBy: sortField,
+      sortOrder
+    }
+    
+    actions.searchUserContent(props.user.id, searchQuery, options).then((result) => {
+      if (result.ok) {
+        if (offset === 0) {
+          setSearchResults(result.data)
+        } else {
+          // Append new results
+          setSearchResults(prev => ({
+            posts: [...prev.posts, ...result.data.posts],
+            comments: [...prev.comments, ...result.data.comments]
+          }))
+        }
+        
+        // Check if we have more results to load
+        const hasMorePosts = result.data.posts.length === options.limit
+        const hasMoreComments = result.data.comments.length === options.limit
+        setHasMore(hasMorePosts || hasMoreComments)
+      }
+      setIsLoading(false)
+      setLoadingMore(false)
+    })
+  }
+
+  const loadMoreResults = () => {
+    if (loadingMore || !hasMore) return
+    
+    setLoadingMore(true)
+    const nextOffset = searchResults.posts.length + searchResults.comments.length
+    loadSearchResults(nextOffset)
+  }
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleVoteTypeChange = (option?: { value: string }) => {
+    if (option) {
+      setVoteType(option.value as "up" | "down" | undefined)
+    }
+  }
 
     useEffect(() => {
     const handleHashChange = () => {
@@ -222,12 +295,15 @@ export default function UserProfilePage(props: UserProfilePageProps) {
   const clearSearch = () => {
     setSearchQuery("")
     setSearchResults({ posts: [], comments: [] })
+    setContentType("all")
+    setVoteType(undefined)
+    setSortField("createdAt")
+    setSortOrder("desc")
   }
 
   const handleContentTypeChange = (option?: { value: string }) => {
     if (option) {
       setContentType(option.value as ContentType)
-      setCurrentPage(1)
     }
   }
 
@@ -376,41 +452,17 @@ export default function UserProfilePage(props: UserProfilePageProps) {
   const getFilteredAndSortedResults = () => {
     let results: Array<any> = []
 
-    if (contentType === "all" || contentType === "posts") {
+    if (contentType === "all" || contentType === "posts" || contentType === "voted") {
       results = [...results, ...searchResults.posts.map(post => ({ ...post, type: "post" }))]
     }
     if (contentType === "all" || contentType === "comments") {
       results = [...results, ...searchResults.comments.map(comment => ({ ...comment, type: "comment" }))]
     }
 
-    results.sort((a, b) => {
-      const aValue = sortField === "createdAt" ? new Date(a.createdAt).getTime() : a.title || a.postTitle
-      const bValue = sortField === "createdAt" ? new Date(b.createdAt).getTime() : b.title || b.postTitle
-      
-      if (sortOrder === "asc") {
-        return aValue > bValue ? 1 : -1
-      }
-      return aValue < bValue ? 1 : -1
-    })
-
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-    const endIndex = startIndex + ITEMS_PER_PAGE
-    return results.slice(startIndex, endIndex)
-  }
-
-  const getTotalPages = () => {
-    let totalItems = 0
-    if (contentType === "all" || contentType === "posts") {
-      totalItems += searchResults.posts.length
-    }
-    if (contentType === "all" || contentType === "comments") {
-      totalItems += searchResults.comments.length
-    }
-    return Math.ceil(totalItems / ITEMS_PER_PAGE)
+    return results
   }
 
   const filteredResults = getFilteredAndSortedResults()
-  const totalPages = getTotalPages()
   const canModerate = canModerateUser(props.user)
   const canBlock = canBlockUser(props.user)
   const isBlocked = props.user.status === UserStatus.Blocked
@@ -783,17 +835,29 @@ export default function UserProfilePage(props: UserProfilePageProps) {
                   options={[
                     { value: "all", label: i18n._("profile.search.filter.all", { message: "All" }) },
                     { value: "posts", label: i18n._("profile.search.filter.posts", { message: "Posts" }) },
-                    { value: "comments", label: i18n._("profile.search.filter.comments", { message: "Comments" }) }
+                    { value: "comments", label: i18n._("profile.search.filter.comments", { message: "Comments" }) },
+                    { value: "voted", label: i18n._("profile.search.filter.voted", { message: "Voted" }) }
                   ]}
                 />
+                {contentType === "voted" && (
+                  <Select
+                    field="voteType"
+                    defaultValue={voteType}
+                    onChange={handleVoteTypeChange}
+                    options={[
+                      { value: "up", label: i18n._("profile.search.votes.upvotes", { message: "Upvotes" }) },
+                      { value: "down", label: i18n._("profile.search.votes.downvotes", { message: "Downvotes" }) }
+                    ]}
+                  />
+                )}
               </div>
 
-              {isLoading ? (
+              {isLoading && searchResults.posts.length === 0 && searchResults.comments.length === 0 ? (
                 <div className="c-user-profile__loading">
                   <Loader />
                 </div>
               ) : searchResults.posts.length > 0 || searchResults.comments.length > 0 ? (
-                <div className="c-user-profile__search-results">
+                <div className="c-user-profile__search-results" ref={containerRef}>
                   <div className="c-user-profile__search-header">
                     <div className="c-user-profile__search-sort">
                       <Button
@@ -827,52 +891,62 @@ export default function UserProfilePage(props: UserProfilePageProps) {
 
                   <VStack spacing={4} divide>
                     {filteredResults.map(item => (
-                      <div key={`${item.type}-${item.id}`} className="c-user-profile__search-item">
-                        <div className="c-user-profile__search-content">
-                          <a href={item.type === "post" ? `/posts/${item.id}` : `/posts/${item.postId}#comment-${item.id}`}>
-                            {item.type === "post" ? item.title : item.postTitle}
-                          </a>
-                          {item.type === "comment" && (
-                            <Markdown text={item.content} style="full" />
+                      <div key={`${item.type}-${item.id}`} className="c-user-profile__search-item" data-type={item.type}>
+                          {item.type === "comment" ? (
+                            <>
+                              <div className="flex-items-baseline flex flex-x flex--spacing-2">
+                                <div className="pt-4">
+                                  <a href={`/profile/${props.user.id}`}>
+                                    <Avatar user={props.user} clickable={false} size="small" />
+                                  </a>
+                                </div>
+                                <div className="flex-grow rounded-md p-2">
+                                  <div className="mb-1">
+                                    <div className="flex flex-x flex--spacing-2 justify-between flex-items-center">
+                                      <div className="flex flex-x flex--spacing-2 flex-items-center">
+                                        <UserName user={props.user} />
+                                        <div className="text-xs">· <span className="date">{new Date(item.createdAt).toLocaleDateString()}</span></div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="c-markdown">
+                                      <Markdown text={item.content} style="full" />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="c-user-profile__comment-actions">
+                                <a href={`/posts/${item.postId}#comment-${item.id}`} className="comment-link">
+                                  <Trans id="profile.search.comment.view">View in context</Trans>
+                                </a>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="c-user-profile__post-card">
+                              <div className="c-user-profile__post-header">
+                                <div className="c-user-profile__post-meta">
+                                  <div className="flex flex-x flex--spacing-2 flex-items-center">
+                                    <a href={`/profile/${props.user.id}`}>
+                                      <Avatar user={props.user} size="small" />
+                                    </a>
+                                    <UserName user={props.user} />
+                                    <div className="text-xs">· <span className="date">{new Date(item.createdAt).toLocaleDateString()}</span></div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="c-user-profile__post-title">
+                                <a href={`/posts/${item.id}`}>{item.title}</a>
+                              </div>
+                            </div>
                           )}
-                          <div className="c-user-profile__search-meta">
-                            <span className="meta-item">
-                              <Icon sprite={item.type === "post" ? IconDocument : IconChat} className="h-4" />
-                              {item.type === "post" ? (
-                                <Trans id="profile.search.type.post">Post</Trans>
-                              ) : (
-                                <Trans id="profile.search.type.comment">Comment</Trans>
-                              )}
-                            </span>
-                            <span className="meta-item">
-                              <Icon sprite={IconCalendar} className="h-4" />
-                              {new Date(item.createdAt).toLocaleDateString()}
-                            </span>
-                          </div>
                         </div>
-                      </div>
                     ))}
                   </VStack>
 
-                  {totalPages > 1 && (
-                    <div className="c-user-profile__pagination">
-                      <Button
-                        variant="tertiary"
-                        disabled={currentPage === 1}
-                        onClick={() => setCurrentPage(prev => prev - 1)}
-                      >
-                        <Trans id="action.previous">Previous</Trans>
-                      </Button>
-                      <span className="c-user-profile__page-info">
-                        <Trans id="profile.search.page">Page {currentPage} of {totalPages}</Trans>
-                      </span>
-                      <Button
-                        variant="tertiary"
-                        disabled={currentPage === totalPages}
-                        onClick={() => setCurrentPage(prev => prev + 1)}
-                      >
-                        <Trans id="action.next">Next</Trans>
-                      </Button>
+                  {loadingMore && (
+                    <div className="c-user-profile__loading-more">
+                      <Loader />
                     </div>
                   )}
                 </div>
@@ -881,6 +955,13 @@ export default function UserProfilePage(props: UserProfilePageProps) {
                   <Trans id="profile.search.noresults">No results found</Trans>
                 </div>
               ) : null}
+              
+              {showBackToTop && (
+                <button onClick={scrollToTop} className="c-user-profile__back-to-top c-button--primary">
+                  <Icon sprite={IconChevronUp} className="h-4" />
+                  <Trans id="profile.search.backtotop">Back to Top</Trans>
+                </button>
+              )}
             </div>
 
             <div className={`c-user-profile__content ${activeTab === 'standing' ? 'active' : ''}`}>

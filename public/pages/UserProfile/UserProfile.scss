@@ -12,7 +12,7 @@
   position: relative;
 
   @media (max-width: 768px) {
-    grid-template-columns: 1fr;
+    padding: spacing(3);
   }
 
   &__header {
@@ -30,7 +30,10 @@
     }
 
     @media (max-width: 768px) {
-      flex-wrap: wrap;
+      flex-direction: column;
+      padding: spacing(3);
+      gap: spacing(3);
+      align-items: center;
     }
   }
 
@@ -45,6 +48,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
+
+    @media (max-width: 768px) {
+      width: 100px;
+      height: 100px;
+    }
 
     img {
       width: 100%;
@@ -83,6 +91,12 @@
     display: flex;
     flex-direction: column;
     gap: spacing(2);
+
+    @media (max-width: 768px) {
+      width: 100%;
+      align-items: center;
+      text-align: center;
+    }
   }
 
   &__stats-card {
@@ -92,7 +106,7 @@
 
     @media (max-width: 768px) {
       width: 100%;
-      margin-top: spacing(4);
+      margin-top: spacing(2);
     }
   }
 
@@ -139,6 +153,11 @@
     gap: spacing(2);
     margin-top: spacing(2);
 
+    @media (max-width: 768px) {
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
     button {
       display: inline-flex;
       align-items: center;
@@ -183,6 +202,10 @@
 
     &:has(+ .c-user-profile__status-item) {
       border-radius: 0;
+    }
+
+    @media (max-width: 768px) {
+      padding: spacing(3);
     }
 
     .icon {
@@ -232,6 +255,7 @@
 
     @media (max-width: 768px) {
       grid-template-columns: 1fr;
+      gap: spacing(3);
     }
   }
 
@@ -244,6 +268,15 @@
     top: spacing(4);
     height: fit-content;
     align-self: start;
+
+    @media (max-width: 768px) {
+      position: static;
+      width: 100%;
+      flex-direction: row;
+      overflow-x: auto;
+      padding-bottom: spacing(2);
+      margin-bottom: spacing(1);
+    }
   }
 
   &__nav-button {
@@ -261,6 +294,12 @@
     transition: all 0.2s;
     text-align: left;
     width: 100%;
+
+    @media (max-width: 768px) {
+      width: auto;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
 
     &:hover {
       background: #f3f4f6;
@@ -347,6 +386,10 @@
     padding: spacing(4);
     border-bottom: 1px solid #e5e7eb;
     transition: all 0.2s ease;
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+    }
 
     &:last-child {
       border-bottom: none;
@@ -452,6 +495,13 @@
     align-items: flex-end;
     gap: spacing(2);
     flex-shrink: 0;
+
+    @media (max-width: 768px) {
+      flex-direction: row;
+      align-items: center;
+      width: 100%;
+      margin-top: spacing(2);
+    }
   }
 
   &__search-controls {
@@ -459,6 +509,11 @@
     gap: spacing(3);
     margin-bottom: spacing(5);
     width: 100%;
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      gap: spacing(2);
+    }
 
     .c-user-profile__search-input {
       flex: 1;
@@ -468,6 +523,10 @@
     .c-select {
       flex-shrink: 0;
       width: 200px;
+
+      @media (max-width: 768px) {
+        width: 100%;
+      }
     }
   }
 
@@ -489,11 +548,22 @@
     align-items: center;
     padding-bottom: spacing(3);
     border-bottom: 1px solid #e5e7eb;
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: spacing(2);
+    }
   }
 
   &__search-sort {
     display: flex;
     gap: spacing(2);
+
+    @media (max-width: 768px) {
+      width: 100%;
+      justify-content: space-between;
+    }
 
     button {
       padding: spacing(1) spacing(3);
@@ -540,55 +610,48 @@
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     transition: all 0.2s;
 
+    @media (max-width: 768px) {
+      padding: spacing(3);
+    }
+
     &:hover {
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
-  }
 
-  &__search-content {
-    display: flex;
-    flex-direction: column;
-    gap: spacing(2);
+    &[data-type="post"] {
+      .c-user-profile__post-card {
+        display: flex;
+        flex-direction: column;
+        padding: spacing(2);
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 
-    a {
-      color: #111827;
-      font-weight: 500;
-      text-decoration: none;
-
-      &:hover {
-        color: #2563eb;
+        &:hover {
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
       }
-    }
 
-    p {
-      margin: 0;
-      color: #374151;
-      font-size: 0.9em;
-    }
-  }
-
-  &__search-meta {
-    display: flex;
-    gap: spacing(4);
-    font-size: 0.8em;
-    color: #6b7280;
-
-    .meta-item {
-      display: flex;
-      align-items: center;
-      gap: spacing(1);
-
-      .icon {
-        width: 16px;
-        height: 16px;
+      .c-user-profile__post-header {
         display: flex;
         align-items: center;
-        justify-content: center;
-        color: #9ca3af;
+        gap: spacing(2);
+        margin-bottom: spacing(2);
+      }
 
-        svg {
-          width: 100%;
-          height: 100%;
+      .c-user-profile__post-title {
+        margin: spacing(1) 0 spacing(3);
+        font-size: 1.05em;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+        
+        a {
+          color: #111827;
+          font-weight: 600;
+          text-decoration: none;
+          
+          &:hover {
+            color: #2563eb;
+          }
         }
       }
     }
@@ -602,6 +665,38 @@
     margin-top: spacing(5);
     padding-top: spacing(5);
     border-top: 1px solid #e5e7eb;
+  }
+
+  &__loading-more {
+    display: flex;
+    justify-content: center;
+    padding: spacing(4);
+    margin-top: spacing(4);
+  }
+
+  &__back-to-top {
+    position: fixed;
+    bottom: spacing(4);
+    right: spacing(4);
+    display: flex;
+    align-items: center;
+    gap: spacing(2);
+    padding: spacing(2) spacing(3);
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    cursor: pointer;
+    font-size: 0.9em;
+
+    .icon {
+      width: 16px;
+      height: 16px;
+    }
+
+    @media (max-width: 768px) {
+      bottom: spacing(3);
+      right: spacing(3);
+    }
   }
 
   &__page-info {
@@ -670,5 +765,11 @@
       color: var(--text);
       background: var(--bg-hover);
     }
+  }
+
+  &__comment-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: spacing(2);
   }
 } 

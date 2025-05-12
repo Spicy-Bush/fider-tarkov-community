@@ -172,10 +172,37 @@ func SearchUserContent() web.HandlerFunc {
 			return c.NotFound()
 		}
 
-		search := &query.SearchUserContent{
-			UserID: userID,
-			Query:  c.QueryParam("q"),
+		limit := 10
+		if limitParam, err := c.QueryParamAsInt("limit"); err == nil && limitParam > 0 {
+			if limitParam > 10 {
+				limit = 10
+			} else {
+				limit = limitParam
+			}
 		}
+
+		offset := 0
+		if offsetParam, err := c.QueryParamAsInt("offset"); err == nil && offsetParam >= 0 {
+			offset = offsetParam
+		}
+
+		search := &query.SearchUserContent{
+			UserID:      userID,
+			Query:       c.QueryParam("q"),
+			ContentType: c.QueryParam("contentType"),
+			SortBy:      c.QueryParam("sortBy"),
+			SortOrder:   c.QueryParam("sortOrder"),
+			Limit:       limit,
+			Offset:      offset,
+		}
+
+		voteType := c.QueryParam("voteType")
+		if voteType == "up" {
+			search.VoteType = 1
+		} else if voteType == "down" {
+			search.VoteType = -1
+		}
+
 		if err := bus.Dispatch(c, search); err != nil {
 			return c.Failure(err)
 		}

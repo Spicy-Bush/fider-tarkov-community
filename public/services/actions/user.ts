@@ -114,8 +114,42 @@ export const getUserProfileStanding = async (userID: number): Promise<Result<Use
   return await http.get<UserProfileStanding>(`/api/v1/user/profile/${userID}/standing`)
 }
 
-export const searchUserContent = async (userID: number, query: string): Promise<Result<UserProfileContent>> => {
-  return await http.get<UserProfileContent>(`/api/v1/user/profile/${userID}/content/search?q=${encodeURIComponent(query)}`)
+export const searchUserContent = async (
+  userID: number, 
+  query: string, 
+  options?: {
+    contentType?: string,
+    voteType?: "up" | "down",
+    limit?: number,
+    offset?: number,
+    sortBy?: string,
+    sortOrder?: string
+  }
+): Promise<Result<UserProfileContent>> => {
+  let url = `/api/v1/user/profile/${userID}/content/search?q=${encodeURIComponent(query)}`
+  
+  if (options) {
+    if (options.contentType) {
+      url += `&contentType=${encodeURIComponent(options.contentType)}`
+    }
+    if (options.voteType) {
+      url += `&voteType=${options.voteType}`
+    }
+    if (options.limit) {
+      url += `&limit=${options.limit}`
+    }
+    if (options.offset) {
+      url += `&offset=${options.offset}`
+    }
+    if (options.sortBy) {
+      url += `&sortBy=${encodeURIComponent(options.sortBy)}`
+    }
+    if (options.sortOrder) {
+      url += `&sortOrder=${encodeURIComponent(options.sortOrder)}`
+    }
+  }
+  
+  return await http.get<UserProfileContent>(url)
 }
 
 export const moderateUser = async (userID: number, action: 'mute' | 'warning', data: ModerateUserRequest): Promise<Result<void>> => {

@@ -60,27 +60,12 @@ type dbUserPost struct {
 
 // dbUserComment represents a comment in the database for user content search
 type dbUserComment struct {
-	ID        int       `db:"id"`
-	Content   string    `db:"content"`
-	PostID    int       `db:"post_id"`
-	PostTitle string    `db:"post_title"`
-	CreatedAt time.Time `db:"created_at"`
-}
-
-// dbUserPostResult represents a post in the search result
-type dbUserPostResult struct {
-	ID        int       `json:"id"`
-	Title     string    `json:"title"`
-	CreatedAt time.Time `json:"createdAt"`
-}
-
-// dbUserCommentResult represents a comment in the search result
-type dbUserCommentResult struct {
-	ID        int       `json:"id"`
-	Content   string    `json:"content"`
-	PostID    int       `json:"postId"`
-	PostTitle string    `json:"postTitle"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID         int       `db:"id"`
+	Content    string    `db:"content"`
+	PostID     int       `db:"post_id"`
+	PostNumber int       `db:"post_number"`
+	PostTitle  string    `db:"post_title"`
+	CreatedAt  time.Time `db:"created_at"`
 }
 
 func (u *dbUser) toModel(ctx context.Context) *entity.User {
@@ -664,48 +649,154 @@ func getUserProfileStanding(ctx context.Context, q *query.GetUserProfileStanding
 
 func searchUserContent(ctx context.Context, q *query.SearchUserContent) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		// Search posts
-		var posts []*dbUserPost
-		err := trx.Select(&posts, `
-			SELECT id, title, created_at 
-			FROM posts 
-			WHERE user_id = $1 AND tenant_id = $2 AND title ILIKE $3
-			ORDER BY created_at DESC
-		`, q.UserID, tenant.ID, "%"+q.Query+"%")
-		if err != nil {
-			return errors.Wrap(err, "failed to search user posts")
+		if q.Limit <= 0 || q.Limit > 10 {
+			q.Limit = 10
 		}
 
-		q.Result.Posts = make([]query.UserPostResult, len(posts))
-		for i, p := range posts {
-			q.Result.Posts[i] = query.UserPostResult{
-				ID:        p.ID,
-				Title:     p.Title,
-				CreatedAt: p.CreatedAt,
+		if q.Offset < 0 {
+			q.Offset = 0
+		}
+
+		if q.SortBy == "" {
+			q.SortBy = "createdAt"
+		}
+
+		if q.SortOrder == "" {
+			q.SortOrder = "desc"
+		}
+
+		dbSortField := "created_at"
+		if q.SortBy == "title" {
+			dbSortField = "title"
+		}
+
+		dbSortOrder := "DESC"
+		if q.SortOrder == "asc" {
+			dbSortOrder = "ASC"
+		}
+
+		q.Result.Posts = []query.UserPostResult{}
+		q.Result.Comments = []query.UserCommentResult{}
+
+		if q.ContentType == "all" || q.ContentType == "posts" || q.ContentType == "" {
+			// Search posts
+			var posts []*dbUserPost
+			postQuery := `
+				SELECT number as id, title, created_at 
+				FROM posts 
+				WHERE user_id = $1 
+				AND tenant_id = $2
+				AND status != $3
+			`
+			args := []any{q.UserID, tenant.ID, enum.PostDeleted}
+
+			if q.Query != "" {
+				postQuery += " AND title ILIKE $4"
+				args = append(args, "%"+q.Query+"%")
+			}
+
+			postQuery += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d",
+				dbSortField, dbSortOrder, len(args)+1, len(args)+2)
+			args = append(args, q.Limit, q.Offset)
+
+			err := trx.Select(&posts, postQuery, args...)
+			if err != nil {
+				return errors.Wrap(err, "failed to search user posts")
+			}
+
+			q.Result.Posts = make([]query.UserPostResult, len(posts))
+			for i, p := range posts {
+				q.Result.Posts[i] = query.UserPostResult{
+					ID:        p.ID,
+					Title:     p.Title,
+					CreatedAt: p.CreatedAt,
+				}
 			}
 		}
 
-		// Search comments
-		var comments []*dbUserComment
-		err = trx.Select(&comments, `
-			SELECT c.id, c.content, c.post_id, p.title as post_title, c.created_at 
-			FROM comments c
-			JOIN posts p ON p.id = c.post_id
-			WHERE c.user_id = $1 AND c.tenant_id = $2 AND c.content ILIKE $3 AND c.deleted_at IS NULL
-			ORDER BY c.created_at DESC
-		`, q.UserID, tenant.ID, "%"+q.Query+"%")
-		if err != nil {
-			return errors.Wrap(err, "failed to search user comments")
+		if q.ContentType == "all" || q.ContentType == "comments" || q.ContentType == "" {
+			// Search comments
+			var comments []*dbUserComment
+			commentQuery := `
+				SELECT c.id, c.content, c.post_id, p.number as post_number, p.title as post_title, c.created_at 
+				FROM comments c
+				JOIN posts p ON p.id = c.post_id AND p.status != $4
+				WHERE c.user_id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL
+			`
+			args := []any{q.UserID, tenant.ID, "%" + q.Query + "%", enum.PostDeleted}
+
+			if q.Query != "" {
+				commentQuery += " AND c.content ILIKE $3"
+			} else {
+				commentQuery = strings.Replace(commentQuery, "AND p.status != $4", "AND p.status != $3", 1)
+				args = []any{q.UserID, tenant.ID, enum.PostDeleted}
+			}
+
+			commentSortField := "c.created_at"
+			if q.SortBy == "title" {
+				commentSortField = "p.title"
+			}
+
+			commentQuery += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d",
+				commentSortField, dbSortOrder, len(args)+1, len(args)+2)
+			args = append(args, q.Limit, q.Offset)
+
+			err := trx.Select(&comments, commentQuery, args...)
+			if err != nil {
+				return errors.Wrap(err, "failed to search user comments")
+			}
+
+			q.Result.Comments = make([]query.UserCommentResult, len(comments))
+			for i, c := range comments {
+				q.Result.Comments[i] = query.UserCommentResult{
+					ID:        c.ID,
+					Content:   c.Content,
+					PostID:    c.PostNumber,
+					PostTitle: c.PostTitle,
+					CreatedAt: c.CreatedAt,
+				}
+			}
 		}
 
-		q.Result.Comments = make([]query.UserCommentResult, len(comments))
-		for i, c := range comments {
-			q.Result.Comments[i] = query.UserCommentResult{
-				ID:        c.ID,
-				Content:   c.Content,
-				PostID:    c.PostID,
-				PostTitle: c.PostTitle,
-				CreatedAt: c.CreatedAt,
+		if q.ContentType == "voted" {
+			var votedPosts []*dbUserPost
+			votedQuery := `
+				SELECT p.number as id, p.title, p.created_at 
+				FROM posts p
+				JOIN post_votes pv ON p.id = pv.post_id
+				WHERE pv.user_id = $1 
+				AND p.tenant_id = $2 
+				AND p.status != $3
+			`
+			args := []any{q.UserID, tenant.ID, enum.PostDeleted}
+
+			if q.VoteType != 0 {
+				votedQuery += " AND pv.vote_type = $4"
+				args = append(args, q.VoteType)
+			}
+
+			if q.Query != "" {
+				paramIndex := len(args) + 1
+				votedQuery += fmt.Sprintf(" AND p.title ILIKE $%d", paramIndex)
+				args = append(args, "%"+q.Query+"%")
+			}
+
+			votedQuery += fmt.Sprintf(" ORDER BY p.%s %s LIMIT $%d OFFSET $%d",
+				dbSortField, dbSortOrder, len(args)+1, len(args)+2)
+			args = append(args, q.Limit, q.Offset)
+
+			err := trx.Select(&votedPosts, votedQuery, args...)
+			if err != nil {
+				return errors.Wrap(err, "failed to get user voted posts")
+			}
+
+			q.Result.Posts = make([]query.UserPostResult, len(votedPosts))
+			for i, p := range votedPosts {
+				q.Result.Posts[i] = query.UserPostResult{
+					ID:        p.ID,
+					Title:     p.Title,
+					CreatedAt: p.CreatedAt,
+				}
 			}
 		}
 
