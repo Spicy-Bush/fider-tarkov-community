@@ -21,6 +21,8 @@ interface ModalFooterProps {
 
 const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small", canClose = true, center = true, ...props }) => {
   const root = useRef<HTMLElement>(document.getElementById("root-modal"))
+  const startX = useRef<number | null>(null);
+  const startY = useRef<number | null>(null);
 
   useEffect(() => {
     if (props.isOpen) {
@@ -30,11 +32,40 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
       document.body.style.overflow = ""
       document.removeEventListener("keydown", keyDown, false)
     }
+
+    return () => {
+      document.removeEventListener("keydown", keyDown, false)
+    }
   }, [props.isOpen])
 
-  const swallow = (evt: React.MouseEvent<HTMLDivElement>) => {
-    evt.stopPropagation()
-  }
+  const handleDimmerMouseDown = (e: React.MouseEvent) => {
+    const modalWindow = e.currentTarget.querySelector('.c-modal-window');
+    if (modalWindow && !modalWindow.contains(e.target as Node)) {
+      startX.current = e.clientX;
+      startY.current = e.clientY;
+    } else {
+      startX.current = null;
+      startY.current = null;
+    }
+  };
+
+  const handleDimmerMouseUp = (e: React.MouseEvent) => {
+    const modalWindow = e.currentTarget.querySelector('.c-modal-window');
+    if (
+      modalWindow && 
+      !modalWindow.contains(e.target as Node) &&
+      startX.current !== null && 
+      startY.current !== null &&
+      Math.abs(e.clientX - startX.current) < 5 &&
+      Math.abs(e.clientY - startY.current) < 5 &&
+      canClose
+    ) {
+      props.onClose();
+    }
+    
+    startX.current = null;
+    startY.current = null;
+  };
 
   const keyDown = (event: KeyboardEvent) => {
     if (event.keyCode === 27) {
@@ -61,9 +92,17 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
   })
 
   return ReactDOM.createPortal(
-    <div aria-disabled={true} className="c-modal-dimmer" onClick={close}>
+    <div 
+      aria-disabled={true} 
+      className="c-modal-dimmer" 
+      onMouseDown={handleDimmerMouseDown}
+      onMouseUp={handleDimmerMouseUp}
+    >
       <div className="c-modal-scroller">
-        <div className={className} data-testid="modal" onClick={swallow}>
+        <div 
+          className={className} 
+          data-testid="modal"
+        >
           {props.children}
         </div>
       </div>

@@ -18,22 +18,28 @@ interface SelectProps {
   defaultValue?: string
   options: SelectOption[]
   onChange?: (option?: SelectOption) => void
+  disabled?: boolean
 }
 
 export const Select: React.FunctionComponent<SelectProps> = (props) => {
+  const Options = Array.isArray(props.options) ? props.options : [];
+  
   const getOption = (value?: string) => {
-    if (value && props.options) {
-      const filtered = props.options.filter((x) => x.value === value)
+    if (value && Options.length > 0) {
+      const filtered = Options.filter((x) => x.value === value)
       if (filtered && filtered.length > 0) {
         return filtered[0]
       }
     }
+    return undefined;
   }
+  
   const [selected, setSelected] = React.useState<SelectOption | undefined>(getOption(props.defaultValue))
+  
   const onChange = (e: React.FormEvent<HTMLSelectElement>) => {
     let selected: SelectOption | undefined
     if (e.currentTarget.value) {
-      const options = props.options.filter((o) => o.value === e.currentTarget.value)
+      const options = Options.filter((o) => o.value === e.currentTarget.value)
       if (options && options.length > 0) {
         selected = options[0]
       }
@@ -56,12 +62,12 @@ export const Select: React.FunctionComponent<SelectProps> = (props) => {
                 "c-select": true,
                 "c-select--error": hasError(props.field, ctx.error),
               })}
-              value={selected?.value}
+              value={selected?.value || ""}
               id={`input-${props.field}`}
-              defaultValue={props.defaultValue}
               onChange={onChange}
+              disabled={props.disabled}
             >
-              {props.options.map((option) => (
+              {Options.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>

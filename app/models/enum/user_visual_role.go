@@ -8,7 +8,7 @@ const (
 	// Just use the role we have in the app/models/enum/user_role.go
 	VisualRoleNone          VisualRole = 0
 	VisualRoleVisitor       VisualRole = 1
-	VisualRoleHelpful       VisualRole = 2
+	VisualRoleHelper        VisualRole = 2
 	VisualRoleAdministrator VisualRole = 3
 	VisualRoleModerator     VisualRole = 4
 	VisualRoleBSGCrew       VisualRole = 5
@@ -23,8 +23,8 @@ func (r VisualRole) String() string {
 	switch r {
 	case VisualRoleVisitor:
 		return "Visitor"
-	case VisualRoleHelpful:
-		return "Helpful"
+	case VisualRoleHelper:
+		return "Helper"
 	case VisualRoleAdministrator:
 		return "Administrator"
 	case VisualRoleModerator:
@@ -60,7 +60,7 @@ func (r *VisualRole) UnmarshalText(text []byte) error {
 func (r VisualRole) IsValid() bool {
 	return r == VisualRoleNone ||
 		r == VisualRoleVisitor ||
-		r == VisualRoleHelpful ||
+		r == VisualRoleHelper ||
 		r == VisualRoleAdministrator ||
 		r == VisualRoleModerator ||
 		r == VisualRoleBSGCrew ||
@@ -72,7 +72,7 @@ func (r VisualRole) IsValid() bool {
 
 var AllVisualRoles = []VisualRole{
 	VisualRoleVisitor,
-	VisualRoleHelpful,
+	VisualRoleHelper,
 	VisualRoleAdministrator,
 	VisualRoleModerator,
 	VisualRoleBSGCrew,

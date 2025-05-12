@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
@@ -101,6 +102,54 @@ func User() web.MiddlewareFunc {
 					c.RemoveCookie(web.CookieAuthName)
 					return c.Unauthorized()
 				}
+
+				user.SetWarningCheck(func(userID int) bool {
+					standing := &query.GetUserProfileStanding{
+						UserID: userID,
+						Result: struct {
+							Warnings []struct {
+								ID        int        `json:"id"`
+								Reason    string     `json:"reason"`
+								CreatedAt time.Time  `json:"createdAt"`
+								ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+							} `json:"warnings"`
+							Mutes []struct {
+								ID        int        `json:"id"`
+								Reason    string     `json:"reason"`
+								CreatedAt time.Time  `json:"createdAt"`
+								ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+							} `json:"mutes"`
+						}{},
+					}
+					if err := bus.Dispatch(c, standing); err != nil {
+						return false
+					}
+					return len(standing.Result.Warnings) > 0
+				})
+
+				user.SetMuteCheck(func(userID int) bool {
+					standing := &query.GetUserProfileStanding{
+						UserID: userID,
+						Result: struct {
+							Warnings []struct {
+								ID        int        `json:"id"`
+								Reason    string     `json:"reason"`
+								CreatedAt time.Time  `json:"createdAt"`
+								ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+							} `json:"warnings"`
+							Mutes []struct {
+								ID        int        `json:"id"`
+								Reason    string     `json:"reason"`
+								CreatedAt time.Time  `json:"createdAt"`
+								ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+							} `json:"mutes"`
+						}{},
+					}
+					if err := bus.Dispatch(c, standing); err != nil {
+						return false
+					}
+					return len(standing.Result.Mutes) > 0
+				})
 
 				c.SetUser(user)
 			}

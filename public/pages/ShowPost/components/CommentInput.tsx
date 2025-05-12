@@ -11,6 +11,7 @@ import { Trans } from "@lingui/react/macro"
 
 import { CommentEditor } from "@fider/components"
 import { useFider } from "@fider/hooks"
+import { useUserStanding } from "@fider/contexts/UserStandingContext"
 
 interface CommentInputProps {
   post: Post
@@ -26,7 +27,7 @@ export const CommentInput = (props: CommentInputProps) => {
   }
 
   const fider = useFider()
-  // const inputRef = useRef<HTMLTextAreaElement>()
+  const { isMuted, muteReason } = useUserStanding()
   const [content, setContent] = useState<string>((fider.session.isAuthenticated && getContentFromCache()) || "")
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
   const [attachments, setAttachments] = useState<ImageUpload[]>([])
@@ -41,6 +42,7 @@ export const CommentInput = (props: CommentInputProps) => {
   // TODO: refactor the mess that is this check logic
   const isCommentingDisabled = !fider.session.isAuthenticated || 
     isPostLocked(props.post) || 
+    isMuted ||
     (fider.session.user?.role !== "administrator" && 
     (settings.commentingGloballyDisabled || 
     settings.commentingDisabledFor?.includes(fider.session.user?.role || "") || false))
@@ -73,38 +75,50 @@ export const CommentInput = (props: CommentInputProps) => {
 
   const hasContent = content?.length > 0
 
+  if (!fider.session.isAuthenticated) {
+    return <SignInModal isOpen={isSignInModalOpen} onClose={hideModal} />
+  }
+
   return (
     <>
       <SignInModal isOpen={isSignInModalOpen} onClose={hideModal} />
       <HStack spacing={2} className="c-comment-input">
-        {fider.session.isAuthenticated && <Avatar user={fider.session.user} />}
+        <Avatar user={fider.session.user} />
         <div className="flex-grow bg-gray-50 rounded-md p-2">
           <Form error={error}>
-            {isCommentingDisabled && fider.session.isAuthenticated && (
+            {isCommentingDisabled && (
               <div className="c-message c-message--warning">
-                <Trans id="showpost.commentinput.disabled">
-                  Commenting has been disabled by the administrators.
-                </Trans>
+                {isMuted ? (
+                  <Trans id="showpost.commentinput.muted">
+                    You are currently muted. Reason: {muteReason}
+                  </Trans>
+                ) : (
+                  <Trans id="showpost.commentinput.disabled">
+                    Commenting has been disabled by the administrators.
+                  </Trans>
+                )}
               </div>
             )}
-            {fider.session.isAuthenticated && (
-              <div className="mb-1">
-                <UserName user={fider.session.user} />
-              </div>
-            )}
-            <CommentEditor
-              initialValue={content}
-              onChange={commentChanged}
-              onFocus={editorFocused}
-              readOnly={isCommentingDisabled}
-              placeholder={i18n._("showpost.commentinput.placeholder", { message: "Leave a comment" })}
-            />
-            {hasContent && !isCommentingDisabled && (
+            {!isCommentingDisabled && (
               <>
-                <MultiImageUploader field="attachments" maxUploads={settings.maxImagesPerComment || 2} onChange={setAttachments} />
-                <Button variant="primary" onClick={submit}>
-                  <Trans id="action.submit">Submit</Trans>
-                </Button>
+                <div className="mb-1">
+                  <UserName user={fider.session.user} />
+                </div>
+                <CommentEditor
+                  initialValue={content}
+                  onChange={commentChanged}
+                  onFocus={editorFocused}
+                  readOnly={isCommentingDisabled}
+                  placeholder={i18n._("showpost.commentinput.placeholder", { message: "Leave a comment" })}
+                />
+                {hasContent && !isCommentingDisabled && (
+                  <>
+                    <MultiImageUploader field="attachments" maxUploads={settings.maxImagesPerComment || 2} onChange={setAttachments} />
+                    <Button variant="primary" onClick={submit}>
+                      <Trans id="action.submit">Submit</Trans>
+                    </Button>
+                  </>
+                )}
               </>
             )}
           </Form>

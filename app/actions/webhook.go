@@ -22,7 +22,7 @@ type CreateEditWebhook struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *CreateEditWebhook) IsAuthorized(_ context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
 }
 
 // Validate if current model is valid
@@ -118,7 +118,7 @@ type PreviewWebhook struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *PreviewWebhook) IsAuthorized(_ context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
 }
 
 // Validate if current model is valid

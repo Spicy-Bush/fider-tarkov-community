@@ -8,14 +8,28 @@ export const UserMenu = () => {
 
   return (
     <div className="c-menu-user">
-      <Dropdown position="left" renderHandle={<Avatar user={fider.session.user} />}>
+      <Dropdown position="left" renderHandle={<Avatar user={fider.session.user} clickable={false} />}>
         <div className="p-2 text-medium uppercase">{fider.session.user.name}</div>
-        <Dropdown.ListItem href="/settings">
+        <Dropdown.ListItem href="/profile#settings">
           <Trans id="menu.mysettings">My Settings</Trans>
+        </Dropdown.ListItem>
+        <Dropdown.ListItem href="/profile">
+          <Trans id="menu.myprofile">My Profile</Trans>
         </Dropdown.ListItem>
         <Dropdown.Divider />
 
-        {fider.session.user.isCollaborator && (
+        {(fider.session.user.isModerator) && (
+          <>
+            <div className="p-2 text-medium uppercase">
+              <Trans id="menu.moderation">Moderation</Trans>
+            </div>
+            <Dropdown.ListItem href="/admin/members">
+              <Trans id="menu.members">Member List</Trans>
+            </Dropdown.ListItem>
+          </>
+        )}
+
+        {(fider.session.user.isCollaborator|| fider.session.user.isAdministrator) && (
           <>
             <div className="p-2 text-medium uppercase">
               <Trans id="menu.administration">Administration</Trans>

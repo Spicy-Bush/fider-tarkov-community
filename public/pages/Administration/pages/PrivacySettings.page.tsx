@@ -39,7 +39,7 @@ export default class PrivacySettingsPage extends AdminBasePage<any, PrivacySetti
     return (
       <Form>
         <Field label="Private Site">
-          <Toggle disabled={!Fider.session.user.isAdministrator} active={this.state.isPrivate} onToggle={this.toggle} />
+          <Toggle active={this.state.isPrivate} onToggle={this.toggle} />
           <p className="text-muted mt-1">
             A private site prevents unauthenticated users from viewing or interacting with its content. <br /> When enabled, only already registered users,
             invited users and users from trusted OAuth providers will have access to this site.

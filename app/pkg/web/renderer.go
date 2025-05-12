@@ -262,6 +262,9 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 			"isAdministrator": u.IsAdministrator(),
 			"isCollaborator":  u.IsCollaborator(),
 			"isModerator":     u.IsModerator(),
+			"isHelper":        u.IsHelper(),
+			"hasWarning":      u.HasWarning(),
+			"isMuted":         u.IsMuted(),
 		}
 	}
 

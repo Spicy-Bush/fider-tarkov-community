@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
@@ -37,20 +38,21 @@ func ContentSettingsPage() web.HandlerFunc {
 					enum.RoleCollaborator.String(),
 					enum.RoleModerator.String(),
 					enum.RoleAdministrator.String(),
+					enum.RoleHelper.String(),
 				},
 			},
 		})
 	}
 }
 
-func UpdateGeneralSettings() web.HandlerFunc {
+func UpdateContentSettings() web.HandlerFunc {
 	return func(c *web.Context) error {
-		action := new(actions.UpdateGeneralSettings)
+		action := new(actions.UpdateContentSettings)
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.UpdateGeneralSettings{
+		err := bus.Dispatch(c, &cmd.UpdateContentSettings{
 			Settings: action.Settings,
 		})
 		if err != nil {
@@ -200,10 +202,21 @@ func ManageMembers() web.HandlerFunc {
 			}
 		}
 
+		// Only administrators and collaborators can see emails
+		canSeeEmail := c.User().IsCollaborator() || c.User().IsAdministrator()
+
 		allUsersWithEmail := make([]entity.UserWithEmail, len(allUsers.Result))
 		for i, user := range allUsers.Result {
-			allUsersWithEmail[i] = entity.UserWithEmail{
-				User: user,
+			if canSeeEmail {
+				allUsersWithEmail[i] = entity.UserWithEmail{
+					User: user,
+				}
+			} else {
+				userCopy := *user
+				userCopy.Email = ""
+				allUsersWithEmail[i] = entity.UserWithEmail{
+					User: &userCopy,
+				}
 			}
 		}
 
@@ -230,6 +243,19 @@ func ManageAuthentication() web.HandlerFunc {
 			Title: "Authentication · Site Settings",
 			Data: web.Map{
 				"providers": listProviders.Result,
+			},
+		})
+	}
+}
+
+// ManageCannedResponses is the page used by administrators to manage canned responses
+func ManageCannedResponses() web.HandlerFunc {
+	return func(c *web.Context) error {
+		return c.Page(http.StatusOK, web.Props{
+			Page:  "Administration/pages/ManageCannedResponses.page",
+			Title: "Canned Responses · Site Settings",
+			Data: web.Map{
+				"types": []string{"warning", "mute"},
 			},
 		})
 	}
@@ -298,6 +324,85 @@ func UpdateProfanityWords() web.HandlerFunc {
 		if err := action.Run(c); err != nil {
 			return c.Failure(err)
 		}
+		return c.Ok(web.Map{})
+	}
+}
+
+// MuteUser mutes a user for a specified duration
+func MuteUser() web.HandlerFunc {
+	return func(c *web.Context) error {
+		userID, err := c.ParamAsInt("userID")
+		if err != nil {
+			return c.BadRequest(web.Map{
+				"message": "Invalid user ID",
+			})
+		}
+
+		action := new(actions.MuteUser)
+		if result := c.BindTo(action); !result.Ok {
+			return c.HandleValidation(result)
+		}
+
+		action.UserID = userID
+		expiresAt := time.Now().Add(time.Duration(action.Duration) * time.Minute)
+		muteUser := &cmd.MuteUser{
+			UserID:    userID,
+			Reason:    action.Reason,
+			ExpiresAt: expiresAt,
+		}
+
+		if err := bus.Dispatch(c, muteUser); err != nil {
+			return c.Failure(err)
+		}
+
+		getUser := &query.GetUserByID{UserID: userID}
+		if err := bus.Dispatch(c, getUser); err != nil {
+			return c.Failure(err)
+		}
+
+		c.Enqueue(tasks.NotifyAboutMute(getUser.Result, action.Reason, &expiresAt))
+
+		return c.Ok(web.Map{})
+	}
+}
+
+// WarnUser adds a warning to a user
+func WarnUser() web.HandlerFunc {
+	return func(c *web.Context) error {
+		userID, err := c.ParamAsInt("userID")
+		if err != nil {
+			return c.BadRequest(web.Map{
+				"message": "Invalid user ID",
+			})
+		}
+
+		action := new(actions.WarnUser)
+		if result := c.BindTo(action); !result.Ok {
+			return c.HandleValidation(result)
+		}
+
+		action.UserID = userID
+		var expiresAt time.Time
+		if action.Duration > 0 {
+			expiresAt = time.Now().Add(time.Duration(action.Duration) * time.Minute)
+		}
+		warnUser := &cmd.WarnUser{
+			UserID:    userID,
+			Reason:    action.Reason,
+			ExpiresAt: expiresAt,
+		}
+
+		if err := bus.Dispatch(c, warnUser); err != nil {
+			return c.Failure(err)
+		}
+
+		getUser := &query.GetUserByID{UserID: userID}
+		if err := bus.Dispatch(c, getUser); err != nil {
+			return c.Failure(err)
+		}
+
+		c.Enqueue(tasks.NotifyAboutWarning(getUser.Result, action.Reason, &expiresAt))
+
 		return c.Ok(web.Map{})
 	}
 }

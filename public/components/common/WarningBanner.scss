@@ -1,0 +1,55 @@
+@import "~@fider/assets/styles/variables.scss";
+
+.c-warning-banner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: spacing(3) 0;
+
+  &--warning {
+    background-color: get("colors.yellow.50");
+    border-bottom: 1px solid get("colors.yellow.200");
+
+    .icon {
+      color: get("colors.yellow.600");
+    }
+  }
+
+  &--muted {
+    background-color: get("colors.red.50");
+    border-bottom: 1px solid get("colors.red.200");
+
+    .icon {
+      color: get("colors.red.600");
+    }
+  }
+
+  &__content {
+    display: flex;
+    align-items: center;
+    gap: spacing(3);
+    margin: 0 auto;
+    padding: 0 spacing(4);
+  }
+
+  &__icon {
+    flex-shrink: 0;
+  }
+
+  &__message {
+    flex-grow: 1;
+    font-size: get("font.size.sm");
+    color: get("colors.gray.900");
+
+    a {
+      color: get("colors.blue.600");
+      text-decoration: underline;
+
+      &:hover {
+        color: get("colors.blue.700");
+      }
+    }
+  }
+} 

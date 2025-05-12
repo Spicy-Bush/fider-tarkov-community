@@ -35,6 +35,54 @@ type dbUserProvider struct {
 	UID  sql.NullString `db:"provider_uid"`
 }
 
+// dbUserWarning represents a user warning in the database
+type dbUserWarning struct {
+	ID        int          `db:"id"`
+	Reason    string       `db:"reason"`
+	CreatedAt time.Time    `db:"created_at"`
+	ExpiresAt sql.NullTime `db:"expires_at"`
+}
+
+// dbUserMute represents a user mute in the database
+type dbUserMute struct {
+	ID        int          `db:"id"`
+	Reason    string       `db:"reason"`
+	CreatedAt time.Time    `db:"created_at"`
+	ExpiresAt sql.NullTime `db:"expires_at"`
+}
+
+// dbUserPost represents a post in the database for user content search
+type dbUserPost struct {
+	ID        int       `db:"id"`
+	Title     string    `db:"title"`
+	CreatedAt time.Time `db:"created_at"`
+}
+
+// dbUserComment represents a comment in the database for user content search
+type dbUserComment struct {
+	ID        int       `db:"id"`
+	Content   string    `db:"content"`
+	PostID    int       `db:"post_id"`
+	PostTitle string    `db:"post_title"`
+	CreatedAt time.Time `db:"created_at"`
+}
+
+// dbUserPostResult represents a post in the search result
+type dbUserPostResult struct {
+	ID        int       `json:"id"`
+	Title     string    `json:"title"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// dbUserCommentResult represents a comment in the search result
+type dbUserCommentResult struct {
+	ID        int       `json:"id"`
+	Content   string    `json:"content"`
+	PostID    int       `json:"postId"`
+	PostTitle string    `json:"postTitle"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
 func (u *dbUser) toModel(ctx context.Context) *entity.User {
 	if u == nil {
 		return nil
@@ -329,6 +377,16 @@ func updateCurrentUser(ctx context.Context, c *cmd.UpdateCurrentUser) error {
 		if c.Avatar.Remove {
 			c.Avatar.BlobKey = ""
 		}
+
+		if c.Name == "" {
+			cmd := "UPDATE users SET avatar_type = $3, avatar_bkey = $4 WHERE id = $1 AND tenant_id = $2"
+			_, err := trx.Execute(cmd, user.ID, tenant.ID, c.AvatarType, c.Avatar.BlobKey)
+			if err != nil {
+				return errors.Wrap(err, "failed to update user avatar")
+			}
+			return nil
+		}
+
 		cmd := "UPDATE users SET name = $3, avatar_type = $4, avatar_bkey = $5 WHERE id = $1 AND tenant_id = $2"
 		_, err := trx.Execute(cmd, user.ID, tenant.ID, c.Name, c.AvatarType, c.Avatar.BlobKey)
 		if err != nil {
@@ -340,7 +398,7 @@ func updateCurrentUser(ctx context.Context, c *cmd.UpdateCurrentUser) error {
 
 func getUserByID(ctx context.Context, q *query.GetUserByID) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		u, err := queryUser(ctx, trx, "id = $1", q.UserID)
+		u, err := queryUser(ctx, trx, "id = $1 AND tenant_id = $2", q.UserID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get user with id '%d'", q.UserID)
 		}
@@ -483,4 +541,246 @@ func queryUser(ctx context.Context, trx *dbx.Trx, filter string, args ...any) (*
 	}
 
 	return user.toModel(ctx), nil
+}
+
+func getUserProfileStats(ctx context.Context, q *query.GetUserProfileStats) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		var postCount int
+		err := trx.Scalar(&postCount, `
+			SELECT COUNT(*) 
+			FROM posts 
+			WHERE user_id = $1 
+			AND tenant_id = $2 
+			AND status != $3
+		`, q.UserID, tenant.ID, enum.PostDeleted)
+		if err != nil {
+			return errors.Wrap(err, "failed to count user posts")
+		}
+		q.Result.Posts = postCount
+
+		var commentCount int
+		err = trx.Scalar(&commentCount, `
+			SELECT COUNT(*) 
+			FROM comments 
+			WHERE user_id = $1 
+			AND tenant_id = $2 
+			AND deleted_at IS NULL
+		`, q.UserID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to count user comments")
+		}
+		q.Result.Comments = commentCount
+
+		var voteCount int
+		err = trx.Scalar(&voteCount, "SELECT COUNT(*) FROM post_votes WHERE user_id = $1 AND tenant_id = $2", q.UserID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to count user votes")
+		}
+		q.Result.Votes = voteCount
+
+		return nil
+	})
+}
+
+func getUserProfileStanding(ctx context.Context, q *query.GetUserProfileStanding) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		// Get warnings
+		var warnings []*dbUserWarning
+		err := trx.Select(&warnings, `
+			SELECT id, reason, created_at, expires_at 
+			FROM user_warnings 
+			WHERE user_id = $1 AND tenant_id = $2
+			ORDER BY created_at DESC
+		`, q.UserID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get user warnings")
+		}
+
+		q.Result.Warnings = make([]struct {
+			ID        int        `json:"id"`
+			Reason    string     `json:"reason"`
+			CreatedAt time.Time  `json:"createdAt"`
+			ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+		}, len(warnings))
+
+		for i, w := range warnings {
+			var expiresAt *time.Time
+			if w.ExpiresAt.Valid {
+				expiresAt = &w.ExpiresAt.Time
+			}
+			q.Result.Warnings[i] = struct {
+				ID        int        `json:"id"`
+				Reason    string     `json:"reason"`
+				CreatedAt time.Time  `json:"createdAt"`
+				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+			}{
+				ID:        w.ID,
+				Reason:    w.Reason,
+				CreatedAt: w.CreatedAt,
+				ExpiresAt: expiresAt,
+			}
+		}
+
+		// Get mutes
+		var mutes []*dbUserMute
+		err = trx.Select(&mutes, `
+			SELECT id, reason, created_at, expires_at 
+			FROM user_mutes 
+			WHERE user_id = $1 AND tenant_id = $2
+			ORDER BY created_at DESC
+		`, q.UserID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get user mutes")
+		}
+
+		q.Result.Mutes = make([]struct {
+			ID        int        `json:"id"`
+			Reason    string     `json:"reason"`
+			CreatedAt time.Time  `json:"createdAt"`
+			ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+		}, len(mutes))
+
+		for i, m := range mutes {
+			var expiresAt *time.Time
+			if m.ExpiresAt.Valid {
+				expiresAt = &m.ExpiresAt.Time
+			}
+			q.Result.Mutes[i] = struct {
+				ID        int        `json:"id"`
+				Reason    string     `json:"reason"`
+				CreatedAt time.Time  `json:"createdAt"`
+				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+			}{
+				ID:        m.ID,
+				Reason:    m.Reason,
+				CreatedAt: m.CreatedAt,
+				ExpiresAt: expiresAt,
+			}
+		}
+
+		return nil
+	})
+}
+
+func searchUserContent(ctx context.Context, q *query.SearchUserContent) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		// Search posts
+		var posts []*dbUserPost
+		err := trx.Select(&posts, `
+			SELECT id, title, created_at 
+			FROM posts 
+			WHERE user_id = $1 AND tenant_id = $2 AND title ILIKE $3
+			ORDER BY created_at DESC
+		`, q.UserID, tenant.ID, "%"+q.Query+"%")
+		if err != nil {
+			return errors.Wrap(err, "failed to search user posts")
+		}
+
+		q.Result.Posts = make([]query.UserPostResult, len(posts))
+		for i, p := range posts {
+			q.Result.Posts[i] = query.UserPostResult{
+				ID:        p.ID,
+				Title:     p.Title,
+				CreatedAt: p.CreatedAt,
+			}
+		}
+
+		// Search comments
+		var comments []*dbUserComment
+		err = trx.Select(&comments, `
+			SELECT c.id, c.content, c.post_id, p.title as post_title, c.created_at 
+			FROM comments c
+			JOIN posts p ON p.id = c.post_id
+			WHERE c.user_id = $1 AND c.tenant_id = $2 AND c.content ILIKE $3 AND c.deleted_at IS NULL
+			ORDER BY c.created_at DESC
+		`, q.UserID, tenant.ID, "%"+q.Query+"%")
+		if err != nil {
+			return errors.Wrap(err, "failed to search user comments")
+		}
+
+		q.Result.Comments = make([]query.UserCommentResult, len(comments))
+		for i, c := range comments {
+			q.Result.Comments[i] = query.UserCommentResult{
+				ID:        c.ID,
+				Content:   c.Content,
+				PostID:    c.PostID,
+				PostTitle: c.PostTitle,
+				CreatedAt: c.CreatedAt,
+			}
+		}
+
+		return nil
+	})
+}
+
+func muteUser(ctx context.Context, c *cmd.MuteUser) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		// Ensure we have a valid expiration time
+		if c.ExpiresAt.IsZero() {
+			c.ExpiresAt = time.Now().Add(24 * time.Hour) // Default to 24 hours if not specified
+		}
+
+		// First, expire any existing active mutes
+		_, err := trx.Execute(`
+			UPDATE user_mutes 
+			SET expires_at = NOW() 
+			WHERE user_id = $1 AND tenant_id = $2 AND (expires_at IS NULL OR expires_at > NOW())
+		`, c.UserID, tenant.ID)
+		if err != nil {
+			return err
+		}
+
+		// Then insert the new mute
+		_, err = trx.Execute(`
+			INSERT INTO user_mutes (user_id, tenant_id, reason, created_at, expires_at, created_by)
+			VALUES ($1, $2, $3, NOW(), $4, $5)
+		`, c.UserID, tenant.ID, c.Reason, c.ExpiresAt, user.ID)
+		return err
+	})
+}
+
+func warnUser(ctx context.Context, c *cmd.WarnUser) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		var expiresAt sql.NullTime
+		if c.ExpiresAt.IsZero() {
+			// If no expiration time is set, keep it as NULL
+			// I don't know when this will be used, but it takes nothing to add it
+			expiresAt.Valid = false
+		} else {
+			// If expiration time is set, use it
+			expiresAt.Valid = true
+			expiresAt.Time = c.ExpiresAt
+		}
+
+		_, err := trx.Execute(`
+			INSERT INTO user_warnings (user_id, tenant_id, reason, created_at, expires_at, created_by)
+			VALUES ($1, $2, $3, NOW(), $4, $5)
+		`, c.UserID, tenant.ID, c.Reason, expiresAt, user.ID)
+		return err
+	})
+}
+
+func updateUserAvatar(ctx context.Context, c *cmd.UpdateUserAvatar) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, _ *entity.User) error {
+		if c.Avatar.Remove {
+			c.Avatar.BlobKey = ""
+		}
+		cmd := "UPDATE users SET avatar_type = $3, avatar_bkey = $4 WHERE id = $1 AND tenant_id = $2"
+		_, err := trx.Execute(cmd, c.UserID, tenant.ID, c.AvatarType, c.Avatar.BlobKey)
+		if err != nil {
+			return errors.Wrap(err, "failed to update user avatar")
+		}
+		return nil
+	})
+}
+
+func updateUser(ctx context.Context, c *cmd.UpdateUser) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, _ *entity.User) error {
+		cmd := "UPDATE users SET name = $3 WHERE id = $1 AND tenant_id = $2"
+		_, err := trx.Execute(cmd, c.UserID, tenant.ID, c.Name)
+		if err != nil {
+			return errors.Wrap(err, "failed to update user")
+		}
+		return nil
+	})
 }

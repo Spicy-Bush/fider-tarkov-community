@@ -165,9 +165,6 @@
     border: 0 solid get("colors.gray.200");
     border-top-width: 1px;
   }
-  .flex-y.flex--divide-#{$i} > *:last-child {
-    padding-bottom: 0;
-  }
 }
 
 .shadow-sm {

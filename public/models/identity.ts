@@ -36,16 +36,16 @@ export enum TenantStatus {
 }
 
 export enum VisualRole {
-  None = 0,
-  Visitor = 1,
-  Helpful = 2,
-  Administrator = 3,
-  Moderator = 4,
-  BSGCrew = 5,
-  Developer = 6,
-  Sherpa = 7,
-  TCStaff = 8,
-  Emissary = 9
+  None = "",
+  Visitor = "Visitor",
+  Helper = "Helper",
+  Administrator = "Administrator",
+  Moderator = "Moderator",
+  BSGCrew = "BSGCrew",
+  Developer = "Developer",
+  Sherpa = "Sherpa",
+  TCStaff = "TCStaff", 
+  Emissary = "Emissary"
 }
 
 export interface User {
@@ -84,6 +84,11 @@ export enum UserRole {
   Collaborator = "collaborator",
   Administrator = "administrator",
   Moderator = "moderator",
+  Helper = "helper",
+}
+
+export const isHelper = (role: UserRole): boolean => {
+  return role === UserRole.Helper || role === UserRole.Moderator || role === UserRole.Administrator
 }
 
 export const isCollaborator = (role: UserRole): boolean => {
@@ -111,21 +116,12 @@ export interface CurrentUser {
   isAdministrator: boolean
   isCollaborator: boolean
   isModerator: boolean
+  isHelper: boolean
+  hasWarning: boolean
+  isMuted: boolean
 }
 
 export const getVisualRoleName = (visualRole?: VisualRole): string => {
   if (visualRole === undefined || visualRole === VisualRole.None) return "";
-  
-  switch (visualRole) {
-    case VisualRole.Visitor: return "Visitor";
-    case VisualRole.Helpful: return "Helpful";
-    case VisualRole.Administrator: return "Administrator";
-    case VisualRole.Moderator: return "Moderator";
-    case VisualRole.BSGCrew: return "BSG Crew";
-    case VisualRole.Developer: return "Developer";
-    case VisualRole.Sherpa: return "Sherpa";
-    case VisualRole.TCStaff: return "TC Staff";
-    case VisualRole.Emissary: return "Emissary";
-    default: return "";
-  }
+  return visualRole;
 }

@@ -33,3 +33,10 @@ type GetActiveSubscribers struct {
 type PurgeReadNotifications struct {
 	NumOfPurgedNotifications int
 }
+
+// GetUsersToNotify represents a query to get users who should receive notifications
+type GetUsersToNotify struct {
+	Event   enum.NotificationEvent
+	Channel enum.NotificationChannel
+	Result  []*entity.User
+}

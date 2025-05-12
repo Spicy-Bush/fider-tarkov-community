@@ -16,7 +16,7 @@ type CreateTenant struct {
 	Result *entity.Tenant
 }
 
-type UpdateGeneralSettings struct {
+type UpdateContentSettings struct {
 	Settings *entity.GeneralSettings
 }
 

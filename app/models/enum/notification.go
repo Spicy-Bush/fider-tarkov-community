@@ -82,11 +82,29 @@ var (
 		},
 		Validate: notificationEventValidation,
 	}
+	//NotificationEventMute is triggered when a user is muted
+	NotificationEventMute = NotificationEvent{
+		UserSettingsKeyName:           "event_notification_mute",
+		DefaultSettingValue:           strconv.Itoa(int(NotificationChannelWeb | NotificationChannelEmail)),
+		RequiresSubscriptionUserRoles: []Role{},
+		DefaultEnabledUserRoles:       []Role{},
+		Validate:                      notificationEventValidation,
+	}
+	//NotificationEventWarning is triggered when a user receives a warning
+	NotificationEventWarning = NotificationEvent{
+		UserSettingsKeyName:           "event_notification_warning",
+		DefaultSettingValue:           strconv.Itoa(int(NotificationChannelWeb | NotificationChannelEmail)),
+		RequiresSubscriptionUserRoles: []Role{},
+		DefaultEnabledUserRoles:       []Role{},
+		Validate:                      notificationEventValidation,
+	}
 	//AllNotificationEvents contains all possible notification events
 	AllNotificationEvents = []NotificationEvent{
 		NotificationEventNewPost,
 		NotificationEventNewComment,
 		NotificationEventMention,
 		NotificationEventChangeStatus,
+		NotificationEventMute,
+		NotificationEventWarning,
 	}
 )

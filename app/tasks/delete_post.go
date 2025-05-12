@@ -85,7 +85,7 @@ func NotifyAboutDeletedPost(post *entity.Post, deleteCommentAdded bool) worker.T
 				"title":    post.Title,
 				"siteName": tenant.Name,
 				"content":  markdown.Full(post.Response.Text),
-				"change":   linkWithText(i18n.T(c, "email.subscription.change"), baseURL, "/settings"),
+				"change":   linkWithText(i18n.T(c, "email.subscription.change"), baseURL, "/profile#settings"),
 				"logo":     logoURL,
 			}
 

@@ -21,6 +21,7 @@ import { useFider } from "@fider/hooks"
 import IconDotsHorizontal from "@fider/assets/images/heroicons-dots-horizontal.svg"
 import { t } from "@lingui/core/macro"
 import { Trans } from "@lingui/react/macro"
+import { useUserStanding } from "@fider/contexts/UserStandingContext"
 
 interface ShowCommentProps {
   post: Post
@@ -31,6 +32,7 @@ interface ShowCommentProps {
 
 export const ShowComment = (props: ShowCommentProps) => {
   const fider = useFider()
+  const { isMuted, muteReason } = useUserStanding()
   const node = useRef<HTMLDivElement | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [newContent, setNewContent] = useState<string>(props.comment.content)
@@ -62,6 +64,10 @@ export const ShowComment = (props: ShowCommentProps) => {
       return false
     }
 
+    if (isMuted) {
+      return false
+    }
+
     // If user is collaborator or admin, they can edit any comment
     if (fider.session.user.isCollaborator || fider.session.user.isAdministrator) {
       return true
@@ -78,6 +84,10 @@ export const ShowComment = (props: ShowCommentProps) => {
 
   const canDeleteComment = () => {
     if (!fider.session.isAuthenticated) {
+      return false
+    }
+
+    if (isMuted) {
       return false
     }
 
@@ -129,8 +139,13 @@ export const ShowComment = (props: ShowCommentProps) => {
   }
 
   const toggleReaction = async (emoji: string) => {
+    if (isMuted) {
+      notify.error(t({ id: "showpost.comment.muted", message: `You are currently muted. Reason: ${muteReason}` }))
+      return
+    }
+
     if (isPostLocked(props.post)) {
-      notify.error(t({ id: "action.reaction.locked", message: "Cannot add reactions to comments on locked posts" }))
+      notify.error(t({ id: "showpost.comment.locked", message: "This post is locked and cannot be reacted to." }))
       return
     }
 
@@ -268,7 +283,7 @@ export const ShowComment = (props: ShowCommentProps) => {
               <>
                 <Markdown text={comment.content} style="full" />
                 {comment.attachments && comment.attachments.map((x) => <ImageViewer key={x} bkey={x} />)}
-                {!isPostLocked(props.post) && (
+                {!isPostLocked(props.post) && !isMuted && (
                   <Reactions reactions={localReactionCounts} emojiSelectorRef={emojiSelectorRef} toggleReaction={toggleReaction} />
                 )}
               </>

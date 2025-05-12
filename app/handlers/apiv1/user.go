@@ -21,6 +21,13 @@ func ListUsers() web.HandlerFunc {
 		if err := bus.Dispatch(c, allUsers); err != nil {
 			return c.Failure(err)
 		}
+
+		if !c.User().IsCollaborator() && !c.User().IsAdministrator() {
+			for _, user := range allUsers.Result {
+				user.Email = ""
+			}
+		}
+
 		return c.Ok(allUsers.Result)
 	}
 }
@@ -100,5 +107,78 @@ func CreateUser() web.HandlerFunc {
 		return c.Ok(web.Map{
 			"id": user.ID,
 		})
+	}
+}
+
+// GetUserProfileStats returns the user's activity stats
+func GetUserProfileStats() web.HandlerFunc {
+	return func(c *web.Context) error {
+		userID, err := c.ParamAsInt("userID")
+		if err != nil {
+			return c.NotFound()
+		}
+
+		// Regular users can only view their own stats
+		isPrivileged := c.User().Role == enum.RoleAdministrator || c.User().Role == enum.RoleCollaborator || c.User().Role == enum.RoleModerator
+		if !isPrivileged && c.User().ID != userID {
+			return c.NotFound()
+		}
+
+		stats := &query.GetUserProfileStats{
+			UserID: userID,
+		}
+		if err := bus.Dispatch(c, stats); err != nil {
+			return c.Failure(err)
+		}
+		return c.Ok(stats.Result)
+	}
+}
+
+// GetUserProfileStanding returns the user's standing (warnings, mutes, bans)
+func GetUserProfileStanding() web.HandlerFunc {
+	return func(c *web.Context) error {
+		userID, err := c.ParamAsInt("userID")
+		if err != nil {
+			return c.NotFound()
+		}
+
+		// Regular users can only view their own standing
+		isPrivileged := c.User().Role == enum.RoleAdministrator || c.User().Role == enum.RoleCollaborator || c.User().Role == enum.RoleModerator
+		if !isPrivileged && c.User().ID != userID {
+			return c.NotFound()
+		}
+
+		standing := &query.GetUserProfileStanding{
+			UserID: userID,
+		}
+		if err := bus.Dispatch(c, standing); err != nil {
+			return c.Failure(err)
+		}
+		return c.Ok(standing.Result)
+	}
+}
+
+// SearchUserContent searches through a user's content
+func SearchUserContent() web.HandlerFunc {
+	return func(c *web.Context) error {
+		userID, err := c.ParamAsInt("userID")
+		if err != nil {
+			return c.NotFound()
+		}
+
+		// Regular users can only search their own content, admins can search any content
+		isPrivileged := c.User().Role == enum.RoleAdministrator || c.User().Role == enum.RoleCollaborator || c.User().Role == enum.RoleModerator
+		if !isPrivileged && c.User().ID != userID {
+			return c.NotFound()
+		}
+
+		search := &query.SearchUserContent{
+			UserID: userID,
+			Query:  c.QueryParam("q"),
+		}
+		if err := bus.Dispatch(c, search); err != nil {
+			return c.Failure(err)
+		}
+		return c.Ok(search.Result)
 	}
 }

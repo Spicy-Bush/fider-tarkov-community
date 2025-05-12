@@ -2,8 +2,9 @@ import "@fider/assets/styles/index.scss"
 
 import React, { Suspense } from "react"
 import { createRoot } from "react-dom/client"
-import { ErrorBoundary, Loader, ReadOnlyNotice, DevBanner } from "@fider/components"
+import { ErrorBoundary, Loader, ReadOnlyNotice, DevBanner, WarningBanner } from "@fider/components"
 import { classSet, Fider, FiderContext, actions, activateI18N } from "@fider/services"
+import { UserStandingProvider } from "@fider/contexts/UserStandingContext"
 
 import { I18n } from "@lingui/core"
 import { I18nProvider } from "@lingui/react"
@@ -43,6 +44,7 @@ const bootstrapApp = (i18n: I18n) => {
     "is-authenticated": fider.session.isAuthenticated,
     "is-staff": fider.session.isAuthenticated && fider.session.user.isCollaborator,
     "is-moderator": fider.session.isAuthenticated && fider.session.user.isModerator,
+    "is-helper": fider.session.isAuthenticated && fider.session.user.isHelper,
   })
 
   const rootElement = document.getElementById("root")
@@ -53,13 +55,16 @@ const bootstrapApp = (i18n: I18n) => {
         <ErrorBoundary onError={logProductionError}>
           <I18nProvider i18n={i18n}>
             <FiderContext.Provider value={fider}>
-              <DevBanner />
-              <ReadOnlyNotice />
-              <Suspense fallback={<Loading />}>
-              {React.createElement(component, fider.session.props)}
-            </Suspense>
-            <Footer />
-          </FiderContext.Provider>
+              <UserStandingProvider>
+                <DevBanner />
+                <WarningBanner />
+                <ReadOnlyNotice />
+                <Suspense fallback={<Loading />}>
+                  {React.createElement(component, fider.session.props)}
+                </Suspense>
+                <Footer />
+              </UserStandingProvider>
+            </FiderContext.Provider>
           </I18nProvider>
         </ErrorBoundary>
       </React.StrictMode>

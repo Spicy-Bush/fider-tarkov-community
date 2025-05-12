@@ -170,7 +170,7 @@ func (input *UpdatePost) IsAuthorized(ctx context.Context, user *entity.User) bo
 
 	// If user is moderator, they can only edit posts from regular users
 	if user.IsModerator() {
-		return input.Post.User.Role == enum.RoleVisitor
+		return input.Post.User.Role == enum.RoleVisitor || input.Post.User.Role == enum.RoleHelper
 	}
 
 	// Regular users can only edit their own posts within 1 hour
@@ -421,7 +421,7 @@ func (action *DeletePost) IsAuthorized(ctx context.Context, user *entity.User) b
 
 	// If user is moderator, they can only delete posts from regular users
 	if user.IsModerator() {
-		return action.Post.User.Role == enum.RoleVisitor
+		return action.Post.User.Role == enum.RoleVisitor || action.Post.User.Role == enum.RoleHelper
 	}
 
 	return false
@@ -477,7 +477,7 @@ func (action *EditComment) IsAuthorized(ctx context.Context, user *entity.User) 
 
 	// If user is moderator, they can only edit comments from regular users
 	if user.IsModerator() {
-		return action.Comment.User.Role == enum.RoleVisitor
+		return action.Comment.User.Role == enum.RoleVisitor || action.Comment.User.Role == enum.RoleHelper
 	}
 
 	// Regular users can only edit their own comments
@@ -543,7 +543,7 @@ func (action *DeleteComment) IsAuthorized(ctx context.Context, user *entity.User
 
 	// If user is moderator, they can only delete comments from regular users
 	if user.IsModerator() {
-		return commentByID.Result.User.Role == enum.RoleVisitor
+		return commentByID.Result.User.Role == enum.RoleVisitor || commentByID.Result.User.Role == enum.RoleHelper
 	}
 
 	// Regular users can only delete their own comments

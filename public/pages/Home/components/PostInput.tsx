@@ -8,6 +8,7 @@ import { useFider } from "@fider/hooks"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
 import "./PostInput.scss"
+import { useUserStanding } from "@fider/contexts/UserStandingContext"
 
 interface PostInputProps {
   placeholder: string
@@ -20,6 +21,7 @@ const CACHE_DESCRIPTION_KEY = "PostInput-Description"
 
 export const PostInput = (props: PostInputProps) => {
   const fider = useFider()
+  const { isMuted, muteReason } = useUserStanding()
   const titleRef = useRef<HTMLInputElement>()
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   
@@ -60,6 +62,7 @@ export const PostInput = (props: PostInputProps) => {
   } = settings
   
   const isPostingDisabled = !fider.session.isAuthenticated || 
+    isMuted ||
     (fider.session.user?.role !== "administrator" && 
      (postingGloballyDisabled || 
       settings.postingDisabledFor?.includes(fider.session.user?.role || "") || 
@@ -91,7 +94,7 @@ export const PostInput = (props: PostInputProps) => {
       if (intervalId) clearInterval(intervalId);
     };
   }, [isPendingSubmission, remainingSeconds]);
-
+  
   const handleTitleFocus = () => {
     if (!fider.session.isAuthenticated && titleRef.current) {
       titleRef.current.blur()
@@ -176,121 +179,131 @@ export const PostInput = (props: PostInputProps) => {
       <Form error={error}>
         {isPostingDisabled && fider.session.isAuthenticated && (
           <div className="c-message c-message--warning">
-            <Trans id="home.postinput.disabled">
-              Posting has been disabled by the administrators.
-            </Trans>
+            {isMuted ? (
+              <Trans id="home.postinput.muted">
+                You are currently muted. Reason: {muteReason}
+              </Trans>
+            ) : (
+              <Trans id="home.postinput.disabled">
+                Posting has been disabled by the administrators.
+              </Trans>
+            )}
           </div>
         )}
-        <div className="relative">
-          <Input
-            field="title"
-            disabled={fider.isReadOnly || isPostingDisabled}
-            noTabFocus={!fider.session.isAuthenticated}
-            inputRef={titleRef}
-            onFocus={handleTitleFocus}
-            maxLength={titleLengthMax}
-            value={title}
-            onChange={handleTitleChange}
-            placeholder={props.placeholder}
-          />
-          {titleValidation.showMinCounter && (
-            <div className="c-input-counter c-input-counter--min">
-              {titleLengthMin - title.length}
-            </div>
-          )}
-          {titleValidation.showMaxCounter && (
-            <div className={`c-input-counter c-input-counter--max ${titleValidation.isOverMax ? 'c-input-counter--error' : ''}`}>
-              {titleLengthMax - title.length}
-            </div>
-          )}
-        </div>
-        {title && (
+        {!isPostingDisabled && (
           <>
             <div className="relative">
-              <TextArea
-                field="description"
-                onChange={handleDescriptionChange}
-                value={description}
-                minRows={5}
-                disabled={isPostingDisabled}
-                placeholder={i18n._("home.postinput.description.placeholder", { message: "Describe your suggestion..." })}
+              <Input
+                field="title"
+                disabled={fider.isReadOnly || isPostingDisabled}
+                noTabFocus={!fider.session.isAuthenticated}
+                inputRef={titleRef}
+                onFocus={handleTitleFocus}
+                maxLength={titleLengthMax}
+                value={title}
+                onChange={handleTitleChange}
+                placeholder={props.placeholder}
               />
-              {descValidation.showMinCounter && (
+              {titleValidation.showMinCounter && (
                 <div className="c-input-counter c-input-counter--min">
-                  {descriptionLengthMin - description.length}
+                  {titleLengthMin - title.length}
                 </div>
               )}
-              {descValidation.showMaxCounter && (
-                <div className={`c-input-counter c-input-counter--max ${descValidation.isOverMax ? 'c-input-counter--error' : ''}`}>
-                  {descriptionLengthMax - description.length}
+              {titleValidation.showMaxCounter && (
+                <div className={`c-input-counter c-input-counter--max ${titleValidation.isOverMax ? 'c-input-counter--error' : ''}`}>
+                  {titleLengthMax - title.length}
                 </div>
               )}
             </div>
-            <MultiImageUploader field="attachments" maxUploads={maxImagesPerPost} onChange={setAttachments} />
-            
-            {isPendingSubmission ? (
-              <div className="c-pending-submission">
-                <div className="send-now-button-wrapper">
-                  <Button 
-                    type="button"
-                    variant="secondary"
-                    onClick={submitNow}
-                  >
-                    <Trans id="action.sendnow">Send Now</Trans>
-                  </Button>
-                  
-                  <Button 
-                    type="button"
-                    variant="danger"
-                    onClick={cancelSubmission}
-                  >
-                    <Trans id="action.cancel">Cancel</Trans>
-                  </Button>
+            {title && (
+              <>
+                <div className="relative">
+                  <TextArea
+                    field="description"
+                    onChange={handleDescriptionChange}
+                    value={description}
+                    minRows={5}
+                    disabled={isPostingDisabled}
+                    placeholder={i18n._("home.postinput.description.placeholder", { message: "Describe your suggestion..." })}
+                  />
+                  {descValidation.showMinCounter && (
+                    <div className="c-input-counter c-input-counter--min">
+                      {descriptionLengthMin - description.length}
+                    </div>
+                  )}
+                  {descValidation.showMaxCounter && (
+                    <div className={`c-input-counter c-input-counter--max ${descValidation.isOverMax ? 'c-input-counter--error' : ''}`}>
+                      {descriptionLengthMax - description.length}
+                    </div>
+                  )}
                 </div>
+                <MultiImageUploader field="attachments" maxUploads={maxImagesPerPost} onChange={setAttachments} />
                 
-                <div className="countdown-button-wrapper">
-                  <div className="countdown-display">
-                    <div className="countdown-spinner">
-                      <svg width="12" height="12" viewBox="0 0 24 24">
-                        <circle 
-                          cx="12" 
-                          cy="12" 
-                          r="10" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          strokeWidth="4" 
-                          strokeDasharray={Math.PI * 2 * 10}
-                          strokeDashoffset={(Math.PI * 2 * 10) * (1 - progressPercentage / 100)}
-                          transform="rotate(-90 12 12)"
-                        />
-                      </svg>
+                {isPendingSubmission ? (
+                  <div className="c-pending-submission">
+                    <div className="send-now-button-wrapper">
+                      <Button 
+                        type="button"
+                        variant="secondary"
+                        onClick={submitNow}
+                      >
+                        <Trans id="action.sendnow">Send Now</Trans>
+                      </Button>
+                      
+                      <Button 
+                        type="button"
+                        variant="danger"
+                        onClick={cancelSubmission}
+                      >
+                        <Trans id="action.cancel">Cancel</Trans>
+                      </Button>
                     </div>
                     
-                    <span className="countdown-text">
-                      <Trans id="action.submitting">Submitting in {remainingSeconds}s...</Trans>
-                    </span>
+                    <div className="countdown-button-wrapper">
+                      <div className="countdown-display">
+                        <div className="countdown-spinner">
+                          <svg width="12" height="12" viewBox="0 0 24 24">
+                            <circle 
+                              cx="12" 
+                              cy="12" 
+                              r="10" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              strokeWidth="4" 
+                              strokeDasharray={Math.PI * 2 * 10}
+                              strokeDashoffset={(Math.PI * 2 * 10) * (1 - progressPercentage / 100)}
+                              transform="rotate(-90 12 12)"
+                            />
+                          </svg>
+                        </div>
+                        
+                        <span className="countdown-text">
+                          <Trans id="action.submitting">Submitting in {remainingSeconds}s...</Trans>
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ) : (
-              <div className="c-post-actions">
-                <Button 
-                  type="submit" 
-                  variant="primary" 
-                  disabled={isSubmitDisabled} 
-                  onClick={submit}
-                >
-                  <Trans id="action.submit">Submit</Trans>
-                </Button>
-                <Button 
-                  type="button"
-                  variant="secondary"
-                  disabled={isSubmitDisabled} 
-                  onClick={showPreview}
-                >
-                  <Trans id="action.preview">Preview</Trans>
-                </Button>
-              </div>
+                ) : (
+                  <div className="c-post-actions">
+                    <Button 
+                      type="submit" 
+                      variant="primary" 
+                      disabled={isSubmitDisabled} 
+                      onClick={submit}
+                    >
+                      <Trans id="action.submit">Submit</Trans>
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="secondary"
+                      disabled={isSubmitDisabled} 
+                      onClick={showPreview}
+                    >
+                      <Trans id="action.preview">Preview</Trans>
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

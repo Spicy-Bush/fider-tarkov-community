@@ -55,7 +55,7 @@ const ContentSettingsPage = () => {
 
   const roles = fider.session.props.roles as string[]
   
-  const canEdit = fider.session.user.isAdministrator || fider.session.user.isCollaborator
+  const canEdit = (fider.session.user.isAdministrator || fider.session.user.isCollaborator)
 
   const handleSave = async (e: ButtonClickEvent) => {
     const result = await actions.updateGeneralSettings({ settings })
@@ -292,7 +292,7 @@ const ContentSettingsPage = () => {
                       min={1}
                       max={720}
                       value={(settings.postLimits?.[role]?.hours || 24).toString()}
-                      disabled={!fider.session.user.isAdministrator || !(settings.postLimits?.[role]?.count > 0)}
+                      disabled={!canEdit || !(settings.postLimits?.[role]?.count > 0)}
                       onChange={(value) => updatePostLimit(role, 'hours', parseInt(value))}
                     />
                   </div>
@@ -369,7 +369,7 @@ const ContentSettingsPage = () => {
                       min={1}
                       max={720}
                       value={(settings.commentLimits?.[role]?.hours || 24).toString()}
-                      disabled={!fider.session.user.isAdministrator || !(settings.commentLimits?.[role]?.count > 0)}
+                      disabled={!canEdit || !(settings.commentLimits?.[role]?.count > 0)}
                       onChange={(value) => updateCommentLimit(role, 'hours', parseInt(value))}
                     />
                   </div>

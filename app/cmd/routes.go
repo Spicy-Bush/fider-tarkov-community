@@ -56,8 +56,6 @@ func routes(r *web.Engine) *web.Engine {
 	r.Use(middlewares.User())
 	r.Use(middlewares.FilterContext())
 
-	r.Get("/privacy", handlers.LegalPage("Privacy Policy", "privacy.md"))
-
 	if env.IsBillingEnabled() {
 		wh := r.Group()
 		{
@@ -68,6 +66,7 @@ func routes(r *web.Engine) *web.Engine {
 	r.Use(middlewares.CSRF())
 
 	r.Get("/terms", handlers.LegalPage("Terms of Service", "terms.md"))
+	r.Get("/privacy", handlers.LegalPage("Privacy Policy", "privacy.md"))
 
 	r.Post("/_api/tenants", handlers.CreateTenant())
 	r.Get("/_api/tenants/:subdomain/availability", handlers.CheckAvailability())
@@ -94,7 +93,6 @@ func routes(r *web.Engine) *web.Engine {
 		})
 	}
 
-	r.Get("/_design", handlers.Page("Design System", "A preview of Fider UI elements", "DesignSystem/DesignSystem.page"))
 	r.Get("/signup/verify", handlers.VerifySignUpKey())
 	r.Get("/signout", handlers.SignOut())
 	r.Get("/oauth/:provider/token", handlers.OAuthToken())
@@ -117,76 +115,6 @@ func routes(r *web.Engine) *web.Engine {
 	r.Get("/posts/:number", handlers.PostDetails())
 	r.Get("/posts/:number/:slug", handlers.PostDetails())
 
-	ui := r.Group()
-	{
-		// From this step, a User is required
-		ui.Use(middlewares.IsAuthenticated())
-
-		ui.Get("/settings", handlers.UserSettings())
-		ui.Get("/notifications", handlers.Notifications())
-		ui.Get("/notifications/:id", handlers.ReadNotification())
-		ui.Get("/_api/notifications", handlers.GetAllNotifications())
-		ui.Get("/change-email/verify", handlers.VerifyChangeEmailKey())
-
-		ui.Delete("/_api/user", handlers.DeleteUser())
-		ui.Post("/_api/user/regenerate-apikey", handlers.RegenerateAPIKey())
-		ui.Post("/_api/user/settings", handlers.UpdateUserSettings())
-		ui.Post("/_api/user/change-email", handlers.ChangeUserEmail())
-		ui.Post("/_api/notifications/purge-read", handlers.PurgeReadNotifications())
-		ui.Post("/_api/notifications/read-all", handlers.ReadAllNotifications())
-		ui.Get("/_api/notifications/unread/total", handlers.TotalUnreadNotifications())
-
-		// From this step, only Collaborators and Administrators are allowed
-		ui.Use(middlewares.IsAuthorized(enum.RoleCollaborator, enum.RoleAdministrator))
-
-		// locale is forced to English for administrative pages.
-		// This is meant to be removed when all pages are translated.
-		ui.Use(middlewares.SetLocale("en"))
-
-		ui.Get("/admin", handlers.GeneralSettingsPage())
-		ui.Get("/admin/advanced", handlers.AdvancedSettingsPage())
-		ui.Get("/admin/privacy", handlers.Page("Privacy · Site Settings", "", "Administration/pages/PrivacySettings.page"))
-		ui.Get("/admin/invitations", handlers.Page("Invitations · Site Settings", "", "Administration/pages/Invitations.page"))
-		ui.Get("/admin/members", handlers.ManageMembers())
-		ui.Get("/admin/tags", handlers.ManageTags())
-		ui.Get("/admin/authentication", handlers.ManageAuthentication())
-		ui.Get("/admin/content-settings", handlers.ContentSettingsPage())
-		ui.Get("/_api/admin/oauth/:provider", handlers.GetOAuthConfig())
-		ui.Post("/_api/admin/settings/general-settings", handlers.UpdateGeneralSettings())
-		ui.Post("/_api/admin/settings/message-banner", handlers.UpdateMessageBanner())
-
-		// From this step, only Administrators are allowed
-		ui.Use(middlewares.IsAuthorized(enum.RoleAdministrator))
-
-		ui.Get("/admin/export", handlers.Page("Export · Site Settings", "", "Administration/pages/Export.page"))
-		ui.Get("/admin/export/posts.csv", handlers.ExportPostsToCSV())
-		ui.Get("/admin/files", handlers.FileManagementPage())
-		ui.Get("/admin/export/backup.zip", handlers.ExportBackupZip())
-		ui.Get("/admin/webhooks", handlers.ManageWebhooks())
-		ui.Post("/_api/admin/webhook", handlers.CreateWebhook())
-		ui.Put("/_api/admin/webhook/:id", handlers.UpdateWebhook())
-		ui.Delete("/_api/admin/webhook/:id", handlers.DeleteWebhook())
-		ui.Get("/_api/admin/webhook/test/:id", handlers.TestWebhook())
-		ui.Post("/_api/admin/webhook/preview", handlers.PreviewWebhook())
-		ui.Get("/_api/admin/webhook/props/:type", handlers.GetWebhookProps())
-		ui.Post("/_api/admin/settings/general", handlers.UpdateSettings())
-		ui.Post("/_api/admin/settings/advanced", handlers.UpdateAdvancedSettings())
-		ui.Post("/_api/admin/settings/privacy", handlers.UpdatePrivacy())
-		ui.Post("/_api/admin/settings/emailauth", handlers.UpdateEmailAuthAllowed())
-		ui.Post("/_api/admin/oauth", handlers.SaveOAuthConfig())
-		ui.Post("/_api/admin/roles/:role/users", handlers.ChangeUserRole())
-		ui.Post("/_api/admin/visualroles/:visualRole/users", handlers.ChangeUserVisualRole())
-		ui.Put("/_api/admin/users/:userID/block", handlers.BlockUser())
-		ui.Delete("/_api/admin/users/:userID/block", handlers.UnblockUser())
-		ui.Post("/_api/admin/settings/profanity", handlers.UpdateProfanityWords())
-
-		if env.IsBillingEnabled() {
-			ui.Get("/admin/billing", handlers.ManageBilling())
-			ui.Post("/_api/billing/checkout-link", handlers.GenerateCheckoutLink())
-		}
-	}
-
-	// Public operations
 	// Does not require authentication
 	publicApi := r.Group()
 	{
@@ -197,74 +125,185 @@ func routes(r *web.Engine) *web.Engine {
 		publicApi.Get("/api/v1/posts/:number/comments/:id", apiv1.GetComment())
 	}
 
-	// Operations used to manage the content of a site
 	// Available to any authenticated user
 	membersApi := r.Group()
 	{
 		membersApi.Use(middlewares.IsAuthenticated())
-		membersApi.Use(middlewares.BlockLockedTenants())
 
+		// user settings
+		membersApi.Get("/profile", handlers.UserProfile())
+		membersApi.Post("/_api/user/name", handlers.UpdateUserName())
+		membersApi.Post("/_api/user/avatar", handlers.UpdateUserAvatar())
+		membersApi.Post("/_api/user/settings", handlers.UpdateUserSettings())
+		membersApi.Get("/change-email/verify", handlers.VerifyChangeEmailKey())
+		membersApi.Post("/_api/user/regenerate-apikey", handlers.RegenerateAPIKey())
+		membersApi.Post("/_api/user/change-email", handlers.ChangeUserEmail())
+		membersApi.Delete("/_api/user", handlers.DeleteUser())
+		membersApi.Get("/api/v1/user/profile/:userID/content/search", apiv1.SearchUserContent()) // 'Visitors' users can only search their own content
+		membersApi.Get("/api/v1/user/profile/:userID/stats", apiv1.GetUserProfileStats())        // 'Visitors' users can only view their own stats
+		membersApi.Get("/api/v1/user/profile/:userID/standing", apiv1.GetUserProfileStanding())  // 'Visitors' users can only view their own standing
+
+		// notifications
+		membersApi.Get("/notifications", handlers.Notifications())
+		membersApi.Get("/notifications/:id", handlers.ReadNotification())
+		membersApi.Get("/_api/notifications", handlers.GetAllNotifications())
+		membersApi.Get("/_api/notifications/unread/total", handlers.TotalUnreadNotifications())
+		membersApi.Post("/_api/notifications/purge-read", handlers.PurgeReadNotifications())
+		membersApi.Post("/_api/notifications/read-all", handlers.ReadAllNotifications())
+
+		// posting
 		membersApi.Post("/api/v1/posts", apiv1.CreatePost())
 		membersApi.Put("/api/v1/posts/:number", apiv1.UpdatePost())
-		membersApi.Post("/api/v1/posts/:number/comments/:id/reactions/:reaction", apiv1.ToggleReaction())
+
+		// comments
 		membersApi.Post("/api/v1/posts/:number/comments", apiv1.PostComment())
 		membersApi.Put("/api/v1/posts/:number/comments/:id", apiv1.UpdateComment())
 		membersApi.Delete("/api/v1/posts/:number/comments/:id", apiv1.DeleteComment())
+		membersApi.Post("/api/v1/posts/:number/comments/:id/reactions/:reaction", apiv1.ToggleReaction())
 		membersApi.Get("/api/v1/taggable-users", apiv1.ListTaggableUsers())
+
+		// voting
 		membersApi.Post("/api/v1/posts/:number/up", apiv1.AddVote())
 		membersApi.Post("/api/v1/posts/:number/down", apiv1.AddDownVote())
 		membersApi.Delete("/api/v1/posts/:number/votes", apiv1.RemoveVote())
 		membersApi.Post("/api/v1/posts/:number/votes/toggle", apiv1.ToggleVote())
 		membersApi.Post("/api/v1/posts/:number/subscription", apiv1.Subscribe())
 		membersApi.Delete("/api/v1/posts/:number/subscription", apiv1.Unsubscribe())
-
-		membersApi.Use(middlewares.IsAuthorized(enum.RoleCollaborator, enum.RoleAdministrator, enum.RoleModerator))
-		membersApi.Put("/api/v1/posts/:number/status", apiv1.SetResponse())
 	}
 
-	// Operations used to manage a site
-	// Available to both collaborators and administrators
-	staffApi := r.Group()
+	helper := r.Group()
 	{
-		staffApi.Use(middlewares.SetLocale("en"))
-		staffApi.Use(middlewares.IsAuthenticated())
-		staffApi.Use(middlewares.IsAuthorized(enum.RoleCollaborator, enum.RoleAdministrator, enum.RoleModerator))
+		helper.Use(middlewares.IsAuthenticated())
+		helper.Use(middlewares.IsAuthorized(enum.RoleHelper, enum.RoleCollaborator, enum.RoleAdministrator, enum.RoleModerator))
 
-		staffApi.Get("/api/v1/users", apiv1.ListUsers())
-		staffApi.Get("/api/v1/posts/:number/votes", apiv1.ListVotes())
-
-		staffApi.Use(middlewares.BlockLockedTenants())
-		staffApi.Post("/api/v1/posts/:number/tags/:slug", apiv1.AssignTag())
-		staffApi.Delete("/api/v1/posts/:number/tags/:slug", apiv1.UnassignTag())
-		staffApi.Delete("/api/v1/posts/:number", apiv1.DeletePost())
-		staffApi.Put("/api/v1/posts/:number/lock", apiv1.LockOrUnlockPost())
-		staffApi.Delete("/api/v1/posts/:number/lock", apiv1.LockOrUnlockPost())
+		// tags
+		helper.Post("/api/v1/posts/:number/tags/:slug", apiv1.AssignTag())
+		helper.Delete("/api/v1/posts/:number/tags/:slug", apiv1.UnassignTag())
 	}
 
-	// Operations used to manage a site
+	// Available to both collaborators, administrators and moderators
+	staff := r.Group()
+	{
+		staff.Use(middlewares.IsAuthenticated())
+		staff.Use(middlewares.IsAuthorized(enum.RoleCollaborator, enum.RoleAdministrator, enum.RoleModerator))
+		staff.Use(middlewares.BlockLockedTenants())
+
+		// user profiles
+		staff.Get("/profile/:id", handlers.ViewUserProfile())
+		staff.Post("/_api/users/:userID/name", handlers.UpdateUserName())
+		staff.Post("/_api/users/:userID/avatar", handlers.UpdateUserAvatar())
+
+		// user moderation
+		staff.Post("/_api/admin/users/:userID/mute", handlers.MuteUser())
+		staff.Post("/_api/admin/users/:userID/warn", handlers.WarnUser())
+		staff.Get("/api/v1/responses/:type", apiv1.ListCannedResponses())
+		staff.Get("/admin/members", handlers.ManageMembers())
+		staff.Get("/api/v1/users", apiv1.ListUsers())
+
+		// posts
+		staff.Get("/api/v1/posts/:number/votes", apiv1.ListVotes())
+		staff.Delete("/api/v1/posts/:number", apiv1.DeletePost())
+	}
+
+	// Operations available only to collaborators and administrators
+	collabAdmin := r.Group()
+	{
+		collabAdmin.Use(middlewares.SetLocale("en"))
+		collabAdmin.Use(middlewares.IsAuthenticated())
+		collabAdmin.Use(middlewares.IsAuthorized(enum.RoleCollaborator, enum.RoleAdministrator))
+
+		// admin pages
+		collabAdmin.Get("/admin", handlers.GeneralSettingsPage())
+
+		collabAdmin.Get("/admin/content-settings", handlers.ContentSettingsPage())
+		collabAdmin.Post("/_api/admin/settings/content-settings", handlers.UpdateContentSettings())
+
+		collabAdmin.Post("/_api/admin/settings/message-banner", handlers.UpdateMessageBanner())
+
+		collabAdmin.Get("/admin/responses", handlers.ManageCannedResponses())
+		collabAdmin.Post("/api/v1/responses", apiv1.CreateCannedResponse())
+		collabAdmin.Put("/api/v1/responses/:id", apiv1.UpdateCannedResponse())
+		collabAdmin.Delete("/api/v1/responses/:id", apiv1.DeleteCannedResponse())
+
+		collabAdmin.Get("/admin/tags", handlers.ManageTags())
+		collabAdmin.Post("/api/v1/tags", apiv1.CreateEditTag())
+		collabAdmin.Put("/api/v1/tags/:slug", apiv1.CreateEditTag())
+		collabAdmin.Delete("/api/v1/tags/:slug", apiv1.DeleteTag())
+
+		collabAdmin.Get("/admin/webhooks", handlers.ManageWebhooks())
+		collabAdmin.Post("/_api/admin/webhook", handlers.CreateWebhook())
+		collabAdmin.Put("/_api/admin/webhook/:id", handlers.UpdateWebhook())
+		collabAdmin.Delete("/_api/admin/webhook/:id", handlers.DeleteWebhook())
+		collabAdmin.Get("/_api/admin/webhook/test/:id", handlers.TestWebhook())
+		collabAdmin.Post("/_api/admin/webhook/preview", handlers.PreviewWebhook())
+		collabAdmin.Get("/_api/admin/webhook/props/:type", handlers.GetWebhookProps())
+
+		// user moderation
+		collabAdmin.Post("/_api/admin/visualroles/:visualRole/users", handlers.ChangeUserVisualRole())
+
+		collabAdmin.Put("/_api/admin/users/:userID/block", handlers.BlockUser())
+		collabAdmin.Delete("/_api/admin/users/:userID/block", handlers.UnblockUser())
+
+		collabAdmin.Delete("/_api/admin/users/:userID/warnings/:warningID", handlers.DeleteWarning())
+		collabAdmin.Delete("/_api/admin/users/:userID/mutes/:muteID", handlers.DeleteMute())
+
+		collabAdmin.Put("/api/v1/posts/:number/lock", apiv1.LockOrUnlockPost())
+		collabAdmin.Delete("/api/v1/posts/:number/lock", apiv1.LockOrUnlockPost())
+
+		// posts
+		collabAdmin.Put("/api/v1/posts/:number/status", apiv1.SetResponse())
+	}
+
 	// Only available to administrators
-	adminApi := r.Group()
+	adminOnly := r.Group()
 	{
-		adminApi.Use(middlewares.SetLocale("en"))
-		adminApi.Use(middlewares.IsAuthenticated())
-		adminApi.Use(middlewares.IsAuthorized(enum.RoleAdministrator))
+		adminOnly.Use(middlewares.SetLocale("en"))
+		adminOnly.Use(middlewares.IsAuthenticated())
+		adminOnly.Use(middlewares.IsAuthorized(enum.RoleAdministrator))
+		adminOnly.Use(middlewares.BlockLockedTenants())
 
-		adminApi.Post("/api/v1/invitations/send", apiv1.SendInvites())
-		adminApi.Post("/api/v1/invitations/sample", apiv1.SendSampleInvite())
+		// admin pages
+		adminOnly.Post("/_api/admin/settings/general", handlers.UpdateSettings()) // General Page
 
-		adminApi.Post("/api/v1/users", apiv1.CreateUser())
-		adminApi.Post("/api/v1/tags", apiv1.CreateEditTag())
-		adminApi.Put("/api/v1/tags/:slug", apiv1.CreateEditTag())
-		adminApi.Delete("/api/v1/tags/:slug", apiv1.DeleteTag())
+		adminOnly.Get("/admin/privacy", handlers.Page("Privacy · Site Settings", "", "Administration/pages/PrivacySettings.page"))
+		adminOnly.Post("/_api/admin/settings/privacy", handlers.UpdatePrivacy())
 
-		adminApi.Get("/api/v1/admin/files", handlers.ListFiles())
-		adminApi.Post("/api/v1/admin/files", handlers.UploadFile())
-		adminApi.Put("/api/v1/admin/files/:blobKey/*path", handlers.RenameFile())
-		adminApi.Delete("/api/v1/admin/files/:blobKey/*path", handlers.DeleteFile())
-		adminApi.Get("/api/v1/admin/files/:blobKey/usage/*path", handlers.GetFileUsage())
+		adminOnly.Get("/admin/advanced", handlers.AdvancedSettingsPage())
+		adminOnly.Post("/_api/admin/settings/advanced", handlers.UpdateAdvancedSettings())
+		adminOnly.Post("/_api/admin/settings/profanity", handlers.UpdateProfanityWords())
 
-		adminApi.Use(middlewares.BlockLockedTenants())
+		adminOnly.Get("/admin/invitations", handlers.Page("Invitations · Site Settings", "", "Administration/pages/Invitations.page"))
+		adminOnly.Post("/api/v1/invitations/send", apiv1.SendInvites())
+		adminOnly.Post("/api/v1/invitations/sample", apiv1.SendSampleInvite())
 
+		adminOnly.Get("/admin/authentication", handlers.ManageAuthentication())
+		adminOnly.Post("/_api/admin/oauth", handlers.SaveOAuthConfig())
+		adminOnly.Get("/_api/admin/oauth/:provider", handlers.GetOAuthConfig())
+		adminOnly.Post("/_api/admin/settings/emailauth", handlers.UpdateEmailAuthAllowed())
+
+		if env.IsBillingEnabled() {
+			adminOnly.Get("/admin/billing", handlers.ManageBilling())
+			adminOnly.Post("/_api/billing/checkout-link", handlers.GenerateCheckoutLink())
+		}
+
+		adminOnly.Get("/admin/files", handlers.FileManagementPage())
+		adminOnly.Get("/api/v1/admin/files", handlers.ListFiles())
+		adminOnly.Post("/api/v1/admin/files", handlers.UploadFile())
+		adminOnly.Put("/api/v1/admin/files/:blobKey/*path", handlers.RenameFile())
+		adminOnly.Delete("/api/v1/admin/files/:blobKey/*path", handlers.DeleteFile())
+		adminOnly.Get("/api/v1/admin/files/:blobKey/usage/*path", handlers.GetFileUsage())
+
+		// user management
+		adminOnly.Post("/api/v1/users", apiv1.CreateUser())
+		adminOnly.Post("/_api/admin/roles/:role/users", handlers.ChangeUserRole())
+
+		// export
+		adminOnly.Get("/admin/export", handlers.Page("Export · Site Settings", "", "Administration/pages/Export.page"))
+		adminOnly.Get("/admin/export/posts.csv", handlers.ExportPostsToCSV())
+		adminOnly.Get("/admin/export/backup.zip", handlers.ExportBackupZip())
+
+		// dev
+		adminOnly.Get("/_design", handlers.Page("Design System", "A preview of Fider UI elements", "DesignSystem/DesignSystem.page"))
 	}
 
 	return r

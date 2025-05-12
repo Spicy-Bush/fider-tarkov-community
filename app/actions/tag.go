@@ -28,7 +28,7 @@ type CreateEditTag struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *CreateEditTag) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
 }
 
 // Validate if current model is valid
@@ -78,7 +78,7 @@ type DeleteTag struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *DeleteTag) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
 }
 
 // Validate if current model is valid
@@ -104,7 +104,7 @@ type AssignUnassignTag struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *AssignUnassignTag) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsCollaborator() || user.IsModerator())
+	return user != nil && (user.IsCollaborator() || user.IsModerator() || user.IsHelper())
 }
 
 // Validate if current model is valid
@@ -117,5 +117,10 @@ func (action *AssignUnassignTag) Validate(ctx context.Context, user *entity.User
 
 	action.Post = getPost.Result
 	action.Tag = getSlug.Result
+
+	if user.IsHelper() && !action.Tag.IsPublic {
+		return validate.Error(errors.New("You are not authorized."))
+	}
+
 	return validate.Success()
 }

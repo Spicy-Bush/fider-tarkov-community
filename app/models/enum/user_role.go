@@ -12,6 +12,8 @@ const (
 	RoleAdministrator Role = 3
 	//RoleModerator has access to moderate content
 	RoleModerator Role = 4
+	//RoleHelper has access to a limited set of permissions
+	RoleHelper Role = 5
 )
 
 var roleIDs = map[Role]string{
@@ -19,6 +21,7 @@ var roleIDs = map[Role]string{
 	RoleCollaborator:  "collaborator",
 	RoleAdministrator: "administrator",
 	RoleModerator:     "moderator",
+	RoleHelper:        "helper",
 }
 
 var roleNames = map[string]Role{
@@ -26,6 +29,7 @@ var roleNames = map[string]Role{
 	"collaborator":  RoleCollaborator,
 	"administrator": RoleAdministrator,
 	"moderator":     RoleModerator,
+	"helper":        RoleHelper,
 }
 
 // String returns the string version of the user role

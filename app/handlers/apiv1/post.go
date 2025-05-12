@@ -3,6 +3,7 @@ package apiv1
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/metrics"
@@ -16,6 +17,38 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/tasks"
 )
+
+func isUserMuted(ctx *web.Context) (bool, error) {
+	standing := &query.GetUserProfileStanding{
+		UserID: ctx.User().ID,
+		Result: struct {
+			Warnings []struct {
+				ID        int        `json:"id"`
+				Reason    string     `json:"reason"`
+				CreatedAt time.Time  `json:"createdAt"`
+				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+			} `json:"warnings"`
+			Mutes []struct {
+				ID        int        `json:"id"`
+				Reason    string     `json:"reason"`
+				CreatedAt time.Time  `json:"createdAt"`
+				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+			} `json:"mutes"`
+		}{},
+	}
+	err := bus.Dispatch(ctx, standing)
+	if err != nil {
+		return false, err
+	}
+
+	now := time.Now()
+	for _, mute := range standing.Result.Mutes {
+		if mute.ExpiresAt == nil || mute.ExpiresAt.After(now) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
 
 // SearchPosts return existing posts based on search criteria
 func SearchPosts() web.HandlerFunc {
@@ -115,6 +148,16 @@ func SearchPosts() web.HandlerFunc {
 // CreatePost creates a new post on current tenant
 func CreatePost() web.HandlerFunc {
 	return func(c *web.Context) error {
+		isMuted, err := isUserMuted(c)
+		if err != nil {
+			return c.Failure(err)
+		}
+		if isMuted {
+			return c.BadRequest(web.Map{
+				"message": "You are currently muted and cannot create new posts.",
+			})
+		}
+
 		action := new(actions.CreateNewPost)
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
@@ -128,7 +171,7 @@ func CreatePost() web.HandlerFunc {
 			Title:       action.Title,
 			Description: action.Description,
 		}
-		err := bus.Dispatch(c, newPost)
+		err = bus.Dispatch(c, newPost)
 		if err != nil {
 			return c.Failure(err)
 		}
@@ -140,8 +183,12 @@ func CreatePost() web.HandlerFunc {
 		}
 
 		if env.Config.PostCreationWithTagsEnabled {
-			for _, tag := range action.Tags {
-				assignTag := &cmd.AssignTag{Tag: tag, Post: newPost.Result}
+			for _, tagSlug := range action.TagSlugs {
+				getTag := &query.GetTagBySlug{Slug: tagSlug}
+				if err := bus.Dispatch(c, getTag); err != nil {
+					return c.Failure(err)
+				}
+				assignTag := &cmd.AssignTag{Tag: getTag.Result, Post: newPost.Result}
 				if err := bus.Dispatch(c, assignTag); err != nil {
 					return c.Failure(err)
 				}
@@ -266,6 +313,8 @@ func DeletePost() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
+		prevStatus := action.Post.Status
+
 		err := bus.Dispatch(c, &cmd.SetPostResponse{
 			Post:   action.Post,
 			Text:   action.Text,
@@ -275,7 +324,8 @@ func DeletePost() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		c.Enqueue(tasks.NotifyAboutDeletedPost(action.Post, action.Text != ""))
+		c.Enqueue(tasks.NotifyAboutStatusChange(action.Post, prevStatus)) // the status change is because deleted is just a status
+		c.Enqueue(tasks.NotifyAboutDeletedPost(action.Post, len(action.Text) > 0))
 
 		return c.Ok(web.Map{})
 	}
@@ -330,13 +380,19 @@ func GetComment() web.HandlerFunc {
 // ToggleReaction adds or removes a reaction on a comment
 func ToggleReaction() web.HandlerFunc {
 	return func(c *web.Context) error {
+		isMuted, err := isUserMuted(c)
+		if err != nil {
+			return c.Failure(err)
+		}
+		if isMuted {
+			return c.BadRequest(web.Map{
+				"message": "You are currently muted and cannot add reactions.",
+			})
+		}
+
 		action := new(actions.ToggleCommentReaction)
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
-		}
-
-		if err := action.OnPreExecute(c); err != nil {
-			return c.Failure(err)
 		}
 
 		toggleReaction := &cmd.ToggleCommentReaction{
@@ -357,9 +413,23 @@ func ToggleReaction() web.HandlerFunc {
 // PostComment creates a new comment on given post
 func PostComment() web.HandlerFunc {
 	return func(c *web.Context) error {
+		isMuted, err := isUserMuted(c)
+		if err != nil {
+			return c.Failure(err)
+		}
+		if isMuted {
+			return c.BadRequest(web.Map{
+				"message": "You are currently muted and cannot post comments.",
+			})
+		}
+
 		action := new(actions.AddNewComment)
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
+		}
+
+		if err := bus.Dispatch(c, &cmd.UploadImages{Images: action.Attachments, Folder: "attachments"}); err != nil {
+			return c.Failure(err)
 		}
 
 		getPost := &query.GetPostByNumber{Number: action.Number}
@@ -376,22 +446,13 @@ func PostComment() web.HandlerFunc {
 			return c.BadRequest(web.Map{})
 		}
 
-		if err := bus.Dispatch(c, &cmd.UploadImages{Images: action.Attachments, Folder: "attachments"}); err != nil {
-			return c.Failure(err)
-		}
-
 		addNewComment := &cmd.AddNewComment{
-			Post: getPost.Result,
-			Content: entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
-				return fmt.Sprintf(`{"id":%d,"name":"%s"}`, mention.ID, mention.Name)
-			}),
+			Post:    getPost.Result,
+			Content: action.Content,
 		}
 		if err := bus.Dispatch(c, addNewComment); err != nil {
 			return c.Failure(err)
 		}
-
-		// For processing, restore the original content
-		addNewComment.Result.Content = action.Content
 
 		if err := bus.Dispatch(c, &cmd.SetAttachments{
 			Post:        getPost.Result,
@@ -413,6 +474,16 @@ func PostComment() web.HandlerFunc {
 // UpdateComment changes an existing comment with new content
 func UpdateComment() web.HandlerFunc {
 	return func(c *web.Context) error {
+		isMuted, err := isUserMuted(c)
+		if err != nil {
+			return c.Failure(err)
+		}
+		if isMuted {
+			return c.BadRequest(web.Map{
+				"message": "You are currently muted and cannot edit comments.",
+			})
+		}
+
 		action := new(actions.EditComment)
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
@@ -436,7 +507,7 @@ func UpdateComment() web.HandlerFunc {
 			return fmt.Sprintf(`{"id":%d,"name":"%s"}`, mention.ID, mention.Name)
 		})
 
-		err := bus.Dispatch(c,
+		err = bus.Dispatch(c,
 			&cmd.UploadImages{
 				Images: action.Attachments,
 				Folder: "attachments",
@@ -456,8 +527,7 @@ func UpdateComment() web.HandlerFunc {
 		}
 
 		// Update the content
-
-		c.Enqueue(tasks.NotifyAboutUpdatedComment(action.Content, getPost.Result))
+		c.Enqueue(tasks.NotifyAboutUpdatedComment(contentToSave, getPost.Result, action.ID))
 
 		return c.Ok(web.Map{})
 	}

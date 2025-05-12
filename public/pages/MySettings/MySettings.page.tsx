@@ -39,17 +39,32 @@ export default class MySettingsPage extends React.Component<MySettingsPageProps,
   }
 
   private confirm = async () => {
-    const result = await actions.updateUserSettings({
+    const nameResult = await actions.updateUserName({
       name: this.state.name,
+    });
+    if (!nameResult.ok) {
+      this.setState({ error: nameResult.error });
+      return;
+    }
+
+    const avatarResult = await actions.updateUserAvatar({
       avatarType: this.state.avatarType,
       avatar: this.state.avatar,
-      settings: this.state.userSettings,
-    })
-    if (result.ok) {
-      location.reload()
-    } else if (result.error) {
-      this.setState({ error: result.error })
+    });
+    if (!avatarResult.ok) {
+      this.setState({ error: avatarResult.error });
+      return;
     }
+
+    const settingsResult = await actions.updateUserSettings({
+      settings: this.state.userSettings,
+    });
+    if (!settingsResult.ok) {
+      this.setState({ error: settingsResult.error });
+      return;
+    }
+
+    location.reload();
   }
 
   private submitNewEmail = async () => {

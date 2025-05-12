@@ -24,6 +24,8 @@ export const TagListItem = (props: TagListItemProps) => {
   const startEdit = async () => setState("edit")
   const resetState = async () => setState("view")
 
+  const canEdit = (fider.session.user.isAdministrator || fider.session.user.isCollaborator)
+
   const deleteTag = async () => {
     const result = await actions.deleteTag(tag.slug)
     if (result.ok) {
@@ -69,7 +71,7 @@ export const TagListItem = (props: TagListItemProps) => {
   }
 
   const renderViewMode = () => {
-    const buttons = fider.session.user.isAdministrator && [
+    const buttons = canEdit && [
       <Button size="small" key={0} onClick={startEdit}>
         <Icon sprite={IconPencilAlt} />
         <span>Edit</span>
