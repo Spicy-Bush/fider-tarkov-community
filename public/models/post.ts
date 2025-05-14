@@ -14,6 +14,7 @@ export interface Post {
   votesCount: number
   commentsCount: number
   tags: string[]
+  tagDates?: string
   lockedSettings?: PostLockedSettings
 }
 

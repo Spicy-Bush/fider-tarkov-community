@@ -15,7 +15,32 @@ export interface TagsPanelProps {
 
 export const TagsPanel = (props: TagsPanelProps) => {
   const fider = useFider()
+  const isHelper = fider.session.isAuthenticated && fider.session.user.isHelper && !fider.session.user.isCollaborator && !fider.session.user.isModerator && !fider.session.user.isAdministrator
   const canEdit = fider.session.isAuthenticated && (fider.session.user.isCollaborator || fider.session.user.isModerator || fider.session.user.isAdministrator || fider.session.user.isHelper) && props.tags.length > 0
+
+  const helperCanEditTags = useMemo(() => {
+    if (!isHelper) return true
+    if (!props.post.tagDates) return true
+    
+    try {
+      const tagDatesArray = JSON.parse(props.post.tagDates);
+      if (!tagDatesArray || tagDatesArray.length === 0) return true;
+      
+      const oldestDate = tagDatesArray.reduce((oldest: Date | null, current: { slug: string; created_at: string }) => {
+        const currentDate = new Date(current.created_at);
+        return oldest && oldest < currentDate ? oldest : currentDate;
+      }, null);
+      
+      if (!oldestDate) return true;
+      
+      const now = new Date();
+      const hoursDiff = (now.getTime() - oldestDate.getTime()) / (1000 * 60 * 60);
+      return hoursDiff <= 24;
+    } catch (e) {
+      console.error("Failed to parse tag dates", e);
+      return true;
+    }
+  }, [isHelper, props.post.tagDates]);
 
   const [isEditing, setIsEditing] = useState(false)
   const [assignedTags, setAssignedTags] = useState(props.tags.filter((t) => props.post.tags.indexOf(t.slug) >= 0))
@@ -70,7 +95,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
   }
 
   const onSubtitleClick = () => {
-    if (canEdit) {
+    if ((canEdit && !isHelper) || (isHelper && helperCanEditTags)) {
       setIsEditing(!isEditing)
       if (!isEditing) {
         setSearchQuery("")
@@ -115,13 +140,13 @@ export const TagsPanel = (props: TagsPanelProps) => {
     <HStack spacing={2} align="center" className="c-tags__list">
       {assignedTags.length > 0 &&
         assignedTags.map((tag) => <ShowTag key={tag.id} tag={tag} link />)}
-      {canEdit && (
+      {(canEdit && !isHelper) || (isHelper && helperCanEditTags) ? (
         <HStack spacing={1} align="center" className="clickable" onClick={onSubtitleClick}>
           <span>
             <Trans id="label.edittags">Edit tags</Trans>
           </span>
         </HStack>
-      )}
+      ) : null}
     </HStack>
   )
 

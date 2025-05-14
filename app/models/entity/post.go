@@ -22,6 +22,7 @@ type Post struct {
 	Status         enum.PostStatus     `json:"status"`
 	Response       *PostResponse       `json:"response,omitempty"`
 	Tags           []string            `json:"tags"`
+	TagDates       string              `json:"tagDates,omitempty"`
 	LockedSettings *PostLockedSettings `json:"lockedSettings,omitempty"`
 }
 

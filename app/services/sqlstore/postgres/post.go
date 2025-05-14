@@ -46,6 +46,7 @@ type dbPost struct {
 	OriginalStatus sql.NullInt64  `db:"original_status"`
 	Tags           []string       `db:"tags"`
 	LockedSettings sql.NullString `db:"locked_settings"`
+	TagDates       sql.NullString `db:"tag_dates"`
 }
 
 func (i *dbPost) toModel(ctx context.Context) *entity.Post {
@@ -68,6 +69,10 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 		User:           i.User.toModel(ctx),
 		Tags:           i.Tags,
 		LockedSettings: nil,
+	}
+
+	if i.TagDates.Valid {
+		post.TagDates = i.TagDates.String
 	}
 
 	if i.Response.Valid {
@@ -105,100 +110,107 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 
 var (
 	sqlSelectPostsWhere = `	WITH 
-													agg_tags AS ( 
-														SELECT 
-																post_id, 
-																ARRAY_REMOVE(ARRAY_AGG(tags.slug), NULL) as tags
-														FROM post_tags
-														INNER JOIN tags
-														ON tags.ID = post_tags.TAG_ID
-														AND tags.tenant_id = post_tags.tenant_id
-														WHERE post_tags.tenant_id = $1
-														%s
-														GROUP BY post_id 
-													), 
-													agg_comments AS (
-															SELECT 
-																	post_id, 
-																	COUNT(CASE WHEN comments.created_at > CURRENT_DATE - INTERVAL '30 days' THEN 1 END) as recent,
-																	COUNT(*) as all
-															FROM comments 
-															INNER JOIN posts
-															ON posts.id = comments.post_id
-															AND posts.tenant_id = comments.tenant_id
-															WHERE posts.tenant_id = $1
-															AND comments.deleted_at IS NULL
-															GROUP BY post_id
-													),
-													agg_votes AS (
-															SELECT 
-																	post_id, 
-																	SUM(CASE WHEN post_votes.created_at > CURRENT_DATE - INTERVAL '30 days' THEN vote_type ELSE 0 END) as recent,
-																	SUM(vote_type) as all,
-																	SUM(CASE WHEN vote_type > 0 THEN 1 ELSE 0 END) as upvotes,
-																	SUM(CASE WHEN vote_type < 0 THEN 1 ELSE 0 END) as downvotes
-															FROM post_votes 
-															INNER JOIN posts
-															ON posts.id = post_votes.post_id
-															AND posts.tenant_id = post_votes.tenant_id
-															WHERE posts.tenant_id = $1
-															GROUP BY post_id
-													)
-													SELECT p.id, 
-																p.number, 
-																p.title, 
-																p.slug, 
-																p.description, 
-																p.created_at,
-																COALESCE(agg_s.all, 0) as votes_count,
-																COALESCE(agg_c.all, 0) as comments_count,
-																COALESCE(agg_s.recent, 0) AS recent_votes_count,
-																COALESCE(agg_c.recent, 0) AS recent_comments_count,
-																COALESCE(agg_s.upvotes, 0) AS upvotes,
-																COALESCE(agg_s.downvotes, 0) AS downvotes,																
-																p.status, 
-																u.id AS user_id, 
-																u.name AS user_name, 
-																u.email AS user_email,
-																u.role AS user_role,
-																u.visual_role AS user_visual_role,
-																u.status AS user_status,
-																u.avatar_type AS user_avatar_type,
-																u.avatar_bkey AS user_avatar_bkey,
-																p.response,
-																p.response_date,
-																r.id AS response_user_id, 
-																r.name AS response_user_name, 
-																r.email AS response_user_email, 
-																r.role AS response_user_role,
-																r.visual_role AS response_user_visual_role,
-																r.status AS response_user_status,
-																r.avatar_type AS response_user_avatar_type,
-																r.avatar_bkey AS response_user_avatar_bkey,
-																d.number AS original_number,
-																d.title AS original_title,
-																d.slug AS original_slug,
-																d.status AS original_status,
-																COALESCE(agg_t.tags, ARRAY[]::text[]) AS tags,
-																p.locked_settings,
-																%s AS vote_type
-													FROM posts p
-													INNER JOIN users u
-													ON u.id = p.user_id
-													AND u.tenant_id = $1
-													LEFT JOIN users r
-													ON r.id = p.response_user_id
-													AND r.tenant_id = $1
-													LEFT JOIN posts d
-													ON d.id = p.original_id
-													AND d.tenant_id = $1
-													LEFT JOIN agg_comments agg_c
-													ON agg_c.post_id = p.id
-													LEFT JOIN agg_votes agg_s
-													ON agg_s.post_id = p.id
-													LEFT JOIN agg_tags agg_t 
-													ON agg_t.post_id = p.id
-													WHERE p.status != ` + strconv.Itoa(int(enum.PostDeleted)) + ` AND %s`
+							agg_tags AS ( 
+								SELECT 
+										post_id, 
+										ARRAY_REMOVE(ARRAY_AGG(tags.slug), NULL) as tags,
+										jsonb_agg(
+											jsonb_build_object(
+												'slug', tags.slug,
+												'created_at', post_tags.created_at
+											)
+										) as tag_dates
+								FROM post_tags
+								INNER JOIN tags
+								ON tags.ID = post_tags.TAG_ID
+								AND tags.tenant_id = post_tags.tenant_id
+								WHERE post_tags.tenant_id = $1
+								%s
+								GROUP BY post_id 
+							), 
+							agg_comments AS (
+									SELECT 
+											post_id, 
+											COUNT(CASE WHEN comments.created_at > CURRENT_DATE - INTERVAL '30 days' THEN 1 END) as recent,
+											COUNT(*) as all
+									FROM comments 
+									INNER JOIN posts
+									ON posts.id = comments.post_id
+									AND posts.tenant_id = comments.tenant_id
+									WHERE posts.tenant_id = $1
+									AND comments.deleted_at IS NULL
+									GROUP BY post_id
+							),
+							agg_votes AS (
+									SELECT 
+											post_id, 
+											SUM(CASE WHEN post_votes.created_at > CURRENT_DATE - INTERVAL '30 days' THEN vote_type ELSE 0 END) as recent,
+											SUM(vote_type) as all,
+											SUM(CASE WHEN vote_type > 0 THEN 1 ELSE 0 END) as upvotes,
+											SUM(CASE WHEN vote_type < 0 THEN 1 ELSE 0 END) as downvotes
+									FROM post_votes 
+									INNER JOIN posts
+									ON posts.id = post_votes.post_id
+									AND posts.tenant_id = post_votes.tenant_id
+									WHERE posts.tenant_id = $1
+									GROUP BY post_id
+							)
+							SELECT p.id, 
+										p.number, 
+										p.title, 
+										p.slug, 
+										p.description, 
+										p.created_at,
+										COALESCE(agg_s.all, 0) as votes_count,
+										COALESCE(agg_c.all, 0) as comments_count,
+										COALESCE(agg_s.recent, 0) AS recent_votes_count,
+										COALESCE(agg_c.recent, 0) AS recent_comments_count,
+										COALESCE(agg_s.upvotes, 0) AS upvotes,
+										COALESCE(agg_s.downvotes, 0) AS downvotes,																
+										p.status, 
+										u.id AS user_id, 
+										u.name AS user_name, 
+										u.email AS user_email,
+										u.role AS user_role,
+										u.visual_role AS user_visual_role,
+										u.status AS user_status,
+										u.avatar_type AS user_avatar_type,
+										u.avatar_bkey AS user_avatar_bkey,
+										p.response,
+										p.response_date,
+										r.id AS response_user_id, 
+										r.name AS response_user_name, 
+										r.email AS response_user_email, 
+										r.role AS response_user_role,
+										r.visual_role AS response_user_visual_role,
+										r.status AS response_user_status,
+										r.avatar_type AS response_user_avatar_type,
+										r.avatar_bkey AS response_user_avatar_bkey,
+										d.number AS original_number,
+										d.title AS original_title,
+										d.slug AS original_slug,
+										d.status AS original_status,
+										COALESCE(agg_t.tags, ARRAY[]::text[]) AS tags,
+										p.locked_settings,
+										%s AS tag_dates,
+										%s AS vote_type
+							FROM posts p
+							INNER JOIN users u
+							ON u.id = p.user_id
+							AND u.tenant_id = $1
+							LEFT JOIN users r
+							ON r.id = p.response_user_id
+							AND r.tenant_id = $1
+							LEFT JOIN posts d
+							ON d.id = p.original_id
+							AND d.tenant_id = $1
+							LEFT JOIN agg_comments agg_c
+							ON agg_c.post_id = p.id
+							LEFT JOIN agg_votes agg_s
+							ON agg_s.post_id = p.id
+							LEFT JOIN agg_tags agg_t 
+							ON agg_t.post_id = p.id
+							WHERE p.status != ` + strconv.Itoa(int(enum.PostDeleted)) + ` AND %s`
 )
 
 func postIsReferenced(ctx context.Context, q *query.PostIsReferenced) error {
@@ -557,11 +569,18 @@ func buildPostQuery(user *entity.User, filter string) string {
 	if user != nil && (user.IsCollaborator() || user.IsModerator()) {
 		tagCondition = ``
 	}
+
+	tagDatesField := "NULL::jsonb"
+	if user != nil && (user.IsCollaborator() || user.IsModerator() || user.IsAdministrator() || user.IsHelper()) {
+		tagDatesField = "agg_t.tag_dates"
+	}
+
 	voteTypeSubQuery := "NULL"
 	if user != nil {
 		voteTypeSubQuery = fmt.Sprintf("(SELECT vote_type FROM post_votes WHERE post_id = p.id AND user_id = %d LIMIT 1)", user.ID)
 	}
-	return fmt.Sprintf(sqlSelectPostsWhere, tagCondition, voteTypeSubQuery, filter)
+
+	return fmt.Sprintf(sqlSelectPostsWhere, tagCondition, tagDatesField, voteTypeSubQuery, filter)
 }
 
 func lockPost(ctx context.Context, c *cmd.LockPost) error {
