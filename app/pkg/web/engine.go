@@ -33,7 +33,7 @@ var (
 	cspFont    = "font-src 'self' https://fonts.gstatic.com data: %[2]s"
 	cspImage   = "img-src 'self' https: data: https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net %[2]s"
 	cspObject  = "object-src 'none'"
-	cspFrame   = "frame-src 'self' https://*.paddle.com https://td.doubleclick.net https://www.googletagmanager.com https://www.youtube.com/"
+	cspFrame   = "frame-src 'self' https://*.paddle.com https://td.doubleclick.net https://www.googletagmanager.com https://www.youtube.com/ https://vk.com/ https://vkvideo.ru/"
 	cspMedia   = "media-src 'none'"
 	cspConnect = "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net %[2]s"
 

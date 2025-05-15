@@ -63,6 +63,37 @@ const parseYouTubeLink = (href: string) => {
   return null;
 }
 
+const parseVKVideoLink = (href: string) => {
+  // Match direct video links like https://vkvideo.ru/video-89771130_456241539
+  // or https://vk.com/video-89771130_456242098
+  try {
+    const url = new URL(href);
+    let oid, id, timestamp;
+    
+    if (url.hostname === 'vk.com' && url.pathname.startsWith('/video')) {
+      const videoPath = url.pathname.substring(6);
+      
+      if (videoPath.includes('_')) {
+        [oid, id] = videoPath.split('_');
+        timestamp = url.searchParams.get('t');
+        return { oid, id, timestamp };
+      }
+    }
+    
+    if (url.hostname === 'vkvideo.ru' && url.pathname.startsWith('/video')) {
+      const videoPath = url.pathname.substring(6);
+      
+      if (videoPath.includes('_')) {
+        [oid, id] = videoPath.split('_');
+        timestamp = url.searchParams.get('t');
+        return { oid, id, timestamp };
+      }
+    }
+  } catch (e) {}
+  
+  return null;
+}
+
 const fullRenderer = new marked.Renderer()
 fullRenderer.image = () => ""
 
@@ -77,6 +108,21 @@ fullRenderer.link = (href: string | null, title: string, text: string) => {
       const embedUrl = `https://www.youtube.com/embed/${videoId}?start=${timestamp}`
       
       return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="YouTube video"></iframe>`
+    }
+  }
+  
+  if (href.includes('vk.com/video') || href.includes('vkvideo.ru/video')) {
+    const parsedLink = parseVKVideoLink(href)
+    
+    if (parsedLink) {
+      const { oid, id, timestamp } = parsedLink
+      let embedUrl = `https://vk.com/video_ext.php?oid=${oid}&id=${id}`;
+      
+      if (timestamp) {
+        embedUrl += `&t=${timestamp}`;
+      }
+      
+      return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="VK video"></iframe>`
     }
   }
   
