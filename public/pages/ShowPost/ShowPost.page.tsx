@@ -99,6 +99,12 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
   public componentDidMount() {
     this.handleHashChange()
     window.addEventListener("hashchange", this.handleHashChange)
+    const currentPath = window.location.pathname
+    
+    if (!currentPath.includes(this.props.post.slug)) {
+      const newPath = `${currentPath}/${this.props.post.slug}`
+      window.history.replaceState({}, document.title, newPath)
+    }
   }
 
   public componentWillUnmount() {
