@@ -57,7 +57,7 @@ export const PostSearch = (props: PostSearchProps) => {
             <HStack className="text-2xs">
               <span>#{p.number}</span> <span>&middot;</span> <ShowPostStatus status={PostStatus.Get(p.status)} /> <span>&middot;</span>{" "}
               <span>
-                <Trans id="showpost.postsearch.numofvotes">{p.votesCount} votes</Trans>
+                <Trans id="showpost.postsearch.numofvotes">{(p.upvotes || 0) + (p.downvotes || 0)} votes</Trans>
               </span>
             </HStack>
             <span>{p.title}</span>

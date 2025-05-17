@@ -1,6 +1,6 @@
 import "./VoteSection.scss"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Post, PostStatus, isPostLocked } from "@fider/models"
 import { actions, classSet } from "@fider/services"
 import { Button, Icon, SignInModal } from "@fider/components"
@@ -8,11 +8,10 @@ import { useFider } from "@fider/hooks"
 import IconThumbsUp from "@fider/assets/images/heroicons-thumbsup.svg"
 import IconThumbsDown from "@fider/assets/images/heroicons-thumbsdown.svg"
 import { Trans } from "@lingui/macro"
-import { HStack } from "@fider/components/layout"
+import { HStack, VStack } from "@fider/components/layout"
 
 interface VoteSectionProps {
   post: Post
-  votes: number
 }
 
 export const VoteSection = (props: VoteSectionProps) => {
@@ -20,8 +19,18 @@ export const VoteSection = (props: VoteSectionProps) => {
   const [voteType, setVoteType] = useState<'up' | 'down' | 'none'>(
     props.post.voteType === 1 ? 'up' : props.post.voteType === -1 ? 'down' : 'none'
   )
-  const [votes, setVotes] = useState(props.votes)
+  const [upvotes, setUpvotes] = useState(props.post.upvotes || 0)
+  const [downvotes, setDownvotes] = useState(props.post.downvotes || 0)
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
+  
+  const totalEngagement = upvotes + downvotes
+  const votesDifference = upvotes - downvotes
+  const upvotePercentage = totalEngagement > 0 ? (upvotes / totalEngagement) * 100 : 50
+
+  useEffect(() => {
+    setUpvotes(props.post.upvotes || 0)
+    setDownvotes(props.post.downvotes || 0)
+  }, [props.post.upvotes, props.post.downvotes])
 
   const handleVote = async (type: 'up' | 'down') => {
     if (!fider.session.isAuthenticated) {
@@ -36,35 +45,51 @@ export const VoteSection = (props: VoteSectionProps) => {
 
     let response;
     let newVoteType: 'up' | 'down' | 'none';
-    let countChange = 0;
+    let upvoteChange = 0;
+    let downvoteChange = 0;
 
     if (voteType === type) {
       response = await actions.removeVote(props.post.number);
       newVoteType = 'none';
-      countChange = type === 'up' ? -1 : 1;
+      
+      // Remove upvote or downvote
+      if (type === 'up') {
+        upvoteChange = -1;
+      } else {
+        downvoteChange = -1;
+      }
     } 
     
     else if (voteType !== 'none') {
       response = await actions.toggleVote(props.post.number, type);
       newVoteType = type;
-      countChange = type === 'up' ? 2 : -2;
+      
+      // Switch vote type
+      if (type === 'up') {
+        upvoteChange = 1;
+        downvoteChange = -1;
+      } else {
+        upvoteChange = -1;
+        downvoteChange = 1;
+      }
     } 
 
     else {
       if (type === 'up') {
         response = await actions.addVote(props.post.number);
         newVoteType = 'up';
-        countChange = 1;
+        upvoteChange = 1;
       } else {
         response = await actions.addDownVote(props.post.number);
         newVoteType = 'down';
-        countChange = -1;
+        downvoteChange = 1;
       }
     }
 
     if (response.ok) {
-      setVotes(votes + countChange);
       setVoteType(newVoteType);
+      setUpvotes(upvotes + upvoteChange);
+      setDownvotes(downvotes + downvoteChange);
     }
   }
 
@@ -75,9 +100,9 @@ export const VoteSection = (props: VoteSectionProps) => {
 
   const countClassName = classSet({
     "c-vote-section__count": true,
-    "c-vote-section__count--positive": votes > 0 && voteType === 'up',
-    "c-vote-section__count--negative": votes < 0 || voteType === 'down',
-    "c-vote-section__count--neutral": votes === 0,
+    "c-vote-section__count--positive": votesDifference > 0,
+    "c-vote-section__count--negative": votesDifference < 0,
+    "c-vote-section__count--neutral": votesDifference === 0,
   })
 
   const upButtonClassName = classSet({
@@ -92,48 +117,61 @@ export const VoteSection = (props: VoteSectionProps) => {
     "voted": voteType === 'down'
   })
 
-  const voteLabel = votes === 1 ? "Vote" : "Votes"
-
   return (
     <>
       <SignInModal isOpen={isSignInModalOpen} onClose={hideModal} />
-      <div className="c-vote-section__buttons">
-        <Button 
-          variant={voteType === 'up' ? "primary" : "secondary"} 
-          onClick={() => handleVote('up')} 
-          disabled={isDisabled}
-          className={upButtonClassName}
-        >
-          <HStack spacing={2} justify="center" className="w-full">
-            <Icon sprite={IconThumbsUp} /> 
-            <span>
-              {voteType === 'up' ? 
-                <Trans id="action.voted">Voted!</Trans> : 
-                <Trans id="action.vote">Vote</Trans>}
+      <div className="c-vote-section w-full">
+        <div className="c-vote-section__buttons">
+          <Button 
+            variant={voteType === 'up' ? "primary" : "secondary"} 
+            onClick={() => handleVote('up')} 
+            disabled={isDisabled}
+            className={upButtonClassName}
+          >
+            <HStack spacing={2} justify="center" className="w-full">
+              <Icon sprite={IconThumbsUp} /> 
+              <span>
+                <Trans id="action.upvote">Upvote</Trans>
+              </span>
+            </HStack>
+          </Button>
+          
+          <div className="c-vote-section__count-wrapper">
+            <span className={countClassName}>
+              {votesDifference}
             </span>
-          </HStack>
-        </Button>
-        
-        <div className="c-vote-section__count-wrapper">
-          <span className={countClassName}>
-            {votes}
-          </span>
-          <span className="text-semibold text-lg">{voteLabel}</span>
+          </div>
+          
+          <Button 
+            variant={voteType === 'down' ? "danger" : "secondary"} 
+            onClick={() => handleVote('down')} 
+            disabled={isDisabled}
+            className={downButtonClassName}
+          >
+            <HStack spacing={2} justify="center" className="w-full">
+              <Icon sprite={IconThumbsDown} /> 
+              <span>
+                <Trans id="action.downvote">Downvote</Trans>
+              </span>
+            </HStack>
+          </Button>
         </div>
         
-        <Button 
-          variant={voteType === 'down' ? "danger" : "secondary"} 
-          onClick={() => handleVote('down')} 
-          disabled={isDisabled}
-          className={downButtonClassName}
-        >
-          <HStack spacing={2} justify="center" className="w-full">
-            <Icon sprite={IconThumbsDown} /> 
-            <span>
-              <Trans id="action.downvote">Downvote</Trans>
-            </span>
-          </HStack>
-        </Button>
+        {totalEngagement > 10 && (
+          <VStack spacing={1} className="w-full">
+            <div className="c-vote-section__bar">
+              <div 
+                className="c-vote-section__bar-upvotes" 
+                style={{ width: `${upvotePercentage}%` }}
+              />
+            </div>
+            <div className="c-vote-section__engagement">
+              <span className="text-xs text-gray-500">
+                <Trans id="votes.engagement">{totalEngagement} total votes</Trans>
+              </span>
+            </div>
+          </VStack>
+        )}
       </div>
     </>
   )

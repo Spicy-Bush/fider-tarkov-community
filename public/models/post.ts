@@ -16,6 +16,8 @@ export interface Post {
   tags: string[]
   tagDates?: string
   lockedSettings?: PostLockedSettings
+  upvotes?: number
+  downvotes?: number
 }
 
 export function isPostLocked(post: Post): boolean {

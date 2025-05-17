@@ -1,6 +1,6 @@
 import "./VoteCounter.scss"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Post, PostStatus, isPostLocked } from "@fider/models"
 import { actions, classSet } from "@fider/services"
 import { Icon, SignInModal } from "@fider/components"
@@ -19,8 +19,18 @@ export const VoteCounter = (props: VoteCounterProps) => {
   const [voteType, setVoteType] = useState<'up' | 'down' | 'none'>(
     props.post.voteType === 1 ? 'up' : props.post.voteType === -1 ? 'down' : 'none'
   )
-  const [votesCount, setVotesCount] = useState(props.post.votesCount)
+  const [upvotes, setUpvotes] = useState(props.post.upvotes || 0)
+  const [downvotes, setDownvotes] = useState(props.post.downvotes || 0)
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
+  
+  // Calculate vote difference
+  const votesDifference = upvotes - downvotes
+  
+  // Update local state when props change
+  useEffect(() => {
+    setUpvotes(props.post.upvotes || 0)
+    setDownvotes(props.post.downvotes || 0)
+  }, [props.post.upvotes, props.post.downvotes])
 
   const handleVote = async (type: 'up' | 'down') => {
     if (!fider.session.isAuthenticated) {
@@ -35,36 +45,48 @@ export const VoteCounter = (props: VoteCounterProps) => {
 
     let response;
     let newVoteType: 'up' | 'down' | 'none';
-    let countChange = 0;
+    let upvoteChange = 0;
+    let downvoteChange = 0;
 
     // If clicking the same button that is already active, remove the vote
     if (voteType === type) {
       response = await actions.removeVote(props.post.number);
       newVoteType = 'none';
-      countChange = type === 'up' ? -1 : 1; // When removing upvote, decrease count; when removing downvote, increase count
+      if (type === 'up') {
+        upvoteChange = -1;
+      } else {
+        downvoteChange = -1;
+      }
     } 
     // If clicking the opposite button, switch the vote type
     else if (voteType !== 'none') {
       response = await actions.toggleVote(props.post.number, type);
       newVoteType = type;
-      countChange = type === 'up' ? 2 : -2; // +2 for down -> up, -2 for up -> down
+      if (type === 'up') {
+        upvoteChange = 1;
+        downvoteChange = -1;
+      } else {
+        upvoteChange = -1;
+        downvoteChange = 1;
+      }
     } 
     // If no vote currently, add the selected vote type
     else {
       if (type === 'up') {
         response = await actions.addVote(props.post.number);
         newVoteType = 'up';
-        countChange = 1;
+        upvoteChange = 1;
       } else {
         response = await actions.addDownVote(props.post.number);
         newVoteType = 'down';
-        countChange = -1;
+        downvoteChange = 1;
       }
     }
 
     if (response.ok) {
-      setVotesCount(votesCount + countChange);
       setVoteType(newVoteType);
+      setUpvotes(upvotes + upvoteChange);
+      setDownvotes(downvotes + downvoteChange);
     }
   }
 
@@ -88,9 +110,9 @@ export const VoteCounter = (props: VoteCounterProps) => {
 
   const countClassName = classSet({
     "c-vote-counter__count": true,
-    "c-vote-counter__count--positive": votesCount > 0,
-    "c-vote-counter__count--negative": votesCount < 0,
-    "c-vote-counter__count--neutral": votesCount === 0,
+    "c-vote-counter__count--positive": votesDifference > 0,
+    "c-vote-counter__count--negative": votesDifference < 0,
+    "c-vote-counter__count--neutral": votesDifference === 0,
   })
 
   return (
@@ -106,7 +128,7 @@ export const VoteCounter = (props: VoteCounterProps) => {
         </button>
         
         <div className={countClassName}>
-          {votesCount}
+          {votesDifference}
         </div>
         
         <button 

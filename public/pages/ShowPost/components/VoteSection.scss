@@ -1,29 +1,29 @@
 @import "~@fider/assets/styles/variables.scss";
 
 .c-vote-section {
+  width: 100%;
+  
   &__buttons {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: spacing(4);
+    width: 100%;
     
     @media (max-width: 768px) {
-      flex-direction: column;
-      align-items: center;
-      gap: spacing(3);
+      gap: spacing(2);
     }
   }
 
   &__count-wrapper {
     display: flex;
     align-items: center;
-    gap: spacing(2);
-    min-width: sizing(25);
+    justify-content: center;
+    min-width: sizing(10);
     text-align: center;
     
     @media (max-width: 768px) {
-      flex-direction: column;
-      margin: spacing(2) 0;
-      min-width: auto;
+      min-width: sizing(8);
     }
   }
 
@@ -32,17 +32,32 @@
     font-weight: get("font.weight.bold");
     min-width: sizing(10);
     text-align: center;
+
+    &--positive {
+      color: get("colors.green.500");
+    }
+
+    &--negative {
+      color: get("colors.red.500");
+    }
+
+    &--neutral {
+      color: get("colors.gray.500");
+    }
   }
 
   &__button {
-    width: sizing(30);
+    flex: 1;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
     
+    @media (min-width: 769px) {
+      max-width: 30%;
+    }
+    
     @media (max-width: 768px) {
-      width: 100%;
-      max-width: sizing(40);
+      font-size: get("font.size.sm");
     }
     
     &--up {
@@ -56,5 +71,27 @@
         color: get("colors.red.500");
       }
     }
+  }
+
+  &__bar {
+    height: 4px;
+    background-color: get("colors.red.500");
+    margin-top: spacing(2);
+    width: 100%;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  &__bar-upvotes {
+    height: 100%;
+    background-color: get("colors.green.500");
+  }
+
+  &__engagement {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin-top: spacing(1);
+    font-style: italic;
   }
 }

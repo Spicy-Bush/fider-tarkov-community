@@ -30,9 +30,8 @@ import { DiscussionPanel } from "./components/DiscussionPanel"
 import IconX from "@fider/assets/images/heroicons-x.svg"
 import IconThumbsUp from "@fider/assets/images/heroicons-thumbsup.svg"
 import { HStack, VStack } from "@fider/components/layout"
-import { Trans } from "@lingui/react/macro"
+import { Trans } from "@lingui/react/macro" 
 import { TagsPanel } from "./components/TagsPanel"
-import { FollowButton } from "./components/FollowButton"
 import { VoteSection } from "./components/VoteSection"
 import { DeletePostModal } from "./components/DeletePostModal"
 import { ResponseModal } from "./components/ResponseModal"
@@ -350,10 +349,9 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
 
                   <VStack spacing={4}>
                     {!this.state.editMode ? (
-                      <HStack justify="between" align="start">
-                        <VoteSection post={this.props.post} votes={this.props.post.votesCount} />
-                        <FollowButton post={this.props.post} subscribed={this.props.subscribed} />
-                      </HStack>
+                      <div className="w-full">
+                        <VoteSection post={this.props.post} />
+                      </div>
                     ) : (
                       <HStack>
                         <Button variant="primary" onClick={this.saveChanges} disabled={Fider.isReadOnly}>
@@ -378,17 +376,18 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
               </div>
 
               <div className="p-show-post__discussion_col">
-                <DiscussionPanel post={this.props.post} comments={this.props.comments} highlightedComment={this.state.highlightedComment} />
-                <Button
-                  variant="secondary"
-                  onClick={this.handleScrollToTop}
-                  className="mt-4"
-                >
-                  <Icon sprite={IconChevronUp} />
-                  <span>
-                    <Trans id="returntop.button">Return to top</Trans>
-                  </span>
-                </Button>
+                <DiscussionPanel post={this.props.post} comments={this.props.comments} highlightedComment={this.state.highlightedComment} subscribed={this.props.subscribed} />
+                <div className="mt-4 flex items-center justify-between">
+                  <Button
+                    variant="secondary"
+                    onClick={this.handleScrollToTop}
+                  >
+                    <Icon sprite={IconChevronUp} />
+                    <span>
+                      <Trans id="returntop.button">Return to top</Trans>
+                    </span>
+                  </Button>
+                </div>
               </div>
             </div>
             <div className="p-show-post__action-col">

@@ -24,6 +24,8 @@ type Post struct {
 	Tags           []string            `json:"tags"`
 	TagDates       string              `json:"tagDates,omitempty"`
 	LockedSettings *PostLockedSettings `json:"lockedSettings,omitempty"`
+	Upvotes        int                 `json:"upvotes"`
+	Downvotes      int                 `json:"downvotes"`
 }
 
 type PostLockedSettings struct {

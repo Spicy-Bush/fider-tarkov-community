@@ -69,6 +69,8 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 		User:           i.User.toModel(ctx),
 		Tags:           i.Tags,
 		LockedSettings: nil,
+		Upvotes:        i.Upvotes,
+		Downvotes:      i.Downvotes,
 	}
 
 	if i.TagDates.Valid {

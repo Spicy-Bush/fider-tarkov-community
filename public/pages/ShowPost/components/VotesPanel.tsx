@@ -17,9 +17,7 @@ export const VotesPanel = (props: VotesPanelProps) => {
   const fider = useFider()
   const [isVotesModalOpen, setIsVotesModalOpen] = useState(false)
   const canShowAll = fider.session.isAuthenticated && (Fider.session.user.isCollaborator || Fider.session.user.isModerator || Fider.session.user.isAdministrator)
-  // using negative here because even if the vote it negative itself, it's still a 'vote', 
-  // and as such, we need to show the total number of said votes.
-  const totalVotes = Math.abs(props.post.votesCount)
+  const hasVotes = props.votes.length > 0
 
   const openModal = () => {
     if (canShowAll) {
@@ -37,13 +35,11 @@ export const VotesPanel = (props: VotesPanelProps) => {
           <Trans id="label.voters">Voters</Trans>
         </span>
       )}
-      {totalVotes > 0 ? (
+      {hasVotes ? (
         <>
-          {props.votes.length > 0 && (
-            <HStack spacing={0} className="gap-2">
-              <AvatarStack users={props.votes.map((x) => x.user)} overlap={false} />
-            </HStack>
-          )}
+          <HStack spacing={0} className="gap-2">
+            <AvatarStack users={props.votes.map((x) => x.user)} overlap={false} />
+          </HStack>
           {canShowAll && (
             <Button variant="tertiary" size="small" onClick={openModal}>
                 View Details
