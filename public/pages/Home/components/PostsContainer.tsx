@@ -114,13 +114,15 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
 
   useEffect(() => {
     searchPosts()
-  }, [])
+  }, [searchPosts])
 
   useEffect(() => {
-    if (!loading) {
-      searchPosts()
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+      }
     }
-  }, [filters])
+  }, [])
 
   useEffect(() => {
     const handleObserver = (entries: IntersectionObserverEntry[]) => {
@@ -142,9 +144,6 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
 
     return () => {
       observer.disconnect()
-      if (timerRef.current) {
-        clearTimeout(timerRef.current)
-      }
     }
   }, [loading, loadingMore, hasMore, loadMore])
 

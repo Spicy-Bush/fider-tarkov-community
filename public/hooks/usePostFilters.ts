@@ -71,7 +71,8 @@ const updateUrl = (filters: FilterState) => {
 }
 
 const saveToLocalStorage = (filters: FilterState) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(filters))
+  const filtersToSave = { ...filters, query: "" }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtersToSave))
   localStorage.setItem(FILTER_TIMESTAMP_KEY, Date.now().toString())
 }
 
@@ -90,12 +91,13 @@ export const usePostFilters = () => {
     if (stored) {
       try {
         const parsedFilters = JSON.parse(stored)
+        const restoredFilters = { ...parsedFilters, query: "" }
         if (timestamp && (now - parseInt(timestamp)) > TWELVE_HOURS_MS) {
-          const updatedFilters = { ...parsedFilters, view: "trending" }
+          const updatedFilters = { ...restoredFilters, view: "trending" }
           saveToLocalStorage(updatedFilters)
           return updatedFilters
         }
-        return parsedFilters
+        return restoredFilters
       } catch {
         return DEFAULT_FILTERS
       }
