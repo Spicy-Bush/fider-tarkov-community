@@ -339,11 +339,11 @@ func MuteUser() web.HandlerFunc {
 		}
 
 		action := new(actions.MuteUser)
+		action.UserID = userID
+
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
 		}
-
-		action.UserID = userID
 		expiresAt := time.Now().Add(time.Duration(action.Duration) * time.Minute)
 		muteUser := &cmd.MuteUser{
 			UserID:    userID,
@@ -377,11 +377,11 @@ func WarnUser() web.HandlerFunc {
 		}
 
 		action := new(actions.WarnUser)
+		action.UserID = userID
+
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
 		}
-
-		action.UserID = userID
 		var expiresAt time.Time
 		if action.Duration > 0 {
 			expiresAt = time.Now().Add(time.Duration(action.Duration) * time.Minute)

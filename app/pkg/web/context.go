@@ -193,13 +193,6 @@ func (c *Context) BindTo(i actions.Actionable) *validate.Result {
 		}
 	}
 
-	if _, ok := i.(*actions.MuteUser); ok {
-		return i.Validate(c, c.User())
-	}
-	if _, ok := i.(*actions.WarnUser); ok {
-		return i.Validate(c, c.User())
-	}
-
 	if !i.IsAuthorized(c, c.User()) {
 		return validate.Unauthorized()
 	}
