@@ -36,6 +36,7 @@
   "action.submitting": "Отправка через {remainingSeconds}с...",
   "action.unblock": "",
   "action.unlock": "Разблокировать",
+  "action.upvote": "",
   "action.vote": "За",
   "action.voted": "За",
   "action.warn": "",
@@ -287,6 +288,7 @@
   "showpost.copylink.success": "Ссылка скопирована в буфер обмена",
   "showpost.discussionpanel.emptymessage": "Пока никто не оставил комментарий.",
   "showpost.label.author": "Опубликовано <0/> · <1/>",
+  "showpost.lastactivity": "",
   "showpost.locked.by": "Заблокировано пользователем:",
   "showpost.locked.title": "Этот пост заблокирован.",
   "showpost.message.nodescription": "Описание не предоставлено.",
@@ -311,6 +313,7 @@
   "signin.message.onlyadmins": "В настоящее время разрешён вход только для администраторского аккаунта",
   "signin.message.private.text": "Если у вас есть аккаунт или приглашение, вы можете воспользоваться следующими опциями для входа.",
   "signin.message.private.title": "<0>{0}</0> — это приватное пространство, для участия и голосования необходимо войти в систему.",
+  "votes.engagement": "",
   "warning.banner.message": "",
   "warning.banner.muted": "",
   "{count, plural, one {# tag} other {# tags}}": "{count, plural, one {# тег} few {# тега} many {# тегов} other {# тега}}"

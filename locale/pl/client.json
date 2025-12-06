@@ -35,6 +35,7 @@
   "action.submitting": "",
   "action.unblock": "",
   "action.unlock": "",
+  "action.upvote": "",
   "action.vote": "",
   "action.voted": "",
   "action.warn": "",
@@ -287,6 +288,7 @@
   "showpost.copylink.success": "",
   "showpost.discussionpanel.emptymessage": "Wygląda na to, że nikt jeszcze nie skomentował.",
   "showpost.label.author": "Wysłane przez <0/> · <1/>",
+  "showpost.lastactivity": "",
   "showpost.locked.by": "",
   "showpost.locked.title": "",
   "showpost.message.nodescription": "Brak opisu.",
@@ -311,6 +313,7 @@
   "signin.message.onlyadmins": "Obecnie możliwe jest logowanie tylko na konto administratora",
   "signin.message.private.text": "Jeśli posiadasz konto lub zaproszenie możesz użyć poniższych opcji aby się zalogować.",
   "signin.message.private.title": "<0>{0}</0> to przestrzeń prywatna, musisz się zalogować, aby uczestniczyć i głosować.",
+  "votes.engagement": "",
   "warning.banner.message": "",
   "warning.banner.muted": "",
   "{count, plural, one {# tag} other {# tags}}": "{count, plural, one {# tag} few {# tagów} many {# tagów} other {# tagi}}"

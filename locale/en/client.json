@@ -36,6 +36,7 @@
   "action.submitting": "Submitting in {remainingSeconds}s...",
   "action.unblock": "Unblock User",
   "action.unlock": "Unlock",
+  "action.upvote": "Upvote",
   "action.vote": "Upvote",
   "action.voted": "Voted!",
   "action.warn": "Warn User",
@@ -287,6 +288,7 @@
   "showpost.copylink.success": "Link copied to clipboard",
   "showpost.discussionpanel.emptymessage": "No one has commented yet.",
   "showpost.label.author": "Posted by <0/> · <1/>",
+  "showpost.lastactivity": "Last activity:",
   "showpost.locked.by": "Locked by:",
   "showpost.locked.title": "This post is now locked.",
   "showpost.message.nodescription": "No description provided.",
@@ -311,6 +313,7 @@
   "signin.message.onlyadmins": "Currently only allowed to sign in to an administrator account",
   "signin.message.private.text": "If you have an account or an invitation, you may use following options to sign in.",
   "signin.message.private.title": "<0>{0}</0> is a private space, you must sign in to participate and vote.",
+  "votes.engagement": "{totalEngagement} total votes",
   "warning.banner.message": "You have been warned. <0>Please review your recent behavior and ensure it aligns with our community guidelines.</0>",
   "warning.banner.muted": "You have been muted. You will not be able to post or comment until the mute expires.",
   "{count, plural, one {# tag} other {# tags}}": "{count, plural, one {# tag} other {# tags}}"

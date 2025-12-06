@@ -35,6 +35,7 @@
   "action.submitting": "",
   "action.unblock": "",
   "action.unlock": "",
+  "action.upvote": "",
   "action.vote": "",
   "action.voted": "",
   "action.warn": "",
@@ -287,6 +288,7 @@
   "showpost.copylink.success": "",
   "showpost.discussionpanel.emptymessage": "Ingen har kommenterat ännu.",
   "showpost.label.author": "Skriven av <0/> · <1/>",
+  "showpost.lastactivity": "",
   "showpost.locked.by": "",
   "showpost.locked.title": "",
   "showpost.message.nodescription": "Ingen beskrivning angiven.",
@@ -311,6 +313,7 @@
   "signin.message.onlyadmins": "För närvarande endast tillåtet att logga in med ett administratörskonto",
   "signin.message.private.text": "Om du har ett konto eller en inbjudan kan du använda följande alternativ för att logga in.",
   "signin.message.private.title": "<0>{0}</0> är ett privat utrymme, du måste logga in för att delta och rösta.",
+  "votes.engagement": "",
   "warning.banner.message": "",
   "warning.banner.muted": "",
   "{count, plural, one {# tag} other {# tags}}": "{count, plural, =1 {# etikett} other {# etiketter}}"

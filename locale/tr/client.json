@@ -35,6 +35,7 @@
   "action.submitting": "",
   "action.unblock": "",
   "action.unlock": "",
+  "action.upvote": "",
   "action.vote": "",
   "action.voted": "",
   "action.warn": "",
@@ -287,6 +288,7 @@
   "showpost.copylink.success": "",
   "showpost.discussionpanel.emptymessage": "Henüz hiç kimse yorum yapmadı.",
   "showpost.label.author": "<0/> · <1/> tarafından gönderildi",
+  "showpost.lastactivity": "",
   "showpost.locked.by": "",
   "showpost.locked.title": "",
   "showpost.message.nodescription": "Herhangi bir açıklama belirtilmedi.",
@@ -311,6 +313,7 @@
   "signin.message.onlyadmins": "Şu anda yalnızca yönetici hesabıyla giriş yapılabilir",
   "signin.message.private.text": "Eğer bir hesabınız ya da davetiyeniz varsa aşağıdaki seçenekleri kullanarak giriş yapabilirsiniz.",
   "signin.message.private.title": "<0>{0}</0> özel bir alandır ve katılabilmek için davetiye almanız gerekir.",
+  "votes.engagement": "",
   "warning.banner.message": "",
   "warning.banner.muted": "",
   "{count, plural, one {# tag} other {# tags}}": "{count, plural, one {# etiket} other {# etiket}}"

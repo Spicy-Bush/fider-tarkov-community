@@ -35,6 +35,7 @@
   "action.submitting": "",
   "action.unblock": "",
   "action.unlock": "",
+  "action.upvote": "",
   "action.vote": "",
   "action.voted": "",
   "action.warn": "",
@@ -287,6 +288,7 @@
   "showpost.copylink.success": "",
   "showpost.discussionpanel.emptymessage": "还没有人发表评论.",
   "showpost.label.author": "发表者 <0/> · <1/>",
+  "showpost.lastactivity": "",
   "showpost.locked.by": "",
   "showpost.locked.title": "",
   "showpost.message.nodescription": "未提供描述.",
@@ -311,6 +313,7 @@
   "signin.message.onlyadmins": "目前只允许登录管理员帐户",
   "signin.message.private.text": "如果您有帐户或邀请，您可以使用以下选项登录.",
   "signin.message.private.title": "<0>{0}</0> 这是一个私人空间，您必须登录才能参与和投票.",
+  "votes.engagement": "",
   "warning.banner.message": "",
   "warning.banner.muted": "",
   "{count, plural, one {# tag} other {# tags}}": "{count, plural, one {# tag} other {# tags}}"

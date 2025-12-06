@@ -35,6 +35,7 @@
   "action.submitting": "",
   "action.unblock": "",
   "action.unlock": "",
+  "action.upvote": "",
   "action.vote": "",
   "action.voted": "",
   "action.warn": "",
@@ -287,6 +288,7 @@
   "showpost.copylink.success": "",
   "showpost.discussionpanel.emptymessage": "Nog niemand heeft gereageerd.",
   "showpost.label.author": "Geplaatst door <0/> · <1/>",
+  "showpost.lastactivity": "",
   "showpost.locked.by": "",
   "showpost.locked.title": "",
   "showpost.message.nodescription": "Geen omschrijving opgegeven.",
@@ -311,6 +313,7 @@
   "signin.message.onlyadmins": "Momenteel alleen toegestaan om in te loggen met een beheerdersaccount",
   "signin.message.private.text": "Als je een account of een uitnodiging hebt, kun je de volgende methodes gebruiken om in te loggen.",
   "signin.message.private.title": "<0>{0}</0> is a private space, you must sign in to participate and vote.",
+  "votes.engagement": "",
   "warning.banner.message": "",
   "warning.banner.muted": "",
   "{count, plural, one {# tag} other {# tags}}": "{count, plural, one {# tag} other {# tags}}"

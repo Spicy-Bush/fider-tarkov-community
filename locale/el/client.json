@@ -35,6 +35,7 @@
   "action.submitting": "",
   "action.unblock": "",
   "action.unlock": "",
+  "action.upvote": "",
   "action.vote": "",
   "action.voted": "",
   "action.warn": "",
@@ -287,6 +288,7 @@
   "showpost.copylink.success": "",
   "showpost.discussionpanel.emptymessage": "Κανείς δεν έχει σχολιάσει ακόμα.",
   "showpost.label.author": "Δημοσιεύτηκε από <0/> · <1/>",
+  "showpost.lastactivity": "",
   "showpost.locked.by": "",
   "showpost.locked.title": "",
   "showpost.message.nodescription": "Δεν υπάρχει περιγραφή.",
@@ -311,6 +313,7 @@
   "signin.message.onlyadmins": "Αυτήν τη στιγμή επιτρέπεται μόνο να συνδεθείτε σε λογαριασμό διαχειριστή",
   "signin.message.private.text": "Αν έχετε λογαριασμό ή πρόσκληση, μπορείτε να χρησιμοποιήσετε τις παρακάτω επιλογές για να συνδεθείτε.",
   "signin.message.private.title": "<0>{0}</0> είναι ένας ιδιωτικός χώρος, πρέπει να συνδεθείτε για να συμμετάσχετε και να ψηφίσετε.",
+  "votes.engagement": "",
   "warning.banner.message": "",
   "warning.banner.muted": "",
   "{count, plural, one {# tag} other {# tags}}": "{count, plural, one {# ετικέτα} other {# ετικέτες}}"

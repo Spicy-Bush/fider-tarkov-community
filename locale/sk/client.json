@@ -35,6 +35,7 @@
   "action.submitting": "",
   "action.unblock": "",
   "action.unlock": "",
+  "action.upvote": "",
   "action.vote": "",
   "action.voted": "",
   "action.warn": "",
@@ -287,6 +288,7 @@
   "showpost.copylink.success": "",
   "showpost.discussionpanel.emptymessage": "Zatiaľ sa nikto nevyjadril.",
   "showpost.label.author": "Pridané <0/> · <1/>",
+  "showpost.lastactivity": "",
   "showpost.locked.by": "",
   "showpost.locked.title": "",
   "showpost.message.nodescription": "Nie je poskytnutý žiadny popis.",
@@ -311,6 +313,7 @@
   "signin.message.onlyadmins": "V súčasnosti je povolené iba prihlásenie do účtu správcu",
   "signin.message.private.text": "Ak máte účet alebo pozvánku, na prihlásenie môžete použiť nasledujúce možnosti.",
   "signin.message.private.title": "<0>{0}</0> je súkromný priestor, ak sa chcete zúčastniť diskusie a hlasovať, musíte sa prihlásiť.",
+  "votes.engagement": "",
   "warning.banner.message": "",
   "warning.banner.muted": "",
   "{count, plural, one {# tag} other {# tags}}": "{count, plural, one {# tag} other {# tags}}"
