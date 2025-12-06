@@ -4,6 +4,7 @@ import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
 import { UserRole, UserStatus, UserAvatarType, UserSettings, ImageUpload } from "@fider/models"
 import { actions, Fider, Failure, notify } from "@fider/services"
+import { useUserStanding } from "@fider/contexts/UserStandingContext"
 import IconSearch from "@fider/assets/images/heroicons-search.svg"
 import IconX from "@fider/assets/images/heroicons-x.svg"
 import IconDocument from "@fider/assets/images/heroicons-pencil-alt.svg"
@@ -99,7 +100,8 @@ interface UserProfilePageState {
 }
 
 export default function UserProfilePage(props: UserProfilePageProps) {
-    const [searchQuery, setSearchQuery] = useState("")
+  const userStandingContext = useUserStanding()
+  const [searchQuery, setSearchQuery] = useState("")
   const [contentType, setContentType] = useState<ContentType>("all")
   const [voteType, setVoteType] = useState<"up" | "down" | undefined>(undefined)
   const [sortField, setSortField] = useState<SortField>("createdAt")
@@ -136,10 +138,15 @@ export default function UserProfilePage(props: UserProfilePageProps) {
     votes: 0
   })
 
-    const [standing, setStanding] = useState<UserProfileStanding>({
+  const [otherUserStanding, setOtherUserStanding] = useState<UserProfileStanding>({
     warnings: [],
     mutes: []
   })
+
+  const isViewingOwnProfile = Fider.session.isAuthenticated && Fider.session.user.id === props.user.id
+  const standing: UserProfileStanding = isViewingOwnProfile 
+    ? { warnings: userStandingContext.warnings, mutes: userStandingContext.mutes }
+    : otherUserStanding
 
     const [moderationModal, setModerationModal] = useState({
     isOpen: false,
@@ -155,8 +162,10 @@ export default function UserProfilePage(props: UserProfilePageProps) {
 
   useEffect(() => {
     loadStats(props.user.id)
-    loadStanding(props.user.id)
-  }, [props.user.id])
+    if (!isViewingOwnProfile) {
+      loadOtherUserStanding(props.user.id)
+    }
+  }, [props.user.id, isViewingOwnProfile])
 
   useEffect(() => {
     if (timerRef.current) {
@@ -283,10 +292,10 @@ export default function UserProfilePage(props: UserProfilePageProps) {
     }
   }
 
-  const loadStanding = async (userID: number) => {
+  const loadOtherUserStanding = async (userID: number) => {
     const result = await actions.getUserProfileStanding(userID)
     if (result.ok) {
-      setStanding(result.data)
+      setOtherUserStanding(result.data)
     } else {
       setError("You are not authorized to view this profile")
     }
@@ -377,7 +386,11 @@ export default function UserProfilePage(props: UserProfilePageProps) {
 
       if (result.ok) {
         setModerationModal(prev => ({ ...prev, isOpen: false }))
-        await loadStanding(props.user.id)
+        if (isViewingOwnProfile) {
+          await userStandingContext.refetch()
+        } else {
+          await loadOtherUserStanding(props.user.id)
+        }
       } else if (result.error) {
         setModerationModal(prev => ({ ...prev, error: result.error }))
       }
@@ -389,7 +402,11 @@ export default function UserProfilePage(props: UserProfilePageProps) {
 
       if (result.ok) {
         setModerationModal(prev => ({ ...prev, isOpen: false }))
-        await loadStanding(props.user.id)
+        if (isViewingOwnProfile) {
+          await userStandingContext.refetch()
+        } else {
+          await loadOtherUserStanding(props.user.id)
+        }
       } else if (result.error) {
         setModerationModal(prev => ({ ...prev, error: result.error }))
       }
@@ -413,7 +430,11 @@ export default function UserProfilePage(props: UserProfilePageProps) {
   const handleDeleteWarning = async (warningId: number) => {
     const result = await actions.deleteWarning(props.user.id, warningId)
     if (result.ok) {
-      loadStanding(props.user.id)
+      if (isViewingOwnProfile) {
+        await userStandingContext.refetch()
+      } else {
+        await loadOtherUserStanding(props.user.id)
+      }
       notify.success(i18n._("profile.warning.delete.success", { message: "Warning has been deleted successfully" }))
     }
   }
@@ -421,7 +442,11 @@ export default function UserProfilePage(props: UserProfilePageProps) {
   const handleDeleteMute = async (muteId: number) => {
     const result = await actions.deleteMute(props.user.id, muteId)
     if (result.ok) {
-      loadStanding(props.user.id)
+      if (isViewingOwnProfile) {
+        await userStandingContext.refetch()
+      } else {
+        await loadOtherUserStanding(props.user.id)
+      }
       notify.success(i18n._("profile.mute.delete.success", { message: "Mute has been deleted successfully" }))
     }
   }
