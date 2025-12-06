@@ -1,11 +1,44 @@
 import "./Footer.scss"
-import React from "react"
+import React, { useState, useEffect, useRef } from "react"
 
 const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear()
+  const [revealProgress, setRevealProgress] = useState(0)
+  const footerRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.scrollY
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight
+      const scrollPercent = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0
+      
+      const startReveal = 0
+      const endReveal = 25
+      
+      if (scrollPercent <= startReveal) {
+        setRevealProgress(0)
+      } else if (scrollPercent >= endReveal) {
+        setRevealProgress(1)
+      } else {
+        const progress = (scrollPercent - startReveal) / (endReveal - startReveal)
+        setRevealProgress(progress)
+      }
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    handleScroll()
+
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
+
+  const translateY = (1 - revealProgress) * 100
 
   return (
-    <footer className="site-footer">
+    <footer 
+      ref={footerRef}
+      className="site-footer"
+      style={{ transform: `translateY(${translateY}%)` }}
+    >
       <nav>
         <ul>
           <li>

@@ -6,7 +6,7 @@
 
 .page {
   padding-top: spacing(5);
-  padding-bottom: spacing(4);
+  padding-bottom: calc(#{spacing(4)} + 100px);
 }
 
 @include media("sm") {
