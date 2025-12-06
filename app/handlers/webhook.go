@@ -37,21 +37,23 @@ func CreateWebhook() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		createWebhook := &query.CreateEditWebhook{
-			ID:          0,
-			Name:        action.Name,
-			Type:        action.Type,
-			Status:      action.Status,
-			Url:         action.Url,
-			Content:     action.Content,
-			HttpMethod:  action.HttpMethod,
-			HttpHeaders: action.HttpHeaders,
-		}
-		if err := bus.Dispatch(c, createWebhook); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			createWebhook := &query.CreateEditWebhook{
+				ID:          0,
+				Name:        action.Name,
+				Type:        action.Type,
+				Status:      action.Status,
+				Url:         action.Url,
+				Content:     action.Content,
+				HttpMethod:  action.HttpMethod,
+				HttpHeaders: action.HttpHeaders,
+			}
+			if err := bus.Dispatch(c, createWebhook); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{"id": createWebhook.Result})
+			return c.Ok(web.Map{"id": createWebhook.Result})
+		})
 	}
 }
 
@@ -68,27 +70,24 @@ func UpdateWebhook() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		updateWebhook := &query.CreateEditWebhook{
-			ID:          id,
-			Name:        action.Name,
-			Type:        action.Type,
-			Status:      action.Status,
-			Url:         action.Url,
-			Content:     action.Content,
-			HttpMethod:  action.HttpMethod,
-			HttpHeaders: action.HttpHeaders,
-		}
+		return c.WithTransaction(func() error {
+			updateWebhook := &query.CreateEditWebhook{
+				ID:          id,
+				Name:        action.Name,
+				Type:        action.Type,
+				Status:      action.Status,
+				Url:         action.Url,
+				Content:     action.Content,
+				HttpMethod:  action.HttpMethod,
+				HttpHeaders: action.HttpHeaders,
+			}
 
-		// TODO: Handle status change correctly with some way of alerting the user without just outright disabling it
-		// if action.Status == enum.WebhookFailed {
-		//     updateWebhook.Status = enum.WebhookDisabled
-		// }
+			if err := bus.Dispatch(c, updateWebhook); err != nil {
+				return c.Failure(err)
+			}
 
-		if err := bus.Dispatch(c, updateWebhook); err != nil {
-			return c.Failure(err)
-		}
-
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -100,12 +99,14 @@ func DeleteWebhook() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		deleteWebhook := &query.DeleteWebhook{ID: id}
-		if err = bus.Dispatch(c, deleteWebhook); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			deleteWebhook := &query.DeleteWebhook{ID: id}
+			if err := bus.Dispatch(c, deleteWebhook); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 

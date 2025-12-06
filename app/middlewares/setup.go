@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
-
-	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/log"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/worker"
+
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 )
 
 // WorkerSetup current context with some services
@@ -84,7 +84,12 @@ func WorkerSetup() worker.MiddlewareFunc {
 	}
 }
 
-// WebSetup current context with some services
+// Main context setup for all routes that need transactions
+// transactions are NOT created automatically - handlers that need atomicity
+// should use c.WithTransaction().
+//
+// Read only handlers use lazy transactions via GetOrBeginTx
+// which creates short lived transactions when needed
 func WebSetup() web.MiddlewareFunc {
 	return func(next web.HandlerFunc) web.HandlerFunc {
 		return func(c *web.Context) error {
@@ -118,25 +123,16 @@ func WebSetup() web.MiddlewareFunc {
 				})
 			}
 
-			trx, err := dbx.BeginTx(c)
-			if err != nil {
-				err = c.Failure(err)
-				logFinish("begin_error", err)
-				return err
-			}
-
-			c.Set(app.TransactionCtxKey, trx)
-
-			//In case it panics somewhere
+			// rollback any transaction that might exist
 			defer func() {
 				if r := recover(); r != nil {
 					err := c.Failure(errors.Panicked(r))
-					trx.MustRollback()
+					c.Rollback()
 					logFinish("panicked", err)
 				}
 			}()
 
-			//Execute the chain
+			// execute the chain, no trx created here
 			if err := next(c); err != nil {
 				c.Rollback()
 				logFinish("next_error", err)

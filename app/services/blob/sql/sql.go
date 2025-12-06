@@ -58,15 +58,17 @@ func listBlobs(ctx context.Context, q *query.ListBlobs) error {
 	blob.EnsureAuthorizedPrefix(ctx, q.Prefix)
 
 	return using(ctx, func(tenantID sql.NullInt64) error {
-		trx, err := dbx.BeginTx(ctx)
+		trx, owned, err := dbx.GetOrBeginTx(ctx)
 		if err != nil {
 			return errors.Wrap(err, "failed to open transaction")
 		}
-		defer trx.MustCommit()
 
 		blobs := []*dbBlob{}
 		err = trx.Select(&blobs, "SELECT key FROM blobs WHERE key LIKE $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", q.Prefix+"%", tenantID)
 		if err != nil {
+			if owned {
+				trx.MustRollback()
+			}
 			return errors.Wrap(err, "failed list blobs")
 		}
 
@@ -77,12 +79,15 @@ func listBlobs(ctx context.Context, q *query.ListBlobs) error {
 
 		sort.Strings(files)
 		q.Result = files
+
+		if owned {
+			trx.MustCommit()
+		}
 		return nil
 	})
 }
 
 func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
-	// see: filemanagement page
 	if strings.HasPrefix(q.Key, "files/") {
 		user, ok := ctx.Value(app.UserCtxKey).(*entity.User)
 		if !ok || user == nil || !user.IsAdministrator() {
@@ -92,15 +97,17 @@ func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
 	blob.EnsureAuthorizedPrefix(ctx, q.Key)
 
 	return using(ctx, func(tenantID sql.NullInt64) error {
-		trx, err := dbx.BeginTx(ctx)
+		trx, owned, err := dbx.GetOrBeginTx(ctx)
 		if err != nil {
 			return errors.Wrap(err, "failed to open transaction")
 		}
-		defer trx.MustCommit()
 
 		b := dbBlob{}
 		err = trx.Get(&b, "SELECT file, content_type, size FROM blobs WHERE key = $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", q.Key, tenantID)
 		if err != nil {
+			if owned {
+				trx.MustRollback()
+			}
 			if err == app.ErrNotFound {
 				return blob.ErrNotFound
 			}
@@ -111,6 +118,10 @@ func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
 			Size:        b.Size,
 			ContentType: b.ContentType,
 			Content:     b.Content,
+		}
+
+		if owned {
+			trx.MustCommit()
 		}
 		return nil
 	})
@@ -124,11 +135,10 @@ func storeBlob(ctx context.Context, c *cmd.StoreBlob) error {
 	}
 
 	return using(ctx, func(tenantID sql.NullInt64) error {
-		trx, err := dbx.BeginTx(ctx)
+		trx, owned, err := dbx.GetOrBeginTx(ctx)
 		if err != nil {
 			return errors.Wrap(err, "failed to open transaction")
 		}
-		defer trx.MustCommit()
 
 		now := time.Now()
 		_, err = trx.Execute(`
@@ -137,13 +147,15 @@ func storeBlob(ctx context.Context, c *cmd.StoreBlob) error {
 		DO UPDATE SET size = $3, content_type = $4, file = $5, modified_at = $7
 		`, tenantID, c.Key, int64(len(c.Content)), c.ContentType, c.Content, now, now)
 		if err != nil {
+			if owned {
+				trx.MustRollback()
+			}
 			return errors.Wrap(err, "failed to store blob with key '%s'", c.Key)
 		}
 
-		if err != nil {
-			return errors.Wrap(err, "failed to commit store of blob with key '%s'", c.Key)
+		if owned {
+			trx.MustCommit()
 		}
-
 		return nil
 	})
 }
@@ -152,21 +164,22 @@ func deleteBlob(ctx context.Context, c *cmd.DeleteBlob) error {
 	blob.EnsureAuthorizedPrefix(ctx, c.Key)
 
 	return using(ctx, func(tenantID sql.NullInt64) error {
-		trx, err := dbx.BeginTx(ctx)
+		trx, owned, err := dbx.GetOrBeginTx(ctx)
 		if err != nil {
 			return errors.Wrap(err, "failed to open transaction")
 		}
-		defer trx.MustCommit()
 
 		_, err = trx.Execute("DELETE FROM blobs WHERE key = $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", c.Key, tenantID)
 		if err != nil {
+			if owned {
+				trx.MustRollback()
+			}
 			return errors.Wrap(err, "failed to delete blob with key '%s'", c.Key)
 		}
 
-		if err != nil {
-			return errors.Wrap(err, "failed to commit deletion of blob with key '%s'", c.Key)
+		if owned {
+			trx.MustCommit()
 		}
-
 		return nil
 	})
 }

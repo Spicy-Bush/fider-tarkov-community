@@ -105,35 +105,48 @@ func ReadNotification() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		if err = bus.Dispatch(c, &cmd.MarkNotificationAsRead{ID: q.Result.ID}); err != nil {
-			return c.Failure(err)
+		// store link before transaction since we need it afterwards too
+		link := q.Result.Link
+
+		err = c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.MarkNotificationAsRead{ID: q.Result.ID}); err != nil {
+				return c.Failure(err)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
 		}
 
-		return c.Redirect(c.BaseURL() + q.Result.Link)
+		return c.Redirect(c.BaseURL() + link)
 	}
 }
 
 // ReadAllNotifications marks all unread notifications as read
 func ReadAllNotifications() web.HandlerFunc {
 	return func(c *web.Context) error {
-		if err := bus.Dispatch(c, &cmd.MarkAllNotificationsAsRead{}); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.MarkAllNotificationsAsRead{}); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
 // PurgeReadNotifications purges all read notifications for current user
 func PurgeReadNotifications() web.HandlerFunc {
 	return func(c *web.Context) error {
-		cmd := &cmd.PurgeReadNotifications{}
-		if err := bus.Dispatch(c, cmd); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			purgeCmd := &cmd.PurgeReadNotifications{}
+			if err := bus.Dispatch(c, purgeCmd); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{
-			"purgedCount": cmd.NumOfPurgedNotifications,
+			return c.Ok(web.Map{
+				"purgedCount": purgeCmd.NumOfPurgedNotifications,
+			})
 		})
 	}
 }

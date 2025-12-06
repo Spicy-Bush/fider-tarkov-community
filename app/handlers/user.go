@@ -21,12 +21,14 @@ func BlockUser() web.HandlerFunc {
 			return c.NotFound()
 		}
 
-		err = bus.Dispatch(c, &cmd.BlockUser{UserID: userID})
-		if err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			err = bus.Dispatch(c, &cmd.BlockUser{UserID: userID})
+			if err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -38,12 +40,14 @@ func UnblockUser() web.HandlerFunc {
 			return c.NotFound()
 		}
 
-		err = bus.Dispatch(c, &cmd.UnblockUser{UserID: userID})
-		if err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			err = bus.Dispatch(c, &cmd.UnblockUser{UserID: userID})
+			if err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -105,14 +109,16 @@ func DeleteWarning() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		if err := bus.Dispatch(c, &cmd.DeleteWarning{
-			UserID:    userID,
-			WarningID: warningID,
-		}); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.DeleteWarning{
+				UserID:    userID,
+				WarningID: warningID,
+			}); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -138,13 +144,15 @@ func DeleteMute() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		if err := bus.Dispatch(c, &cmd.DeleteMute{
-			UserID: userID,
-			MuteID: muteID,
-		}); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.DeleteMute{
+				UserID: userID,
+				MuteID: muteID,
+			}); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }

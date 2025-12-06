@@ -53,6 +53,22 @@ func routes(r *web.Engine) *web.Engine {
 	r.Use(middlewares.Maintenance())
 	r.Use(middlewares.WebSetup())
 	r.Use(middlewares.Tenant())
+
+	tenantAssets := r.Group()
+	{
+		tenantAssets.Use(middlewares.RequireTenant())
+		tenantAssets.Use(middlewares.ClientCache(5 * 24 * time.Hour))
+		tenantAssets.Get("/static/avatars/letter/:id/:name", handlers.LetterAvatar())
+		tenantAssets.Get("/static/avatars/gravatar/:id/*name", handlers.Gravatar())
+
+		tenantAssets.Use(middlewares.ClientCache(30 * 24 * time.Hour))
+		tenantAssets.Get("/static/favicon/*bkey", handlers.Favicon())
+		tenantAssets.Get("/static/images/*bkey", handlers.ViewUploadedImage())
+		tenantAssets.Get("/static/custom/:md5.css", func(c *web.Context) error {
+			return c.Blob(http.StatusOK, "text/css", []byte(c.Tenant().CustomCSS))
+		})
+	}
+
 	r.Use(middlewares.User())
 	r.Use(middlewares.FilterContext())
 
@@ -78,20 +94,6 @@ func routes(r *web.Engine) *web.Engine {
 	r.Use(middlewares.RequireTenant())
 
 	r.Get("/sitemap.xml", handlers.Sitemap())
-
-	tenantAssets := r.Group()
-	{
-		tenantAssets.Use(middlewares.ClientCache(5 * 24 * time.Hour))
-		tenantAssets.Get("/static/avatars/letter/:id/:name", handlers.LetterAvatar())
-		tenantAssets.Get("/static/avatars/gravatar/:id/*name", handlers.Gravatar())
-
-		tenantAssets.Use(middlewares.ClientCache(30 * 24 * time.Hour))
-		tenantAssets.Get("/static/favicon/*bkey", handlers.Favicon())
-		tenantAssets.Get("/static/images/*bkey", handlers.ViewUploadedImage())
-		tenantAssets.Get("/static/custom/:md5.css", func(c *web.Context) error {
-			return c.Blob(http.StatusOK, "text/css", []byte(c.Tenant().CustomCSS))
-		})
-	}
 
 	r.Get("/signup/verify", handlers.VerifySignUpKey())
 	r.Get("/signout", handlers.SignOut())

@@ -52,14 +52,16 @@ func UpdateContentSettings() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.UpdateContentSettings{
-			Settings: action.Settings,
-		})
-		if err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.UpdateContentSettings{
+				Settings: action.Settings,
+			})
+			if err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -86,32 +88,34 @@ func UpdateSettings() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		if err := bus.Dispatch(c,
-			&cmd.UploadImage{
-				Image:  action.Logo,
-				Folder: "logos",
-			},
-			&cmd.UpdateTenantSettings{
-				Logo:           action.Logo,
-				Title:          action.Title,
-				Invitation:     action.Invitation,
-				WelcomeMessage: action.WelcomeMessage,
-				CNAME:          action.CNAME,
-				Locale:         action.Locale,
-			},
-		); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c,
+				&cmd.UploadImage{
+					Image:  action.Logo,
+					Folder: "logos",
+				},
+				&cmd.UpdateTenantSettings{
+					Logo:           action.Logo,
+					Title:          action.Title,
+					Invitation:     action.Invitation,
+					WelcomeMessage: action.WelcomeMessage,
+					CNAME:          action.CNAME,
+					Locale:         action.Locale,
+				},
+			); err != nil {
+				return c.Failure(err)
+			}
 
-		// Handle userlist.
-		if env.Config.UserList.Enabled {
-			c.Enqueue(tasks.UserListUpdateCompany(&dto.UserListUpdateCompany{
-				TenantID: c.Tenant().ID,
-				Name:     action.Title,
-			}))
-		}
+			// Handle userlist.
+			if env.Config.UserList.Enabled {
+				c.Enqueue(tasks.UserListUpdateCompany(&dto.UserListUpdateCompany{
+					TenantID: c.Tenant().ID,
+					Name:     action.Title,
+				}))
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -124,14 +128,16 @@ func UpdateAdvancedSettings() web.HandlerFunc {
 		}
 		tenant := c.Tenant()
 
-		if err := bus.Dispatch(c, &cmd.UpdateTenantAdvancedSettings{
-			CustomCSS:      action.CustomCSS,
-			ProfanityWords: tenant.ProfanityWords,
-		}); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.UpdateTenantAdvancedSettings{
+				CustomCSS:      action.CustomCSS,
+				ProfanityWords: tenant.ProfanityWords,
+			}); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -143,14 +149,16 @@ func UpdatePrivacy() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		updateSettings := &cmd.UpdateTenantPrivacySettings{
-			IsPrivate: action.IsPrivate,
-		}
-		if err := bus.Dispatch(c, updateSettings); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			updateSettings := &cmd.UpdateTenantPrivacySettings{
+				IsPrivate: action.IsPrivate,
+			}
+			if err := bus.Dispatch(c, updateSettings); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -162,14 +170,16 @@ func UpdateEmailAuthAllowed() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		updateSettings := &cmd.UpdateTenantEmailAuthAllowedSettings{
-			IsEmailAuthAllowed: action.IsEmailAuthAllowed,
-		}
-		if err := bus.Dispatch(c, updateSettings); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			updateSettings := &cmd.UpdateTenantEmailAuthAllowedSettings{
+				IsEmailAuthAllowed: action.IsEmailAuthAllowed,
+			}
+			if err := bus.Dispatch(c, updateSettings); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -283,33 +293,35 @@ func SaveOAuthConfig() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		if err := bus.Dispatch(c,
-			&cmd.UploadImage{
-				Image:  action.Logo,
-				Folder: "logos",
-			},
-			&cmd.SaveCustomOAuthConfig{
-				ID:                action.ID,
-				Logo:              action.Logo,
-				Provider:          action.Provider,
-				Status:            action.Status,
-				DisplayName:       action.DisplayName,
-				ClientID:          action.ClientID,
-				ClientSecret:      action.ClientSecret,
-				AuthorizeURL:      action.AuthorizeURL,
-				TokenURL:          action.TokenURL,
-				Scope:             action.Scope,
-				ProfileURL:        action.ProfileURL,
-				IsTrusted:         action.IsTrusted,
-				JSONUserIDPath:    action.JSONUserIDPath,
-				JSONUserNamePath:  action.JSONUserNamePath,
-				JSONUserEmailPath: action.JSONUserEmailPath,
-			},
-		); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c,
+				&cmd.UploadImage{
+					Image:  action.Logo,
+					Folder: "logos",
+				},
+				&cmd.SaveCustomOAuthConfig{
+					ID:                action.ID,
+					Logo:              action.Logo,
+					Provider:          action.Provider,
+					Status:            action.Status,
+					DisplayName:       action.DisplayName,
+					ClientID:          action.ClientID,
+					ClientSecret:      action.ClientSecret,
+					AuthorizeURL:      action.AuthorizeURL,
+					TokenURL:          action.TokenURL,
+					Scope:             action.Scope,
+					ProfileURL:        action.ProfileURL,
+					IsTrusted:         action.IsTrusted,
+					JSONUserIDPath:    action.JSONUserIDPath,
+					JSONUserNamePath:  action.JSONUserNamePath,
+					JSONUserEmailPath: action.JSONUserEmailPath,
+				},
+			); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -321,10 +333,12 @@ func UpdateProfanityWords() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		if err := action.Run(c); err != nil {
-			return c.Failure(err)
-		}
-		return c.Ok(web.Map{})
+		return c.WithTransaction(func() error {
+			if err := action.Run(c); err != nil {
+				return c.Failure(err)
+			}
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -344,25 +358,28 @@ func MuteUser() web.HandlerFunc {
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
 		}
-		expiresAt := time.Now().Add(time.Duration(action.Duration) * time.Minute)
-		muteUser := &cmd.MuteUser{
-			UserID:    userID,
-			Reason:    action.Reason,
-			ExpiresAt: expiresAt,
-		}
 
-		if err := bus.Dispatch(c, muteUser); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			expiresAt := time.Now().Add(time.Duration(action.Duration) * time.Minute)
+			muteUser := &cmd.MuteUser{
+				UserID:    userID,
+				Reason:    action.Reason,
+				ExpiresAt: expiresAt,
+			}
 
-		getUser := &query.GetUserByID{UserID: userID}
-		if err := bus.Dispatch(c, getUser); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, muteUser); err != nil {
+				return c.Failure(err)
+			}
 
-		c.Enqueue(tasks.NotifyAboutMute(getUser.Result, action.Reason, &expiresAt))
+			getUser := &query.GetUserByID{UserID: userID}
+			if err := bus.Dispatch(c, getUser); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			c.Enqueue(tasks.NotifyAboutMute(getUser.Result, action.Reason, &expiresAt))
+
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -382,27 +399,30 @@ func WarnUser() web.HandlerFunc {
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
 		}
-		var expiresAt time.Time
-		if action.Duration > 0 {
-			expiresAt = time.Now().Add(time.Duration(action.Duration) * time.Minute)
-		}
-		warnUser := &cmd.WarnUser{
-			UserID:    userID,
-			Reason:    action.Reason,
-			ExpiresAt: expiresAt,
-		}
 
-		if err := bus.Dispatch(c, warnUser); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			var expiresAt time.Time
+			if action.Duration > 0 {
+				expiresAt = time.Now().Add(time.Duration(action.Duration) * time.Minute)
+			}
+			warnUser := &cmd.WarnUser{
+				UserID:    userID,
+				Reason:    action.Reason,
+				ExpiresAt: expiresAt,
+			}
 
-		getUser := &query.GetUserByID{UserID: userID}
-		if err := bus.Dispatch(c, getUser); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, warnUser); err != nil {
+				return c.Failure(err)
+			}
 
-		c.Enqueue(tasks.NotifyAboutWarning(getUser.Result, action.Reason, &expiresAt))
+			getUser := &query.GetUserByID{UserID: userID}
+			if err := bus.Dispatch(c, getUser); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			c.Enqueue(tasks.NotifyAboutWarning(getUser.Result, action.Reason, &expiresAt))
+
+			return c.Ok(web.Map{})
+		})
 	}
 }

@@ -163,46 +163,47 @@ func CreatePost() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		if err := bus.Dispatch(c, &cmd.UploadImages{Images: action.Attachments, Folder: "attachments"}); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.UploadImages{Images: action.Attachments, Folder: "attachments"}); err != nil {
+				return c.Failure(err)
+			}
 
-		newPost := &cmd.AddNewPost{
-			Title:       action.Title,
-			Description: action.Description,
-		}
-		err = bus.Dispatch(c, newPost)
-		if err != nil {
-			return c.Failure(err)
-		}
+			newPost := &cmd.AddNewPost{
+				Title:       action.Title,
+				Description: action.Description,
+			}
+			if err := bus.Dispatch(c, newPost); err != nil {
+				return c.Failure(err)
+			}
 
-		setAttachments := &cmd.SetAttachments{Post: newPost.Result, Attachments: action.Attachments}
-		addVote := &cmd.AddVote{Post: newPost.Result, User: c.User(), VoteType: enum.VoteTypeUp}
-		if err = bus.Dispatch(c, setAttachments, addVote); err != nil {
-			return c.Failure(err)
-		}
+			setAttachments := &cmd.SetAttachments{Post: newPost.Result, Attachments: action.Attachments}
+			addVote := &cmd.AddVote{Post: newPost.Result, User: c.User(), VoteType: enum.VoteTypeUp}
+			if err := bus.Dispatch(c, setAttachments, addVote); err != nil {
+				return c.Failure(err)
+			}
 
-		if env.Config.PostCreationWithTagsEnabled {
-			for _, tagSlug := range action.TagSlugs {
-				getTag := &query.GetTagBySlug{Slug: tagSlug}
-				if err := bus.Dispatch(c, getTag); err != nil {
-					return c.Failure(err)
-				}
-				assignTag := &cmd.AssignTag{Tag: getTag.Result, Post: newPost.Result}
-				if err := bus.Dispatch(c, assignTag); err != nil {
-					return c.Failure(err)
+			if env.Config.PostCreationWithTagsEnabled {
+				for _, tagSlug := range action.TagSlugs {
+					getTag := &query.GetTagBySlug{Slug: tagSlug}
+					if err := bus.Dispatch(c, getTag); err != nil {
+						return c.Failure(err)
+					}
+					assignTag := &cmd.AssignTag{Tag: getTag.Result, Post: newPost.Result}
+					if err := bus.Dispatch(c, assignTag); err != nil {
+						return c.Failure(err)
+					}
 				}
 			}
-		}
 
-		c.Enqueue(tasks.NotifyAboutNewPost(newPost.Result))
+			c.Enqueue(tasks.NotifyAboutNewPost(newPost.Result))
 
-		metrics.TotalPosts.Inc()
-		return c.Ok(web.Map{
-			"id":     newPost.Result.ID,
-			"number": newPost.Result.Number,
-			"title":  newPost.Result.Title,
-			"slug":   newPost.Result.Slug,
+			metrics.TotalPosts.Inc()
+			return c.Ok(web.Map{
+				"id":     newPost.Result.ID,
+				"number": newPost.Result.Number,
+				"title":  newPost.Result.Title,
+				"slug":   newPost.Result.Slug,
+			})
 		})
 	}
 }
@@ -246,26 +247,28 @@ func UpdatePost() web.HandlerFunc {
 			return c.BadRequest(web.Map{})
 		}
 
-		err := bus.Dispatch(c,
-			&cmd.UploadImages{
-				Images: action.Attachments,
-				Folder: "attachments",
-			},
-			&cmd.UpdatePost{
-				Post:        action.Post,
-				Title:       action.Title,
-				Description: action.Description,
-			},
-			&cmd.SetAttachments{
-				Post:        action.Post,
-				Attachments: action.Attachments,
-			},
-		)
-		if err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c,
+				&cmd.UploadImages{
+					Images: action.Attachments,
+					Folder: "attachments",
+				},
+				&cmd.UpdatePost{
+					Post:        action.Post,
+					Title:       action.Title,
+					Description: action.Description,
+				},
+				&cmd.SetAttachments{
+					Post:        action.Post,
+					Attachments: action.Attachments,
+				},
+			)
+			if err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -284,24 +287,26 @@ func SetResponse() web.HandlerFunc {
 
 		prevStatus := getPost.Result.Status
 
-		var command bus.Msg
-		if action.Status == enum.PostDuplicate {
-			command = &cmd.MarkPostAsDuplicate{Post: getPost.Result, Original: action.Original}
-		} else {
-			command = &cmd.SetPostResponse{
-				Post:   getPost.Result,
-				Text:   action.Text,
-				Status: action.Status,
+		return c.WithTransaction(func() error {
+			var command bus.Msg
+			if action.Status == enum.PostDuplicate {
+				command = &cmd.MarkPostAsDuplicate{Post: getPost.Result, Original: action.Original}
+			} else {
+				command = &cmd.SetPostResponse{
+					Post:   getPost.Result,
+					Text:   action.Text,
+					Status: action.Status,
+				}
 			}
-		}
 
-		if err := bus.Dispatch(c, command); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, command); err != nil {
+				return c.Failure(err)
+			}
 
-		c.Enqueue(tasks.NotifyAboutStatusChange(getPost.Result, prevStatus))
+			c.Enqueue(tasks.NotifyAboutStatusChange(getPost.Result, prevStatus))
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -313,18 +318,20 @@ func DeletePost() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.SetPostResponse{
-			Post:   action.Post,
-			Text:   action.Text,
-			Status: enum.PostDeleted,
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.SetPostResponse{
+				Post:   action.Post,
+				Text:   action.Text,
+				Status: enum.PostDeleted,
+			})
+			if err != nil {
+				return c.Failure(err)
+			}
+
+			c.Enqueue(tasks.TriggerDeleteWebhook(action.Post))
+
+			return c.Ok(web.Map{})
 		})
-		if err != nil {
-			return c.Failure(err)
-		}
-
-		c.Enqueue(tasks.TriggerDeleteWebhook(action.Post))
-
-		return c.Ok(web.Map{})
 	}
 }
 
@@ -392,17 +399,19 @@ func ToggleReaction() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		toggleReaction := &cmd.ToggleCommentReaction{
-			Comment: action.Comment,
-			Emoji:   action.Reaction,
-			User:    c.User(),
-		}
-		if err := bus.Dispatch(c, toggleReaction); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			toggleReaction := &cmd.ToggleCommentReaction{
+				Comment: action.Comment,
+				Emoji:   action.Reaction,
+				User:    c.User(),
+			}
+			if err := bus.Dispatch(c, toggleReaction); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{
-			"added": toggleReaction.Result,
+			return c.Ok(web.Map{
+				"added": toggleReaction.Result,
+			})
 		})
 	}
 }
@@ -425,10 +434,6 @@ func PostComment() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		if err := bus.Dispatch(c, &cmd.UploadImages{Images: action.Attachments, Folder: "attachments"}); err != nil {
-			return c.Failure(err)
-		}
-
 		getPost := &query.GetPostByNumber{Number: action.Number}
 		if err := bus.Dispatch(c, getPost); err != nil {
 			return c.Failure(err)
@@ -443,31 +448,37 @@ func PostComment() web.HandlerFunc {
 			return c.BadRequest(web.Map{})
 		}
 
-		contentToSave := entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
-			return fmt.Sprintf(`{"id":%d,"name":"%s"}`, mention.ID, mention.Name)
-		})
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.UploadImages{Images: action.Attachments, Folder: "attachments"}); err != nil {
+				return c.Failure(err)
+			}
 
-		addNewComment := &cmd.AddNewComment{
-			Post:    getPost.Result,
-			Content: contentToSave,
-		}
-		if err := bus.Dispatch(c, addNewComment); err != nil {
-			return c.Failure(err)
-		}
+			contentToSave := entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
+				return fmt.Sprintf(`{"id":%d,"name":"%s"}`, mention.ID, mention.Name)
+			})
 
-		if err := bus.Dispatch(c, &cmd.SetAttachments{
-			Post:        getPost.Result,
-			Comment:     addNewComment.Result,
-			Attachments: action.Attachments,
-		}); err != nil {
-			return c.Failure(err)
-		}
+			addNewComment := &cmd.AddNewComment{
+				Post:    getPost.Result,
+				Content: contentToSave,
+			}
+			if err := bus.Dispatch(c, addNewComment); err != nil {
+				return c.Failure(err)
+			}
 
-		c.Enqueue(tasks.NotifyAboutNewComment(addNewComment.Result, getPost.Result))
+			if err := bus.Dispatch(c, &cmd.SetAttachments{
+				Post:        getPost.Result,
+				Comment:     addNewComment.Result,
+				Attachments: action.Attachments,
+			}); err != nil {
+				return c.Failure(err)
+			}
 
-		metrics.TotalComments.Inc()
-		return c.Ok(web.Map{
-			"id": addNewComment.Result.ID,
+			c.Enqueue(tasks.NotifyAboutNewComment(addNewComment.Result, getPost.Result))
+
+			metrics.TotalComments.Inc()
+			return c.Ok(web.Map{
+				"id": addNewComment.Result.ID,
+			})
 		})
 	}
 }
@@ -504,33 +515,35 @@ func UpdateComment() web.HandlerFunc {
 			return c.BadRequest(web.Map{})
 		}
 
-		contentToSave := entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
-			return fmt.Sprintf(`{"id":%d,"name":"%s"}`, mention.ID, mention.Name)
+		return c.WithTransaction(func() error {
+			contentToSave := entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
+				return fmt.Sprintf(`{"id":%d,"name":"%s"}`, mention.ID, mention.Name)
+			})
+
+			err := bus.Dispatch(c,
+				&cmd.UploadImages{
+					Images: action.Attachments,
+					Folder: "attachments",
+				},
+				&cmd.UpdateComment{
+					CommentID: action.ID,
+					Content:   contentToSave,
+				},
+				&cmd.SetAttachments{
+					Post:        action.Post,
+					Comment:     action.Comment,
+					Attachments: action.Attachments,
+				},
+			)
+			if err != nil {
+				return c.Failure(err)
+			}
+
+			// Update the content
+			c.Enqueue(tasks.NotifyAboutUpdatedComment(contentToSave, getPost.Result, action.ID))
+
+			return c.Ok(web.Map{})
 		})
-
-		err = bus.Dispatch(c,
-			&cmd.UploadImages{
-				Images: action.Attachments,
-				Folder: "attachments",
-			},
-			&cmd.UpdateComment{
-				CommentID: action.ID,
-				Content:   contentToSave,
-			},
-			&cmd.SetAttachments{
-				Post:        action.Post,
-				Comment:     action.Comment,
-				Attachments: action.Attachments,
-			},
-		)
-		if err != nil {
-			return c.Failure(err)
-		}
-
-		// Update the content
-		c.Enqueue(tasks.NotifyAboutUpdatedComment(contentToSave, getPost.Result, action.ID))
-
-		return c.Ok(web.Map{})
 	}
 }
 
@@ -542,14 +555,16 @@ func DeleteComment() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.DeleteComment{
-			CommentID: action.CommentID,
-		})
-		if err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.DeleteComment{
+				CommentID: action.CommentID,
+			})
+			if err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -640,12 +655,14 @@ func ToggleVote() web.HandlerFunc {
 			newVote = enum.VoteTypeUp
 		}
 
-		err = bus.Dispatch(c, &cmd.AddVote{Post: getPost.Result, User: c.User(), VoteType: newVote})
-		if err != nil {
-			return c.Failure(err)
-		}
-		metrics.TotalVotes.Inc()
-		return c.Ok(web.Map{"voted": (newVote == enum.VoteTypeUp)})
+		return c.WithTransaction(func() error {
+			err = bus.Dispatch(c, &cmd.AddVote{Post: getPost.Result, User: c.User(), VoteType: newVote})
+			if err != nil {
+				return c.Failure(err)
+			}
+			metrics.TotalVotes.Inc()
+			return c.Ok(web.Map{"voted": (newVote == enum.VoteTypeUp)})
+		})
 	}
 }
 
@@ -706,13 +723,15 @@ func addOrRemove(c *web.Context, getCommand func(post *entity.Post, user *entity
 		return c.BadRequest(web.Map{})
 	}
 
-	cmd := getCommand(getPost.Result, c.User())
-	err = bus.Dispatch(c, cmd)
-	if err != nil {
-		return c.Failure(err)
-	}
+	return c.WithTransaction(func() error {
+		cmd := getCommand(getPost.Result, c.User())
+		err = bus.Dispatch(c, cmd)
+		if err != nil {
+			return c.Failure(err)
+		}
 
-	return c.Ok(web.Map{})
+		return c.Ok(web.Map{})
+	})
 }
 
 func LockOrUnlockPost() web.HandlerFunc {
@@ -725,29 +744,33 @@ func LockOrUnlockPost() web.HandlerFunc {
 				return c.HandleValidation(result)
 			}
 
-			lockPost := &cmd.LockPost{
-				Post:        action.Post,
-				LockMessage: action.LockMessage,
-			}
-			if err := bus.Dispatch(c, lockPost); err != nil {
-				return c.Failure(err)
-			}
+			return c.WithTransaction(func() error {
+				lockPost := &cmd.LockPost{
+					Post:        action.Post,
+					LockMessage: action.LockMessage,
+				}
+				if err := bus.Dispatch(c, lockPost); err != nil {
+					return c.Failure(err)
+				}
+				return c.Ok(web.Map{})
+			})
 		} else if c.Request.Method == "DELETE" {
 			action := new(actions.UnlockPost)
 			if result := c.BindTo(action); !result.Ok {
 				return c.HandleValidation(result)
 			}
 
-			unlockPost := &cmd.UnlockPost{
-				Post: action.Post,
-			}
-			if err := bus.Dispatch(c, unlockPost); err != nil {
-				return c.Failure(err)
-			}
-		} else {
-			return c.BadRequest(web.Map{})
+			return c.WithTransaction(func() error {
+				unlockPost := &cmd.UnlockPost{
+					Post: action.Post,
+				}
+				if err := bus.Dispatch(c, unlockPost); err != nil {
+					return c.Failure(err)
+				}
+				return c.Ok(web.Map{})
+			})
 		}
 
-		return c.Ok(web.Map{})
+		return c.BadRequest(web.Map{})
 	}
 }

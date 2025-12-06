@@ -67,45 +67,47 @@ func CreateUser() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		var user *entity.User
+		return c.WithTransaction(func() error {
+			var user *entity.User
 
-		getByReference := &query.GetUserByProvider{Provider: "reference", UID: action.Reference}
-		err := bus.Dispatch(c, getByReference)
-		user = getByReference.Result
+			getByReference := &query.GetUserByProvider{Provider: "reference", UID: action.Reference}
+			err := bus.Dispatch(c, getByReference)
+			user = getByReference.Result
 
-		if err != nil && errors.Cause(err) == app.ErrNotFound {
-			if action.Email != "" {
-				getByEmail := &query.GetUserByEmail{Email: action.Email}
-				err = bus.Dispatch(c, getByEmail)
-				user = getByEmail.Result
-			}
 			if err != nil && errors.Cause(err) == app.ErrNotFound {
-				user = &entity.User{
-					Tenant: c.Tenant(),
-					Name:   action.Name,
-					Email:  action.Email,
-					Role:   enum.RoleVisitor,
+				if action.Email != "" {
+					getByEmail := &query.GetUserByEmail{Email: action.Email}
+					err = bus.Dispatch(c, getByEmail)
+					user = getByEmail.Result
 				}
-				err = bus.Dispatch(c, &cmd.RegisterUser{User: user})
+				if err != nil && errors.Cause(err) == app.ErrNotFound {
+					user = &entity.User{
+						Tenant: c.Tenant(),
+						Name:   action.Name,
+						Email:  action.Email,
+						Role:   enum.RoleVisitor,
+					}
+					err = bus.Dispatch(c, &cmd.RegisterUser{User: user})
+				}
 			}
-		}
 
-		if err != nil {
-			return c.Failure(err)
-		}
-
-		if action.Reference != "" && !user.HasProvider("reference") {
-			if err := bus.Dispatch(c, &cmd.RegisterUserProvider{
-				UserID:       user.ID,
-				ProviderName: "reference",
-				ProviderUID:  action.Reference,
-			}); err != nil {
+			if err != nil {
 				return c.Failure(err)
 			}
-		}
 
-		return c.Ok(web.Map{
-			"id": user.ID,
+			if action.Reference != "" && !user.HasProvider("reference") {
+				if err := bus.Dispatch(c, &cmd.RegisterUserProvider{
+					UserID:       user.ID,
+					ProviderName: "reference",
+					ProviderUID:  action.Reference,
+				}); err != nil {
+					return c.Failure(err)
+				}
+			}
+
+			return c.Ok(web.Map{
+				"id": user.ID,
+			})
 		})
 	}
 }

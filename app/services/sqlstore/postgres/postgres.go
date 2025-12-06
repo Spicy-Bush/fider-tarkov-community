@@ -179,8 +179,22 @@ func (s Service) Init() {
 type SqlHandler func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error
 
 func using(ctx context.Context, handler SqlHandler) error {
-	trx, _ := ctx.Value(app.TransactionCtxKey).(*dbx.Trx)
+	trx, owned, err := dbx.GetOrBeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
 	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 	user, _ := ctx.Value(app.UserCtxKey).(*entity.User)
-	return handler(trx, tenant, user)
+	err = handler(trx, tenant, user)
+
+	if owned {
+		if err != nil {
+			trx.MustRollback()
+		} else {
+			trx.MustCommit()
+		}
+	}
+
+	return err
 }

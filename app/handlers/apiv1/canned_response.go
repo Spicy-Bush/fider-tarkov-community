@@ -39,18 +39,20 @@ func CreateCannedResponse() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		createCannedResponse := &cmd.CreateCannedResponse{
-			Type:     action.Type,
-			Title:    action.Title,
-			Content:  action.Content,
-			Duration: action.Duration,
-		}
+		return c.WithTransaction(func() error {
+			createCannedResponse := &cmd.CreateCannedResponse{
+				Type:     action.Type,
+				Title:    action.Title,
+				Content:  action.Content,
+				Duration: action.Duration,
+			}
 
-		if err := bus.Dispatch(c, createCannedResponse); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, createCannedResponse); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(createCannedResponse.Result)
+			return c.Ok(createCannedResponse.Result)
+		})
 	}
 }
 
@@ -70,20 +72,22 @@ func UpdateCannedResponse() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		updateCannedResponse := &cmd.UpdateCannedResponse{
-			ID:       responseID,
-			Type:     action.Type,
-			Title:    action.Title,
-			Content:  action.Content,
-			Duration: action.Duration,
-			IsActive: action.IsActive,
-		}
+		return c.WithTransaction(func() error {
+			updateCannedResponse := &cmd.UpdateCannedResponse{
+				ID:       responseID,
+				Type:     action.Type,
+				Title:    action.Title,
+				Content:  action.Content,
+				Duration: action.Duration,
+				IsActive: action.IsActive,
+			}
 
-		if err := bus.Dispatch(c, updateCannedResponse); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, updateCannedResponse); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(updateCannedResponse.Result)
+			return c.Ok(updateCannedResponse.Result)
+		})
 	}
 }
 
@@ -104,14 +108,16 @@ func DeleteCannedResponse() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		deleteCannedResponse := &cmd.DeleteCannedResponse{
-			ID: responseID,
-		}
+		return c.WithTransaction(func() error {
+			deleteCannedResponse := &cmd.DeleteCannedResponse{
+				ID: responseID,
+			}
 
-		if err := bus.Dispatch(c, deleteCannedResponse); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, deleteCannedResponse); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }

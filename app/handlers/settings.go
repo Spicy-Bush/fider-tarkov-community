@@ -30,18 +30,20 @@ func ChangeUserEmail() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.SaveVerificationKey{
-			Key:      action.VerificationKey,
-			Duration: 24 * time.Hour,
-			Request:  action,
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.SaveVerificationKey{
+				Key:      action.VerificationKey,
+				Duration: 24 * time.Hour,
+				Request:  action,
+			})
+			if err != nil {
+				return c.Failure(err)
+			}
+
+			c.Enqueue(tasks.SendChangeEmailConfirmation(action))
+
+			return c.Ok(web.Map{})
 		})
-		if err != nil {
-			return c.Failure(err)
-		}
-
-		c.Enqueue(tasks.SendChangeEmailConfirmation(action))
-
-		return c.Ok(web.Map{})
 	}
 }
 
@@ -61,21 +63,26 @@ func VerifyChangeEmailKey() web.HandlerFunc {
 			return c.Redirect(c.BaseURL())
 		}
 
-		changeEmail := &cmd.ChangeUserEmail{
-			UserID: result.UserID,
-			Email:  result.Email,
-		}
-		if err = bus.Dispatch(c, changeEmail); err != nil {
-			return c.Failure(err)
-		}
+		err = c.WithTransaction(func() error {
+			changeEmail := &cmd.ChangeUserEmail{
+				UserID: result.UserID,
+				Email:  result.Email,
+			}
+			if err := bus.Dispatch(c, changeEmail); err != nil {
+				return c.Failure(err)
+			}
 
-		err = bus.Dispatch(c, &cmd.SetKeyAsVerified{Key: key})
+			if err := bus.Dispatch(c, &cmd.SetKeyAsVerified{Key: key}); err != nil {
+				return c.Failure(err)
+			}
+
+			if env.Config.UserList.Enabled {
+				c.Enqueue(tasks.UserListUpdateUser(c.User().ID, "", result.Email))
+			}
+			return nil
+		})
 		if err != nil {
-			return c.Failure(err)
-		}
-
-		if env.Config.UserList.Enabled {
-			c.Enqueue(tasks.UserListUpdateUser(c.User().ID, "", result.Email))
+			return err
 		}
 
 		return c.Redirect(c.BaseURL() + "/profile#settings")
@@ -124,18 +131,20 @@ func UpdateUserName() web.HandlerFunc {
 			}
 		}
 
-		if err := bus.Dispatch(c, &cmd.UpdateUser{
-			UserID: userID,
-			Name:   action.Name,
-		}); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.UpdateUser{
+				UserID: userID,
+				Name:   action.Name,
+			}); err != nil {
+				return c.Failure(err)
+			}
 
-		if env.Config.UserList.Enabled {
-			c.Enqueue(tasks.UserListUpdateUser(userID, action.Name, ""))
-		}
+			if env.Config.UserList.Enabled {
+				c.Enqueue(tasks.UserListUpdateUser(userID, action.Name, ""))
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -147,13 +156,15 @@ func UpdateUserSettings() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		if err := bus.Dispatch(c, &cmd.UpdateCurrentUserSettings{
-			Settings: action.Settings,
-		}); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.UpdateCurrentUserSettings{
+				Settings: action.Settings,
+			}); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -199,34 +210,36 @@ func UpdateUserAvatar() web.HandlerFunc {
 			}
 		}
 
-		if action.Avatar != nil && action.Avatar.Upload != nil {
-			if err := bus.Dispatch(c, &cmd.UploadImage{
-				Image:  action.Avatar,
-				Folder: "avatars",
-			}); err != nil {
-				return c.Failure(err)
+		return c.WithTransaction(func() error {
+			if action.Avatar != nil && action.Avatar.Upload != nil {
+				if err := bus.Dispatch(c, &cmd.UploadImage{
+					Image:  action.Avatar,
+					Folder: "avatars",
+				}); err != nil {
+					return c.Failure(err)
+				}
 			}
-		}
 
-		// Different dispatch based on whether it's updating current user or another user
-		if userID == c.User().ID {
-			if err := bus.Dispatch(c, &cmd.UpdateCurrentUser{
-				Avatar:     action.Avatar,
-				AvatarType: action.AvatarType,
-			}); err != nil {
-				return c.Failure(err)
+			// Different dispatch based on whether it's updating current user or another user
+			if userID == c.User().ID {
+				if err := bus.Dispatch(c, &cmd.UpdateCurrentUser{
+					Avatar:     action.Avatar,
+					AvatarType: action.AvatarType,
+				}); err != nil {
+					return c.Failure(err)
+				}
+			} else {
+				if err := bus.Dispatch(c, &cmd.UpdateUserAvatar{
+					UserID:     userID,
+					AvatarType: action.AvatarType,
+					Avatar:     action.Avatar,
+				}); err != nil {
+					return c.Failure(err)
+				}
 			}
-		} else {
-			if err := bus.Dispatch(c, &cmd.UpdateUserAvatar{
-				UserID:     userID,
-				AvatarType: action.AvatarType,
-				Avatar:     action.Avatar,
-			}); err != nil {
-				return c.Failure(err)
-			}
-		}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -238,21 +251,23 @@ func ChangeUserRole() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		changeRole := &cmd.ChangeUserRole{
-			UserID: action.UserID,
-			Role:   action.Role,
-		}
+		return c.WithTransaction(func() error {
+			changeRole := &cmd.ChangeUserRole{
+				UserID: action.UserID,
+				Role:   action.Role,
+			}
 
-		if err := bus.Dispatch(c, changeRole); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, changeRole); err != nil {
+				return c.Failure(err)
+			}
 
-		// Handle userlist
-		if env.Config.UserList.Enabled {
-			c.Enqueue(tasks.UserListAddOrRemoveUser(action.UserID, action.Role))
-		}
+			// Handle userlist
+			if env.Config.UserList.Enabled {
+				c.Enqueue(tasks.UserListAddOrRemoveUser(action.UserID, action.Role))
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -264,47 +279,53 @@ func ChangeUserVisualRole() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		changeVisualRole := &cmd.ChangeUserVisualRole{
-			UserID:     action.UserID,
-			VisualRole: action.VisualRole,
-		}
+		return c.WithTransaction(func() error {
+			changeVisualRole := &cmd.ChangeUserVisualRole{
+				UserID:     action.UserID,
+				VisualRole: action.VisualRole,
+			}
 
-		if err := bus.Dispatch(c, changeVisualRole); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, changeVisualRole); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
 // DeleteUser erases current user personal data and sign them out
 func DeleteUser() web.HandlerFunc {
 	return func(c *web.Context) error {
-		if err := bus.Dispatch(c, &cmd.DeleteCurrentUser{}); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.DeleteCurrentUser{}); err != nil {
+				return c.Failure(err)
+			}
 
-		c.RemoveCookie(web.CookieAuthName)
+			c.RemoveCookie(web.CookieAuthName)
 
-		// Handle userlist (easiest way is to demote them which will remove them from the userlist)
-		if env.Config.UserList.Enabled {
-			c.Enqueue(tasks.UserListAddOrRemoveUser(c.User().ID, enum.RoleVisitor))
-		}
+			// Handle userlist (easiest way is to demote them which will remove them from the userlist)
+			if env.Config.UserList.Enabled {
+				c.Enqueue(tasks.UserListAddOrRemoveUser(c.User().ID, enum.RoleVisitor))
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
 // RegenerateAPIKey regenerates current user's API Key
 func RegenerateAPIKey() web.HandlerFunc {
 	return func(c *web.Context) error {
-		regenerateAPIKey := &cmd.RegenerateAPIKey{}
-		if err := bus.Dispatch(c, regenerateAPIKey); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			regenerateAPIKey := &cmd.RegenerateAPIKey{}
+			if err := bus.Dispatch(c, regenerateAPIKey); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{
-			"apiKey": regenerateAPIKey.Result,
+			return c.Ok(web.Map{
+				"apiKey": regenerateAPIKey.Result,
+			})
 		})
 	}
 }

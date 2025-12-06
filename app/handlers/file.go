@@ -79,19 +79,21 @@ func UploadFile() web.HandlerFunc {
 			prefix = "attachments/"
 		}
 
-		uploadCmd := &cmd.UploadImageFile{
-			Name:        action.Name,
-			Content:     action.File.Upload.Content,
-			ContentType: action.File.Upload.ContentType,
-			FileName:    action.File.Upload.FileName,
-			Prefix:      prefix,
-		}
+		return c.WithTransaction(func() error {
+			uploadCmd := &cmd.UploadImageFile{
+				Name:        action.Name,
+				Content:     action.File.Upload.Content,
+				ContentType: action.File.Upload.ContentType,
+				FileName:    action.File.Upload.FileName,
+				Prefix:      prefix,
+			}
 
-		if err := bus.Dispatch(c, uploadCmd); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, uploadCmd); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(uploadCmd.Result)
+			return c.Ok(uploadCmd.Result)
+		})
 	}
 }
 
@@ -109,16 +111,18 @@ func RenameFile() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		renameCmd := &cmd.RenameImageFile{
-			BlobKey: blobKey,
-			Name:    action.Name,
-		}
+		return c.WithTransaction(func() error {
+			renameCmd := &cmd.RenameImageFile{
+				BlobKey: blobKey,
+				Name:    action.Name,
+			}
 
-		if err := bus.Dispatch(c, renameCmd); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, renameCmd); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(renameCmd.Result)
+			return c.Ok(renameCmd.Result)
+		})
 	}
 }
 
@@ -143,19 +147,21 @@ func DeleteFile() web.HandlerFunc {
 			})
 		}
 
-		if forceDelete && usageQuery.Result {
-			deleteRefsCmd := &cmd.DeleteImageFileReferences{BlobKey: blobKey}
-			if err := bus.Dispatch(c, deleteRefsCmd); err != nil {
+		return c.WithTransaction(func() error {
+			if forceDelete && usageQuery.Result {
+				deleteRefsCmd := &cmd.DeleteImageFileReferences{BlobKey: blobKey}
+				if err := bus.Dispatch(c, deleteRefsCmd); err != nil {
+					return c.Failure(err)
+				}
+			}
+
+			deleteCmd := &cmd.DeleteImageFile{BlobKey: blobKey}
+			if err := bus.Dispatch(c, deleteCmd); err != nil {
 				return c.Failure(err)
 			}
-		}
 
-		deleteCmd := &cmd.DeleteImageFile{BlobKey: blobKey}
-		if err := bus.Dispatch(c, deleteCmd); err != nil {
-			return c.Failure(err)
-		}
-
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 

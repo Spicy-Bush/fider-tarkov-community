@@ -28,12 +28,14 @@ func AssignTag() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.AssignTag{Tag: action.Tag, Post: action.Post})
-		if err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.AssignTag{Tag: action.Tag, Post: action.Post})
+			if err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -45,12 +47,14 @@ func UnassignTag() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.UnassignTag{Tag: action.Tag, Post: action.Post})
-		if err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.UnassignTag{Tag: action.Tag, Post: action.Post})
+			if err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -62,28 +66,30 @@ func CreateEditTag() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		if action.Slug != "" {
-			updateTag := &cmd.UpdateTag{
-				TagID:    action.Tag.ID,
+		return c.WithTransaction(func() error {
+			if action.Slug != "" {
+				updateTag := &cmd.UpdateTag{
+					TagID:    action.Tag.ID,
+					Name:     action.Name,
+					Color:    action.Color,
+					IsPublic: action.IsPublic,
+				}
+				if err := bus.Dispatch(c, updateTag); err != nil {
+					return c.Failure(err)
+				}
+				return c.Ok(updateTag.Result)
+			}
+
+			addNewTag := &cmd.AddNewTag{
 				Name:     action.Name,
 				Color:    action.Color,
 				IsPublic: action.IsPublic,
 			}
-			if err := bus.Dispatch(c, updateTag); err != nil {
+			if err := bus.Dispatch(c, addNewTag); err != nil {
 				return c.Failure(err)
 			}
-			return c.Ok(updateTag.Result)
-		}
-
-		addNewTag := &cmd.AddNewTag{
-			Name:     action.Name,
-			Color:    action.Color,
-			IsPublic: action.IsPublic,
-		}
-		if err := bus.Dispatch(c, addNewTag); err != nil {
-			return c.Failure(err)
-		}
-		return c.Ok(addNewTag.Result)
+			return c.Ok(addNewTag.Result)
+		})
 	}
 }
 
@@ -95,11 +101,13 @@ func DeleteTag() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.DeleteTag{Tag: action.Tag})
-		if err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.DeleteTag{Tag: action.Tag})
+			if err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
