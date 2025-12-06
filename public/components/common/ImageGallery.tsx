@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react"
 import { uploadedImageURL } from "@fider/services"
 import { Modal, Button, Loader } from "@fider/components"
-import { ImageViewer } from "@fider/components"
 import "./ImageGallery.scss"
 import { Trans } from "@lingui/react/macro"
 
@@ -209,41 +208,44 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
     setScale(1)
   }
 
-  if (bkeys.length === 1) {
-    return <ImageViewer bkey={bkeys[0]} />
-  }
-
-  const gridColumns = bkeys.length === 2 ? 2 : bkeys.length === 3 ? 3 : 2;
-  const gridRows = bkeys.length <= 3 ? 1 : 2;
+  const isSingleImage = bkeys.length === 1
+  const gridColumns = bkeys.length === 2 ? 2 : bkeys.length === 3 ? 3 : 2
+  const gridRows = bkeys.length <= 3 ? 1 : 2
 
   return (
-    <div className="c-image-gallery">
-      <div 
-        className="c-image-gallery__grid"
-        style={{
-          gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
-          gridTemplateRows: `repeat(${gridRows}, 1fr)`
-        }}
-      >
-        {bkeys.slice(0, 4).map((bkey, index) => (
-          <div 
-            key={bkey} 
-            className={`c-image-gallery__item ${bkeys.length === 3 && index === 2 ? 'c-image-gallery__item--wide' : ''}`}
-            onClick={() => openModal(index)}
-          >
-            <img 
-              src={uploadedImageURL(bkey, 200)} 
-              alt="" 
-              loading="lazy" 
-            />
-            {bkeys.length > 4 && index === 3 && (
-              <div className="c-image-gallery__more">
-                +{bkeys.length - 4}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+    <div className={`c-image-gallery ${isSingleImage ? 'c-image-gallery--single' : ''}`}>
+      {isSingleImage ? (
+        <div className="c-image-gallery__single" onClick={() => openModal(0)}>
+          <img src={uploadedImageURL(bkeys[0], 200)} alt="" loading="lazy" />
+        </div>
+      ) : (
+        <div 
+          className="c-image-gallery__grid"
+          style={{
+            gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
+            gridTemplateRows: `repeat(${gridRows}, 1fr)`
+          }}
+        >
+          {bkeys.slice(0, 4).map((bkey, index) => (
+            <div 
+              key={bkey} 
+              className={`c-image-gallery__item ${bkeys.length === 3 && index === 2 ? 'c-image-gallery__item--wide' : ''}`}
+              onClick={() => openModal(index)}
+            >
+              <img 
+                src={uploadedImageURL(bkey, 200)} 
+                alt="" 
+                loading="lazy" 
+              />
+              {bkeys.length > 4 && index === 3 && (
+                <div className="c-image-gallery__more">
+                  +{bkeys.length - 4}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <Modal.Window 
         className="c-image-gallery-modal" 
@@ -268,49 +270,51 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
               style={{ transform: `scale(${scale})`, transformOrigin: 'center center', transition: isPinching ? 'none' : 'transform 0.2s ease' }}
             />
             
-            {bkeys.length > 1 && (
-              <div className="c-image-gallery-modal__navigation">
-                <Button 
-                  variant="secondary" 
-                  onClick={goToPrevious}
-                  className="c-image-gallery-modal__nav-button c-image-gallery-modal__nav-button--prev"
-                >
-                  <Trans id="action.previous">Previous</Trans>
-                </Button>
-                
-                <div className="c-image-gallery-modal__counter">
-                  {currentIndex + 1} / {bkeys.length}
-                </div>
-                
-                <Button 
-                  variant="secondary" 
-                  onClick={goToNext}
-                  className="c-image-gallery-modal__nav-button c-image-gallery-modal__nav-button--next"
-                >
-                  <Trans id="action.next">Next</Trans>
-                </Button>
+            <div className="c-image-gallery-modal__navigation">
+              {bkeys.length > 1 && (
+                <>
+                  <Button 
+                    variant="secondary" 
+                    onClick={goToPrevious}
+                    className="c-image-gallery-modal__nav-button c-image-gallery-modal__nav-button--prev"
+                  >
+                    <Trans id="action.previous">Previous</Trans>
+                  </Button>
+                  
+                  <div className="c-image-gallery-modal__counter">
+                    {currentIndex + 1} / {bkeys.length}
+                  </div>
+                  
+                  <Button 
+                    variant="secondary" 
+                    onClick={goToNext}
+                    className="c-image-gallery-modal__nav-button c-image-gallery-modal__nav-button--next"
+                  >
+                    <Trans id="action.next">Next</Trans>
+                  </Button>
+                </>
+              )}
 
+              <Button
+                variant="secondary"
+                onClick={toggleFullscreen}
+                className="c-image-gallery-modal__nav-button c-image-gallery-modal__nav-button--fullscreen"
+              >
+                <Trans id={isFullscreen ? "action.exitfullscreen" : "action.fullscreen"}>
+                  {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                </Trans>
+              </Button>
+
+              {scale !== 1 && (
                 <Button
                   variant="secondary"
-                  onClick={toggleFullscreen}
-                  className="c-image-gallery-modal__nav-button c-image-gallery-modal__nav-button--fullscreen"
+                  onClick={resetZoom}
+                  className="c-image-gallery-modal__nav-button c-image-gallery-modal__nav-button--reset-zoom"
                 >
-                  <Trans id={isFullscreen ? "action.exitfullscreen" : "action.fullscreen"}>
-                    {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                  </Trans>
+                  <Trans id="action.resetzoom">Reset Zoom</Trans>
                 </Button>
-
-                {scale !== 1 && (
-                  <Button
-                    variant="secondary"
-                    onClick={resetZoom}
-                    className="c-image-gallery-modal__nav-button c-image-gallery-modal__nav-button--reset-zoom"
-                  >
-                    <Trans id="action.resetzoom">Reset Zoom</Trans>
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </Modal.Content>
 
@@ -323,3 +327,4 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
     </div>
   )
 }
+

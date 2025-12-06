@@ -1,11 +1,10 @@
 import "./FileManagement.scss"
 import React from "react"
-import { Button, Form, Icon, Input, ImageUploader } from "@fider/components"
+import { Button, Form, Icon, Input, ImageUploader, ImageGallery } from "@fider/components"
 import { HStack } from "@fider/components/layout"
 import { Failure, actions, notify } from "@fider/services"
 import { AdminBasePage } from "../components/AdminBasePage"
 import { ImageUpload } from "@fider/models"
-import { ImageViewer } from "@fider/components/common/form/ImageViewer"
 
 import IconTrash from "@fider/assets/images/heroicons-trash.svg"
 import IconPencilAlt from "@fider/assets/images/heroicons-pencil-alt.svg"
@@ -685,7 +684,7 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
       <div key={asset.blobKey} className="c-media-library__card">
         <div className="c-media-library__card-preview">
           <div className="c-media-library__card-preview-image">
-            <ImageViewer bkey={asset.blobKey} />
+            <ImageGallery bkeys={[asset.blobKey]} />
           </div>
           
           <div className="c-media-library__card-preview-badges">

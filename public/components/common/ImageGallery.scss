@@ -3,6 +3,29 @@
 .c-image-gallery {
   margin-top: 10px;
   width: 100%;
+
+  &--single {
+    max-width: 300px;
+  }
+
+  &__single {
+    position: relative;
+    cursor: pointer;
+    overflow: hidden;
+    border-radius: 4px;
+
+    img {
+      width: 100%;
+      height: auto;
+      max-height: 200px;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+
+    &:hover img {
+      transform: scale(1.02);
+    }
+  }
   
   &__grid {
     display: grid;
@@ -172,3 +195,4 @@
     }
   }
 }
+

@@ -23,8 +23,8 @@ import {
   Header,
   Avatar,
   Dropdown,
+  ImageGallery,
 } from "@fider/components"
-import { ImageGallery } from "./components/ImageGallery"
 import { DiscussionPanel } from "./components/DiscussionPanel"
 
 import IconX from "@fider/assets/images/heroicons-x.svg"

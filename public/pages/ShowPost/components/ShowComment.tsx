@@ -9,7 +9,7 @@ import {
   Button,
   Markdown,
   Modal,
-  ImageViewer,
+  ImageGallery,
   MultiImageUploader,
   Dropdown,
   Icon,
@@ -282,7 +282,7 @@ export const ShowComment = (props: ShowCommentProps) => {
             ) : (
               <>
                 <Markdown text={comment.content} style="full" />
-                {comment.attachments && comment.attachments.map((x) => <ImageViewer key={x} bkey={x} />)}
+                {comment.attachments && comment.attachments.length > 0 && <ImageGallery bkeys={comment.attachments} />}
                 {!isPostLocked(props.post) && !isMuted && (
                   <Reactions reactions={localReactionCounts} emojiSelectorRef={emojiSelectorRef} toggleReaction={toggleReaction} />
                 )}
