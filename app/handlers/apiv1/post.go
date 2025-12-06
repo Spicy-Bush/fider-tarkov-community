@@ -443,9 +443,13 @@ func PostComment() web.HandlerFunc {
 			return c.BadRequest(web.Map{})
 		}
 
+		contentToSave := entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
+			return fmt.Sprintf(`{"id":%d,"name":"%s"}`, mention.ID, mention.Name)
+		})
+
 		addNewComment := &cmd.AddNewComment{
 			Post:    getPost.Result,
-			Content: action.Content,
+			Content: contentToSave,
 		}
 		if err := bus.Dispatch(c, addNewComment); err != nil {
 			return c.Failure(err)
