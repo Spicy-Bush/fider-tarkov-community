@@ -288,13 +288,10 @@ func getActiveSubscribers(ctx context.Context, q *query.GetActiveSubscribers) er
 				ON set.user_id = u.id
 				AND set.key = $3
 				AND set.tenant_id = u.tenant_id
-			WHERE u.tenant_id = $4
-			AND u.status = $8
-			%s
-			AND (
-				(u.role = ANY($7) AND sub.status = $2)
-				OR (NOT u.role = ANY($7))
-			)
+		WHERE u.tenant_id = $4
+		AND u.status = $8
+		%s
+		AND ( sub.status = $2 OR (sub.status IS NULL AND NOT u.role = ANY($7)) )
 				AND (
 					(set.value IS NULL AND u.role = ANY($5))
 					OR CAST(set.value AS integer) & $6 > 0
