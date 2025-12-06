@@ -152,7 +152,7 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 			"END + " +
 			"CASE WHEN (upvotes > 20) THEN upvotes/2 ELSE 0 END" +
 			") / " +
-			"pow((EXTRACT(EPOCH FROM current_timestamp - created_at)/86400) + 2, 0.8)"
+			"pow((EXTRACT(EPOCH FROM current_timestamp - last_activity_at)/86400) + 2, 0.8)"
 	}
 	return condition, statusFilters, sort, extraParams
 }

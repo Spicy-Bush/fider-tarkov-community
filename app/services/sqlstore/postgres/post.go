@@ -28,6 +28,7 @@ type dbPost struct {
 	Slug           string         `db:"slug"`
 	Description    string         `db:"description"`
 	CreatedAt      time.Time      `db:"created_at"`
+	LastActivityAt time.Time      `db:"last_activity_at"`
 	User           *dbUser        `db:"user"`
 	VoteType       sql.NullInt32  `db:"vote_type"`
 	VotesCount     int            `db:"votes_count"`
@@ -62,6 +63,7 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 		Slug:           i.Slug,
 		Description:    i.Description,
 		CreatedAt:      i.CreatedAt,
+		LastActivityAt: i.LastActivityAt,
 		VoteType:       voteType,
 		VotesCount:     i.VotesCount,
 		CommentsCount:  i.CommentsCount,
@@ -163,6 +165,7 @@ var (
 										p.slug, 
 										p.description, 
 										p.created_at,
+										p.last_activity_at,
 										COALESCE(agg_s.all, 0) as votes_count,
 										COALESCE(agg_c.all, 0) as comments_count,
 										COALESCE(agg_s.recent, 0) AS recent_votes_count,

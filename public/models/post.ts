@@ -7,6 +7,7 @@ export interface Post {
   title: string
   description: string
   createdAt: string
+  lastActivityAt: string
   status: string
   user: User
   voteType: number

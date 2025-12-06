@@ -5,7 +5,7 @@ import React from "react"
 import { LockStatus } from "./components/LockStatus"
 import { PostLockingModal } from "./components/PostLockingModal"
 import { Comment, Post, Tag, Vote, ImageUpload, CurrentUser, PostStatus, isPostLocked, UserRole } from "@fider/models"
-import { actions, clearUrlHash, Failure, Fider, notify, timeAgo } from "@fider/services"
+import { actions, clearUrlHash, Failure, Fider, notify, timeAgo, formatDate } from "@fider/services"
 import IconDotsHorizontal from "@fider/assets/images/heroicons-dots-horizontal.svg"
 import IconChevronUp from "@fider/assets/images/heroicons-chevron-up.svg"
 
@@ -263,7 +263,10 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
                           <Avatar user={this.props.post.user} />
                           <VStack spacing={1}>
                             <UserName user={this.props.post.user} />
-                            <Moment className="text-muted" locale={Fider.currentLocale} date={this.props.post.createdAt} />
+                            <span className="text-muted" data-tooltip={`Created ${formatDate(Fider.currentLocale, this.props.post.createdAt, "full")}`}>
+                              <Trans id="showpost.lastactivity">Last activity:</Trans>{" "}
+                              <Moment locale={Fider.currentLocale} date={this.props.post.lastActivityAt} />
+                            </span>
                           </VStack>
                         </HStack>
                       )}

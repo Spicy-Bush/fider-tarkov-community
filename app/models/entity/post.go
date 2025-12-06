@@ -15,6 +15,7 @@ type Post struct {
 	Slug           string              `json:"slug"`
 	Description    string              `json:"description"`
 	CreatedAt      time.Time           `json:"createdAt"`
+	LastActivityAt time.Time           `json:"lastActivityAt"`
 	User           *User               `json:"user"`
 	VoteType       int                 `json:"voteType"`
 	VotesCount     int                 `json:"votesCount"`
