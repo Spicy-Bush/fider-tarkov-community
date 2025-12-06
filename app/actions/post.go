@@ -256,7 +256,7 @@ func (action *ToggleCommentReaction) OnPreExecute(ctx context.Context) error {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *ToggleCommentReaction) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil || action.Post == nil {
+	if user == nil || action.Post == nil || action.Comment == nil {
 		return false
 	}
 
