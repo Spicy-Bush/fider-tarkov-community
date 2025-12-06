@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { querystring } from "@fider/services"
+import { querystring, Fider } from "@fider/services"
 
 export interface FilterState {
   tags: string[]
@@ -101,6 +101,10 @@ export const usePostFilters = () => {
       } catch {
         return DEFAULT_FILTERS
       }
+    }
+
+    if (Fider.session.isAuthenticated) {
+      return { ...DEFAULT_FILTERS, notMyVotes: true }
     }
 
     return DEFAULT_FILTERS
