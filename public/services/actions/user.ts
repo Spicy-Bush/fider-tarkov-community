@@ -32,7 +32,7 @@ interface UserProfileContent {
   comments: Array<{
     id: number
     content: string
-    postId: number
+    postNumber: number
     postTitle: string
     createdAt: string
   }>

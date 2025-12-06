@@ -48,7 +48,7 @@ interface Post {
 
 interface Comment {
   id: number
-  postId: number
+  postNumber: number
   postTitle: string
   content: string
   createdAt: string
@@ -917,7 +917,7 @@ export default function UserProfilePage(props: UserProfilePageProps) {
                                 </div>
                               </div>
                               <div className="c-user-profile__comment-actions">
-                                <a href={`/posts/${item.postId}#comment-${item.id}`} className="comment-link">
+                                <a href={`/posts/${item.postNumber}#comment-${item.id}`} className="comment-link">
                                   <Trans id="profile.search.comment.view">View in context</Trans>
                                 </a>
                               </div>

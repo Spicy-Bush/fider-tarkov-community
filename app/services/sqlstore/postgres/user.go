@@ -749,11 +749,11 @@ func searchUserContent(ctx context.Context, q *query.SearchUserContent) error {
 			q.Result.Comments = make([]query.UserCommentResult, len(comments))
 			for i, c := range comments {
 				q.Result.Comments[i] = query.UserCommentResult{
-					ID:        c.ID,
-					Content:   c.Content,
-					PostID:    c.PostNumber,
-					PostTitle: c.PostTitle,
-					CreatedAt: c.CreatedAt,
+					ID:         c.ID,
+					Content:    c.Content,
+					PostNumber: c.PostNumber,
+					PostTitle:  c.PostTitle,
+					CreatedAt:  c.CreatedAt,
 				}
 			}
 		}

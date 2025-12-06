@@ -98,11 +98,11 @@ type UserPostResult struct {
 
 // UserCommentResult represents a comment in the search result
 type UserCommentResult struct {
-	ID        int       `json:"id"`
-	Content   string    `json:"content"`
-	PostID    int       `json:"postId"`
-	PostTitle string    `json:"postTitle"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID         int       `json:"id"`
+	Content    string    `json:"content"`
+	PostNumber int       `json:"postNumber"`
+	PostTitle  string    `json:"postTitle"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 // SearchUserContent searches through the user's content
