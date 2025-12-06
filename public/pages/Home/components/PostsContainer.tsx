@@ -1,6 +1,6 @@
 import "./PostsContainer.scss"
 
-import React, { useEffect, useRef, useState } from "react"
+import React, { useEffect, useRef, useState, useCallback } from "react"
 import { Post, Tag, CurrentUser } from "@fider/models"
 import { Input } from "@fider/components"
 import { actions } from "@fider/services"
@@ -29,118 +29,124 @@ const untaggedTag: Tag = {
 
 export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [posts, setPosts] = useState<Post[]>([])
   const [hasMore, setHasMore] = useState(true)
   const timerRef = useRef<number>()
   const loadMoreRef = useRef<HTMLDivElement>(null)
-  const observerRef = useRef<IntersectionObserver>()
+  const seenPostIds = useRef(new Set<number>())
   const { filters, offset, setOffset, updateFilters, resetFilters, hasActiveFilters } = usePostFilters()
 
-  useEffect(() => {
-    searchPosts(true)
-  }, [])
-
-  useEffect(() => {
-    if (!loading) {
-      searchPosts(true)
-    }
-  }, [filters])
-
-  useEffect(() => {
-    observerRef.current = new IntersectionObserver(handleObserver, {
-      root: null,
-      rootMargin: "0px",
-      threshold: 1.0,
-    })
-
-    if (loadMoreRef.current) {
-      observerRef.current.observe(loadMoreRef.current)
-    }
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect()
-      }
-      if (timerRef.current) {
-        clearTimeout(timerRef.current)
-      }
-    }
-  }, [])
-
-  const handleObserver = (entries: IntersectionObserverEntry[]) => {
-    const entry = entries[0]
-    if (entry.isIntersecting && !loading && hasMore) {
-      loadMore()
-    }
-  }
-
-  const searchPosts = (reset: boolean) => {
+  const searchPosts = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current)
     }
     setLoading(true)
+    setOffset(0)
+    seenPostIds.current.clear()
     
     timerRef.current = window.setTimeout(() => {
-      const stored = localStorage.getItem("post_filters")
-      const currentFilters = stored ? JSON.parse(stored) : filters
-      
       actions
-        .searchPosts(currentFilters)
+        .searchPosts(filters)
         .then((response) => {
           if (response.ok) {
             const newPosts: Post[] = response.data || []
-            const hasMore = newPosts.length === currentFilters.limit
+            const hasMore = newPosts.length === filters.limit
+            
+            for (let i = 0; i < newPosts.length; i++) {
+              seenPostIds.current.add(newPosts[i].id)
+            }
+            
             setPosts(newPosts)
             setHasMore(hasMore)
           }
           setLoading(false)
         })
     }, 500)
-  }
+  }, [filters, setOffset])
 
-  const loadMore = () => {
+  const loadMore = useCallback(() => {
     const newOffset = offset + filters.limit
-    setLoading(true)
+    setLoadingMore(true)
     setOffset(newOffset)
-    
-    const stored = localStorage.getItem("post_filters")
-    const currentFilters = stored ? JSON.parse(stored) : filters
     
     actions
       .searchPosts({
-        ...currentFilters,
+        ...filters,
         offset: newOffset
       })
       .then((response) => {
         if (response.ok) {
           const newPosts: Post[] = response.data || []
-          const hasMore = newPosts.length === currentFilters.limit
-          setPosts(prev => [...prev, ...newPosts])
+          const hasMore = newPosts.length === filters.limit
+          
+          const uniqueNewPosts: Post[] = []
+          for (let i = 0; i < newPosts.length; i++) {
+            const post = newPosts[i]
+            if (!seenPostIds.current.has(post.id)) {
+              uniqueNewPosts.push(post)
+              seenPostIds.current.add(post.id)
+            }
+          }
+          
+          setPosts(prev => prev.concat(uniqueNewPosts))
           setHasMore(hasMore)
         }
-        setLoading(false)
+        setLoadingMore(false)
       })
-  }
+  }, [offset, filters, setOffset])
 
-  const handleFilterChanged = (filterState: Partial<FilterState>) => {
+  const handleFilterChanged = useCallback((filterState: Partial<FilterState>) => {
     updateFilters(filterState)
-    searchPosts(true)
-  }
+  }, [updateFilters])
 
-  const handleSearchFilterChanged = (query: string) => {
+  const handleSearchFilterChanged = useCallback((query: string) => {
     updateFilters({ query })
-    searchPosts(true)
-  }
+  }, [updateFilters])
 
-  const handleSortChanged = (view: string) => {
+  const handleSortChanged = useCallback((view: string) => {
     updateFilters({ view })
-    searchPosts(true)
-  }
+  }, [updateFilters])
 
-  const clearSearch = () => {
+  const clearSearch = useCallback(() => {
     updateFilters({ query: "" })
-    searchPosts(true)
-  }
+  }, [updateFilters])
+
+  useEffect(() => {
+    searchPosts()
+  }, [])
+
+  useEffect(() => {
+    if (!loading) {
+      searchPosts()
+    }
+  }, [filters])
+
+  useEffect(() => {
+    const handleObserver = (entries: IntersectionObserverEntry[]) => {
+      const entry = entries[0]
+      if (entry.isIntersecting && !loading && !loadingMore && hasMore) {
+        loadMore()
+      }
+    }
+
+    const observer = new IntersectionObserver(handleObserver, {
+      root: null,
+      rootMargin: "0px",
+      threshold: 1.0,
+    })
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current)
+    }
+
+    return () => {
+      observer.disconnect()
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+      }
+    }
+  }, [loading, loadingMore, hasMore, loadMore])
 
   const hasFilters = hasActiveFilters()
   const hasNoPosts = !loading && (!posts || posts.length === 0)
@@ -185,6 +191,11 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
           >
             {i18n._("home.postscontainer.resetfilters", { message: "Reset all filters" })}
           </button>
+        </div>
+      )}
+      {loadingMore && (
+        <div className="mt-4 text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-base"></div>
         </div>
       )}
       {hasMore && <div ref={loadMoreRef} style={{ height: "1px" }}></div>}
