@@ -159,7 +159,7 @@ func (input *UpdatePost) OnPreExecute(ctx context.Context) error {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (input *UpdatePost) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil {
+	if user == nil || input.Post == nil {
 		return false
 	}
 
@@ -256,7 +256,7 @@ func (action *ToggleCommentReaction) OnPreExecute(ctx context.Context) error {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *ToggleCommentReaction) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil {
+	if user == nil || action.Post == nil {
 		return false
 	}
 
@@ -408,9 +408,20 @@ type DeletePost struct {
 	Post *entity.Post
 }
 
+// OnPreExecute prefetches Post for later use
+func (action *DeletePost) OnPreExecute(ctx context.Context) error {
+	getPost := &query.GetPostByNumber{Number: action.Number}
+	if err := bus.Dispatch(ctx, getPost); err != nil {
+		return err
+	}
+
+	action.Post = getPost.Result
+	return nil
+}
+
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *DeletePost) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil {
+	if user == nil || action.Post == nil {
 		return false
 	}
 
@@ -429,12 +440,9 @@ func (action *DeletePost) IsAuthorized(ctx context.Context, user *entity.User) b
 
 // Validate if current model is valid
 func (action *DeletePost) Validate(ctx context.Context, user *entity.User) *validate.Result {
-	getPost := &query.GetPostByNumber{Number: action.Number}
-	if err := bus.Dispatch(ctx, getPost); err != nil {
-		return validate.Error(err)
+	if action.Post == nil {
+		return validate.Failed(i18n.T(ctx, "validation.custom.invalidpost"))
 	}
-
-	action.Post = getPost.Result
 
 	isReferencedQuery := &query.PostIsReferenced{PostID: action.Post.ID}
 	if err := bus.Dispatch(ctx, isReferencedQuery); err != nil {
