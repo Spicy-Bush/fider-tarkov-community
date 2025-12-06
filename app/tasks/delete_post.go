@@ -100,3 +100,27 @@ func NotifyAboutDeletedPost(post *entity.Post, deleteCommentAdded bool) worker.T
 		return nil
 	})
 }
+
+// TriggerDeleteWebhook triggers the webhook for post deletion
+func TriggerDeleteWebhook(post *entity.Post) worker.Task {
+	return describe("Trigger delete webhook", func(c *worker.Context) error {
+		tenant := c.Tenant()
+		baseURL, logoURL := web.BaseURL(c), web.LogoURL(c)
+		author := c.User()
+
+		webhookProps := webhook.Props{}
+		webhookProps.SetPost(post, "post", baseURL, true, true)
+		webhookProps.SetUser(author, "author")
+		webhookProps.SetTenant(tenant, "tenant", baseURL, logoURL)
+
+		err := bus.Dispatch(c, &cmd.TriggerWebhooks{
+			Type:  enum.WebhookDeletePost,
+			Props: webhookProps,
+		})
+		if err != nil {
+			return c.Failure(err)
+		}
+
+		return nil
+	})
+}

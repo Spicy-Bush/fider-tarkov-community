@@ -313,8 +313,6 @@ func DeletePost() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		prevStatus := action.Post.Status
-
 		err := bus.Dispatch(c, &cmd.SetPostResponse{
 			Post:   action.Post,
 			Text:   action.Text,
@@ -324,8 +322,7 @@ func DeletePost() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		c.Enqueue(tasks.NotifyAboutStatusChange(action.Post, prevStatus)) // the status change is because deleted is just a status
-		c.Enqueue(tasks.NotifyAboutDeletedPost(action.Post, len(action.Text) > 0))
+		c.Enqueue(tasks.TriggerDeleteWebhook(action.Post))
 
 		return c.Ok(web.Map{})
 	}
