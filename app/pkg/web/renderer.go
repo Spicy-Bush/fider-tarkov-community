@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -161,6 +162,68 @@ func getClientAssets(assets []distAsset) *clientAssets {
 }
 
 // Render a template based on parameters
+func getLatestActiveWarningID(ctx *Context, userID int) int {
+	standing := &query.GetUserProfileStanding{
+		UserID: userID,
+		Result: struct {
+			Warnings []struct {
+				ID        int        `json:"id"`
+				Reason    string     `json:"reason"`
+				CreatedAt time.Time  `json:"createdAt"`
+				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+			} `json:"warnings"`
+			Mutes []struct {
+				ID        int        `json:"id"`
+				Reason    string     `json:"reason"`
+				CreatedAt time.Time  `json:"createdAt"`
+				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+			} `json:"mutes"`
+		}{},
+	}
+	if err := bus.Dispatch(ctx, standing); err != nil {
+		return 0
+	}
+
+	now := time.Now()
+	for _, warning := range standing.Result.Warnings {
+		if warning.ExpiresAt == nil || warning.ExpiresAt.After(now) {
+			return warning.ID
+		}
+	}
+	return 0
+}
+
+func getLatestActiveMuteID(ctx *Context, userID int) int {
+	standing := &query.GetUserProfileStanding{
+		UserID: userID,
+		Result: struct {
+			Warnings []struct {
+				ID        int        `json:"id"`
+				Reason    string     `json:"reason"`
+				CreatedAt time.Time  `json:"createdAt"`
+				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+			} `json:"warnings"`
+			Mutes []struct {
+				ID        int        `json:"id"`
+				Reason    string     `json:"reason"`
+				CreatedAt time.Time  `json:"createdAt"`
+				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+			} `json:"mutes"`
+		}{},
+	}
+	if err := bus.Dispatch(ctx, standing); err != nil {
+		return 0
+	}
+
+	now := time.Now()
+	for _, mute := range standing.Result.Mutes {
+		if mute.ExpiresAt == nil || mute.ExpiresAt.After(now) {
+			return mute.ID
+		}
+	}
+	return 0
+}
+
 func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context) {
 	var err error
 
@@ -265,6 +328,8 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 			"isHelper":        u.IsHelper(),
 			"hasWarning":      u.HasWarning(),
 			"isMuted":         u.IsMuted(),
+			"latestWarningId": getLatestActiveWarningID(ctx, u.ID),
+			"latestMuteId":    getLatestActiveMuteID(ctx, u.ID),
 		}
 	}
 

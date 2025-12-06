@@ -124,7 +124,14 @@ func User() web.MiddlewareFunc {
 					if err := bus.Dispatch(c, standing); err != nil {
 						return false
 					}
-					return len(standing.Result.Warnings) > 0
+					// check for active warnings (null or future expiration)
+					now := time.Now()
+					for _, warning := range standing.Result.Warnings {
+						if warning.ExpiresAt == nil || warning.ExpiresAt.After(now) {
+							return true
+						}
+					}
+					return false
 				})
 
 				user.SetMuteCheck(func(userID int) bool {
@@ -148,7 +155,14 @@ func User() web.MiddlewareFunc {
 					if err := bus.Dispatch(c, standing); err != nil {
 						return false
 					}
-					return len(standing.Result.Mutes) > 0
+					// check for active mutes (null or future expiration)
+					now := time.Now()
+					for _, mute := range standing.Result.Mutes {
+						if mute.ExpiresAt == nil || mute.ExpiresAt.After(now) {
+							return true
+						}
+					}
+					return false
 				})
 
 				c.SetUser(user)

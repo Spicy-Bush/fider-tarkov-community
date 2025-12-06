@@ -119,6 +119,8 @@ export interface CurrentUser {
   isHelper: boolean
   hasWarning: boolean
   isMuted: boolean
+  latestWarningId?: number
+  latestMuteId?: number
 }
 
 export const getVisualRoleName = (visualRole?: VisualRole): string => {
