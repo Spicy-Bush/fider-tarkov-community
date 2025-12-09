@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
-import { Comment, Post, ImageUpload, isPostLocked, UserRole } from "@fider/models"
+import { Comment, Post, ImageUpload, isPostLocked, UserRole, ReportReason } from "@fider/models"
 import {
   Reactions,
   Avatar,
@@ -14,6 +14,8 @@ import {
   Dropdown,
   Icon,
   CommentEditor,
+  ReportModal,
+  ReportButton,
 } from "@fider/components"
 import { HStack } from "@fider/components/layout"
 import { formatDate, Failure, actions, notify, copyToClipboard, classSet, clearUrlHash } from "@fider/services"
@@ -28,6 +30,9 @@ interface ShowCommentProps {
   comment: Comment
   highlighted?: boolean
   onToggleReaction?: () => void
+  hasReported: boolean
+  dailyLimitReached: boolean
+  reportReasons?: ReportReason[]
 }
 
 export const ShowComment = (props: ShowCommentProps) => {
@@ -38,6 +43,7 @@ export const ShowComment = (props: ShowCommentProps) => {
   const [newContent, setNewContent] = useState<string>(props.comment.content)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showReportModal, setShowReportModal] = useState(false)
   const [attachments, setAttachments] = useState<ImageUpload[]>([])
   const [localReactionCounts, setLocalReactionCounts] = useState(props.comment.reactionCounts)
   const emojiSelectorRef = useRef<HTMLDivElement>(null)
@@ -184,6 +190,8 @@ export const ShowComment = (props: ShowCommentProps) => {
       const url = `${window.location.origin}${window.location.pathname}#comment-${props.comment.id}`
       copyToClipboard(url)
       notify.success(t({ id: "action.copylink.success", message: "Link copied to clipboard" }))
+    } else if (action === "report") {
+      setShowReportModal(true)
     }
   }
 
@@ -230,6 +238,13 @@ export const ShowComment = (props: ShowCommentProps) => {
     <div id={`comment-${comment.id}`}>
       <HStack spacing={2} className="c-comment flex-items-baseline">
         {modal()}
+        <ReportModal
+          isOpen={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          postNumber={props.post.number}
+          commentId={comment.id}
+          reasons={props.reportReasons}
+        />
         <div className="pt-4">
           <Avatar user={comment.user} />
         </div>
@@ -243,27 +258,36 @@ export const ShowComment = (props: ShowCommentProps) => {
                 </div>
               </HStack>
               {!isEditing && (
-                <Dropdown position="left" renderHandle={<Icon sprite={IconDotsHorizontal} width="16" height="16" />}>
-                  <Dropdown.ListItem onClick={onActionSelected("copylink")}>
-                    <Trans id="action.copylink">Copy link</Trans>
-                  </Dropdown.ListItem>
-                  {canEditComment() && (
-                    <>
-                      <Dropdown.Divider />
-                      <Dropdown.ListItem onClick={onActionSelected("edit")}>
-                        <Trans id="action.edit">Edit</Trans>
-                      </Dropdown.ListItem>
-                    </>
-                  )}
-                  {canDeleteComment() && (
-                    <>
-                      <Dropdown.Divider />
-                      <Dropdown.ListItem onClick={onActionSelected("delete")} className="text-red-700">
-                        <Trans id="action.delete">Delete</Trans>
-                      </Dropdown.ListItem>
-                    </>
-                  )}
-                </Dropdown>
+                <HStack spacing={1} className="items-center">
+                  <ReportButton
+                    reportedUserId={comment.user.id}
+                    size="small"
+                    hasReported={props.hasReported}
+                    dailyLimitReached={props.dailyLimitReached}
+                    onReport={() => setShowReportModal(true)}
+                  />
+                  <Dropdown position="left" renderHandle={<Icon sprite={IconDotsHorizontal} width="16" height="16" />}>
+                    <Dropdown.ListItem onClick={onActionSelected("copylink")}>
+                      <Trans id="action.copylink">Copy link</Trans>
+                    </Dropdown.ListItem>
+                    {canEditComment() && (
+                      <>
+                        <Dropdown.Divider />
+                        <Dropdown.ListItem onClick={onActionSelected("edit")}>
+                          <Trans id="action.edit">Edit</Trans>
+                        </Dropdown.ListItem>
+                      </>
+                    )}
+                    {canDeleteComment() && (
+                      <>
+                        <Dropdown.Divider />
+                        <Dropdown.ListItem onClick={onActionSelected("delete")} className="text-red-700">
+                          <Trans id="action.delete">Delete</Trans>
+                        </Dropdown.ListItem>
+                      </>
+                    )}
+                  </Dropdown>
+                </HStack>
               )}
             </HStack>
           </div>

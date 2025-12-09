@@ -1,0 +1,60 @@
+@import "~@fider/assets/styles/variables.scss";
+@import "~@fider/assets/styles/skeleton.scss";
+
+.c-mod-indicator {
+  position: relative;
+
+  .c-mod-indicator-counter {
+    position: absolute;
+    top: -5px;
+    right: -8px;
+    background-color: get("colors.blue.500");
+    color: white !important;
+    font-size: 10px;
+    font-weight: bold;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    &.is-max-count {
+      right: -16px;
+    }
+  }
+}
+
+.c-mod-indicator__container {
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  @include media("lg") {
+    min-width: 360px;
+  }
+}
+
+.c-mod-indicator__scroll-container {
+  overflow-y: auto;
+  max-height: 400px;
+  padding-bottom: 10px;
+  scroll-behavior: smooth;
+}
+
+.c-mod-indicator__type-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: get("colors.gray.200");
+  color: get("colors.gray.700");
+}
+
+.c-mod-indicator__reason {
+  font-weight: 500;
+  margin-bottom: 2px;
+  font-size: 14px;
+}
+

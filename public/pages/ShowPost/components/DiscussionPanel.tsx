@@ -1,5 +1,5 @@
 import React from "react"
-import { CurrentUser, Comment, Post } from "@fider/models"
+import { CurrentUser, Comment, Post, ReportReason } from "@fider/models"
 import { ShowComment } from "./ShowComment"
 import { CommentInput } from "./CommentInput"
 import { HStack, VStack } from "@fider/components/layout"
@@ -12,6 +12,9 @@ interface DiscussionPanelProps {
   comments: Comment[]
   highlightedComment?: number
   subscribed: boolean
+  reportedCommentIds: number[]
+  dailyLimitReached: boolean
+  reportReasons?: ReportReason[]
 }
 
 export const DiscussionPanel = (props: DiscussionPanelProps) => {
@@ -26,7 +29,15 @@ export const DiscussionPanel = (props: DiscussionPanelProps) => {
         </HStack>
         <VStack spacing={4} className="c-comment-list">
           {props.comments.map((c) => (
-            <ShowComment key={c.id} post={props.post} comment={c} highlighted={props.highlightedComment === c.id} />
+            <ShowComment
+              key={c.id}
+              post={props.post}
+              comment={c}
+              highlighted={props.highlightedComment === c.id}
+              hasReported={props.reportedCommentIds.includes(c.id)}
+              dailyLimitReached={props.dailyLimitReached}
+              reportReasons={props.reportReasons}
+            />
           ))}
           <CommentInput post={props.post} />
         </VStack>

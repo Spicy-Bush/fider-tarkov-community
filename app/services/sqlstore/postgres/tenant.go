@@ -119,6 +119,8 @@ func updateGeneralSettings(ctx context.Context, c *cmd.UpdateContentSettings) er
 				CommentingDisabledFor:      []string{},
 				PostingGloballyDisabled:    false,
 				CommentingGloballyDisabled: false,
+				ReportingGloballyDisabled:  false,
+				ReportLimitsPerDay:         10,
 			}
 		}
 

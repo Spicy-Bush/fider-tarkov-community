@@ -171,6 +171,10 @@ func routes(r *web.Engine) *web.Engine {
 		membersApi.Post("/api/v1/posts/:number/votes/toggle", apiv1.ToggleVote())
 		membersApi.Post("/api/v1/posts/:number/subscription", apiv1.Subscribe())
 		membersApi.Delete("/api/v1/posts/:number/subscription", apiv1.Unsubscribe())
+
+		membersApi.Post("/api/v1/posts/:number/report", handlers.ReportPost())
+		membersApi.Post("/api/v1/posts/:number/comments/:id/report", handlers.ReportComment())
+		membersApi.Get("/api/v1/report-reasons", handlers.GetReportReasons())
 	}
 
 	helper := r.Group()
@@ -205,6 +209,18 @@ func routes(r *web.Engine) *web.Engine {
 		// posts
 		staff.Get("/api/v1/posts/:number/votes", apiv1.ListVotes())
 		staff.Delete("/api/v1/posts/:number", apiv1.DeletePost())
+
+		// reports
+		staff.Get("/admin/reports", handlers.ManageReportsPage())
+		staff.Get("/api/v1/reports", handlers.ListReports())
+		staff.Get("/api/v1/reports/:id", handlers.GetReport())
+		staff.Get("/api/v1/reports/:id/details", handlers.GetReportDetails())
+		staff.Post("/api/v1/reports/:id/assign", handlers.AssignReport())
+		staff.Delete("/api/v1/reports/:id/assign", handlers.UnassignReport())
+		staff.Put("/api/v1/reports/:id/resolve", handlers.ResolveReport())
+		staff.Post("/api/v1/reports/:id/heartbeat", handlers.ReportHeartbeat())
+		staff.Delete("/api/mod/viewing", handlers.StopViewingReport())
+		staff.Get("/api/mod/events", handlers.ModSSE())
 	}
 
 	// Operations available only to collaborators and administrators

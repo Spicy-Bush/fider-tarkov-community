@@ -59,22 +59,55 @@ func PostDetails() web.HandlerFunc {
 		getAllTags := &query.GetAllTags{}
 		listVotes := &query.ListPostVotes{PostID: getPost.Result.ID, Limit: 24, IncludeEmail: false}
 		getAttachments := &query.GetAttachments{Post: getPost.Result}
-		if err := bus.Dispatch(c, getAllTags, getComments, listVotes, isSubscribed, getAttachments); err != nil {
+		getReportReasons := &query.GetReportReasons{}
+		if err := bus.Dispatch(c, getAllTags, getComments, listVotes, isSubscribed, getAttachments, getReportReasons); err != nil {
 			return c.Failure(err)
+		}
+
+		data := web.Map{
+			"comments":      getComments.Result,
+			"subscribed":    isSubscribed.Result,
+			"post":          getPost.Result,
+			"tags":          getAllTags.Result,
+			"votes":         listVotes.Result,
+			"attachments":   getAttachments.Result,
+			"reportReasons": getReportReasons.Result,
+		}
+
+		if c.User() != nil {
+			commentIDs := make([]int, len(getComments.Result))
+			for i, comment := range getComments.Result {
+				commentIDs[i] = comment.ID
+			}
+
+			reportedItems := &query.GetUserReportedItemsOnPost{
+				PostID:     getPost.Result.ID,
+				CommentIDs: commentIDs,
+			}
+			countToday := &query.CountUserReportsToday{UserID: c.User().ID}
+
+			if err := bus.Dispatch(c, reportedItems, countToday); err != nil {
+				return c.Failure(err)
+			}
+
+			dailyLimit := 10
+			tenant := c.Tenant()
+			if tenant.GeneralSettings != nil && tenant.GeneralSettings.ReportLimitsPerDay > 0 {
+				dailyLimit = tenant.GeneralSettings.ReportLimitsPerDay
+			}
+
+			data["reportStatus"] = web.Map{
+				"hasReportedPost":    reportedItems.HasReportedPost,
+				"reportedCommentIds": reportedItems.ReportedCommentIDs,
+				"dailyLimitReached":  countToday.Result >= dailyLimit,
+			}
 		}
 
 		return c.Page(http.StatusOK, web.Props{
 			Page:        "ShowPost/ShowPost.page",
 			Title:       getPost.Result.Title,
 			Description: markdown.PlainText(getPost.Result.Description),
-			Data: web.Map{
-				"comments":    getComments.Result,
-				"subscribed":  isSubscribed.Result,
-				"post":        getPost.Result,
-				"tags":        getAllTags.Result,
-				"votes":       listVotes.Result,
-				"attachments": getAttachments.Result,
-			},
+			Data:        data,
 		})
 	}
 }

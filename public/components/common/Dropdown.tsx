@@ -45,7 +45,7 @@ interface DropdownProps {
   onToggled?: (isOpen: boolean) => void
   children: React.ReactNode
   wide?: boolean
-  fullsceenSm?: boolean
+  fullscreenSm?: boolean
 }
 
 interface DropdownContextFuncs {
@@ -94,7 +94,7 @@ export const Dropdown = (props: DropdownProps) => {
   const listClassName = classSet({
     "c-dropdown__list--wide": props.wide,
     "c-dropdown__list shadow-lg": true,
-    "c-dropdown__list--fullscreen-small": props.fullsceenSm,
+    "c-dropdown__list--fullscreen-small": props.fullscreenSm,
     [`c-dropdown__list--${position}`]: position === "left",
   })
 

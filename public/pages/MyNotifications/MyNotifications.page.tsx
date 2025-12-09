@@ -200,13 +200,6 @@ export default class MyNotificationsPage extends React.Component<MyNotifications
         readTotal: 0,
         purging: false
       })
-      
-      const unreadResult = await actions.getTotalUnreadNotifications()
-      if (unreadResult.ok) {
-        this.setState({
-          unreadTotal: unreadResult.data || 0
-        })
-      }
     } else {
       this.setState({ purging: false })
     }

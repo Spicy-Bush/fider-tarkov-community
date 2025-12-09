@@ -1,8 +1,9 @@
 import React, { useState } from "react"
-import { SignInModal, TenantLogo, NotificationIndicator, UserMenu } from "@fider/components"
+import { SignInModal, TenantLogo, NotificationIndicator, UserMenu, ModIndicator } from "@fider/components"
 import { useFider } from "@fider/hooks"
 import { HStack } from "./layout"
 import { Trans } from "@lingui/react/macro"
+import { UnreadCountsProvider } from "@fider/contexts/UnreadCountsContext"
 
 export const Header = () => {
   const fider = useFider()
@@ -26,10 +27,13 @@ export const Header = () => {
               <h1 className="text-header">{fider.session.tenant.name}</h1>
             </a>
             {fider.session.isAuthenticated && (
-              <HStack spacing={2}>
-                <NotificationIndicator />
-                <UserMenu />
-              </HStack>
+              <UnreadCountsProvider>
+                <HStack spacing={2}>
+                  <ModIndicator />
+                  <NotificationIndicator />
+                  <UserMenu />
+                </HStack>
+              </UnreadCountsProvider>
             )}
             {!fider.session.isAuthenticated && (
               <a id="c-header-sign-in" href="#" className="uppercase text-sm" onClick={showModal}>

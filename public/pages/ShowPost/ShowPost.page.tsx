@@ -4,7 +4,7 @@ import React from "react"
 
 import { LockStatus } from "./components/LockStatus"
 import { PostLockingModal } from "./components/PostLockingModal"
-import { Comment, Post, Tag, Vote, ImageUpload, CurrentUser, PostStatus, isPostLocked, UserRole } from "@fider/models"
+import { Comment, Post, Tag, Vote, ImageUpload, CurrentUser, PostStatus, isPostLocked, UserRole, ReportReason } from "@fider/models"
 import { actions, clearUrlHash, Failure, Fider, notify, timeAgo, formatDate } from "@fider/services"
 import IconDotsHorizontal from "@fider/assets/images/heroicons-dots-horizontal.svg"
 import IconChevronUp from "@fider/assets/images/heroicons-chevron-up.svg"
@@ -24,6 +24,8 @@ import {
   Avatar,
   Dropdown,
   ImageGallery,
+  ReportModal,
+  ReportButton,
 } from "@fider/components"
 import { DiscussionPanel } from "./components/DiscussionPanel"
 
@@ -37,6 +39,12 @@ import { DeletePostModal } from "./components/DeletePostModal"
 import { ResponseModal } from "./components/ResponseModal"
 import { VotesPanel } from "./components/VotesPanel"
 
+interface ReportStatus {
+  hasReportedPost: boolean
+  reportedCommentIds: number[]
+  dailyLimitReached: boolean
+}
+
 interface ShowPostPageProps {
   post: Post
   subscribed: boolean
@@ -44,6 +52,8 @@ interface ShowPostPageProps {
   tags: Tag[]
   votes: Vote[]
   attachments: string[]
+  reportStatus?: ReportStatus
+  reportReasons?: ReportReason[]
 }
 
 interface ShowPostPageState {
@@ -51,6 +61,7 @@ interface ShowPostPageState {
   newTitle: string
   showDeleteModal: boolean
   showResponseModal: boolean
+  showReportModal: boolean
   attachments: ImageUpload[]
   newDescription: string
   highlightedComment?: number
@@ -87,6 +98,7 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
       editMode: false,
       showDeleteModal: false,
       showResponseModal: false,
+      showReportModal: false,
       newTitle: this.props.post.title,
       newDescription: this.props.post.description,
       attachments: [],
@@ -180,6 +192,10 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
     this.setState({ showResponseModal })
   }
 
+  private setShowReportModal = (showReportModal: boolean) => {
+    this.setState({ showReportModal })
+  }
+
   private cancelEdit = async () => {
     this.setState({ error: undefined, editMode: false })
   }
@@ -229,7 +245,7 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
     }
   }
 
-  public onActionSelected = (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock") => () => {
+  public onActionSelected = (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report") => () => {
     if (action === "copy") {
       navigator.clipboard.writeText(window.location.href)
       notify.success(<Trans id="showpost.copylink.success">Link copied to clipboard</Trans>)
@@ -241,9 +257,10 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
       this.startEdit()
     } else if (action === "lock") {
       this.setShowLockModal(true)
-    }
-    else if (action === "unlock") {
+    } else if (action === "unlock") {
       this.setShowUnlockModal(true)
+    } else if (action === "report") {
+      this.setShowReportModal(true)
     }
   }
 
@@ -273,40 +290,49 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
                     </VStack>
 
                     {!this.state.editMode && (
-                      <Dropdown position="left" renderHandle={<Icon sprite={IconDotsHorizontal} width="24" height="24" />}>
-                        <Dropdown.ListItem onClick={this.onActionSelected("copy")}>
-                          <Trans id="action.copylink">Copy link</Trans>
-                        </Dropdown.ListItem>
-                        {Fider.session.isAuthenticated && canEditPost(Fider.session.user, this.props.post) && (
-                          <>
-                            <Dropdown.ListItem onClick={this.onActionSelected("edit")}>
-                              <Trans id="action.edit">Edit</Trans>
-                            </Dropdown.ListItem>
-                            {(Fider.session.user.isCollaborator || Fider.session.user.isModerator || Fider.session.user.isAdministrator) && (
-                              <>
-                                <Dropdown.ListItem onClick={this.onActionSelected("status")}>
-                                  <Trans id="action.respond">Respond</Trans>
-                                </Dropdown.ListItem>
-                              {!isPostLocked(this.props.post) ? (
-                                <Dropdown.ListItem onClick={this.onActionSelected("lock")}>
-                                  <Trans id="action.lock">Lock</Trans>
-                                </Dropdown.ListItem>
-                              ) : (
-                                <Dropdown.ListItem onClick={this.onActionSelected("unlock")}>
-                                  <Trans id="action.unlock">Unlock</Trans>
-                                </Dropdown.ListItem>
-                              )}
-                            </>
-                          )}
-                        </>
-                      )}
-                      {this.canDeletePost() && (
-                        <Dropdown.ListItem onClick={this.onActionSelected("delete")} className="text-red-700">
-                          <Trans id="action.delete">Delete</Trans>
-                        </Dropdown.ListItem>
-                      )}
-                    </Dropdown>
-                    )}
+                      <HStack spacing={1} className="items-center">
+                        <ReportButton
+                          reportedUserId={this.props.post.user.id}
+                          size="medium"
+                          hasReported={this.props.reportStatus?.hasReportedPost ?? false}
+                          dailyLimitReached={this.props.reportStatus?.dailyLimitReached ?? false}
+                          onReport={() => this.setState({ showReportModal: true })}
+                        />
+                        <Dropdown position="left" renderHandle={<Icon sprite={IconDotsHorizontal} width="24" height="24" />}>
+                          <Dropdown.ListItem onClick={this.onActionSelected("copy")}>
+                            <Trans id="action.copylink">Copy link</Trans>
+                          </Dropdown.ListItem>
+                          {Fider.session.isAuthenticated && canEditPost(Fider.session.user, this.props.post) && (
+                            <>
+                              <Dropdown.ListItem onClick={this.onActionSelected("edit")}>
+                                <Trans id="action.edit">Edit</Trans>
+                              </Dropdown.ListItem>
+                              {(Fider.session.user.isCollaborator || Fider.session.user.isModerator || Fider.session.user.isAdministrator) && (
+                                <>
+                                  <Dropdown.ListItem onClick={this.onActionSelected("status")}>
+                                    <Trans id="action.respond">Respond</Trans>
+                                  </Dropdown.ListItem>
+                                {!isPostLocked(this.props.post) ? (
+                                  <Dropdown.ListItem onClick={this.onActionSelected("lock")}>
+                                    <Trans id="action.lock">Lock</Trans>
+                                  </Dropdown.ListItem>
+                                ) : (
+                                  <Dropdown.ListItem onClick={this.onActionSelected("unlock")}>
+                                    <Trans id="action.unlock">Unlock</Trans>
+                                  </Dropdown.ListItem>
+                                )}
+                              </>
+                            )}
+                          </>
+                        )}
+                        {this.canDeletePost() && (
+                          <Dropdown.ListItem onClick={this.onActionSelected("delete")} className="text-red-700">
+                            <Trans id="action.delete">Delete</Trans>
+                          </Dropdown.ListItem>
+                        )}
+                      </Dropdown>
+                    </HStack>
+                  )}
                   </HStack>
 
                   <div className="flex-grow">
@@ -379,7 +405,15 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
               </div>
 
               <div className="p-show-post__discussion_col">
-                <DiscussionPanel post={this.props.post} comments={this.props.comments} highlightedComment={this.state.highlightedComment} subscribed={this.props.subscribed} />
+                <DiscussionPanel
+                  post={this.props.post}
+                  comments={this.props.comments}
+                  highlightedComment={this.state.highlightedComment}
+                  subscribed={this.props.subscribed}
+                  reportedCommentIds={this.props.reportStatus?.reportedCommentIds ?? []}
+                  dailyLimitReached={this.props.reportStatus?.dailyLimitReached ?? false}
+                  reportReasons={this.props.reportReasons}
+                />
                 <div className="mt-4 flex items-center justify-between">
                   <Button
                     variant="secondary"
@@ -403,6 +437,12 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
           isOpen={this.state.showLockModal || this.state.showUnlockModal}
           onClose={() => this.state.showLockModal ? this.setShowLockModal(false) : this.setShowUnlockModal(false)}
           mode={this.state.showLockModal ? "lock" : "unlock"}
+        />
+        <ReportModal
+          isOpen={this.state.showReportModal}
+          onClose={() => this.setShowReportModal(false)}
+          postNumber={this.props.post.number}
+          reasons={this.props.reportReasons}
         />
       </>
     )

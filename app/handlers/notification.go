@@ -55,6 +55,7 @@ func GetAllNotifications() web.HandlerFunc {
 }
 
 // TotalUnreadNotifications returns the total number of unread notifications
+// For staff members, it also includes the pending reports count
 func TotalUnreadNotifications() web.HandlerFunc {
 	return func(c *web.Context) error {
 		q := &query.CountUnreadNotifications{}
@@ -62,9 +63,18 @@ func TotalUnreadNotifications() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		return c.Ok(web.Map{
+		response := web.Map{
 			"total": q.Result,
-		})
+		}
+
+		if c.User() != nil && (c.User().IsCollaborator() || c.User().IsModerator() || c.User().IsAdministrator()) {
+			reportCount := &query.CountPendingReports{}
+			if err := bus.Dispatch(c, reportCount); err == nil {
+				response["pendingReports"] = reportCount.Result
+			}
+		}
+
+		return c.Ok(response)
 	}
 }
 

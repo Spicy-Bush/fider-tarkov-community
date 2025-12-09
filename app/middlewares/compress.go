@@ -14,12 +14,16 @@ import (
 type gzipResponseWriter struct {
 	io.Writer
 	http.ResponseWriter
+	gzipWriter *gzip.Writer
 }
 
-// Compress returns a middleware which compresses HTTP response using gzip compression
 func Compress() web.MiddlewareFunc {
 	return func(next web.HandlerFunc) web.HandlerFunc {
 		return func(c *web.Context) error {
+			if strings.Contains(c.Request.GetHeader("Accept"), "text/event-stream") {
+				return next(c)
+			}
+
 			if strings.Contains(c.Request.GetHeader("Accept-Encoding"), "gzip") {
 				res := c.Response
 				res.Header().Set("Content-Encoding", "gzip")
@@ -31,6 +35,7 @@ func Compress() web.MiddlewareFunc {
 				c.Response.Writer = &gzipResponseWriter{
 					Writer:         gw,
 					ResponseWriter: c.Response.Writer,
+					gzipWriter:     gw,
 				}
 
 				err := next(c)
@@ -62,10 +67,13 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
-func (r gzipResponseWriter) Flush() {
-	r.Writer.(http.Flusher).Flush()
+func (w *gzipResponseWriter) Flush() {
+	w.gzipWriter.Flush()
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
-func (r gzipResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return r.Writer.(http.Hijacker).Hijack()
+func (w *gzipResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return w.ResponseWriter.(http.Hijacker).Hijack()
 }

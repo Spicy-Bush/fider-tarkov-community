@@ -54,4 +54,6 @@ type GeneralSettings struct {
 	CommentingDisabledFor      []string                `json:"commentingDisabledFor"`
 	PostingGloballyDisabled    bool                    `json:"postingGloballyDisabled"`
 	CommentingGloballyDisabled bool                    `json:"commentingGloballyDisabled"`
+	ReportingGloballyDisabled  bool                    `json:"reportingGloballyDisabled"`
+	ReportLimitsPerDay         int                     `json:"reportLimitsPerDay"`
 }

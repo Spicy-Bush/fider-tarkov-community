@@ -111,3 +111,8 @@ func (r *Request) BaseURL() string {
 
 	return address
 }
+
+// Original will returns the underlying *http.Request
+func (r *Request) Original() *http.Request {
+	return r.instance
+}

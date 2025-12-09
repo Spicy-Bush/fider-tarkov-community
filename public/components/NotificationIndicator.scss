@@ -33,13 +33,13 @@
   @include media("lg") {
     min-width: 400px;
   }
-  
-  .overflow-y-auto {
-    overflow-y: auto;
-    padding-bottom: 10px;
-    scroll-behavior: smooth;
-    overflow-y: scroll;
-  }
+}
+
+.c-notifications-scroll-container {
+  overflow-y: auto;
+  max-height: 400px;
+  padding-bottom: 10px;
+  scroll-behavior: smooth;
 }
 
 @keyframes pulse {

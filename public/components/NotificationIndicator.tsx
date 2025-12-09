@@ -1,15 +1,15 @@
 import "./NotificationIndicator.scss"
-import React, { useEffect, useState, useRef } from "react"
+import React, { useEffect, useState, useRef, useCallback } from "react"
 import IconTrash from "@fider/assets/images/heroicons-trash.svg"
 import NoDataIllustration from "@fider/assets/images/undraw-empty.svg"
 import IconBell from "@fider/assets/images/heroicons-bell.svg"
-import { useFider } from "@fider/hooks"
 import { actions, Fider } from "@fider/services"
 import { Avatar, Icon, Markdown, Moment, Button, ButtonClickEvent } from "./common"
 import { Tabs } from "./common/Tabs"
 import { Dropdown } from "./common/Dropdown"
 import { Notification } from "@fider/models"
 import { HStack, VStack } from "./layout"
+import { useUnreadCounts } from "@fider/contexts/UnreadCountsContext"
 
 import { Trans } from "@lingui/react/macro"
 
@@ -44,26 +44,23 @@ export const NotificationItem = ({ notification }: { notification: Notification 
 }
 
 const NotificationIcon = ({ unreadNotifications }: { unreadNotifications: number }) => {
-  const isOverMaxCount = unreadNotifications > 99;
-  const displayCount = isOverMaxCount ? "99+" : unreadNotifications.toString();
+  const isOverMaxCount = unreadNotifications > 99
+  const displayCount = isOverMaxCount ? "99+" : unreadNotifications.toString()
   
   return (
-    <>
-      <span className="c-notification-indicator mr-3">
-        <Icon sprite={IconBell} className="h-6 text-gray-500" />
-        {unreadNotifications > 0 && (
-          <div className={`c-notification-indicator-unread-counter ${isOverMaxCount ? 'is-max-count' : ''}`}>
-            {displayCount}
-          </div>
-        )}
-      </span>
-    </>
+    <span className="c-notification-indicator mr-3">
+      <Icon sprite={IconBell} className="h-6 text-gray-500" />
+      {unreadNotifications > 0 && (
+        <div className={`c-notification-indicator-unread-counter ${isOverMaxCount ? "is-max-count" : ""}`}>
+          {displayCount}
+        </div>
+      )}
+    </span>
   )
 }
 
 export const NotificationIndicator = () => {
-  const fider = useFider()
-  const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const { counts, setNotificationCount, refreshCounts } = useUnreadCounts()
   const [showingNotifications, setShowingNotifications] = useState(false)
   const [activeTab, setActiveTab] = useState("unread")
   const [loading, setLoading] = useState(false)
@@ -79,15 +76,7 @@ export const NotificationIndicator = () => {
   const unreadContainerRef = useRef<HTMLDivElement>(null)
   const readContainerRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (fider.session.isAuthenticated) {
-      actions.getTotalUnreadNotifications().then((result) => {
-        if (result.ok && result.data > 0) {
-          setUnreadNotifications(result.data)
-        }
-      })
-    }
-  }, [fider.session.isAuthenticated])
+  const unreadNotifications = counts.notifications
 
   useEffect(() => {
     if (showingNotifications) {
@@ -111,7 +100,7 @@ export const NotificationIndicator = () => {
         setUnreadTotal(total)
         setUnread(prev => reset ? notifications : [...(prev || []), ...notifications])
         setUnreadPage(page)
-        setUnreadNotifications(total)
+        setNotificationCount(total)
       } else {
         setReadTotal(total)
         setRead(prev => reset ? notifications : [...(prev || []), ...notifications])
@@ -123,7 +112,21 @@ export const NotificationIndicator = () => {
     setInitialLoad(false)
   }
 
-  const handleScroll = (type: string) => {
+  const stateRef = useRef({
+    unreadPage,
+    readPage,
+    unread,
+    read,
+    unreadTotal,
+    readTotal,
+    loading,
+  })
+  
+  useEffect(() => {
+    stateRef.current = { unreadPage, readPage, unread, read, unreadTotal, readTotal, loading }
+  }, [unreadPage, readPage, unread, read, unreadTotal, readTotal, loading])
+
+  const handleScroll = useCallback((type: "unread" | "read") => {
     const container = type === "unread" ? unreadContainerRef.current : readContainerRef.current
     if (!container) return
     
@@ -131,38 +134,32 @@ export const NotificationIndicator = () => {
     if (scrollHeight === 0) return
     
     const scrolledToBottom = scrollHeight - scrollTop - clientHeight < 50
+    const state = stateRef.current
     
-    if (scrolledToBottom) {
-      if (type === "unread" && unread.length < unreadTotal && !loading) {
-        loadNotifications("unread", unreadPage + 1)
-      } else if (type === "read" && read.length < readTotal && !loading) {
-        loadNotifications("read", readPage + 1)
+    if (scrolledToBottom && !state.loading) {
+      if (type === "unread" && state.unread.length < state.unreadTotal) {
+        loadNotifications("unread", state.unreadPage + 1)
+      } else if (type === "read" && state.read.length < state.readTotal) {
+        loadNotifications("read", state.readPage + 1)
       }
     }
-  }
-
-  const handleUnreadScroll = () => handleScroll("unread")
-  const handleReadScroll = () => handleScroll("read")
+  }, [])
 
   useEffect(() => {
     const unreadContainer = unreadContainerRef.current
-    if (unreadContainer && activeTab === "unread") {
-      unreadContainer.addEventListener("scroll", handleUnreadScroll)
-      return () => {
-        unreadContainer.removeEventListener("scroll", handleUnreadScroll)
-      }
-    }
-  }, [activeTab, unreadPage, unread, unreadTotal, loading])
-
-  useEffect(() => {
     const readContainer = readContainerRef.current
-    if (readContainer && activeTab === "read") {
-      readContainer.addEventListener("scroll", handleReadScroll)
-      return () => {
-        readContainer.removeEventListener("scroll", handleReadScroll)
-      }
+    
+    const handleUnreadScroll = () => handleScroll("unread")
+    const handleReadScroll = () => handleScroll("read")
+    
+    unreadContainer?.addEventListener("scroll", handleUnreadScroll)
+    readContainer?.addEventListener("scroll", handleReadScroll)
+    
+    return () => {
+      unreadContainer?.removeEventListener("scroll", handleUnreadScroll)
+      readContainer?.removeEventListener("scroll", handleReadScroll)
     }
-  }, [activeTab, readPage, read, readTotal, loading])
+  }, [handleScroll])
 
   const markAllAsRead = async (event: ButtonClickEvent) => {
     const response = await actions.markAllAsRead()
@@ -181,12 +178,7 @@ export const NotificationIndicator = () => {
     if (response.ok) {
       setRead([])
       setReadTotal(0)
-      
-      actions.getTotalUnreadNotifications().then((result) => {
-        if (result.ok) {
-          setUnreadNotifications(result.data || 0)
-        }
-      })
+      refreshCounts()
     }
     
     setPurging(false)
@@ -207,7 +199,7 @@ export const NotificationIndicator = () => {
     <Dropdown
       wide={true}
       position="left"
-      fullsceenSm={true}
+      fullscreenSm={true}
       onToggled={(isOpen: boolean) => setShowingNotifications(isOpen)}
       renderHandle={<NotificationIcon unreadNotifications={unreadNotifications} />}
     >
@@ -227,8 +219,7 @@ export const NotificationIndicator = () => {
             {activeTab === "unread" && (
               <div 
                 ref={unreadContainerRef} 
-                className="overflow-y-auto"
-                style={{ maxHeight: "400px" }}
+                className="c-notifications-scroll-container"
               >
                 {(loading && initialLoad) ? (
                   <VStack spacing={0} className="py-2" divide={false}>
@@ -279,8 +270,7 @@ export const NotificationIndicator = () => {
             {activeTab === "read" && (
               <div 
                 ref={readContainerRef} 
-                className="overflow-y-auto"
-                style={{ maxHeight: "400px" }}
+                className="c-notifications-scroll-container"
               >
                 {(loading && initialLoad) ? (
                   <VStack spacing={0} className="py-2" divide={false}>

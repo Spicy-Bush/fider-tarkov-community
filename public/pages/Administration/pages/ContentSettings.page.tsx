@@ -25,6 +25,8 @@ interface ContentSettingsModel {
   commentingDisabledFor: string[]
   postingGloballyDisabled: boolean
   commentingGloballyDisabled: boolean
+  reportingGloballyDisabled: boolean
+  reportLimitsPerDay: number
 }
 
 import "./ContentSettings.scss" 
@@ -44,14 +46,21 @@ const ContentSettingsPage = () => {
     postingDisabledFor: [],
     commentingDisabledFor: [],
     postingGloballyDisabled: false,
-    commentingGloballyDisabled: false
+    commentingGloballyDisabled: false,
+    reportingGloballyDisabled: false,
+    reportLimitsPerDay: 10
   }
   
-  const [settings, setSettings] = useState<ContentSettingsModel>(
-    fider.session.tenant.generalSettings || defaultSettings
-  )
+  const [settings, setSettings] = useState<ContentSettingsModel>(() => {
+    const stored = fider.session.tenant.generalSettings as ContentSettingsModel | null
+    if (!stored) return defaultSettings
+    return {
+      ...defaultSettings,
+      ...stored,
+    }
+  })
   const [error, setError] = useState<Failure | undefined>(undefined)
-  const [activeTab, setActiveTab] = useState<'global' | 'post' | 'comment'>('global')
+  const [activeTab, setActiveTab] = useState<'global' | 'post' | 'comment' | 'report'>('global')
 
   const roles = fider.session.props.roles as string[]
   
@@ -129,7 +138,8 @@ const ContentSettingsPage = () => {
           {[
             { key: 'global', label: 'Global Controls', icon: '🌐' },
             { key: 'post', label: 'Post Settings', icon: '📝' },
-            { key: 'comment', label: 'Comment Settings', icon: '💬' }
+            { key: 'comment', label: 'Comment Settings', icon: '💬' },
+            { key: 'report', label: 'Report Settings', icon: '🚩' }
           ].map(tab => (
             <button 
               key={tab.key}
@@ -140,7 +150,7 @@ const ContentSettingsPage = () => {
               })}
               onClick={(e) => {
                 e.preventDefault();
-                setActiveTab(tab.key as 'global' | 'post' | 'comment');
+                setActiveTab(tab.key as 'global' | 'post' | 'comment' | 'report');
               }}
             >
               <span className="tab-icon">{tab.icon}</span>
@@ -400,6 +410,49 @@ const ContentSettingsPage = () => {
     )
   }
 
+  const renderReportSettings = () => {
+    return (
+      <div className={classSet({
+        "settings-tab-content": true,
+        "settings-tab-visible": activeTab === 'report',
+        "settings-tab-hidden": activeTab !== 'report'
+      })}>
+        <div className="settings-panels-container">
+          <CollapsiblePanel title="Report Controls" defaultOpen={true} icon="🚩">
+            <div className="settings-toggle-group">
+              <Toggle 
+                active={settings.reportingGloballyDisabled} 
+                label="Disable all reports" 
+                onToggle={() => updateSetting('reportingGloballyDisabled', !settings.reportingGloballyDisabled)}
+                disabled={!canEdit}
+              />
+              <p className="settings-description">
+                When enabled, users will not be able to submit new reports.
+              </p>
+            </div>
+          </CollapsiblePanel>
+
+          <CollapsiblePanel title="Report Limits" defaultOpen={true} icon="⏱️">
+            <Input
+              field="reportLimitsPerDay"
+              label="Maximum Reports per User per Day"
+              type="number"
+              min={1}
+              max={100}
+              value={(settings.reportLimitsPerDay || 10).toString()}
+              disabled={!canEdit}
+              onChange={(value) => updateSetting('reportLimitsPerDay', parseInt(value))}
+            >
+              <p className="settings-description">
+                Maximum number of reports a single user can submit per day. Set to 0 for unlimited.
+              </p>
+            </Input>
+          </CollapsiblePanel>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <AdminPageContainer id="p-admin-content" name="content" title="Content Settings" subtitle="Configure post and comment settings">
       <Form error={error}>
@@ -410,6 +463,7 @@ const ContentSettingsPage = () => {
             {renderGlobalControls()}
             {renderPostSettings()}
             {renderCommentSettings()}
+            {renderReportSettings()}
           </div>
 
           <div className="settings-actions">

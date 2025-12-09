@@ -1,5 +1,28 @@
 @import "~@fider/assets/styles/variables.scss";
 
+.c-report-flag {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: get("colors.gray.400");
+  transition: color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    color: get("colors.red.600");
+  }
+
+  &--disabled,
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    
+    &:hover {
+      color: get("colors.gray.400");
+    }
+  }
+}
+
 #p-show-post {
   .post-header {
     flex-grow: 1;

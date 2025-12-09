@@ -41,7 +41,7 @@ export const SideMenu = (props: SiteMenuProps) => {
     <div className="js-admin-menu sm:hidden md:hidden lg:block">
       <VStack spacing={0} className="c-side-menu rounded-md shadow bg-white">
         <SideMenuItem name="members" title="Members" href="/admin/members" isActive={activeItem === "members"} />
-        <SideMenuItem name="modqueue" title="Mod Queue" href="/admin/modqueue" isActive={activeItem === "modqueue"} />
+        <SideMenuItem name="reports" title="Reports" href="/admin/reports" isActive={activeItem === "reports"} />
         {(fider.session.user.isCollaborator) && (
           <>
             <SideMenuItem name="general" title="General" href="/admin" isActive={activeItem === "general"} />

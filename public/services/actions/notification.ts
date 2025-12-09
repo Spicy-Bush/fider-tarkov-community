@@ -8,14 +8,13 @@ interface PaginatedNotifications {
   perPage: number
 }
 
-export const getTotalUnreadNotifications = async (): Promise<Result<number>> => {
-  return http.get<{ total: number }>("/_api/notifications/unread/total").then((result) => {
-    return {
-      ok: result.ok,
-      error: result.error,
-      data: result.data ? result.data.total : 0,
-    }
-  })
+export interface UnreadCountsResponse {
+  total: number
+  pendingReports?: number
+}
+
+export const getUnreadCounts = async (): Promise<Result<UnreadCountsResponse>> => {
+  return http.get<UnreadCountsResponse>("/_api/notifications/unread/total")
 }
 
 export const getNotifications = async (
