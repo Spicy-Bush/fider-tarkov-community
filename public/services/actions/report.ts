@@ -114,3 +114,29 @@ export const reportHeartbeat = async (reportId: number): Promise<Result> => {
 export const stopViewingReport = async (): Promise<Result> => {
   return http.delete("/api/mod/viewing")
 }
+
+export const listAllReportReasons = async (): Promise<Result<ReportReason[]>> => {
+  return http.get<ReportReason[]>("/api/v1/report-reasons/all")
+}
+
+export const createReportReason = async (data: {
+  title: string
+  description?: string
+}): Promise<Result<{ id: number }>> => {
+  return http.post<{ id: number }>("/api/v1/report-reasons", data)
+}
+
+export const updateReportReason = async (
+  id: number,
+  data: {
+    title: string
+    description?: string
+    isActive: boolean
+  }
+): Promise<Result> => {
+  return http.put(`/api/v1/report-reasons/${id}`, data)
+}
+
+export const deleteReportReason = async (id: number): Promise<Result> => {
+  return http.delete(`/api/v1/report-reasons/${id}`)
+}

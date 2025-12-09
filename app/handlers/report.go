@@ -368,3 +368,87 @@ func StopViewingReport() web.HandlerFunc {
 		return c.Ok(web.Map{})
 	}
 }
+
+func ListAllReportReasons() web.HandlerFunc {
+	return func(c *web.Context) error {
+		listReasons := &query.ListAllReportReasons{}
+		if err := bus.Dispatch(c, listReasons); err != nil {
+			return c.Failure(err)
+		}
+
+		return c.Ok(listReasons.Result)
+	}
+}
+
+func CreateReportReason() web.HandlerFunc {
+	return func(c *web.Context) error {
+		action := new(actions.CreateReportReason)
+		if result := c.BindTo(action); !result.Ok {
+			return c.HandleValidation(result)
+		}
+
+		return c.WithTransaction(func() error {
+			createReason := &cmd.CreateReportReason{
+				Title:       action.Title,
+				Description: action.Description,
+			}
+			if err := bus.Dispatch(c, createReason); err != nil {
+				return c.Failure(err)
+			}
+
+			return c.Ok(web.Map{"id": createReason.Result})
+		})
+	}
+}
+
+func UpdateReportReason() web.HandlerFunc {
+	return func(c *web.Context) error {
+		reasonID, err := c.ParamAsInt("id")
+		if err != nil {
+			return c.BadRequest(web.Map{"message": "Invalid reason ID"})
+		}
+
+		action := new(actions.UpdateReportReason)
+		action.ID = reasonID
+		if result := c.BindTo(action); !result.Ok {
+			return c.HandleValidation(result)
+		}
+
+		return c.WithTransaction(func() error {
+			updateReason := &cmd.UpdateReportReason{
+				ID:          reasonID,
+				Title:       action.Title,
+				Description: action.Description,
+				IsActive:    action.IsActive,
+			}
+			if err := bus.Dispatch(c, updateReason); err != nil {
+				return c.Failure(err)
+			}
+
+			return c.Ok(web.Map{})
+		})
+	}
+}
+
+func DeleteReportReason() web.HandlerFunc {
+	return func(c *web.Context) error {
+		reasonID, err := c.ParamAsInt("id")
+		if err != nil {
+			return c.BadRequest(web.Map{"message": "Invalid reason ID"})
+		}
+
+		action := &actions.DeleteReportReason{ID: reasonID}
+		if result := c.BindTo(action); !result.Ok {
+			return c.HandleValidation(result)
+		}
+
+		return c.WithTransaction(func() error {
+			deleteReason := &cmd.DeleteReportReason{ID: reasonID}
+			if err := bus.Dispatch(c, deleteReason); err != nil {
+				return c.Failure(err)
+			}
+
+			return c.Ok(web.Map{})
+		})
+	}
+}

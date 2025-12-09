@@ -171,3 +171,77 @@ func (a *ResolveReport) Validate(ctx context.Context, user *entity.User) *valida
 
 	return result
 }
+
+type CreateReportReason struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+func (a *CreateReportReason) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+}
+
+func (a *CreateReportReason) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	if a.Title == "" {
+		result.AddFieldFailure("title", propertyIsRequired(ctx, "title"))
+	} else if len(a.Title) > 100 {
+		result.AddFieldFailure("title", propertyMaxStringLen(ctx, "title", 100))
+	}
+
+	if len(a.Description) > 500 {
+		result.AddFieldFailure("description", propertyMaxStringLen(ctx, "description", 500))
+	}
+
+	return result
+}
+
+type UpdateReportReason struct {
+	ID          int    `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	IsActive    bool   `json:"isActive"`
+}
+
+func (a *UpdateReportReason) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+}
+
+func (a *UpdateReportReason) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	if a.ID <= 0 {
+		result.AddFieldFailure("id", propertyIsInvalid(ctx, "id"))
+	}
+
+	if a.Title == "" {
+		result.AddFieldFailure("title", propertyIsRequired(ctx, "title"))
+	} else if len(a.Title) > 100 {
+		result.AddFieldFailure("title", propertyMaxStringLen(ctx, "title", 100))
+	}
+
+	if len(a.Description) > 500 {
+		result.AddFieldFailure("description", propertyMaxStringLen(ctx, "description", 500))
+	}
+
+	return result
+}
+
+type DeleteReportReason struct {
+	ID int `json:"id"`
+}
+
+func (a *DeleteReportReason) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+}
+
+func (a *DeleteReportReason) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	if a.ID <= 0 {
+		result.AddFieldFailure("id", propertyIsInvalid(ctx, "id"))
+	}
+
+	return result
+}

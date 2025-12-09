@@ -47,3 +47,7 @@ type GetUserReportedItemsOnPost struct {
 	ReportedCommentIDs []int
 }
 
+type ListAllReportReasons struct {
+	Result []*entity.ReportReason
+}
+

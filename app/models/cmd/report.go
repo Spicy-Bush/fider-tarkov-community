@@ -31,3 +31,19 @@ type DeleteReport struct {
 	ReportID int
 }
 
+type CreateReportReason struct {
+	Title       string
+	Description string
+	Result      int
+}
+
+type UpdateReportReason struct {
+	ID          int
+	Title       string
+	Description string
+	IsActive    bool
+}
+
+type DeleteReportReason struct {
+	ID int
+}

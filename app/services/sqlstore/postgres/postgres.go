@@ -184,9 +184,13 @@ func (s Service) Init() {
 	bus.AddHandler(listReports)
 	bus.AddHandler(countPendingReports)
 	bus.AddHandler(getReportReasons)
+	bus.AddHandler(listAllReportReasons)
 	bus.AddHandler(countUserReportsToday)
 	bus.AddHandler(hasUserReportedTarget)
 	bus.AddHandler(getUserReportedItemsOnPost)
+	bus.AddHandler(createReportReason)
+	bus.AddHandler(updateReportReason)
+	bus.AddHandler(deleteReportReason)
 }
 
 type SqlHandler func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error

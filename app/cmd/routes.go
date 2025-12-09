@@ -246,6 +246,11 @@ func routes(r *web.Engine) *web.Engine {
 		collabAdmin.Put("/api/v1/responses/:id", apiv1.UpdateCannedResponse())
 		collabAdmin.Delete("/api/v1/responses/:id", apiv1.DeleteCannedResponse())
 
+		collabAdmin.Get("/api/v1/report-reasons/all", handlers.ListAllReportReasons())
+		collabAdmin.Post("/api/v1/report-reasons", handlers.CreateReportReason())
+		collabAdmin.Put("/api/v1/report-reasons/:id", handlers.UpdateReportReason())
+		collabAdmin.Delete("/api/v1/report-reasons/:id", handlers.DeleteReportReason())
+
 		collabAdmin.Get("/admin/tags", handlers.ManageTags())
 		collabAdmin.Post("/api/v1/tags", apiv1.CreateEditTag())
 		collabAdmin.Put("/api/v1/tags/:slug", apiv1.CreateEditTag())

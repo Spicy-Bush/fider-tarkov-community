@@ -403,3 +403,96 @@ func nullIfEmpty(s string) interface{} {
 	}
 	return s
 }
+
+func listAllReportReasons(ctx context.Context, q *query.ListAllReportReasons) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		var reasons []*dbReportReason
+		err := trx.Select(&reasons, `
+			SELECT id, slug, title, description, sort_order, is_active
+			FROM report_reasons
+			WHERE tenant_id = $1
+			ORDER BY sort_order ASC
+		`, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to list all report reasons")
+		}
+
+		q.Result = make([]*entity.ReportReason, len(reasons))
+		for i, r := range reasons {
+			q.Result[i] = r.toModel()
+		}
+		return nil
+	})
+}
+
+func createReportReason(ctx context.Context, c *cmd.CreateReportReason) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		var maxSortOrder int
+		err := trx.Scalar(&maxSortOrder, `
+			SELECT COALESCE(MAX(sort_order), 0) FROM report_reasons WHERE tenant_id = $1
+		`, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get max sort order")
+		}
+
+		slug := generateSlug(c.Title)
+
+		var id int
+		err = trx.Get(&id, `
+			INSERT INTO report_reasons (tenant_id, slug, title, description, sort_order, is_active)
+			VALUES ($1, $2, $3, $4, $5, true)
+			RETURNING id
+		`, tenant.ID, slug, c.Title, nullIfEmpty(c.Description), maxSortOrder+1)
+		if err != nil {
+			return errors.Wrap(err, "failed to create report reason")
+		}
+
+		c.Result = id
+		return nil
+	})
+}
+
+func updateReportReason(ctx context.Context, c *cmd.UpdateReportReason) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		_, err := trx.Execute(`
+			UPDATE report_reasons 
+			SET title = $1, description = $2, is_active = $3
+			WHERE id = $4 AND tenant_id = $5
+		`, c.Title, nullIfEmpty(c.Description), c.IsActive, c.ID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to update report reason")
+		}
+		return nil
+	})
+}
+
+func deleteReportReason(ctx context.Context, c *cmd.DeleteReportReason) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		_, err := trx.Execute(`
+			DELETE FROM report_reasons WHERE id = $1 AND tenant_id = $2
+		`, c.ID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to delete report reason")
+		}
+		return nil
+	})
+}
+
+func generateSlug(title string) string {
+	slug := ""
+	for _, c := range title {
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
+			slug += string(c)
+		} else if c >= 'A' && c <= 'Z' {
+			slug += string(c + 32)
+		} else if c == ' ' || c == '-' || c == '_' {
+			if len(slug) > 0 && slug[len(slug)-1] != '-' {
+				slug += "-"
+			}
+		}
+	}
+	if len(slug) > 50 {
+		slug = slug[:50]
+	}
+	return slug
+}
