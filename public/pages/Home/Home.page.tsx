@@ -119,6 +119,12 @@ What can we do better? This is the place for you to vote, discuss and share idea
           <VStack spacing={2} className="p-4">
             <Markdown text={fider.session.tenant.welcomeMessage || defaultWelcomeMessage} style="full" />
             <PostInput placeholder={fider.session.tenant.invitation || defaultInvitation} onTitleChanged={setTitle} />
+            <div style={{ textAlign: "center", marginTop: "1rem" }}>
+              <a href="https://ko-fi.com/tarkovcommunity" target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", textDecoration: "none", color: "inherit" }}>
+                <img src="/misc/Ko-fi_HEART.gif" alt="" style={{ height: "1.5rem", width: "auto" }} />
+                <span>Support us on Ko-fi</span>
+              </a>
+            </div>
           </VStack>
         </div>
         <div className="p-home__posts-col p-4">

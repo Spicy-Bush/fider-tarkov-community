@@ -111,6 +111,11 @@ const Footer: React.FC = () => {
               Official Tarkov Support
             </a>
           </li>
+          <li>
+            <a href="https://ko-fi.com/tarkovcommunity" target="_blank" rel="noreferrer">
+              <span>Support us on Ko-fi</span>
+            </a>
+          </li>
         </ul>
       </nav>
       <p>© {currentYear} - This website is proudly made by the Spicy Bush Team.</p>
