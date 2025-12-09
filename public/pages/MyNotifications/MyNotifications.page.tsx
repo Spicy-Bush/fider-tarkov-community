@@ -1,7 +1,7 @@
 import React from "react"
 
 import { Notification } from "@fider/models"
-import { Header, Markdown, Moment, PageTitle, Button, ButtonClickEvent, Icon } from "@fider/components"
+import { Markdown, Moment, PageTitle, Button, ButtonClickEvent, Icon } from "@fider/components"
 import { actions, Fider } from "@fider/services"
 import { HStack, VStack } from "@fider/components/layout"
 import { i18n } from "@lingui/core"
@@ -213,9 +213,7 @@ export default class MyNotificationsPage extends React.Component<MyNotifications
     const { activeTab, unread, read, unreadTotal, readTotal, loading, purging } = this.state
     
     return (
-      <>
-        <Header />
-        <div id="p-my-notifications" className="page container">
+      <div id="p-my-notifications" className="page container">
           <PageTitle
             title={i18n._("mynotifications.page.title", { message: "Notifications" })}
             subtitle={i18n._("mynotifications.page.subtitle", { message: "Stay up to date with what's happening" })}
@@ -310,7 +308,6 @@ export default class MyNotificationsPage extends React.Component<MyNotifications
             </div>
           )}
         </div>
-      </>
     )
   }
 }

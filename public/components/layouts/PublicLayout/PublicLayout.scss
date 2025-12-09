@@ -1,0 +1,16 @@
+@import "~@fider/assets/styles/variables.scss";
+
+.c-public-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.c-public-layout__content {
+  flex: 1 0 auto;
+}
+
+.c-footer {
+  flex-shrink: 0;
+}
+

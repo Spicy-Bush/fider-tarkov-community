@@ -14,17 +14,27 @@ import {
 } from "@fider/components"
 import { HStack, VStack } from "@fider/components/layout"
 import { actions, Failure, Fider, classSet, modEventSource } from "@fider/services"
-import { AdminPageContainer } from "../components/AdminBasePage"
 import IconCheck from "@fider/assets/images/heroicons-check.svg"
 import IconX from "@fider/assets/images/heroicons-x.svg"
 import IconRefresh from "@fider/assets/images/heroicons-refresh.svg"
 import IconExternalLink from "@fider/assets/images/heroicons-external-link.svg"
 import IconEye from "@fider/assets/images/heroicons-eye.svg"
-import { Report, ReportStatus, ReportType, ReportReason, Post, Comment, getReportTypeLabel } from "@fider/models"
+import IconChevronUp from "@fider/assets/images/heroicons-chevron-up.svg"
+import IconArrowLeft from "@fider/assets/images/heroicons-arrow-left.svg"
+import { Report, ReportStatus, ReportType, ReportReason, Post, Comment, getReportTypeLabel, UserRole, UserStatus } from "@fider/models"
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
+import { PageConfig } from "@fider/components/layouts"
+import { UserProfile } from "@fider/components/UserProfile"
 
 import "./ManageReports.page.scss"
+
+export const pageConfig: PageConfig = {
+  title: "Reports",
+  subtitle: "Review and manage user reports",
+  sidebarItem: "reports",
+  layoutVariant: "fullWidth",
+}
 
 interface Viewer {
   userId: number
@@ -64,7 +74,7 @@ const ReportListItem: React.FC<ReportListItemProps> = ({ report, isSelected, onC
       </div>
       <div className="c-report-list-item__reason">{report.reason}</div>
       <div className="c-report-list-item__meta">
-        <Avatar user={report.reporter} />
+        <Avatar user={report.reporter} clickable={false} />
         <span>{report.reporter.name}</span>
         <Moment locale={Fider.currentLocale} date={report.createdAt} />
       </div>
@@ -81,6 +91,7 @@ interface ContentPreviewProps {
   onUnassign: () => void
   onResolve: (status: "resolved" | "dismissed", shiftKey: boolean) => void
   currentUserId: number
+  onUserClick?: (user: { id: number; name: string; avatarURL: string; role: number | UserRole; status: number | UserStatus }) => void
 }
 
 const ContentPreview: React.FC<ContentPreviewProps> = ({
@@ -92,6 +103,7 @@ const ContentPreview: React.FC<ContentPreviewProps> = ({
   onUnassign,
   onResolve,
   currentUserId,
+  onUserClick,
 }) => {
   if (!report) {
     return (
@@ -172,15 +184,29 @@ const ContentPreview: React.FC<ContentPreviewProps> = ({
           </div>
           <div className="c-report-detail__field">
             <label>Reported by</label>
-            <HStack spacing={2}>
-              <Avatar user={report.reporter} />
-              <div>
-                <div className="font-medium">{report.reporter.name}</div>
-                <div className="text-xs text-muted">
-                  <Moment locale={Fider.currentLocale} date={report.createdAt} />
+            <div 
+              className="c-report-detail__author c-report-detail__author--clickable"
+              onClick={() => onUserClick?.({
+                id: report.reporter.id,
+                name: report.reporter.name,
+                avatarURL: report.reporter.avatarURL,
+                role: report.reporter.role,
+                status: report.reporter.status,
+              })}
+              role="button"
+              tabIndex={0}
+            >
+              <HStack spacing={2}>
+                <Avatar user={report.reporter} clickable={false} />
+                <div>
+                  <div className="font-medium">{report.reporter.name}</div>
+                  <div className="text-xs text-muted">
+                    <Moment locale={Fider.currentLocale} date={report.createdAt} />
+                  </div>
                 </div>
-              </div>
-            </HStack>
+              </HStack>
+              <span className="c-report-detail__author-hint">View profile</span>
+            </div>
           </div>
         </div>
         {report.details && (
@@ -208,9 +234,20 @@ const ContentPreview: React.FC<ContentPreviewProps> = ({
         </div>
 
         {reportedUser && (
-          <div className="c-report-detail__author">
+          <div 
+            className="c-report-detail__author c-report-detail__author--clickable"
+            onClick={() => onUserClick?.({
+              id: reportedUser.id,
+              name: reportedUser.name,
+              avatarURL: reportedUser.avatarURL,
+              role: reportedUser.role,
+              status: reportedUser.status,
+            })}
+            role="button"
+            tabIndex={0}
+          >
             <HStack spacing={2}>
-              <Avatar user={reportedUser} />
+              <Avatar user={reportedUser} clickable={false} />
               <div>
                 <div className="font-medium">{reportedUser.name}</div>
                 <div className="text-xs text-muted">
@@ -223,6 +260,7 @@ const ContentPreview: React.FC<ContentPreviewProps> = ({
                 </div>
               </div>
             </HStack>
+            <span className="c-report-detail__author-hint">View profile</span>
           </div>
         )}
 
@@ -263,7 +301,7 @@ const ContentPreview: React.FC<ContentPreviewProps> = ({
           <div className="c-report-detail__field">
             <label>Assigned to</label>
             <HStack spacing={2}>
-              <Avatar user={report.assignedTo} />
+              <Avatar user={report.assignedTo} clickable={false} />
               <span className="font-medium">{report.assignedTo?.name}</span>
             </HStack>
           </div>
@@ -273,7 +311,7 @@ const ContentPreview: React.FC<ContentPreviewProps> = ({
   )
 }
 
-const ManageReportsContent: React.FC = () => {
+const ManageReportsPage: React.FC = () => {
   const [reports, setReports] = useState<Report[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -292,6 +330,8 @@ const ManageReportsContent: React.FC = () => {
   const [error, setError] = useState<Failure | undefined>()
   const [viewers, setViewers] = useState<Map<number, Viewer[]>>(new Map())
   const [newReportIds, setNewReportIds] = useState<Set<number>>(new Set())
+  const [viewingUser, setViewingUser] = useState<{ id: number; name: string; avatarURL: string; role: number | UserRole; status: number | UserStatus } | null>(null)
+  const [profileKey, setProfileKey] = useState(0)
   const selectedReportRef = useRef<Report | null>(null)
   const selectedStatusRef = useRef<ReportStatus | "active">("active")
 
@@ -502,6 +542,7 @@ const ManageReportsContent: React.FC = () => {
 
   const handleSelectReport = (report: Report) => {
     setSelectedReport(report)
+    setViewingUser(null)
     setNewReportIds((prev) => {
       const newSet = new Set(prev)
       newSet.delete(report.id)
@@ -597,33 +638,27 @@ const ManageReportsContent: React.FC = () => {
     <div className="c-reports-split-view">
       <div className="c-reports-split-view__list">
         <div className="c-reports-split-view__filters">
-          <VStack spacing={2}>
-            <HStack spacing={2}>
-              <Select
-                field="status"
-                defaultValue={selectedStatus}
-                options={statusOptions}
-                onChange={handleStatusChange}
-              />
-              <Select
-                field="type"
-                defaultValue={selectedType}
-                options={typeOptions}
-                onChange={handleTypeChange}
-              />
-            </HStack>
-            <HStack spacing={2}>
-              <Select
-                field="reason"
-                defaultValue={selectedReason}
-                options={reasonOptions}
-                onChange={handleReasonChange}
-              />
-              <Button variant="secondary" size="small" onClick={() => loadReports()}>
-                <Icon sprite={IconRefresh} className="h-4" />
-              </Button>
-            </HStack>
-          </VStack>
+          <Select
+            field="status"
+            defaultValue={selectedStatus}
+            options={statusOptions}
+            onChange={handleStatusChange}
+          />
+          <Select
+            field="type"
+            defaultValue={selectedType}
+            options={typeOptions}
+            onChange={handleTypeChange}
+          />
+          <Select
+            field="reason"
+            defaultValue={selectedReason}
+            options={reasonOptions}
+            onChange={handleReasonChange}
+          />
+          <Button variant="secondary" size="small" onClick={() => loadReports()} className="c-reports-split-view__refresh-btn">
+            <Icon sprite={IconRefresh} />
+          </Button>
         </div>
 
         <div className="c-reports-split-view__list-content">
@@ -677,17 +712,69 @@ const ManageReportsContent: React.FC = () => {
         )}
       </div>
 
-      <div className="c-reports-split-view__preview">
-        <ContentPreview
-          report={selectedReport}
-          post={previewPost}
-          comment={previewComment}
-          isLoading={isLoadingPreview}
-          onAssign={handleAssign}
-          onUnassign={handleUnassign}
-          onResolve={handleResolveClick}
-          currentUserId={Fider.session.user.id}
-        />
+      <div className={classSet({
+        "c-reports-split-view__preview": true,
+        "c-reports-split-view__preview--mobile-open": selectedReport !== null || viewingUser !== null,
+      })}>
+        {viewingUser ? (
+          <>
+            <Button 
+              variant="tertiary" 
+              size="small" 
+              className="c-reports-split-view__back-btn"
+              onClick={() => setViewingUser(null)}
+            >
+              <Icon sprite={IconArrowLeft} className="h-4" />
+              <span>Back to report</span>
+            </Button>
+            <UserProfile 
+              key={profileKey} 
+              userId={viewingUser.id} 
+              user={viewingUser as any} 
+              embedded 
+              compact
+              onUserUpdate={(updates) => {
+                setViewingUser(prev => prev ? { ...prev, ...updates } : null)
+              }}
+            >
+              <UserProfile.Header compact />
+              <UserProfile.Actions />
+              <UserProfile.Status />
+              <UserProfile.Tabs>
+                <UserProfile.Search />
+                <UserProfile.Standing />
+              </UserProfile.Tabs>
+            </UserProfile>
+          </>
+        ) : (
+          <>
+            {selectedReport && (
+              <Button 
+                variant="tertiary" 
+                size="small" 
+                className="c-reports-split-view__mobile-back"
+                onClick={() => setSelectedReport(null)}
+              >
+                <Icon sprite={IconChevronUp} className="c-reports-split-view__mobile-back-icon" />
+                <span>Back to list</span>
+              </Button>
+            )}
+            <ContentPreview
+              report={selectedReport}
+              post={previewPost}
+              comment={previewComment}
+              isLoading={isLoadingPreview}
+              onAssign={handleAssign}
+              onUnassign={handleUnassign}
+              onResolve={handleResolveClick}
+              currentUserId={Fider.session.user.id}
+              onUserClick={(user) => {
+                setViewingUser(user)
+                setProfileKey(prev => prev + 1)
+              }}
+            />
+          </>
+        )}
       </div>
 
       <Modal.Window
@@ -733,19 +820,6 @@ const ManageReportsContent: React.FC = () => {
         </Modal.Footer>
       </Modal.Window>
     </div>
-  )
-}
-
-const ManageReportsPage: React.FC = () => {
-  return (
-    <AdminPageContainer
-      id="p-admin-reports"
-      name="reports"
-      title="Reports"
-      subtitle="Review and manage user reports"
-    >
-      <ManageReportsContent />
-    </AdminPageContainer>
   )
 }
 

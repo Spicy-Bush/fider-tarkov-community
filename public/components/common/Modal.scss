@@ -11,7 +11,7 @@ $c-modal-dimmer-padding: 1em;
   text-align: center;
   vertical-align: middle;
   padding: $c-modal-dimmer-padding;
-  z-index: 100;
+  z-index: 400;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -22,6 +22,11 @@ $c-modal-dimmer-padding: 1em;
   @media only screen and (max-height: 483px) {
     overflow-y: scroll;
     display: block;
+  }
+
+  @include media("sm") {
+    padding: 0;
+    align-items: stretch;
   }
 }
 
@@ -49,15 +54,28 @@ $c-modal-dimmer-padding: 1em;
   min-height: calc(100vh - #{2 * $c-modal-dimmer-padding});
   display: flex;
   align-items: center;
+
+  @include media("sm") {
+    min-height: 100%;
+    width: 100%;
+  }
 }
 
 .c-modal-window {
-  z-index: 101;
+  z-index: 401;
   text-align: left;
   background: #fff;
   border: none;
   border-radius: 3px;
   animation: windowfadeIn 0.5s;
+
+  @include media("sm") {
+    width: 100% !important;
+    height: 100%;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
 
   &--small {
     width: 100%;
@@ -86,6 +104,11 @@ $c-modal-dimmer-padding: 1em;
 
   .c-modal-content {
     padding: 15px 20px;
+
+    @include media("sm") {
+      flex: 1;
+      overflow-y: auto;
+    }
   }
 
   .c-modal-footer {

@@ -16,6 +16,7 @@ const plugins = [
   new MiniCssExtractPlugin({
     filename: "css/[name].[contenthash].css",
     chunkFilename: "css/[name].[contenthash].css",
+    ignoreOrder: true,
   }),
   new ForkTsCheckerWebpackPlugin(),
   new BundleAnalyzerPlugin({

@@ -24,6 +24,8 @@
 }
 
 #p-show-post {
+  overflow-wrap: anywhere;
+  
   .post-header {
     flex-grow: 1;
   }

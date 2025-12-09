@@ -1,12 +1,17 @@
 import React, { useState } from "react"
 import { Button } from "@fider/components"
-
 import { Webhook, WebhookData, WebhookStatus } from "@fider/models"
 import { actions, Failure } from "@fider/services"
-import { AdminPageContainer } from "../components/AdminBasePage"
 import { WebhookForm } from "../components/webhook/WebhookForm"
 import { WebhookListItem } from "../components/webhook/WebhookListItem"
 import { VStack } from "@fider/components/layout"
+import { PageConfig } from "@fider/components/layouts"
+
+export const pageConfig: PageConfig = {
+  title: "Webhooks",
+  subtitle: "Manage your site webhooks",
+  sidebarItem: "webhooks",
+}
 
 interface ManageWebhooksPageProps {
   webhooks: Webhook[]
@@ -32,18 +37,18 @@ const WebhooksList = (props: WebhooksListProps) => {
     <div>
       <h2 className="text-display mb-4">My Webhooks</h2>
       <VStack spacing={4} divide>
-        {props.list.length === 0 ? <p className="text-muted">There aren’t any webhooks yet.</p> : props.list}
+        {props.list.length === 0 ? <p className="text-muted">There aren't any webhooks yet.</p> : props.list}
       </VStack>
     </div>
   )
 }
 
-const ManageWebhooksPage = (props: ManageWebhooksPageProps) => {
+const ManageWebhooksPage: React.FC<ManageWebhooksPageProps> = (props) => {
   const [isAdding, setIsAdding] = useState(false)
-  const [allWebhooks, setAllWebhooks] = useState(props.webhooks.sort(webhookSorter))
-  const [editing, setEditing] = useState<Webhook>()
+  const [allWebhooks, setAllWebhooks] = useState(() => [...props.webhooks].sort(webhookSorter))
+  const [editing, setEditing] = useState<Webhook | undefined>()
 
-  const sortWebhooks = () => setAllWebhooks(allWebhooks.sort(webhookSorter))
+  const sortWebhooks = () => setAllWebhooks(prev => [...prev].sort(webhookSorter))
 
   const addNew = () => {
     setIsAdding(true)
@@ -55,7 +60,7 @@ const ManageWebhooksPage = (props: ManageWebhooksPageProps) => {
     const result = await actions.createWebhook(data)
     if (result.ok) {
       setIsAdding(false)
-      setAllWebhooks(allWebhooks.concat({ id: result.data.id, ...data }).sort(webhookSorter))
+      setAllWebhooks(prev => [...prev, { id: result.data.id, ...data }].sort(webhookSorter))
     } else {
       return result.error
     }
@@ -68,13 +73,12 @@ const ManageWebhooksPage = (props: ManageWebhooksPageProps) => {
   const cancelEdit = () => setEditing(undefined)
 
   const handleWebhookDeleted = (webhook: Webhook) => {
-    const idx = allWebhooks.indexOf(webhook)
-    setAllWebhooks(allWebhooks.filter((_, i) => i !== idx))
+    setAllWebhooks(prev => prev.filter(w => w.id !== webhook.id))
   }
 
   const handleWebhookEdited = async (data: WebhookData): Promise<Failure | undefined> => {
     const webhook = editing
-    if (webhook === undefined) return // impossible
+    if (webhook === undefined) return
     const result = await actions.updateWebhook(webhook.id, data)
     if (result.ok) {
       webhook.name = data.name
@@ -98,34 +102,26 @@ const ManageWebhooksPage = (props: ManageWebhooksPageProps) => {
   }
 
   const getWebhookItems = () => {
-    return allWebhooks.map((w) => {
-      return (
-        <WebhookListItem
-          key={w.id}
-          webhook={w}
-          onWebhookDeleted={handleWebhookDeleted}
-          editWebhook={startWebhookEditing}
-          onWebhookFailed={handleWebhookFailed}
-        />
-      )
-    })
+    return allWebhooks.map((w) => (
+      <WebhookListItem
+        key={w.id}
+        webhook={w}
+        onWebhookDeleted={handleWebhookDeleted}
+        editWebhook={startWebhookEditing}
+        onWebhookFailed={handleWebhookFailed}
+      />
+    ))
   }
 
-  const render = (content: JSX.Element) => (
-    <AdminPageContainer id="p-admin-webhooks" name="webhooks" title="Webhooks" subtitle="Manage your site webhooks">
-      {content}
-    </AdminPageContainer>
-  )
-
   if (isAdding) {
-    return render(<WebhookForm onSave={saveNewWebhook} onCancel={cancelAdd} />)
+    return <WebhookForm onSave={saveNewWebhook} onCancel={cancelAdd} />
   }
 
   if (editing) {
-    return render(<WebhookForm onSave={handleWebhookEdited} onCancel={cancelEdit} webhook={editing} />)
+    return <WebhookForm onSave={handleWebhookEdited} onCancel={cancelEdit} webhook={editing} />
   }
 
-  return render(
+  return (
     <VStack spacing={8}>
       <p>
         Use webhooks to integrate Fider with other applications like Slack, Discord, Zapier and many others.{" "}

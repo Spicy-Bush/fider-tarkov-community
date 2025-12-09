@@ -20,7 +20,6 @@ import {
   TextArea,
   MultiImageUploader,
   Icon,
-  Header,
   Avatar,
   Dropdown,
   ImageGallery,
@@ -267,7 +266,6 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
   public render() {
     return (
       <>
-        <Header />
         <div id="p-show-post" className="page container">
           <div className="p-show-post">
             <div className="p-show-post__main-col">
@@ -308,21 +306,23 @@ export default class ShowPostPage extends React.Component<ShowPostPageProps, Sho
                                 <Trans id="action.edit">Edit</Trans>
                               </Dropdown.ListItem>
                               {(Fider.session.user.isCollaborator || Fider.session.user.isModerator || Fider.session.user.isAdministrator) && (
+                                <Dropdown.ListItem onClick={this.onActionSelected("status")}>
+                                  <Trans id="action.respond">Respond</Trans>
+                                </Dropdown.ListItem>
+                              )}
+                              {(Fider.session.user.isCollaborator || Fider.session.user.isAdministrator) && (
                                 <>
-                                  <Dropdown.ListItem onClick={this.onActionSelected("status")}>
-                                    <Trans id="action.respond">Respond</Trans>
-                                  </Dropdown.ListItem>
-                                {!isPostLocked(this.props.post) ? (
-                                  <Dropdown.ListItem onClick={this.onActionSelected("lock")}>
-                                    <Trans id="action.lock">Lock</Trans>
-                                  </Dropdown.ListItem>
-                                ) : (
-                                  <Dropdown.ListItem onClick={this.onActionSelected("unlock")}>
-                                    <Trans id="action.unlock">Unlock</Trans>
-                                  </Dropdown.ListItem>
-                                )}
-                              </>
-                            )}
+                                  {!isPostLocked(this.props.post) ? (
+                                    <Dropdown.ListItem onClick={this.onActionSelected("lock")}>
+                                      <Trans id="action.lock">Lock</Trans>
+                                    </Dropdown.ListItem>
+                                  ) : (
+                                    <Dropdown.ListItem onClick={this.onActionSelected("unlock")}>
+                                      <Trans id="action.unlock">Unlock</Trans>
+                                    </Dropdown.ListItem>
+                                  )}
+                                </>
+                              )}
                           </>
                         )}
                         {this.canDeletePost() && (

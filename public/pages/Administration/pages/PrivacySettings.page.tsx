@@ -1,51 +1,36 @@
-import React from "react"
+import React, { useState } from "react"
 import { Toggle, Form, Field } from "@fider/components"
 import { actions, notify, Fider } from "@fider/services"
-import { AdminBasePage } from "@fider/pages/Administration/components/AdminBasePage"
+import { PageConfig } from "@fider/components/layouts"
 
-interface PrivacySettingsPageState {
-  isPrivate: boolean
+export const pageConfig: PageConfig = {
+  title: "Privacy",
+  subtitle: "Manage your site privacy",
+  sidebarItem: "privacy",
 }
 
-export default class PrivacySettingsPage extends AdminBasePage<any, PrivacySettingsPageState> {
-  public id = "p-admin-privacy"
-  public name = "privacy"
-  public title = "Privacy"
-  public subtitle = "Manage your site privacy"
+const PrivacySettingsPage: React.FC = () => {
+  const [isPrivate, setIsPrivate] = useState(Fider.session.tenant.isPrivate)
 
-  constructor(props: any) {
-    super(props)
-
-    this.state = {
-      isPrivate: Fider.session.tenant.isPrivate,
+  const toggle = async (active: boolean) => {
+    setIsPrivate(active)
+    const response = await actions.updateTenantPrivacy(active)
+    if (response.ok) {
+      notify.success("Your privacy settings have been saved.")
     }
   }
 
-  private toggle = async (active: boolean) => {
-    this.setState(
-      () => ({
-        isPrivate: active,
-      }),
-      async () => {
-        const response = await actions.updateTenantPrivacy(this.state.isPrivate)
-        if (response.ok) {
-          notify.success("Your privacy settings have been saved.")
-        }
-      }
-    )
-  }
-
-  public content() {
-    return (
-      <Form>
-        <Field label="Private Site">
-          <Toggle active={this.state.isPrivate} onToggle={this.toggle} />
-          <p className="text-muted mt-1">
-            A private site prevents unauthenticated users from viewing or interacting with its content. <br /> When enabled, only already registered users,
-            invited users and users from trusted OAuth providers will have access to this site.
-          </p>
-        </Field>
-      </Form>
-    )
-  }
+  return (
+    <Form>
+      <Field label="Private Site">
+        <Toggle active={isPrivate} onToggle={toggle} />
+        <p className="text-muted mt-1">
+          A private site prevents unauthenticated users from viewing or interacting with its content. <br /> When enabled, only already registered users,
+          invited users and users from trusted OAuth providers will have access to this site.
+        </p>
+      </Field>
+    </Form>
+  )
 }
+
+export default PrivacySettingsPage

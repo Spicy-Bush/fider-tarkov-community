@@ -1,28 +1,38 @@
 import "./Footer.scss"
-import React, { useState, useEffect, useRef } from "react"
+import React, { useEffect, useRef } from "react"
 
 type FooterState = "revealing" | "visible" | "freezing" | "hidden" | "unhiding"
 
 const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear()
-  const [translateY, setTranslateY] = useState(100)
   const ref = useRef<HTMLElement>(null)
   const state = useRef<FooterState>("revealing")
   const lastScrollY = useRef(0)
   const anchorY = useRef(0)
+  const ticking = useRef(false)
 
   useEffect(() => {
     const clamp = (val: number) => Math.min(1, Math.max(0, val))
 
-    const onScroll = () => {
-      const scrollY = window.scrollY
+    const getScrollY = () => Math.max(
+      window.scrollY || 0,
+      window.pageYOffset || 0,
+      document.documentElement.scrollTop || 0,
+      document.body.scrollTop || 0
+    )
+
+    const updateFooter = () => {
+      const footer = ref.current
+      if (!footer) return
+
+      const scrollY = getScrollY()
       const delta = scrollY - lastScrollY.current
-      const footerHeight = ref.current?.offsetHeight || 100
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight
+      const footerHeight = footer.offsetHeight || 100
+      const viewportHeight = window.innerHeight
 
       const calcProgress = (): number => {
         switch (state.current) {
-          case "revealing": return clamp(docHeight > 0 ? (scrollY / docHeight) / 0.25 : 0)
+          case "revealing": return clamp(scrollY / viewportHeight)
           case "freezing": return clamp((anchorY.current - scrollY) / footerHeight)
           case "unhiding": return clamp((scrollY - anchorY.current) / footerHeight)
           default: return 0
@@ -30,42 +40,56 @@ const Footer: React.FC = () => {
       }
 
       const progress = calcProgress()
+      let translateY = 0
 
       switch (state.current) {
         case "revealing":
-          setTranslateY((1 - progress) * 100)
+          translateY = (1 - progress) * 100
           if (progress >= 1) state.current = "visible"
           break
         case "visible":
-          setTranslateY(0)
+          translateY = 0
           if (delta < 0) { state.current = "freezing"; anchorY.current = scrollY }
           break
         case "freezing":
-          setTranslateY(progress * 100)
+          translateY = progress * 100
           if (progress >= 1) state.current = "hidden"
           else if (delta > 0 && progress <= 0) state.current = "visible"
           break
         case "hidden":
-          setTranslateY(100)
+          translateY = 100
           if (delta > 0) { state.current = "unhiding"; anchorY.current = scrollY }
           break
         case "unhiding":
-          setTranslateY((1 - progress) * 100)
+          translateY = (1 - progress) * 100
           if (progress >= 1) state.current = "visible"
           else if (delta < 0 && progress <= 0) state.current = "hidden"
           break
       }
 
+      footer.style.transform = `translateY(${translateY}%)`
       lastScrollY.current = scrollY
+      ticking.current = false
+    }
+
+    const onScroll = () => {
+      if (!ticking.current) {
+        requestAnimationFrame(updateFooter)
+        ticking.current = true
+      }
     }
 
     window.addEventListener("scroll", onScroll, { passive: true })
-    onScroll()
-    return () => window.removeEventListener("scroll", onScroll)
+    document.body.addEventListener("scroll", onScroll, { passive: true })
+    updateFooter()
+    return () => {
+      window.removeEventListener("scroll", onScroll)
+      document.body.removeEventListener("scroll", onScroll)
+    }
   }, [])
 
   return (
-    <footer ref={ref} className="site-footer" style={{ transform: `translateY(${translateY}%)` }}>
+    <footer ref={ref} className="site-footer" style={{ transform: "translateY(100%)" }}>
       <nav>
         <ul>
           <li>

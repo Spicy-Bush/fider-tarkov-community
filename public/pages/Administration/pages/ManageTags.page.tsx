@@ -1,22 +1,20 @@
-import React from "react"
+import React, { useState, useCallback } from "react"
 import { Button } from "@fider/components"
-
 import { Tag } from "@fider/models"
 import { actions, Failure, Fider } from "@fider/services"
-import { AdminBasePage } from "../components/AdminBasePage"
 import { TagFormState, TagForm } from "../components/TagForm"
 import { TagListItem } from "../components/TagListItem"
 import { VStack } from "@fider/components/layout"
+import { PageConfig } from "@fider/components/layouts"
+
+export const pageConfig: PageConfig = {
+  title: "Tags",
+  subtitle: "Manage your site tags",
+  sidebarItem: "tags",
+}
 
 interface ManageTagsPageProps {
   tags: Tag[]
-}
-
-interface ManageTagsPageState {
-  isAdding: boolean
-  allTags: Tag[]
-  deleting?: number
-  editing?: number
 }
 
 const tagSorter = (t1: Tag, t2: Tag) => {
@@ -28,95 +26,74 @@ const tagSorter = (t1: Tag, t2: Tag) => {
   return 0
 }
 
-export default class ManageTagsPage extends AdminBasePage<ManageTagsPageProps, ManageTagsPageState> {
-  public id = "p-admin-tags"
-  public name = "tags"
-  public title = "Tags"
-  public subtitle = "Manage your site tags"
+const ManageTagsPage: React.FC<ManageTagsPageProps> = (props) => {
+  const [isAdding, setIsAdding] = useState(false)
+  const [allTags, setAllTags] = useState<Tag[]>(() => [...props.tags].sort(tagSorter))
 
-  constructor(props: ManageTagsPageProps) {
-    super(props)
-    this.state = {
-      isAdding: false,
-      allTags: this.props.tags,
-    }
+  const addNew = () => {
+    setIsAdding(true)
   }
 
-  private addNew = async () => {
-    this.setState({
-      isAdding: true,
-      deleting: undefined,
-      editing: undefined,
-    })
+  const cancelAdd = () => {
+    setIsAdding(false)
   }
 
-  private cancelAdd = () => {
-    this.setState({ isAdding: false })
-  }
-
-  private saveNewTag = async (data: TagFormState): Promise<Failure | undefined> => {
+  const saveNewTag = async (data: TagFormState): Promise<Failure | undefined> => {
     const result = await actions.createTag(data.name, data.color, data.isPublic)
     if (result.ok) {
-      this.setState({
-        isAdding: false,
-        allTags: this.state.allTags.concat(result.data).sort(tagSorter),
-      })
+      setIsAdding(false)
+      setAllTags(prev => [...prev, result.data].sort(tagSorter))
     } else {
       return result.error
     }
   }
 
-  private handleTagDeleted = (tag: Tag) => {
-    const idx = this.state.allTags.indexOf(tag)
-    this.setState({
-      allTags: this.state.allTags.splice(idx, 1) && this.state.allTags,
-    })
+  const handleTagDeleted = useCallback((tag: Tag) => {
+    setAllTags(prev => prev.filter(t => t.id !== tag.id))
+  }, [])
+
+  const handleTagEdited = useCallback(() => {
+    setAllTags(prev => [...prev].sort(tagSorter))
+  }, [])
+
+  const getTagList = (filter: (tag: Tag) => boolean) => {
+    return allTags.filter(filter).map((t) => (
+      <TagListItem key={t.id} tag={t} onTagDeleted={handleTagDeleted} onTagEdited={handleTagEdited} />
+    ))
   }
 
-  private handleTagEdited = () => {
-    this.setState({
-      allTags: this.state.allTags.sort(tagSorter),
-    })
-  }
+  const publicTaglist = getTagList((t) => t.isPublic)
+  const privateTagList = getTagList((t) => !t.isPublic)
 
-  private getTagList(filter: (tag: Tag) => boolean) {
-    return this.state.allTags.filter(filter).map((t) => {
-      return <TagListItem key={t.id} tag={t} onTagDeleted={this.handleTagDeleted} onTagEdited={this.handleTagEdited} />
-    })
-  }
+  const form =
+    Fider.session.user.isAdministrator &&
+    (isAdding ? (
+      <TagForm onSave={saveNewTag} onCancel={cancelAdd} />
+    ) : (
+      <Button variant="secondary" onClick={addNew}>
+        Add new
+      </Button>
+    ))
 
-  public content() {
-    const publicTaglist = this.getTagList((t) => t.isPublic)
-    const privateTagList = this.getTagList((t) => !t.isPublic)
-
-    const form =
-      Fider.session.user.isAdministrator &&
-      (this.state.isAdding ? (
-        <TagForm onSave={this.saveNewTag} onCancel={this.cancelAdd} />
-      ) : (
-        <Button variant="secondary" onClick={this.addNew}>
-          Add new
-        </Button>
-      ))
-
-    return (
-      <VStack spacing={8}>
-        <div>
-          <h2 className="text-display">Public Tags</h2>
-          <p className="text-muted">These tags are visible to all visitors.</p>
-          <VStack spacing={4} divide={true}>
-            {publicTaglist.length === 0 ? <p className="text-muted">There aren’t any public tags yet.</p> : publicTaglist}
-          </VStack>
-        </div>
-        <div>
-          <h2 className="text-display">Private Tags</h2>
-          <p className="text-muted">These tags are only visible for members of this site.</p>
-          <VStack spacing={4} divide={true}>
-            {privateTagList.length === 0 ? <p className="text-muted">There aren’t any private tags yet.</p> : privateTagList}
-          </VStack>
-        </div>
-        <div>{form}</div>
-      </VStack>
-    )
-  }
+  return (
+    <VStack spacing={8}>
+      <div>
+        <h2 className="text-display">Public Tags</h2>
+        <p className="text-muted">These tags are visible to all visitors.</p>
+        <VStack spacing={4} divide={true}>
+          {publicTaglist.length === 0 ? <p className="text-muted">There aren't any public tags yet.</p> : publicTaglist}
+        </VStack>
+      </div>
+      <div>
+        <h2 className="text-display">Private Tags</h2>
+        <p className="text-muted">These tags are only visible for members of this site.</p>
+        <VStack spacing={4} divide={true}>
+          {privateTagList.length === 0 ? <p className="text-muted">There aren't any private tags yet.</p> : privateTagList}
+        </VStack>
+      </div>
+      <div>{form}</div>
+    </VStack>
+  )
 }
+
+export default ManageTagsPage

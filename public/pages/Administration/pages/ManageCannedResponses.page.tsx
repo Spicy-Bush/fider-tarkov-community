@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { 
   Button, 
   Form, 
@@ -12,13 +12,19 @@ import {
 } from "@fider/components"
 import { HStack } from "@fider/components/layout"
 import { actions, Failure, notify } from "@fider/services"
-import { AdminBasePage } from "../components/AdminBasePage"
 import IconPlus from "@fider/assets/images/heroicons-plus-circle.svg"
 import IconEdit from "@fider/assets/images/heroicons-pencil-alt.svg"
 import IconTrash from "@fider/assets/images/heroicons-trash.svg"
 import { CannedResponse } from "@fider/services/actions/response"
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
+import { PageConfig } from "@fider/components/layouts"
+
+export const pageConfig: PageConfig = {
+  title: "Canned Responses",
+  subtitle: "Manage predefined responses for user moderation",
+  sidebarItem: "responses",
+}
 
 const DEFAULT_RESPONSE_TYPES = ["warning", "mute"]
 
@@ -37,8 +43,8 @@ interface ResponseEditorState {
   error?: Failure
 }
 
-const ManageCannedResponsesContent: React.FC<{ types?: string[] | null }> = (props) => {
-  const safeTypes = React.useMemo(() => {
+const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (props) => {
+  const safeTypes = useMemo(() => {
     if (!props.types || !Array.isArray(props.types) || props.types.length === 0) {
       return DEFAULT_RESPONSE_TYPES;
     }
@@ -51,7 +57,7 @@ const ManageCannedResponsesContent: React.FC<{ types?: string[] | null }> = (pro
   const [error, setError] = useState<string>()
   const [editorState, setEditorState] = useState<ResponseEditorState>({
     isOpen: false,
-    type: selectedType,
+    type: safeTypes[0],
     title: "",
     content: "",
     duration: "",
@@ -132,12 +138,10 @@ const ManageCannedResponsesContent: React.FC<{ types?: string[] | null }> = (pro
 
     let result: { ok: boolean; error?: Failure }
     if (id) {
-      // Update
       result = await actions.updateCannedResponse(id, { 
         type, title, content, duration, isActive 
       })
     } else {
-      // Create
       result = await actions.createCannedResponse({ 
         type, title, content, duration 
       })
@@ -175,22 +179,22 @@ const ManageCannedResponsesContent: React.FC<{ types?: string[] | null }> = (pro
 
   const typeOptions = safeTypes.map(type => ({
     value: type,
-    label: type.charAt(0).toUpperCase() + type.slice(1) // Capitalize first letter
+    label: type.charAt(0).toUpperCase() + type.slice(1)
   }))
 
   return (
     <div className="p-4 rounded">
       <div className="flex justify-between items-center mb-4">
-        <div className="w-64">
+        <HStack spacing={2}>
+          <span className="font-medium whitespace-nowrap">Response Type:</span>
           <Select
             key={`type-select-${selectedType}`}
             field="type"
-            label={i18n._("responses.type.label", { message: "Response Type" })}
             defaultValue={selectedType}
             options={typeOptions}
             onChange={handleTypeChange}
           />
-        </div>
+        </HStack>
         <Button variant="primary" onClick={openCreateEditor}>
           <HStack spacing={2}>
             <Icon sprite={IconPlus} />
@@ -250,7 +254,6 @@ const ManageCannedResponsesContent: React.FC<{ types?: string[] | null }> = (pro
         </table>
       )}
 
-      {/* Editor Modal */}
       <Modal.Window 
         isOpen={editorState.isOpen} 
         onClose={closeEditor}
@@ -324,7 +327,6 @@ const ManageCannedResponsesContent: React.FC<{ types?: string[] | null }> = (pro
         </Modal.Footer>
       </Modal.Window>
 
-      {/* Delete Confirmation Modal */}
       <Modal.Window 
         isOpen={deleteConfirmation.isOpen} 
         onClose={() => setDeleteConfirmation({ isOpen: false })}
@@ -350,13 +352,4 @@ const ManageCannedResponsesContent: React.FC<{ types?: string[] | null }> = (pro
   )
 }
 
-export default class ManageCannedResponsesPage extends AdminBasePage<ManageCannedResponsesPageProps, {}> {
-  public id = "p-admin-responses"
-  public name = "responses"
-  public title = "Canned Responses"
-  public subtitle = "Manage predefined responses for user moderation"
-
-  public content() {
-    return <ManageCannedResponsesContent types={this.props.types} />
-  }
-} 
+export default ManageCannedResponsesPage

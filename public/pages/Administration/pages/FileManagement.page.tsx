@@ -1,10 +1,10 @@
 import "./FileManagement.scss"
-import React from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { Button, Form, Icon, Input, ImageUploader, ImageGallery } from "@fider/components"
 import { HStack } from "@fider/components/layout"
 import { Failure, actions, notify } from "@fider/services"
-import { AdminBasePage } from "../components/AdminBasePage"
 import { ImageUpload } from "@fider/models"
+import { PageConfig } from "@fider/components/layouts"
 
 import IconTrash from "@fider/assets/images/heroicons-trash.svg"
 import IconPencilAlt from "@fider/assets/images/heroicons-pencil-alt.svg"
@@ -12,6 +12,12 @@ import IconDownload from "@fider/assets/images/heroicons-download.svg"
 import IconUpload from "@fider/assets/images/heroicons-upload.svg"
 import IconEye from "@fider/assets/images/heroicons-eye.svg"
 import IconX from "@fider/assets/images/heroicons-x.svg"
+
+export const pageConfig: PageConfig = {
+  title: "Media Library",
+  subtitle: "Manage your site's images, logos, avatars and attachments",
+  sidebarItem: "files",
+}
 
 enum MediaType {
   ALL = "all",
@@ -110,212 +116,199 @@ const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPage
   );
 };
 
-interface MediaManagementPageState {
-  view: "browse" | "upload"
-  assets: MediaAsset[]
-  isLoading: boolean
-  selectedAsset?: MediaAsset
-  searchQuery: string
-  assetToEdit?: MediaAsset
-  newAssetName: string
-  imageUpload?: ImageUpload
-  uploadType: "file" | "attachment"
-  error?: Failure
-  showUsageModal: boolean
-  mediaTypeFilter: MediaType
-  pagination: {
-    page: number
-    pageSize: number
-    total: number
-    totalPages: number
-  }
-  sortBy: string
-  sortDir: string
-  confirmDeleteOpen: boolean
-  assetToDelete?: MediaAsset
+const getMediaTypeFromBlobKey = (blobKey: string): MediaType => {
+  if (blobKey.startsWith('files/')) return MediaType.ADMIN;
+  if (blobKey.startsWith('attachments/')) return MediaType.ATTACHMENT;
+  if (blobKey.startsWith('avatars/')) return MediaType.AVATAR;
+  if (blobKey.startsWith('logos/')) return MediaType.LOGO;
+  return MediaType.ALL;
 }
 
-class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
-  public id = "p-admin-files"
-  public name = "media"
-  public title = "Media Library"
-  public subtitle = "Manage your site's images, logos, avatars and attachments"
-  private searchTimeout: ReturnType<typeof setTimeout> | null = null;
+const mapApiResponseToAssets = (apiAssets: any[]): MediaAsset[] => {
+  return apiAssets.map(asset => ({
+    ...asset,
+    mediaType: getMediaTypeFromBlobKey(asset.blobKey)
+  }));
+}
 
-  constructor(props: any) {
-    super(props)
+const getAssetURL = (asset: MediaAsset): string => {
+  if (asset.blobKey.startsWith('logos/')) {
+    return `/static/favicon/${asset.blobKey.replace('logos/', '')}`;
+  } else if (asset.blobKey.startsWith('avatars/')) {
+    return `/static/avatars/gravatar/${asset.blobKey.replace('avatars/', '')}`;
+  }
+  return `/static/images/${asset.blobKey}`;
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const getMediaTypeLabel = (mediaType: MediaType): string => {
+  switch(mediaType) {
+    case MediaType.ADMIN: return "Admin";
+    case MediaType.ATTACHMENT: return "Attachment";
+    case MediaType.AVATAR: return "Avatar";
+    case MediaType.LOGO: return "Logo";
+    default: return "Unknown";
+  }
+}
+
+const getMediaTypeBadgeClass = (mediaType: MediaType): string => {
+  switch(mediaType) {
+    case MediaType.ADMIN: return "c-media-library__badge--admin";
+    case MediaType.ATTACHMENT: return "c-media-library__badge--attachment";
+    case MediaType.AVATAR: return "c-media-library__badge--avatar";
+    case MediaType.LOGO: return "c-media-library__badge--logo";
+    default: return "";
+  }
+}
+
+const FileManagementPage: React.FC = () => {
+  const [view, setView] = useState<"browse" | "upload">("browse")
+  const [assets, setAssets] = useState<MediaAsset[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [selectedAsset, setSelectedAsset] = useState<MediaAsset | undefined>()
+  const [searchQuery, setSearchQuery] = useState("")
+  const [assetToEdit, setAssetToEdit] = useState<MediaAsset | undefined>()
+  const [newAssetName, setNewAssetName] = useState("")
+  const [imageUpload, setImageUpload] = useState<ImageUpload | undefined>()
+  const [uploadType, setUploadType] = useState<"file" | "attachment">("file")
+  const [error, setError] = useState<Failure | undefined>()
+  const [showUsageModal, setShowUsageModal] = useState(false)
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaType>(MediaType.ALL)
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    totalPages: 0
+  })
+  const [sortBy, setSortBy] = useState("createdAt")
+  const [sortDir, setSortDir] = useState("desc")
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [assetToDelete, setAssetToDelete] = useState<MediaAsset | undefined>()
   
-    this.state = {
-      view: "browse",
-      assets: [],
-      isLoading: true,
-      searchQuery: "",
-      newAssetName: "",
-      uploadType: "file",
-      showUsageModal: false,
-      mediaTypeFilter: MediaType.ALL,
-      pagination: {
-        page: 1,
-        pageSize: 20,
-        total: 0,
-        totalPages: 0
-      },
-      sortBy: "createdAt",
-      sortDir: "desc",
-      confirmDeleteOpen: false
-    }
-  }
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  public async componentDidMount() {
-    await this.loadAssets()
-  }
-
-  private getMediaTypeFromBlobKey(blobKey: string): MediaType {
-    if (blobKey.startsWith('files/')) return MediaType.ADMIN;
-    if (blobKey.startsWith('attachments/')) return MediaType.ATTACHMENT;
-    if (blobKey.startsWith('avatars/')) return MediaType.AVATAR;
-    if (blobKey.startsWith('logos/')) return MediaType.LOGO;
-    return MediaType.ALL;
-  }
-
-  private mapApiResponseToAssets(apiAssets: any[]): MediaAsset[] {
-    return apiAssets.map(asset => ({
-      ...asset,
-      mediaType: this.getMediaTypeFromBlobKey(asset.blobKey)
-    }));
-  }
-
-  private loadAssets = async () => {
-    this.setState({ isLoading: true })
+  const loadAssets = useCallback(async () => {
+    setIsLoading(true)
     
     const params = new URLSearchParams();
-    params.append('page', String(this.state.pagination.page));
-    params.append('pageSize', String(this.state.pagination.pageSize));
+    params.append('page', String(pagination.page));
+    params.append('pageSize', String(pagination.pageSize));
     
-    if (this.state.searchQuery) {
-      params.append('search', this.state.searchQuery);
+    if (searchQuery) {
+      params.append('search', searchQuery);
     }
     
-    params.append('sortBy', this.state.sortBy);
-    params.append('sortDir', this.state.sortDir);
+    params.append('sortBy', sortBy);
+    params.append('sortDir', sortDir);
     
-    if (this.state.mediaTypeFilter !== MediaType.ALL) {
-      params.append('type', this.state.mediaTypeFilter);
+    if (mediaTypeFilter !== MediaType.ALL) {
+      params.append('type', mediaTypeFilter);
     }
     
     const url = `/api/v1/admin/files?${params.toString()}`;
     const result = await actions.listFiles(url);
     
     if (result.ok) {
-      const assets = this.mapApiResponseToAssets(result.data.files);
+      const mappedAssets = mapApiResponseToAssets(result.data.files);
       
-      this.setState({ 
-        assets: assets, 
-        isLoading: false,
-        pagination: {
-          page: result.data.page,
-          pageSize: result.data.pageSize,
-          total: result.data.total,
-          totalPages: result.data.totalPages
-        }
+      setAssets(mappedAssets)
+      setIsLoading(false)
+      setPagination({
+        page: result.data.page,
+        pageSize: result.data.pageSize,
+        total: result.data.total,
+        totalPages: result.data.totalPages
       })
     } else {
-      this.setState({ error: result.error, isLoading: false })
+      setError(result.error)
+      setIsLoading(false)
       notify.error("Could not load media assets")
     }
+  }, [pagination.page, pagination.pageSize, searchQuery, sortBy, sortDir, mediaTypeFilter])
+
+  useEffect(() => {
+    loadAssets()
+  }, [])
+
+  useEffect(() => {
+    loadAssets()
+  }, [pagination.page, sortBy, sortDir, mediaTypeFilter])
+
+  const handlePageChange = (page: number) => {
+    setPagination(prev => ({ ...prev, page }))
   }
 
-  private handlePageChange = (page: number) => {
-    this.setState(
-      { pagination: { ...this.state.pagination, page } },
-      () => this.loadAssets()
-    )
-  }
-
-  // What the fuck is this, a hackathon? Why doesn't JS have a proper event throttle built in?
-  // Hold on.. PM is calling, he said we can't use Lodash because the build size is already 10GB
-  private handleSearchChange = (value: string) => {
-    this.setState({ 
-      searchQuery: value,
-      pagination: { ...this.state.pagination, page: 1 } 
-    });
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
+    setPagination(prev => ({ ...prev, page: 1 }))
   
-    if (this.searchTimeout !== null) {
-      clearTimeout(this.searchTimeout);
+    if (searchTimeout.current !== null) {
+      clearTimeout(searchTimeout.current);
     }
   
-    this.searchTimeout = setTimeout(() => {
-      this.loadAssets();
+    searchTimeout.current = setTimeout(() => {
+      loadAssets();
     }, 200);
   }
 
-  private handleSortChange = (sortBy: string) => {
-    const sortDir = 
-      this.state.sortBy === sortBy && this.state.sortDir === "asc" 
-        ? "desc" 
-        : "asc";
-    
-    this.setState(
-      { sortBy, sortDir, pagination: { ...this.state.pagination, page: 1 } },
-      () => this.loadAssets()
-    )
+  const handleSortChange = (newSortBy: string) => {
+    const newSortDir = sortBy === newSortBy && sortDir === "asc" ? "desc" : "asc";
+    setSortBy(newSortBy)
+    setSortDir(newSortDir)
+    setPagination(prev => ({ ...prev, page: 1 }))
   }
 
-  private handleMediaTypeFilter = (mediaType: MediaType) => {
-    this.setState(
-      { mediaTypeFilter: mediaType, pagination: { ...this.state.pagination, page: 1 } },
-      () => this.loadAssets()
-    )
+  const handleMediaTypeFilter = (newMediaType: MediaType) => {
+    setMediaTypeFilter(newMediaType)
+    setPagination(prev => ({ ...prev, page: 1 }))
   }
 
-  private handleImageUpload = async () => {
-    if (!this.state.imageUpload) {
+  const handleImageUpload = async () => {
+    if (!imageUpload) {
       notify.error("Please select an image to upload")
       return
     }
   
-    const assetName = this.state.newAssetName.trim() || this.state.imageUpload.upload?.fileName || "unnamed image"
+    const assetName = newAssetName.trim() || imageUpload.upload?.fileName || "unnamed image"
     
     const result = await actions.uploadFile({
       name: assetName,
-      file: this.state.imageUpload,
-      uploadType: this.state.uploadType
+      file: imageUpload,
+      uploadType: uploadType
     })
   
     if (result.ok) {
       notify.success("Image uploaded successfully")
-      this.setState({
-        view: "browse",
-        imageUpload: undefined,
-        newAssetName: "",
-        uploadType: "file"
-      })
-      await this.loadAssets()
+      setView("browse")
+      setImageUpload(undefined)
+      setNewAssetName("")
+      setUploadType("file")
+      await loadAssets()
     } else {
-      this.setState({ error: result.error })
+      setError(result.error)
       notify.error("Failed to upload image")
     }
   }
 
-  private openDeleteConfirmation = (asset: MediaAsset) => {
-    this.setState({
-      assetToDelete: asset,
-      confirmDeleteOpen: true
-    });
+  const openDeleteConfirmation = (asset: MediaAsset) => {
+    setAssetToDelete(asset)
+    setConfirmDeleteOpen(true)
   }
 
-  private closeDeleteConfirmation = () => {
-    this.setState({
-      assetToDelete: undefined,
-      confirmDeleteOpen: false
-    });
+  const closeDeleteConfirmation = () => {
+    setAssetToDelete(undefined)
+    setConfirmDeleteOpen(false)
   }
 
-  private deleteAsset = async (forceDelete: boolean = false) => {
-    const { assetToDelete } = this.state;
+  const deleteAsset = async (forceDelete: boolean = false) => {
     if (!assetToDelete) return;
   
-    this.closeDeleteConfirmation();
+    closeDeleteConfirmation();
   
     const endpoint = `/api/v1/admin/files/${assetToDelete.blobKey}${forceDelete ? '?force=true' : ''}`;
   
@@ -329,57 +322,70 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
   
     if (result.ok) {
       notify.success(`Image ${forceDelete ? 'forcefully ' : ''}deleted successfully`);
-      await this.loadAssets();
+      await loadAssets();
     } else {
       const data = await result.json();
       notify.error(data.message || "Failed to delete image");
     }
   }
 
-  private handleEditAsset = async () => {
-    if (!this.state.assetToEdit) return;
+  const handleEditAsset = async () => {
+    if (!assetToEdit) return;
 
-    const newName = this.state.newAssetName.trim();
-    if (!newName) {
+    const name = newAssetName.trim();
+    if (!name) {
       notify.error("Name cannot be empty");
       return;
     }
 
-    const result = await fetch(`/api/v1/admin/files/${this.state.assetToEdit.blobKey}`, {
+    const result = await fetch(`/api/v1/admin/files/${assetToEdit.blobKey}`, {
       method: 'PUT',
       credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ name: newName })
+      body: JSON.stringify({ name })
     });
 
     if (result.ok) {
       notify.success("Image renamed successfully");
-      this.setState({
-        assetToEdit: undefined,
-        newAssetName: ""
-      });
-      await this.loadAssets();
+      setAssetToEdit(undefined)
+      setNewAssetName("")
+      await loadAssets();
     } else {
       const data = await result.json();
       notify.error(data.message || "Failed to rename image");
     }
   }
 
-  private handleImageSelection = (image: ImageUpload) => {
-    this.setState({ imageUpload: image })
+  const handleImageSelection = (image: ImageUpload) => {
+    setImageUpload(image)
   }
 
-  private renderUploadView() {
+  const startEdit = (asset: MediaAsset) => {
+    setAssetToEdit(asset)
+    setNewAssetName(asset.name)
+  }
+
+  const downloadAsset = (asset: MediaAsset) => {
+    const url = getAssetURL(asset);
+    window.open(url, "_blank");
+  }
+
+  const showAssetUsage = (asset: MediaAsset) => {
+    setSelectedAsset(asset)
+    setShowUsageModal(true)
+  }
+
+  const renderUploadView = () => {
     return (
-      <Form error={this.state.error}>
+      <Form error={error}>
         <Input
           field="fileName"
           label="Image Name"
           placeholder="Enter a name for this image"
-          value={this.state.newAssetName}
-          onChange={(value) => this.setState({ newAssetName: value })}
+          value={newAssetName}
+          onChange={(value) => setNewAssetName(value)}
         />
   
         <div className="c-media-library__upload-type">
@@ -389,8 +395,8 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
               <input
                 type="radio"
                 name="uploadType"
-                checked={this.state.uploadType === "file"}
-                onChange={() => this.setState({ uploadType: "file" })}
+                checked={uploadType === "file"}
+                onChange={() => setUploadType("file")}
               />
               <span>Admin Upload (files/)</span>
             </label>
@@ -398,14 +404,14 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
               <input
                 type="radio"
                 name="uploadType"
-                checked={this.state.uploadType === "attachment"}
-                onChange={() => this.setState({ uploadType: "attachment" })}
+                checked={uploadType === "attachment"}
+                onChange={() => setUploadType("attachment")}
               />
               <span>Public Attachment (attachments/)</span>
             </label>
           </div>
           <p className="c-media-library__upload-type-description">
-            {this.state.uploadType === "file" 
+            {uploadType === "file" 
               ? "Use this option for images managed by administrators."
               : "Use this option for images attached to posts/comments."}
           </p>
@@ -414,7 +420,7 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
         <ImageUploader
           field="imageUpload"
           label="Upload Image"
-          onChange={this.handleImageSelection}
+          onChange={handleImageSelection}
           bkey=""
         >
           <p className="text-muted">Select an image to upload. JPG, PNG, GIF, and SVG formats are supported.</p>
@@ -422,10 +428,10 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
   
         <div className="mt-4">
           <HStack>
-            <Button variant="primary" onClick={this.handleImageUpload}>
+            <Button variant="primary" onClick={handleImageUpload}>
               Upload Image
             </Button>
-            <Button variant="tertiary" onClick={() => this.setState({ view: "browse" })}>
+            <Button variant="tertiary" onClick={() => setView("browse")}>
               Cancel
             </Button>
           </HStack>
@@ -434,32 +440,32 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
     )
   }
 
-  private renderEditView() {
-    if (!this.state.assetToEdit) return null;
+  const renderEditView = () => {
+    if (!assetToEdit) return null;
 
     return (
       <div className="c-media-library__modal">
         <div className="c-media-library__modal-backdrop" 
-             onClick={() => this.setState({ assetToEdit: undefined, newAssetName: "" })}></div>
+             onClick={() => { setAssetToEdit(undefined); setNewAssetName(""); }}></div>
         <div className="c-media-library__modal-content">
           <h2 className="c-media-library__modal-header-title">Rename Image</h2>
-          <Form error={this.state.error}>
+          <Form error={error}>
             <Input
               field="newAssetName"
-              label={`New name for "${this.state.assetToEdit.name}"`}
+              label={`New name for "${assetToEdit.name}"`}
               placeholder="Enter new name"
-              value={this.state.newAssetName}
-              onChange={(value) => this.setState({ newAssetName: value })}
+              value={newAssetName}
+              onChange={(value) => setNewAssetName(value)}
             />
 
             <div className="c-media-library__modal-actions">
               <Button 
                 variant="tertiary" 
-                onClick={() => this.setState({ assetToEdit: undefined, newAssetName: "" })}
+                onClick={() => { setAssetToEdit(undefined); setNewAssetName(""); }}
               >
                 Cancel
               </Button>
-              <Button variant="primary" onClick={this.handleEditAsset}>
+              <Button variant="primary" onClick={handleEditAsset}>
                 Save
               </Button>
             </div>
@@ -469,15 +475,14 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
     );
   }
 
-  private renderDeleteConfirmation() {
-    if (!this.state.confirmDeleteOpen || !this.state.assetToDelete) return null;
+  const renderDeleteConfirmation = () => {
+    if (!confirmDeleteOpen || !assetToDelete) return null;
 
-    const { assetToDelete } = this.state;
     const isInUse = assetToDelete.isInUse;
 
     return (
       <div className="c-media-library__modal">
-        <div className="c-media-library__modal-backdrop" onClick={this.closeDeleteConfirmation}></div>
+        <div className="c-media-library__modal-backdrop" onClick={closeDeleteConfirmation}></div>
         <div className="c-media-library__modal-content">
           <h2 className="c-media-library__modal-header-title">Delete Image</h2>
           
@@ -495,7 +500,7 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
           <div className="c-media-library__modal-actions">
             <Button 
               variant="tertiary" 
-              onClick={this.closeDeleteConfirmation}
+              onClick={closeDeleteConfirmation}
             >
               Cancel
             </Button>
@@ -503,7 +508,7 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
             {isInUse && (
               <Button 
                 variant="danger" 
-                onClick={() => this.deleteAsset(true)}
+                onClick={() => deleteAsset(true)}
               >
                 Force Delete
               </Button>
@@ -511,7 +516,7 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
             
             <Button 
               variant={isInUse ? "secondary" : "danger"} 
-              onClick={() => this.deleteAsset(false)}
+              onClick={() => deleteAsset(false)}
               disabled={isInUse}
             >
               {isInUse ? "Cannot Delete (In Use)" : "Delete"}
@@ -522,75 +527,20 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
     );
   }
 
-  private startEdit = (asset: MediaAsset) => {
-    this.setState({
-      assetToEdit: asset,
-      newAssetName: asset.name
-    });
-  }
-
-  private downloadAsset = (asset: MediaAsset) => {
-    const url = this.getAssetURL(asset);
-    window.open(url, "_blank");
-  }
-
-  private getAssetURL = (asset: MediaAsset): string => {
-    if (asset.blobKey.startsWith('logos/')) {
-      return `/static/favicon/${asset.blobKey.replace('logos/', '')}`;
-    } else if (asset.blobKey.startsWith('avatars/')) {
-      return `/static/avatars/gravatar/${asset.blobKey.replace('avatars/', '')}`;
-    }
-    return `/static/images/${asset.blobKey}`;
-  }
-
-  private formatFileSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
-  private getMediaTypeLabel(mediaType: MediaType): string {
-    switch(mediaType) {
-      case MediaType.ADMIN: return "Admin";
-      case MediaType.ATTACHMENT: return "Attachment";
-      case MediaType.AVATAR: return "Avatar";
-      case MediaType.LOGO: return "Logo";
-      default: return "Unknown";
-    }
-  }
-
-  private getMediaTypeBadgeClass(mediaType: MediaType): string {
-    switch(mediaType) {
-      case MediaType.ADMIN: return "c-media-library__badge--admin";
-      case MediaType.ATTACHMENT: return "c-media-library__badge--attachment";
-      case MediaType.AVATAR: return "c-media-library__badge--avatar";
-      case MediaType.LOGO: return "c-media-library__badge--logo";
-      default: return "";
-    }
-  }
-
-  private showAssetUsage = (asset: MediaAsset) => {
-    this.setState({ 
-      selectedAsset: asset,
-      showUsageModal: true 
-    });
-  }
-
-  private renderUsageModal() {
-    const { selectedAsset, showUsageModal } = this.state;
+  const renderUsageModal = () => {
     if (!selectedAsset || !showUsageModal) return null;
 
     return (
       <div className="c-media-library__modal">
         <div className="c-media-library__modal-backdrop"
-             onClick={() => this.setState({ showUsageModal: false })}></div>
+             onClick={() => setShowUsageModal(false)}></div>
         <div className="c-media-library__modal-content">
           <div className="c-media-library__modal-header">
             <h2 className="c-media-library__modal-header-title">Image Usage</h2>
             <Button 
               variant="tertiary" 
               size="small" 
-              onClick={() => this.setState({ showUsageModal: false })}
+              onClick={() => setShowUsageModal(false)}
             >
               <Icon sprite={IconX} />
             </Button>
@@ -599,8 +549,8 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
           <div className="c-media-library__modal-section">
             <div className="c-media-library__modal-section-label">Image:</div>
             <div className="c-media-library__modal-section-value">{selectedAsset.name}</div>
-            <span className={`c-media-library__badge ${this.getMediaTypeBadgeClass(selectedAsset.mediaType)}`}>
-              {this.getMediaTypeLabel(selectedAsset.mediaType)}
+            <span className={`c-media-library__badge ${getMediaTypeBadgeClass(selectedAsset.mediaType)}`}>
+              {getMediaTypeLabel(selectedAsset.mediaType)}
             </span>
           </div>
           
@@ -622,7 +572,7 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
           <div className="c-media-library__modal-actions">
             <Button 
               variant="tertiary" 
-              onClick={() => this.setState({ showUsageModal: false })}
+              onClick={() => setShowUsageModal(false)}
             >
               Close
             </Button>
@@ -632,53 +582,9 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
     );
   }
 
-  private renderMediaGrid() {
-    const { assets, isLoading } = this.state;
-
-    if (isLoading) {
-      return <Loader />;
-    }
-
-    if (assets.length === 0) {
-      return (
-        <div className="c-media-library__empty">
-          <div className="c-media-library__empty-icon">
-            <Icon sprite={IconEye} />
-          </div>
-          <p className="c-media-library__empty-title">No images found</p>
-          <p className="c-media-library__empty-subtitle">
-            {this.state.searchQuery || this.state.mediaTypeFilter !== MediaType.ALL
-              ? "Try different search or filter settings"
-              : ""}
-          </p>
-          {(this.state.searchQuery || this.state.mediaTypeFilter !== MediaType.ALL) && (
-            <Button
-              variant="secondary"
-              onClick={() => {
-                this.setState({
-                  searchQuery: "",
-                  mediaTypeFilter: MediaType.ALL,
-                  pagination: { ...this.state.pagination, page: 1 }
-                }, () => this.loadAssets())
-              }}
-            >
-              Clear Filters
-            </Button>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div className="c-media-library__grid">
-        {assets.map(asset => this.renderMediaCard(asset))}
-      </div>
-    );
-  }
-  
-  private renderMediaCard(asset: MediaAsset) {
-    const badgeClass = this.getMediaTypeBadgeClass(asset.mediaType);
-    const typeLabel = this.getMediaTypeLabel(asset.mediaType);
+  const renderMediaCard = (asset: MediaAsset) => {
+    const badgeClass = getMediaTypeBadgeClass(asset.mediaType);
+    const typeLabel = getMediaTypeLabel(asset.mediaType);
     
     return (
       <div key={asset.blobKey} className="c-media-library__card">
@@ -700,7 +606,7 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
           </div>
           
           <div className="c-media-library__card-preview-size">
-            {this.formatFileSize(asset.size)}
+            {formatFileSize(asset.size)}
           </div>
         </div>
         
@@ -714,12 +620,11 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
             </span>
           </div>
           
-          {/* Actions */}
           <div className="c-media-library__card-info-actions">
             <Button 
               size="small" 
               variant="tertiary" 
-              onClick={() => this.downloadAsset(asset)} 
+              onClick={() => downloadAsset(asset)} 
               className="c-media-library__card-info-actions-btn"
             >
               <Icon sprite={IconDownload} />
@@ -729,7 +634,7 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
               <Button 
                 size="small" 
                 variant="tertiary" 
-                onClick={() => this.showAssetUsage(asset)} 
+                onClick={() => showAssetUsage(asset)} 
                 className="c-media-library__card-info-actions-btn"
               >
                 <Icon sprite={IconEye} />
@@ -739,7 +644,7 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
             <Button 
               size="small" 
               variant="tertiary" 
-              onClick={() => this.startEdit(asset)} 
+              onClick={() => startEdit(asset)} 
               className="c-media-library__card-info-actions-btn"
             >
               <Icon sprite={IconPencilAlt} />
@@ -748,7 +653,7 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
             <Button 
               size="small" 
               variant="tertiary" 
-              onClick={() => this.openDeleteConfirmation(asset)} 
+              onClick={() => openDeleteConfirmation(asset)} 
               className="c-media-library__card-info-actions-btn c-media-library__card-info-actions-btn--delete"
             >
               <Icon sprite={IconTrash} />
@@ -759,17 +664,55 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
     );
   }
 
-  private renderBrowseView() {
-    if (this.state.assetToEdit) {
-      return this.renderEditView();
+  const renderMediaGrid = () => {
+    if (isLoading) {
+      return <Loader />;
     }
 
-    const { pagination } = this.state;
+    if (assets.length === 0) {
+      return (
+        <div className="c-media-library__empty">
+          <div className="c-media-library__empty-icon">
+            <Icon sprite={IconEye} />
+          </div>
+          <p className="c-media-library__empty-title">No images found</p>
+          <p className="c-media-library__empty-subtitle">
+            {searchQuery || mediaTypeFilter !== MediaType.ALL
+              ? "Try different search or filter settings"
+              : ""}
+          </p>
+          {(searchQuery || mediaTypeFilter !== MediaType.ALL) && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setSearchQuery("")
+                setMediaTypeFilter(MediaType.ALL)
+                setPagination(prev => ({ ...prev, page: 1 }))
+              }}
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="c-media-library__grid">
+        {assets.map(asset => renderMediaCard(asset))}
+      </div>
+    );
+  }
+
+  const renderBrowseView = () => {
+    if (assetToEdit) {
+      return renderEditView();
+    }
 
     return (
       <>
-        {this.renderUsageModal()}
-        {this.renderDeleteConfirmation()}
+        {renderUsageModal()}
+        {renderDeleteConfirmation()}
         
         <div className="c-media-library__header">
           <div className="c-media-library__header-search">
@@ -779,12 +722,12 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
             <Input
               field="search"
               placeholder="Search images..."
-              value={this.state.searchQuery}
-              onChange={this.handleSearchChange}
+              value={searchQuery}
+              onChange={handleSearchChange}
             />
           </div>
           
-          <Button variant="primary" onClick={() => this.setState({ view: "upload" })}>
+          <Button variant="primary" onClick={() => setView("upload")}>
             <Icon sprite={IconUpload} />
             <span>Upload New Image</span>
           </Button>
@@ -794,45 +737,45 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
           <div className="c-media-library__filters-section">
             <span className="c-media-library__filters-section-label">Type:</span>
             <Button 
-              variant={this.state.mediaTypeFilter === MediaType.ALL ? "primary" : "tertiary"} 
+              variant={mediaTypeFilter === MediaType.ALL ? "primary" : "tertiary"} 
               size="small"
-              onClick={() => this.handleMediaTypeFilter(MediaType.ALL)}
+              onClick={() => handleMediaTypeFilter(MediaType.ALL)}
               className="c-media-library__filters-btn"
             >
               All
             </Button>
             
             <Button 
-              variant={this.state.mediaTypeFilter === MediaType.ADMIN ? "primary" : "tertiary"} 
+              variant={mediaTypeFilter === MediaType.ADMIN ? "primary" : "tertiary"} 
               size="small"
-              onClick={() => this.handleMediaTypeFilter(MediaType.ADMIN)}
+              onClick={() => handleMediaTypeFilter(MediaType.ADMIN)}
               className="c-media-library__filters-btn"
             >
               Admin Uploads
             </Button>
             
             <Button 
-              variant={this.state.mediaTypeFilter === MediaType.ATTACHMENT ? "primary" : "tertiary"} 
+              variant={mediaTypeFilter === MediaType.ATTACHMENT ? "primary" : "tertiary"} 
               size="small"
-              onClick={() => this.handleMediaTypeFilter(MediaType.ATTACHMENT)}
+              onClick={() => handleMediaTypeFilter(MediaType.ATTACHMENT)}
               className="c-media-library__filters-btn"
             >
               Attachments
             </Button>
             
             <Button 
-              variant={this.state.mediaTypeFilter === MediaType.AVATAR ? "primary" : "tertiary"} 
+              variant={mediaTypeFilter === MediaType.AVATAR ? "primary" : "tertiary"} 
               size="small"
-              onClick={() => this.handleMediaTypeFilter(MediaType.AVATAR)}
+              onClick={() => handleMediaTypeFilter(MediaType.AVATAR)}
               className="c-media-library__filters-btn"
             >
               Avatars
             </Button>
             
             <Button 
-              variant={this.state.mediaTypeFilter === MediaType.LOGO ? "primary" : "tertiary"} 
+              variant={mediaTypeFilter === MediaType.LOGO ? "primary" : "tertiary"} 
               size="small"
-              onClick={() => this.handleMediaTypeFilter(MediaType.LOGO)}
+              onClick={() => handleMediaTypeFilter(MediaType.LOGO)}
               className="c-media-library__filters-btn"
             >
               Logos
@@ -842,43 +785,43 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
           <div className="c-media-library__filters-section">
             <span className="c-media-library__filters-section-label">Sort by:</span>
             <Button 
-              variant={this.state.sortBy === "name" ? "primary" : "tertiary"} 
+              variant={sortBy === "name" ? "primary" : "tertiary"} 
               size="small"
-              onClick={() => this.handleSortChange("name")}
+              onClick={() => handleSortChange("name")}
               className="c-media-library__filters-btn"
             >
               Name 
-              {this.state.sortBy === "name" && (
+              {sortBy === "name" && (
                 <span className="c-media-library__filters-btn-sort-icon">
-                  {this.state.sortDir === "asc" ? "↑" : "↓"}
+                  {sortDir === "asc" ? "^" : "v"}
                 </span>
               )}
             </Button>
             
             <Button 
-              variant={this.state.sortBy === "size" ? "primary" : "tertiary"} 
+              variant={sortBy === "size" ? "primary" : "tertiary"} 
               size="small"
-              onClick={() => this.handleSortChange("size")}
+              onClick={() => handleSortChange("size")}
               className="c-media-library__filters-btn"
             >
               Size 
-              {this.state.sortBy === "size" && (
+              {sortBy === "size" && (
                 <span className="c-media-library__filters-btn-sort-icon">
-                  {this.state.sortDir === "asc" ? "↑" : "↓"}
+                  {sortDir === "asc" ? "^" : "v"}
                 </span>
               )}
             </Button>
             
             <Button 
-              variant={this.state.sortBy === "createdAt" ? "primary" : "tertiary"} 
+              variant={sortBy === "createdAt" ? "primary" : "tertiary"} 
               size="small"
-              onClick={() => this.handleSortChange("createdAt")}
+              onClick={() => handleSortChange("createdAt")}
               className="c-media-library__filters-btn"
             >
               Date 
-              {this.state.sortBy === "createdAt" && (
+              {sortBy === "createdAt" && (
                 <span className="c-media-library__filters-btn-sort-icon">
-                  {this.state.sortDir === "asc" ? "↑" : "↓"}
+                  {sortDir === "asc" ? "^" : "v"}
                 </span>
               )}
             </Button>
@@ -886,7 +829,7 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
             <Button 
               variant="secondary" 
               size="small"
-              onClick={this.loadAssets}
+              onClick={loadAssets}
               className="c-media-library__filters-section-auto"
             >
               Refresh
@@ -894,13 +837,13 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
           </div>
         </div>
         
-        {this.renderMediaGrid()}
+        {renderMediaGrid()}
 
         {pagination.totalPages > 1 && (
           <Pagination
             currentPage={pagination.page}
             totalPages={pagination.totalPages}
-            onPageChange={this.handlePageChange}
+            onPageChange={handlePageChange}
           />
         )}
 
@@ -915,13 +858,11 @@ class FileManagementPage extends AdminBasePage<any, MediaManagementPageState> {
     );
   }
 
-  public content() {
-    return (
-      <div className="c-media-library">
-        {this.state.view === "upload" ? this.renderUploadView() : this.renderBrowseView()}
-      </div>
-    );
-  }
+  return (
+    <div className="c-media-library">
+      {view === "upload" ? renderUploadView() : renderBrowseView()}
+    </div>
+  );
 }
 
 export default FileManagementPage

@@ -22,9 +22,11 @@
       cursor: pointer;
       font-weight: 500;
       font-size: get("font.size.sm");
+      color: get("colors.gray.600");
       
       &:hover {
         background-color: get("colors.gray.50");
+        color: get("colors.gray.800");
       }
     }
     

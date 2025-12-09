@@ -104,7 +104,6 @@ const SignUpPage = () => {
   }, [subdomain.name])
 
   const noop = () => {
-    // do nothing
   }
 
   const modal = (
@@ -120,11 +119,8 @@ const SignUpPage = () => {
   )
 
   return (
-    <div id="p-signup" className="page container w-max-6xl">
+    <div id="p-signup">
       {modal}
-      <div className="h-20 text-center mb-4">
-        <img className="logo" alt="Logo" src="https://fider.io/images/logo-100x100.png" />
-      </div>
 
       <h3 className="text-display mb-2">1. Who are you?</h3>
       <DisplayError fields={["token"]} error={error} />

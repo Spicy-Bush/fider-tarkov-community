@@ -1,11 +1,18 @@
 import React, { useState } from "react"
-
 import { Button, ButtonClickEvent, Form, Input, Toggle } from "@fider/components"
-import { AdminPageContainer } from "../components/AdminBasePage"
 import { actions, Failure, classSet } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { CollapsiblePanel } from "@fider/components/common/CollapsiblePanel"
 import { HStack } from "@fider/components/layout"
+import { PageConfig } from "@fider/components/layouts"
+
+import "./ContentSettings.scss" 
+
+export const pageConfig: PageConfig = {
+  title: "Content Settings",
+  subtitle: "Configure post and comment settings",
+  sidebarItem: "content",
+}
 
 interface LimitSetting {
   count: number
@@ -29,9 +36,7 @@ interface ContentSettingsModel {
   reportLimitsPerDay: number
 }
 
-import "./ContentSettings.scss" 
-
-const ContentSettingsPage = () => {
+const ContentSettingsPage: React.FC = () => {
   const fider = useFider()
   
   const defaultSettings: ContentSettingsModel = {
@@ -136,10 +141,10 @@ const ContentSettingsPage = () => {
       <div className="settings-tabs-nav">
         <HStack spacing={0} className="mb-0">
           {[
-            { key: 'global', label: 'Global Controls', icon: '🌐' },
-            { key: 'post', label: 'Post Settings', icon: '📝' },
-            { key: 'comment', label: 'Comment Settings', icon: '💬' },
-            { key: 'report', label: 'Report Settings', icon: '🚩' }
+            { key: 'global', label: 'Global Controls' },
+            { key: 'post', label: 'Post Settings' },
+            { key: 'comment', label: 'Comment Settings' },
+            { key: 'report', label: 'Report Settings' }
           ].map(tab => (
             <button 
               key={tab.key}
@@ -153,7 +158,6 @@ const ContentSettingsPage = () => {
                 setActiveTab(tab.key as 'global' | 'post' | 'comment' | 'report');
               }}
             >
-              <span className="tab-icon">{tab.icon}</span>
               <span>{tab.label}</span>
             </button>
           ))}
@@ -206,7 +210,7 @@ const ContentSettingsPage = () => {
         "settings-tab-hidden": activeTab !== 'post'
       })}>
         <div className="settings-panels-container">
-          <CollapsiblePanel title="Post Length Settings" defaultOpen={true} icon="📏">
+          <CollapsiblePanel title="Post Length Settings" defaultOpen={true}>
             <div className="settings-grid-2col">
               <Input
                 field="titleLengthMin"
@@ -264,7 +268,7 @@ const ContentSettingsPage = () => {
             </div>
           </CollapsiblePanel>
 
-          <CollapsiblePanel title="Post Media Settings" defaultOpen={true} icon="🖼️">
+          <CollapsiblePanel title="Post Media Settings" defaultOpen={true}>
             <Input
               field="maxImagesPerPost"
               label="Maximum Images per Post"
@@ -279,7 +283,7 @@ const ContentSettingsPage = () => {
             </Input>
           </CollapsiblePanel>
 
-          <CollapsiblePanel title="Post Rate Limits" defaultOpen={false} icon="⏱️">            
+          <CollapsiblePanel title="Post Rate Limits" defaultOpen={false}>            
             <div className="settings-rate-limits-grid">
               {roles.map(role => (
                 <div key={`post-limit-${role}`} className="settings-role-card">
@@ -311,7 +315,7 @@ const ContentSettingsPage = () => {
             </div>
           </CollapsiblePanel>
 
-          <CollapsiblePanel title="Post Permissions" defaultOpen={false} icon="🔒">            
+          <CollapsiblePanel title="Post Permissions" defaultOpen={false}>            
             <div className="settings-permissions-grid">
               {roles.map(role => (
                 <div key={`posting-disabled-${role}`} className="settings-permission-item">
@@ -341,7 +345,7 @@ const ContentSettingsPage = () => {
         "settings-tab-hidden": activeTab !== 'comment'
       })}>
         <div className="settings-panels-container">
-          <CollapsiblePanel title="Comment Media Settings" defaultOpen={true} icon="🖼️">
+          <CollapsiblePanel title="Comment Media Settings" defaultOpen={true}>
             <Input
               field="maxImagesPerComment"
               label="Maximum Images per Comment"
@@ -356,7 +360,7 @@ const ContentSettingsPage = () => {
             </Input>
           </CollapsiblePanel>
 
-          <CollapsiblePanel title="Comment Rate Limits" defaultOpen={false} icon="⏱️">            
+          <CollapsiblePanel title="Comment Rate Limits" defaultOpen={false}>            
             <div className="settings-rate-limits-grid">
               {roles.map(role => (
                 <div key={`comment-limit-${role}`} className="settings-role-card">
@@ -388,7 +392,7 @@ const ContentSettingsPage = () => {
             </div>
           </CollapsiblePanel>
 
-          <CollapsiblePanel title="Comment Permissions" defaultOpen={false} icon="🔒">            
+          <CollapsiblePanel title="Comment Permissions" defaultOpen={false}>            
             <div className="settings-permissions-grid">
               {roles.map(role => (
                 <div key={`commenting-disabled-${role}`} className="settings-permission-item">
@@ -418,7 +422,7 @@ const ContentSettingsPage = () => {
         "settings-tab-hidden": activeTab !== 'report'
       })}>
         <div className="settings-panels-container">
-          <CollapsiblePanel title="Report Controls" defaultOpen={true} icon="🚩">
+          <CollapsiblePanel title="Report Controls" defaultOpen={true}>
             <div className="settings-toggle-group">
               <Toggle 
                 active={settings.reportingGloballyDisabled} 
@@ -432,7 +436,7 @@ const ContentSettingsPage = () => {
             </div>
           </CollapsiblePanel>
 
-          <CollapsiblePanel title="Report Limits" defaultOpen={true} icon="⏱️">
+          <CollapsiblePanel title="Report Limits" defaultOpen={true}>
             <Input
               field="reportLimitsPerDay"
               label="Maximum Reports per User per Day"
@@ -454,26 +458,24 @@ const ContentSettingsPage = () => {
   }
 
   return (
-    <AdminPageContainer id="p-admin-content" name="content" title="Content Settings" subtitle="Configure post and comment settings">
-      <Form error={error}>
-        <div className="settings-container">
-          {renderTabNav()}
-          
-          <div className="settings-content">
-            {renderGlobalControls()}
-            {renderPostSettings()}
-            {renderCommentSettings()}
-            {renderReportSettings()}
-          </div>
-
-          <div className="settings-actions">
-            <Button disabled={!canEdit} variant="primary" onClick={handleSave}>
-              Save Settings
-            </Button>
-          </div>
+    <Form error={error}>
+      <div className="settings-container">
+        {renderTabNav()}
+        
+        <div className="settings-content">
+          {renderGlobalControls()}
+          {renderPostSettings()}
+          {renderCommentSettings()}
+          {renderReportSettings()}
         </div>
-      </Form>
-    </AdminPageContainer>
+
+        <div className="settings-actions">
+          <Button disabled={!canEdit} variant="primary" onClick={handleSave}>
+            Save Settings
+          </Button>
+        </div>
+      </div>
+    </Form>
   )
 }
 

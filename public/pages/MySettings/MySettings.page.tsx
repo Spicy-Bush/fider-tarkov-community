@@ -1,6 +1,6 @@
 import React from "react"
 
-import { Modal, Form, Button, PageTitle, Input, Select, SelectOption, ImageUploader, Header } from "@fider/components"
+import { Modal, Form, Button, PageTitle, Input, Select, SelectOption, ImageUploader } from "@fider/components"
 
 import { UserSettings, UserAvatarType, ImageUpload } from "@fider/models"
 import { Failure, actions, Fider } from "@fider/services"
@@ -126,9 +126,7 @@ export default class MySettingsPage extends React.Component<MySettingsPageProps,
     )
 
     return (
-      <>
-        <Header />
-        <div id="p-my-settings" className="page container">
+      <div id="p-my-settings" className="page container">
           <Modal.Window isOpen={this.state.showModal} onClose={this.closeModal}>
             <Modal.Header>
               <Trans id="modal.changeemail.header">Confirm your new email</Trans>
@@ -232,12 +230,11 @@ export default class MySettingsPage extends React.Component<MySettingsPageProps,
             </Form>
 
             <div className="mt-8">{Fider.session.user.isCollaborator && <APIKeyForm />}</div>
-            <div className="mt-8">
-              <DangerZone />
-            </div>
+          <div className="mt-8">
+            <DangerZone />
           </div>
         </div>
-      </>
+      </div>
     )
   }
 }
