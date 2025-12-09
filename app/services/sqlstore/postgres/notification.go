@@ -16,22 +16,14 @@ import (
 )
 
 func purgeExpiredNotifications(ctx context.Context, c *cmd.PurgeExpiredNotifications) error {
-	trx, err := dbx.BeginTx(ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to open transaction")
-	}
-
-	count, err := trx.Execute("DELETE FROM notifications WHERE CREATED_AT <= NOW() - INTERVAL '365 days'")
-	if err != nil {
-		return errors.Wrap(err, "failed to delete expired notifications")
-	}
-
-	if err = trx.Commit(); err != nil {
-		return errors.Wrap(err, "failed commit transaction")
-	}
-
-	c.NumOfDeletedNotifications = int(count)
-	return nil
+	return using(ctx, func(trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
+		count, err := trx.Execute("DELETE FROM notifications WHERE CREATED_AT <= NOW() - INTERVAL '365 days'")
+		if err != nil {
+			return errors.Wrap(err, "failed to delete expired notifications")
+		}
+		c.NumOfDeletedNotifications = int(count)
+		return nil
+	})
 }
 
 func markAllNotificationsAsRead(ctx context.Context, c *cmd.MarkAllNotificationsAsRead) error {

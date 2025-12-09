@@ -168,6 +168,10 @@ func (input *UpdatePost) IsAuthorized(ctx context.Context, user *entity.User) bo
 		return true
 	}
 
+	if input.Post.User == nil {
+		return false
+	}
+
 	// If user is moderator, they can only edit posts from regular users
 	if user.IsModerator() {
 		return input.Post.User.Role == enum.RoleVisitor || input.Post.User.Role == enum.RoleHelper
@@ -430,6 +434,10 @@ func (action *DeletePost) IsAuthorized(ctx context.Context, user *entity.User) b
 		return true
 	}
 
+	if action.Post.User == nil {
+		return false
+	}
+
 	// If user is moderator, they can only delete posts from regular users
 	if user.IsModerator() {
 		return action.Post.User.Role == enum.RoleVisitor || action.Post.User.Role == enum.RoleHelper
@@ -547,6 +555,10 @@ func (action *DeleteComment) IsAuthorized(ctx context.Context, user *entity.User
 	// If user is collaborator or admin, they can delete any comment
 	if user.IsCollaborator() || user.IsAdministrator() {
 		return true
+	}
+
+	if commentByID.Result.User == nil {
+		return false
 	}
 
 	// If user is moderator, they can only delete comments from regular users

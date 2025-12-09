@@ -1,9 +1,9 @@
 package apiv1
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/metrics"
@@ -17,38 +17,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/tasks"
 )
-
-func isUserMuted(ctx *web.Context) (bool, error) {
-	standing := &query.GetUserProfileStanding{
-		UserID: ctx.User().ID,
-		Result: struct {
-			Warnings []struct {
-				ID        int        `json:"id"`
-				Reason    string     `json:"reason"`
-				CreatedAt time.Time  `json:"createdAt"`
-				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-			} `json:"warnings"`
-			Mutes []struct {
-				ID        int        `json:"id"`
-				Reason    string     `json:"reason"`
-				CreatedAt time.Time  `json:"createdAt"`
-				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-			} `json:"mutes"`
-		}{},
-	}
-	err := bus.Dispatch(ctx, standing)
-	if err != nil {
-		return false, err
-	}
-
-	now := time.Now()
-	for _, mute := range standing.Result.Mutes {
-		if mute.ExpiresAt == nil || mute.ExpiresAt.After(now) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
 
 // SearchPosts return existing posts based on search criteria
 func SearchPosts() web.HandlerFunc {
@@ -148,11 +116,7 @@ func SearchPosts() web.HandlerFunc {
 // CreatePost creates a new post on current tenant
 func CreatePost() web.HandlerFunc {
 	return func(c *web.Context) error {
-		isMuted, err := isUserMuted(c)
-		if err != nil {
-			return c.Failure(err)
-		}
-		if isMuted {
+		if c.User().IsMuted() {
 			return c.BadRequest(web.Map{
 				"message": "You are currently muted and cannot create new posts.",
 			})
@@ -380,11 +344,7 @@ func GetComment() web.HandlerFunc {
 // ToggleReaction adds or removes a reaction on a comment
 func ToggleReaction() web.HandlerFunc {
 	return func(c *web.Context) error {
-		isMuted, err := isUserMuted(c)
-		if err != nil {
-			return c.Failure(err)
-		}
-		if isMuted {
+		if c.User().IsMuted() {
 			return c.BadRequest(web.Map{
 				"message": "You are currently muted and cannot add reactions.",
 			})
@@ -415,11 +375,7 @@ func ToggleReaction() web.HandlerFunc {
 // PostComment creates a new comment on given post
 func PostComment() web.HandlerFunc {
 	return func(c *web.Context) error {
-		isMuted, err := isUserMuted(c)
-		if err != nil {
-			return c.Failure(err)
-		}
-		if isMuted {
+		if c.User().IsMuted() {
 			return c.BadRequest(web.Map{
 				"message": "You are currently muted and cannot post comments.",
 			})
@@ -450,7 +406,8 @@ func PostComment() web.HandlerFunc {
 			}
 
 			contentToSave := entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
-				return fmt.Sprintf(`{"id":%d,"name":"%s"}`, mention.ID, mention.Name)
+				nameJSON, _ := json.Marshal(mention.Name)
+				return fmt.Sprintf(`{"id":%d,"name":%s}`, mention.ID, string(nameJSON))
 			})
 
 			addNewComment := &cmd.AddNewComment{
@@ -482,11 +439,7 @@ func PostComment() web.HandlerFunc {
 // UpdateComment changes an existing comment with new content
 func UpdateComment() web.HandlerFunc {
 	return func(c *web.Context) error {
-		isMuted, err := isUserMuted(c)
-		if err != nil {
-			return c.Failure(err)
-		}
-		if isMuted {
+		if c.User().IsMuted() {
 			return c.BadRequest(web.Map{
 				"message": "You are currently muted and cannot edit comments.",
 			})
@@ -513,7 +466,8 @@ func UpdateComment() web.HandlerFunc {
 
 		return c.WithTransaction(func() error {
 			contentToSave := entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
-				return fmt.Sprintf(`{"id":%d,"name":"%s"}`, mention.ID, mention.Name)
+				nameJSON, _ := json.Marshal(mention.Name)
+				return fmt.Sprintf(`{"id":%d,"name":%s}`, mention.ID, string(nameJSON))
 			})
 
 			err := bus.Dispatch(c,
