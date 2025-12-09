@@ -29,6 +29,7 @@ const DEFAULT_FILTERS: FilterState = {
 
 const STORAGE_KEY = "post_filters"
 const FILTER_TIMESTAMP_KEY = "post_filters_timestamp"
+const AUTH_STATE_KEY = "post_filters_auth"
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000
 
 const getUrlParams = () => {
@@ -74,6 +75,7 @@ const saveToLocalStorage = (filters: FilterState) => {
   const filtersToSave = { ...filters, query: "" }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(filtersToSave))
   localStorage.setItem(FILTER_TIMESTAMP_KEY, Date.now().toString())
+  localStorage.setItem(AUTH_STATE_KEY, Fider.session.isAuthenticated ? "true" : "false")
 }
 
 export const usePostFilters = () => {
@@ -86,17 +88,24 @@ export const usePostFilters = () => {
 
     const stored = localStorage.getItem(STORAGE_KEY)
     const timestamp = localStorage.getItem(FILTER_TIMESTAMP_KEY)
+    const wasAuthenticated = localStorage.getItem(AUTH_STATE_KEY) === "true"
     const now = Date.now()
     
     if (stored) {
       try {
         const parsedFilters = JSON.parse(stored)
-        const restoredFilters = { ...parsedFilters, query: "" }
+        let restoredFilters = { ...parsedFilters, query: "" }
+        
+        if (Fider.session.isAuthenticated && !wasAuthenticated) {
+          restoredFilters = { ...restoredFilters, notMyVotes: true }
+        }
+        
         if (timestamp && (now - parseInt(timestamp)) > TWELVE_HOURS_MS) {
           const updatedFilters = { ...restoredFilters, view: "trending" }
           saveToLocalStorage(updatedFilters)
           return updatedFilters
         }
+        saveToLocalStorage(restoredFilters)
         return restoredFilters
       } catch {
         return DEFAULT_FILTERS
@@ -127,6 +136,7 @@ export const usePostFilters = () => {
     setOffset(0)
     localStorage.removeItem(STORAGE_KEY)
     localStorage.removeItem(FILTER_TIMESTAMP_KEY)
+    localStorage.removeItem(AUTH_STATE_KEY)
   }, [])
 
   const hasActiveFilters = useCallback(() => {
