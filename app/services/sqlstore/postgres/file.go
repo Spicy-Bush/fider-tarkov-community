@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -401,144 +400,311 @@ func updateImageFileReferences(ctx context.Context, c *cmd.UpdateImageFileRefere
 }
 
 func listImageFiles(ctx context.Context, q *query.ListImageFiles) error {
-	listQuery := &query.ListBlobs{
-		Prefix: "",
-	}
-	if err := bus.Dispatch(ctx, listQuery); err != nil {
-		return errors.Wrap(err, "failed to list blobs")
-	}
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		validPrefixes := []string{"files/", "attachments/", "avatars/", "logos/"}
 
-	validPrefixes := []string{"files/", "attachments/", "avatars/", "logos/"}
-	filteredKeys := make([]string, 0, len(listQuery.Result))
-
-	for _, blobKey := range listQuery.Result {
-		valid := false
-		for _, prefix := range validPrefixes {
-			if strings.HasPrefix(blobKey, prefix) {
-				valid = true
-				break
-			}
-		}
-
-		if valid {
-			if q.Search != "" {
-				searchLower := strings.ToLower(q.Search)
-				if !strings.Contains(strings.ToLower(blobKey), searchLower) {
-					continue
-				}
-			}
-			filteredKeys = append(filteredKeys, blobKey)
-		}
-	}
-
-	allFiles := make([]*dto.FileInfo, 0, len(filteredKeys))
-	batchSize := 20
-
-	for i := 0; i < len(filteredKeys); i += batchSize {
-		end := i + batchSize
-		if end > len(filteredKeys) {
-			end = len(filteredKeys)
-		}
-
-		batch := filteredKeys[i:end]
-		batchFiles := processFileBatch(ctx, batch)
-		allFiles = append(allFiles, batchFiles...)
-	}
-
-	filteredFiles := allFiles
-	if q.Search != "" {
-		searchLower := strings.ToLower(q.Search)
-		filteredFiles = make([]*dto.FileInfo, 0)
-		for _, file := range allFiles {
-			if strings.Contains(strings.ToLower(file.Name), searchLower) ||
-				strings.Contains(strings.ToLower(file.ContentType), searchLower) {
-				filteredFiles = append(filteredFiles, file)
-			}
-		}
-	}
-
-	sort.Slice(filteredFiles, func(i, j int) bool {
-		var result bool
+		orderColumn := "created_at"
 		switch q.SortBy {
 		case "name":
-			result = filteredFiles[i].Name < filteredFiles[j].Name
+			orderColumn = "key"
 		case "size":
-			result = filteredFiles[i].Size < filteredFiles[j].Size
+			orderColumn = "size"
 		case "contentType":
-			result = filteredFiles[i].ContentType < filteredFiles[j].ContentType
-		default:
-			result = filteredFiles[i].CreatedAt.After(filteredFiles[j].CreatedAt)
+			orderColumn = "content_type"
 		}
 
-		if q.SortDir == "desc" {
-			return !result
+		orderDir := "DESC"
+		if q.SortDir == "asc" {
+			orderDir = "ASC"
 		}
-		return result
+
+		prefixConditions := make([]string, len(validPrefixes))
+		for i, prefix := range validPrefixes {
+			prefixConditions[i] = fmt.Sprintf("key LIKE '%s%%'", prefix)
+		}
+		prefixWhere := "(" + strings.Join(prefixConditions, " OR ") + ")"
+
+		searchWhere := ""
+		args := []interface{}{tenant.ID}
+		if q.Search != "" {
+			searchWhere = " AND LOWER(key) LIKE $2"
+			args = append(args, "%"+strings.ToLower(q.Search)+"%")
+		}
+
+		countQuery := fmt.Sprintf(`
+			SELECT COUNT(*) FROM blobs 
+			WHERE (tenant_id = $1 OR ($1 IS NULL AND tenant_id IS NULL))
+			AND %s%s
+		`, prefixWhere, searchWhere)
+
+		var total int
+		if err := trx.Scalar(&total, countQuery, args...); err != nil {
+			return errors.Wrap(err, "failed to count blobs")
+		}
+
+		if total == 0 {
+			q.Result = []*dto.FileInfo{}
+			q.Total = 0
+			q.TotalPages = 0
+			return nil
+		}
+
+		offset := (q.Page - 1) * q.PageSize
+		limitArg := len(args) + 1
+		offsetArg := len(args) + 2
+
+		blobsQuery := fmt.Sprintf(`
+			SELECT key, content_type, size, created_at FROM blobs
+			WHERE (tenant_id = $1 OR ($1 IS NULL AND tenant_id IS NULL))
+			AND %s%s
+			ORDER BY %s %s
+			LIMIT $%d OFFSET $%d
+		`, prefixWhere, searchWhere, orderColumn, orderDir, limitArg, offsetArg)
+
+		args = append(args, q.PageSize, offset)
+
+		type blobRow struct {
+			Key         string    `db:"key"`
+			ContentType string    `db:"content_type"`
+			Size        int64     `db:"size"`
+			CreatedAt   time.Time `db:"created_at"`
+		}
+
+		var blobs []*blobRow
+		if err := trx.Select(&blobs, blobsQuery, args...); err != nil {
+			return errors.Wrap(err, "failed to list blobs")
+		}
+
+		if len(blobs) == 0 {
+			q.Result = []*dto.FileInfo{}
+			q.Total = total
+			q.TotalPages = (total + q.PageSize - 1) / q.PageSize
+			return nil
+		}
+
+		blobKeys := make([]string, len(blobs))
+		for i, b := range blobs {
+			blobKeys[i] = b.Key
+		}
+
+		usageMap, err := getBulkFileUsage(trx, tenant.ID, blobKeys)
+		if err != nil {
+			return errors.Wrap(err, "failed to get bulk file usage")
+		}
+
+		attachmentKeys := make([]string, 0)
+		for _, key := range blobKeys {
+			if strings.HasPrefix(key, "attachments/") {
+				attachmentKeys = append(attachmentKeys, key)
+			}
+		}
+
+		attachmentContextMap := make(map[string][]string)
+		if len(attachmentKeys) > 0 {
+			attachmentContextMap, err = getBulkAttachmentContext(trx, tenant.ID, attachmentKeys)
+			if err != nil {
+				return errors.Wrap(err, "failed to get bulk attachment context")
+			}
+		}
+
+		results := make([]*dto.FileInfo, len(blobs))
+		for i, b := range blobs {
+			name := extractNameFromBlobKey(b.Key)
+			usage := usageMap[b.Key]
+
+			usedIn := make([]string, 0)
+			if usage.LogoCount > 0 {
+				usedIn = append(usedIn, "Tenant Logo")
+			}
+			if usage.AvatarCount > 0 {
+				usedIn = append(usedIn, "User Avatar")
+			}
+			if usage.AttachmentCount > 0 {
+				if contexts, ok := attachmentContextMap[b.Key]; ok {
+					usedIn = append(usedIn, contexts...)
+				}
+			}
+
+			results[i] = &dto.FileInfo{
+				Name:        name,
+				BlobKey:     b.Key,
+				Size:        b.Size,
+				ContentType: b.ContentType,
+				CreatedAt:   b.CreatedAt,
+				IsInUse:     usage.LogoCount > 0 || usage.AvatarCount > 0 || usage.AttachmentCount > 0,
+				UsedIn:      usedIn,
+			}
+		}
+
+		q.Result = results
+		q.Total = total
+		q.TotalPages = (total + q.PageSize - 1) / q.PageSize
+
+		return nil
 	})
-
-	total := len(filteredFiles)
-	totalPages := (total + q.PageSize - 1) / q.PageSize
-
-	start := (q.Page - 1) * q.PageSize
-	end := start + q.PageSize
-	if start >= total {
-		start = 0
-		end = 0
-	}
-	if end > total {
-		end = total
-	}
-
-	if start < end {
-		q.Result = filteredFiles[start:end]
-	} else {
-		q.Result = []*dto.FileInfo{}
-	}
-
-	q.Total = total
-	q.TotalPages = totalPages
-
-	return nil
 }
 
-func processFileBatch(ctx context.Context, blobKeys []string) []*dto.FileInfo {
-	results := make([]*dto.FileInfo, 0, len(blobKeys))
+type fileUsageCounts struct {
+	LogoCount       int
+	AvatarCount     int
+	AttachmentCount int
+}
 
-	for _, blobKey := range blobKeys {
-		blobQuery := &query.GetBlobByKey{
-			Key: blobKey,
-		}
-		blobErr := bus.Dispatch(ctx, blobQuery)
-		if blobErr != nil {
-			continue
-		}
-
-		isInUseQuery := &query.IsImageFileInUse{
-			BlobKey: blobKey,
-		}
-		if err := bus.Dispatch(ctx, isInUseQuery); err != nil {
-			continue
-		}
-
-		nameQuery := &query.GetNameFromBlobKey{
-			BlobKey: blobKey,
-		}
-		if err := bus.Dispatch(ctx, nameQuery); err != nil {
-			continue
-		}
-
-		fileInfo := &dto.FileInfo{
-			Name:        nameQuery.Result,
-			BlobKey:     blobKey,
-			Size:        blobQuery.Result.Size,
-			ContentType: blobQuery.Result.ContentType,
-			CreatedAt:   time.Now(),
-			IsInUse:     isInUseQuery.Result,
-			UsedIn:      isInUseQuery.UsedIn,
-		}
-
-		results = append(results, fileInfo)
+func getBulkFileUsage(trx *dbx.Trx, tenantID int, blobKeys []string) (map[string]fileUsageCounts, error) {
+	result := make(map[string]fileUsageCounts)
+	for _, key := range blobKeys {
+		result[key] = fileUsageCounts{}
 	}
 
-	return results
+	if len(blobKeys) == 0 {
+		return result, nil
+	}
+
+	placeholders := make([]string, len(blobKeys))
+	args := make([]interface{}, len(blobKeys)+1)
+	args[0] = tenantID
+	for i, key := range blobKeys {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args[i+1] = key
+	}
+	inClause := strings.Join(placeholders, ", ")
+
+	usageQuery := fmt.Sprintf(`
+		SELECT key, usage_type, COUNT(*) as count FROM (
+			SELECT logo_bkey as key, 'logo' as usage_type FROM tenants WHERE logo_bkey IN (%s) AND id = $1
+			UNION ALL
+			SELECT avatar_bkey as key, 'avatar' as usage_type FROM users WHERE avatar_bkey IN (%s)
+			UNION ALL
+			SELECT attachment_bkey as key, 'attachment' as usage_type FROM attachments WHERE attachment_bkey IN (%s) AND tenant_id = $1
+		) combined
+		GROUP BY key, usage_type
+	`, inClause, inClause, inClause)
+
+	type usageRow struct {
+		Key       string `db:"key"`
+		UsageType string `db:"usage_type"`
+		Count     int    `db:"count"`
+	}
+
+	var usageCounts []*usageRow
+	if err := trx.Select(&usageCounts, usageQuery, args...); err != nil {
+		return nil, errors.Wrap(err, "failed to get usage counts")
+	}
+
+	for _, row := range usageCounts {
+		if usage, ok := result[row.Key]; ok {
+			switch row.UsageType {
+			case "logo":
+				usage.LogoCount = row.Count
+			case "avatar":
+				usage.AvatarCount = row.Count
+			case "attachment":
+				usage.AttachmentCount = row.Count
+			}
+			result[row.Key] = usage
+		}
+	}
+
+	return result, nil
 }
+
+func getBulkAttachmentContext(trx *dbx.Trx, tenantID int, blobKeys []string) (map[string][]string, error) {
+	result := make(map[string][]string)
+	if len(blobKeys) == 0 {
+		return result, nil
+	}
+
+	placeholders := make([]string, len(blobKeys))
+	args := make([]interface{}, len(blobKeys)+1)
+	args[0] = tenantID
+	for i, key := range blobKeys {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args[i+1] = key
+	}
+	inClause := strings.Join(placeholders, ", ")
+
+	contextQuery := fmt.Sprintf(`
+		SELECT 
+			a.attachment_bkey as key,
+			COALESCE(p.title, 'Untitled Post') as post_title,
+			COALESCE(p.id, c.post_id) as post_id,
+			CASE 
+				WHEN a.post_id IS NOT NULL THEN 'post'
+				WHEN a.comment_id IS NOT NULL THEN 'comment'
+				ELSE 'unknown'
+			END as attachment_type
+		FROM attachments a
+		LEFT JOIN posts p ON a.post_id = p.id
+		LEFT JOIN comments c ON a.comment_id = c.id
+		WHERE a.attachment_bkey IN (%s) AND a.tenant_id = $1
+	`, inClause)
+
+	type contextRow struct {
+		Key            string `db:"key"`
+		PostTitle      string `db:"post_title"`
+		PostID         int    `db:"post_id"`
+		AttachmentType string `db:"attachment_type"`
+	}
+
+	var contexts []*contextRow
+	if err := trx.Select(&contexts, contextQuery, args...); err != nil {
+		return nil, errors.Wrap(err, "failed to get attachment contexts")
+	}
+
+	for _, row := range contexts {
+		var contextStr string
+		if row.AttachmentType == "post" {
+			contextStr = fmt.Sprintf("Post Attachment: %s (ID: %d)", row.PostTitle, row.PostID)
+		} else if row.AttachmentType == "comment" {
+			contextStr = fmt.Sprintf("Comment Attachment (Post: %s, ID: %d)", row.PostTitle, row.PostID)
+		}
+		if contextStr != "" {
+			result[row.Key] = append(result[row.Key], contextStr)
+		}
+	}
+
+	return result, nil
+}
+
+func extractNameFromBlobKey(blobKey string) string {
+	if blobKey == "" {
+		return ""
+	}
+
+	parts := strings.Split(blobKey, "/")
+	if len(parts) == 0 {
+		return blobKey
+	}
+
+	filename := parts[len(parts)-1]
+
+	if strings.HasPrefix(blobKey, "logos/") || strings.HasPrefix(blobKey, "avatars/") {
+		extensionParts := strings.Split(filename, ".")
+		if len(extensionParts) > 1 {
+			extension := "." + extensionParts[len(extensionParts)-1]
+			if strings.HasPrefix(blobKey, "logos/") {
+				return "logo" + extension
+			}
+			return "avatar" + extension
+		}
+		if strings.HasPrefix(blobKey, "logos/") {
+			return "logo"
+		}
+		return "avatar"
+	}
+
+	nameParts := strings.SplitN(filename, "-", 2)
+	if len(nameParts) > 1 && len(nameParts[0]) > 10 {
+		filename = nameParts[1]
+	}
+
+	extensionParts := strings.Split(filename, ".")
+	extension := ""
+	if len(extensionParts) > 1 {
+		extension = "." + extensionParts[len(extensionParts)-1]
+		filename = strings.TrimSuffix(filename, extension)
+	}
+
+	return filename + extension
+}
+
