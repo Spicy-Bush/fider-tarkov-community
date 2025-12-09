@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { actions } from "@fider/services";
 import { useFider } from "@fider/hooks";
 
@@ -23,30 +23,55 @@ interface UserStandingContextType {
   warnings: Warning[];
   mutes: Mute[];
   refetch: () => Promise<void>;
+  setStandingData: (warnings: Warning[], mutes: Mute[]) => void;
 }
 
 const defaultContext: UserStandingContextType = {
-  isLoading: true,
+  isLoading: false,
   isMuted: false,
   muteReason: "",
   warnings: [],
   mutes: [],
-  refetch: async () => {}
+  refetch: async () => {},
+  setStandingData: () => {}
 };
 
 const UserStandingContext = createContext<UserStandingContextType>(defaultContext);
 
 export const UserStandingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const fider = useFider();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMuted, setIsMuted] = useState(false);
+  
+  const serverIsMuted = fider.session.isAuthenticated ? fider.session.user.isMuted : false;
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [isMuted, setIsMuted] = useState(serverIsMuted);
   const [muteReason, setMuteReason] = useState("");
   const [warnings, setWarnings] = useState<Warning[]>([]);
   const [mutes, setMutes] = useState<Mute[]>([]);
 
-  const fetchUserStanding = async () => {
+  const updateMuteStatus = useCallback((mutesList: Mute[]) => {
+    const now = new Date();
+    const activeMute = mutesList.find(mute => 
+      !mute.expiresAt || new Date(mute.expiresAt) > now
+    );
+    
+    if (activeMute) {
+      setIsMuted(true);
+      setMuteReason(activeMute.reason);
+    } else {
+      setIsMuted(false);
+      setMuteReason("");
+    }
+  }, []);
+
+  const setStandingData = useCallback((newWarnings: Warning[], newMutes: Mute[]) => {
+    setWarnings(newWarnings);
+    setMutes(newMutes);
+    updateMuteStatus(newMutes);
+  }, [updateMuteStatus]);
+
+  const fetchUserStanding = useCallback(async () => {
     if (!fider.session.isAuthenticated) {
-      setIsLoading(false);
       return;
     }
 
@@ -55,30 +80,12 @@ export const UserStandingProvider: React.FC<{ children: ReactNode }> = ({ childr
       const result = await actions.getUserProfileStanding(fider.session.user.id);
       
       if (result.ok) {
-        setWarnings(result.data.warnings);
-        setMutes(result.data.mutes);
-        
-        const now = new Date();
-        const activeMute = result.data.mutes.find(mute => 
-          !mute.expiresAt || new Date(mute.expiresAt) > now
-        );
-        
-        if (activeMute) {
-          setIsMuted(true);
-          setMuteReason(activeMute.reason);
-        } else {
-          setIsMuted(false);
-          setMuteReason("");
-        }
+        setStandingData(result.data.warnings, result.data.mutes);
       }
     } finally {
       setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchUserStanding();
-  }, [fider.session.isAuthenticated]);
+  }, [fider.session.isAuthenticated, fider.session.user?.id, setStandingData]);
 
   return (
     <UserStandingContext.Provider 
@@ -88,7 +95,8 @@ export const UserStandingProvider: React.FC<{ children: ReactNode }> = ({ childr
         muteReason, 
         warnings, 
         mutes, 
-        refetch: fetchUserStanding 
+        refetch: fetchUserStanding,
+        setStandingData
       }}
     >
       {children}

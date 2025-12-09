@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react"
 import { UserRole, UserStatus, UserAvatarType } from "@fider/models"
 import { actions, Fider } from "@fider/services"
+import { useUserStanding } from "@fider/contexts/UserStandingContext"
 
 export type ProfileTab = "search" | "standing" | "settings"
 
@@ -164,6 +165,7 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
   const [activeTab, setActiveTabState] = useState<ProfileTab>("search")
 
   const isViewingOwnProfile = Fider.session.isAuthenticated && Fider.session.user.id === userId
+  const globalStanding = useUserStanding()
 
   const loadStats = useCallback(async () => {
     const result = await actions.getUserProfileStats(userId)
@@ -174,16 +176,15 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
     }
   }, [userId])
 
-  const loadStanding = useCallback(async () => {
+  const refreshStanding = useCallback(async () => {
     const result = await actions.getUserProfileStanding(userId)
     if (result.ok) {
       setStanding(result.data)
+      if (isViewingOwnProfile) {
+        globalStanding.setStandingData(result.data.warnings, result.data.mutes)
+      }
     }
-  }, [userId])
-
-  const refreshStanding = useCallback(async () => {
-    await loadStanding()
-  }, [loadStanding])
+  }, [userId, isViewingOwnProfile, globalStanding])
 
   const refreshStats = useCallback(async () => {
     await loadStats()
@@ -210,15 +211,28 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
     }
   }, [embedded])
 
+  const initialLoadDone = useRef(false)
+  
   useEffect(() => {
+    if (initialLoadDone.current) {
+      return
+    }
+    initialLoadDone.current = true
+    
     const init = async () => {
       setIsLoading(true)
       await loadStats()
-      await loadStanding()
+      const result = await actions.getUserProfileStanding(userId)
+      if (result.ok) {
+        setStanding(result.data)
+        if (isViewingOwnProfile) {
+          globalStanding.setStandingData(result.data.warnings, result.data.mutes)
+        }
+      }
       setIsLoading(false)
     }
     init()
-  }, [userId, loadStats, loadStanding])
+  }, [userId, loadStats, isViewingOwnProfile, globalStanding])
 
   useEffect(() => {
     if (embedded) return

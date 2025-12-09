@@ -161,8 +161,16 @@ func getClientAssets(assets []distAsset) *clientAssets {
 	return clientAssets
 }
 
-// Render a template based on parameters
-func getLatestActiveWarningID(ctx *Context, userID int) int {
+type userStandingInfo struct {
+	hasWarning      bool
+	isMuted         bool
+	latestWarningID int
+	latestMuteID    int
+}
+
+func getUserStandingInfo(ctx *Context, userID int) userStandingInfo {
+	result := userStandingInfo{}
+
 	standing := &query.GetUserProfileStanding{
 		UserID: userID,
 		Result: struct {
@@ -181,47 +189,30 @@ func getLatestActiveWarningID(ctx *Context, userID int) int {
 		}{},
 	}
 	if err := bus.Dispatch(ctx, standing); err != nil {
-		return 0
+		return result
 	}
 
 	now := time.Now()
 	for _, warning := range standing.Result.Warnings {
 		if warning.ExpiresAt == nil || warning.ExpiresAt.After(now) {
-			return warning.ID
+			result.hasWarning = true
+			if result.latestWarningID == 0 {
+				result.latestWarningID = warning.ID
+			}
+			break
 		}
 	}
-	return 0
-}
-
-func getLatestActiveMuteID(ctx *Context, userID int) int {
-	standing := &query.GetUserProfileStanding{
-		UserID: userID,
-		Result: struct {
-			Warnings []struct {
-				ID        int        `json:"id"`
-				Reason    string     `json:"reason"`
-				CreatedAt time.Time  `json:"createdAt"`
-				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-			} `json:"warnings"`
-			Mutes []struct {
-				ID        int        `json:"id"`
-				Reason    string     `json:"reason"`
-				CreatedAt time.Time  `json:"createdAt"`
-				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-			} `json:"mutes"`
-		}{},
-	}
-	if err := bus.Dispatch(ctx, standing); err != nil {
-		return 0
-	}
-
-	now := time.Now()
 	for _, mute := range standing.Result.Mutes {
 		if mute.ExpiresAt == nil || mute.ExpiresAt.After(now) {
-			return mute.ID
+			result.isMuted = true
+			if result.latestMuteID == 0 {
+				result.latestMuteID = mute.ID
+			}
+			break
 		}
 	}
-	return 0
+
+	return result
 }
 
 func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context) {
@@ -312,6 +303,7 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 
 	if ctx.IsAuthenticated() {
 		u := ctx.User()
+		standing := getUserStandingInfo(ctx, u.ID)
 		public["user"] = &Map{
 			"id":              u.ID,
 			"name":            u.Name,
@@ -326,10 +318,10 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 			"isCollaborator":  u.IsCollaborator(),
 			"isModerator":     u.IsModerator(),
 			"isHelper":        u.IsHelper(),
-			"hasWarning":      u.HasWarning(),
-			"isMuted":         u.IsMuted(),
-			"latestWarningId": getLatestActiveWarningID(ctx, u.ID),
-			"latestMuteId":    getLatestActiveMuteID(ctx, u.ID),
+			"hasWarning":      standing.hasWarning,
+			"isMuted":         standing.isMuted,
+			"latestWarningId": standing.latestWarningID,
+			"latestMuteId":    standing.latestMuteID,
 		}
 	}
 
