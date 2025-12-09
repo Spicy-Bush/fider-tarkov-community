@@ -452,3 +452,23 @@ func DeleteReportReason() web.HandlerFunc {
 		})
 	}
 }
+
+func ReorderReportReasons() web.HandlerFunc {
+	return func(c *web.Context) error {
+		action := new(actions.ReorderReportReasons)
+		if result := c.BindTo(action); !result.Ok {
+			return c.HandleValidation(result)
+		}
+
+		return c.WithTransaction(func() error {
+			reorder := &cmd.ReorderReportReasons{
+				IDs: action.IDs,
+			}
+			if err := bus.Dispatch(c, reorder); err != nil {
+				return c.Failure(err)
+			}
+
+			return c.Ok(web.Map{})
+		})
+	}
+}

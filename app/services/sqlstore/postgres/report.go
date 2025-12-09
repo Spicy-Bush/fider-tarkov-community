@@ -496,3 +496,19 @@ func generateSlug(title string) string {
 	}
 	return slug
 }
+
+func reorderReportReasons(ctx context.Context, c *cmd.ReorderReportReasons) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		for i, id := range c.IDs {
+			_, err := trx.Execute(`
+				UPDATE report_reasons 
+				SET sort_order = $1
+				WHERE id = $2 AND tenant_id = $3
+			`, i+1, id, tenant.ID)
+			if err != nil {
+				return errors.Wrap(err, "failed to reorder report reason")
+			}
+		}
+		return nil
+	})
+}

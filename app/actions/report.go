@@ -245,3 +245,21 @@ func (a *DeleteReportReason) Validate(ctx context.Context, user *entity.User) *v
 
 	return result
 }
+
+type ReorderReportReasons struct {
+	IDs []int `json:"ids"`
+}
+
+func (a *ReorderReportReasons) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+}
+
+func (a *ReorderReportReasons) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	if len(a.IDs) == 0 {
+		result.AddFieldFailure("ids", propertyIsRequired(ctx, "ids"))
+	}
+
+	return result
+}

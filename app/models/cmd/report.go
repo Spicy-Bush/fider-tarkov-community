@@ -47,3 +47,7 @@ type UpdateReportReason struct {
 type DeleteReportReason struct {
 	ID int
 }
+
+type ReorderReportReasons struct {
+	IDs []int
+}

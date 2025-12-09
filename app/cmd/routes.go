@@ -250,6 +250,7 @@ func routes(r *web.Engine) *web.Engine {
 		collabAdmin.Post("/api/v1/report-reasons", handlers.CreateReportReason())
 		collabAdmin.Put("/api/v1/report-reasons/:id", handlers.UpdateReportReason())
 		collabAdmin.Delete("/api/v1/report-reasons/:id", handlers.DeleteReportReason())
+		collabAdmin.Put("/api/v1/admin/report-reasons-order", handlers.ReorderReportReasons())
 
 		collabAdmin.Get("/admin/tags", handlers.ManageTags())
 		collabAdmin.Post("/api/v1/tags", apiv1.CreateEditTag())

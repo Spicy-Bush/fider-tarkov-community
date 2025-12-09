@@ -191,6 +191,7 @@ func (s Service) Init() {
 	bus.AddHandler(createReportReason)
 	bus.AddHandler(updateReportReason)
 	bus.AddHandler(deleteReportReason)
+	bus.AddHandler(reorderReportReasons)
 }
 
 type SqlHandler func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error

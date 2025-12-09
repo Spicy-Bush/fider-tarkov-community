@@ -140,3 +140,7 @@ export const updateReportReason = async (
 export const deleteReportReason = async (id: number): Promise<Result> => {
   return http.delete(`/api/v1/report-reasons/${id}`)
 }
+
+export const reorderReportReasons = async (ids: number[]): Promise<Result> => {
+  return http.put("/api/v1/admin/report-reasons-order", { ids })
+}

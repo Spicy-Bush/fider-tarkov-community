@@ -16,6 +16,7 @@ import { actions, Failure, notify, classSet } from "@fider/services"
 import IconPlus from "@fider/assets/images/heroicons-plus-circle.svg"
 import IconEdit from "@fider/assets/images/heroicons-pencil-alt.svg"
 import IconTrash from "@fider/assets/images/heroicons-trash.svg"
+import IconMenu from "@fider/assets/images/heroicons-menu.svg"
 import { CannedResponse } from "@fider/services/actions/response"
 import { ReportReason } from "@fider/models"
 import { Trans } from "@lingui/react/macro"
@@ -94,6 +95,8 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
   const [reasonDeleteConfirmation, setReasonDeleteConfirmation] = useState<{ isOpen: boolean; id?: number }>({
     isOpen: false,
   })
+  const [draggedReasonIndex, setDraggedReasonIndex] = useState<number | null>(null)
+  const [dragOverReasonIndex, setDragOverReasonIndex] = useState<number | null>(null)
 
   useEffect(() => {
     loadResponses()
@@ -195,6 +198,50 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
         notify.error(i18n._("reportReasons.deleted.error", { message: "Failed to delete report reason" }))
       }
     }
+  }
+
+  const handleReasonDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedReasonIndex(index)
+    e.dataTransfer.effectAllowed = "move"
+  }
+
+  const handleReasonDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+    setDragOverReasonIndex(index)
+  }
+
+  const handleReasonDragLeave = () => {
+    setDragOverReasonIndex(null)
+  }
+
+  const handleReasonDrop = async (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault()
+    if (draggedReasonIndex === null || draggedReasonIndex === dropIndex) {
+      setDraggedReasonIndex(null)
+      setDragOverReasonIndex(null)
+      return
+    }
+
+    const newReasons = [...reasons]
+    const [draggedItem] = newReasons.splice(draggedReasonIndex, 1)
+    newReasons.splice(dropIndex, 0, draggedItem)
+
+    setReasons(newReasons)
+    setDraggedReasonIndex(null)
+    setDragOverReasonIndex(null)
+
+    const ids = newReasons.map((r) => r.id)
+    const result = await actions.reorderReportReasons(ids)
+    if (!result.ok) {
+      notify.error(i18n._("reportReasons.reorder.error", { message: "Failed to reorder report reasons" }))
+      loadReasons()
+    }
+  }
+
+  const handleReasonDragEnd = () => {
+    setDraggedReasonIndex(null)
+    setDragOverReasonIndex(null)
   }
 
   const loadResponses = async () => {
@@ -425,6 +472,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
             <table className="w-full">
               <thead>
                 <tr className="border-b">
+                  <th className="w-10 p-2"></th>
                   <th className="text-left p-2"><Trans id="reportReasons.table.title">Title</Trans></th>
                   <th className="text-left p-2"><Trans id="reportReasons.table.description">Description</Trans></th>
                   <th className="text-center p-2"><Trans id="reportReasons.table.status">Status</Trans></th>
@@ -432,8 +480,26 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
                 </tr>
               </thead>
               <tbody>
-                {reasons.map((reason) => (
-                  <tr key={reason.id} className={`border-b ${!reason.isActive ? "opacity-50" : ""}`}>
+                {reasons.map((reason, index) => (
+                  <tr
+                    key={reason.id}
+                    draggable
+                    onDragStart={(e) => handleReasonDragStart(e, index)}
+                    onDragOver={(e) => handleReasonDragOver(e, index)}
+                    onDragLeave={handleReasonDragLeave}
+                    onDrop={(e) => handleReasonDrop(e, index)}
+                    onDragEnd={handleReasonDragEnd}
+                    className={classSet({
+                      "border-b transition-colors": true,
+                      "opacity-50": !reason.isActive,
+                      "opacity-40": draggedReasonIndex === index,
+                      "border-t-2 border-t-primary-base": dragOverReasonIndex === index && draggedReasonIndex !== null && draggedReasonIndex > index,
+                      "border-b-2 border-b-primary-base": dragOverReasonIndex === index && draggedReasonIndex !== null && draggedReasonIndex < index,
+                    })}
+                  >
+                    <td className="p-2 cursor-grab active:cursor-grabbing">
+                      <Icon sprite={IconMenu} className="h-4 w-4 text-gray-400" />
+                    </td>
                     <td className="p-2">{reason.title}</td>
                     <td className="p-2">
                       <div className="truncate max-w-md">{reason.description || "-"}</div>
