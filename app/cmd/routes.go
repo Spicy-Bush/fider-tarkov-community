@@ -131,6 +131,7 @@ func routes(r *web.Engine) *web.Engine {
 	membersApi := r.Group()
 	{
 		membersApi.Use(middlewares.IsAuthenticated())
+		membersApi.Use(middlewares.BlockLockedTenants())
 
 		// user settings
 		membersApi.Get("/profile", handlers.UserProfile())
@@ -181,6 +182,7 @@ func routes(r *web.Engine) *web.Engine {
 	{
 		helper.Use(middlewares.IsAuthenticated())
 		helper.Use(middlewares.IsAuthorized(enum.RoleHelper, enum.RoleCollaborator, enum.RoleAdministrator, enum.RoleModerator))
+		helper.Use(middlewares.BlockLockedTenants())
 
 		// tags
 		helper.Post("/api/v1/posts/:number/tags/:slug", apiv1.AssignTag())
@@ -229,6 +231,7 @@ func routes(r *web.Engine) *web.Engine {
 		collabAdmin.Use(middlewares.SetLocale("en"))
 		collabAdmin.Use(middlewares.IsAuthenticated())
 		collabAdmin.Use(middlewares.IsAuthorized(enum.RoleCollaborator, enum.RoleAdministrator))
+		collabAdmin.Use(middlewares.BlockLockedTenants())
 
 		// admin pages
 		collabAdmin.Get("/admin", handlers.GeneralSettingsPage())
