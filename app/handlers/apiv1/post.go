@@ -183,12 +183,8 @@ func CreatePost() web.HandlerFunc {
 			}
 
 			if env.Config.PostCreationWithTagsEnabled {
-				for _, tagSlug := range action.TagSlugs {
-					getTag := &query.GetTagBySlug{Slug: tagSlug}
-					if err := bus.Dispatch(c, getTag); err != nil {
-						return c.Failure(err)
-					}
-					assignTag := &cmd.AssignTag{Tag: getTag.Result, Post: newPost.Result}
+				for _, tag := range action.Tags {
+					assignTag := &cmd.AssignTag{Tag: tag, Post: newPost.Result}
 					if err := bus.Dispatch(c, assignTag); err != nil {
 						return c.Failure(err)
 					}

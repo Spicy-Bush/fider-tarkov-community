@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+
 	"encoding/json"
 	"regexp"
 	"time"
@@ -139,8 +140,9 @@ func (action *AssignUnassignTag) Validate(ctx context.Context, user *entity.User
 
 			var oldestDate *time.Time
 			for _, tagDate := range tagDates {
-				if oldestDate == nil || tagDate.CreatedAt.Before(*oldestDate) {
-					oldestDate = &tagDate.CreatedAt
+				createdAt := tagDate.CreatedAt
+				if oldestDate == nil || createdAt.Before(*oldestDate) {
+					oldestDate = &createdAt
 				}
 			}
 
