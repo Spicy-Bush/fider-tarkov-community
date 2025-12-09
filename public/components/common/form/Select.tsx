@@ -16,6 +16,7 @@ interface SelectProps {
   label?: string
   maxLength?: number
   defaultValue?: string
+  value?: string
   options: SelectOption[]
   onChange?: (option?: SelectOption) => void
   disabled?: boolean
@@ -23,6 +24,7 @@ interface SelectProps {
 
 export const Select: React.FunctionComponent<SelectProps> = (props) => {
   const Options = Array.isArray(props.options) ? props.options : [];
+  const isControlled = props.value !== undefined
   
   const getOption = (value?: string) => {
     if (value && Options.length > 0) {
@@ -34,20 +36,23 @@ export const Select: React.FunctionComponent<SelectProps> = (props) => {
     return undefined;
   }
   
-  const [selected, setSelected] = React.useState<SelectOption | undefined>(getOption(props.defaultValue))
+  const [internalSelected, setInternalSelected] = React.useState<SelectOption | undefined>(getOption(props.defaultValue))
+  const selected = isControlled ? getOption(props.value) : internalSelected
   
   const onChange = (e: React.FormEvent<HTMLSelectElement>) => {
-    let selected: SelectOption | undefined
+    let newSelected: SelectOption | undefined
     if (e.currentTarget.value) {
       const options = Options.filter((o) => o.value === e.currentTarget.value)
       if (options && options.length > 0) {
-        selected = options[0]
+        newSelected = options[0]
       }
     }
 
-    setSelected(selected)
+    if (!isControlled) {
+      setInternalSelected(newSelected)
+    }
     if (props.onChange) {
-      props.onChange(selected)
+      props.onChange(newSelected)
     }
   }
 

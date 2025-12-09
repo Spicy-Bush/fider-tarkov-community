@@ -85,6 +85,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
 
   const [reasons, setReasons] = useState<ReportReason[]>([])
   const [isLoadingReasons, setIsLoadingReasons] = useState(false)
+  const [hasLoadedReasons, setHasLoadedReasons] = useState(false)
   const [reasonsError, setReasonsError] = useState<string>()
   const [reasonEditorState, setReasonEditorState] = useState<ReasonEditorState>({
     isOpen: false,
@@ -95,6 +96,8 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
   const [reasonDeleteConfirmation, setReasonDeleteConfirmation] = useState<{ isOpen: boolean; id?: number }>({
     isOpen: false,
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [draggedReasonIndex, setDraggedReasonIndex] = useState<number | null>(null)
   const [dragOverReasonIndex, setDragOverReasonIndex] = useState<number | null>(null)
 
@@ -103,10 +106,10 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
   }, [selectedType])
 
   useEffect(() => {
-    if (activeTab === "reasons" && reasons.length === 0 && !isLoadingReasons) {
+    if (activeTab === "reasons" && !hasLoadedReasons && !isLoadingReasons) {
       loadReasons()
     }
-  }, [activeTab])
+  }, [activeTab, hasLoadedReasons, isLoadingReasons])
 
   const loadReasons = async () => {
     setIsLoadingReasons(true)
@@ -119,6 +122,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
       setReasonsError("Failed to load report reasons")
     }
     setIsLoadingReasons(false)
+    setHasLoadedReasons(true)
   }
 
   const openCreateReasonEditor = () => {
@@ -155,6 +159,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
       return
     }
 
+    setIsSubmitting(true)
     let result: { ok: boolean; error?: Failure }
     if (id) {
       result = await actions.updateReportReason(id, {
@@ -180,6 +185,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
     } else if (result.error) {
       setReasonEditorState((prev) => ({ ...prev, error: result.error }))
     }
+    setIsSubmitting(false)
   }
 
   const confirmDeleteReason = (id: number) => {
@@ -189,6 +195,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
   const handleDeleteReason = async () => {
     const { id } = reasonDeleteConfirmation
     if (id) {
+      setIsDeleting(true)
       const result = await actions.deleteReportReason(id)
       if (result.ok) {
         notify.success(i18n._("reportReasons.deleted.success", { message: "Report reason deleted successfully" }))
@@ -197,6 +204,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
       } else {
         notify.error(i18n._("reportReasons.deleted.error", { message: "Failed to delete report reason" }))
       }
+      setIsDeleting(false)
     }
   }
 
@@ -309,6 +317,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
       return
     }
 
+    setIsSubmitting(true)
     let result: { ok: boolean; error?: Failure }
     if (id) {
       result = await actions.updateCannedResponse(id, { 
@@ -330,6 +339,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
     } else if (result.error) {
       setEditorState(prev => ({ ...prev, error: result.error }))
     }
+    setIsSubmitting(false)
   }
 
   const confirmDelete = (id: number) => {
@@ -339,6 +349,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
   const handleDelete = async () => {
     const { id } = deleteConfirmation
     if (id) {
+      setIsDeleting(true)
       const result = await actions.deleteCannedResponse(id)
       if (result.ok) {
         notify.success(i18n._("responses.deleted.success", { message: "Response deleted successfully" }))
@@ -347,13 +358,14 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
       } else {
         notify.error(i18n._("responses.deleted.error", { message: "Failed to delete response" }))
       }
+      setIsDeleting(false)
     }
   }
 
-  const typeOptions = safeTypes.map(type => ({
+  const typeOptions = useMemo(() => safeTypes.map(type => ({
     value: type,
     label: type.charAt(0).toUpperCase() + type.slice(1)
-  }))
+  })), [safeTypes])
 
   const tabClass = (tab: TabType) => classSet({
     "px-4 py-2 font-medium cursor-pointer border-b-2 transition-colors": true,
@@ -378,9 +390,8 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
             <HStack spacing={2}>
               <span className="font-medium whitespace-nowrap">Response Type:</span>
               <Select
-                key={`type-select-${selectedType}`}
                 field="type"
-                defaultValue={selectedType}
+                value={selectedType}
                 options={typeOptions}
                 onChange={handleTypeChange}
               />
@@ -541,10 +552,9 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
         <Modal.Content>
           <Form error={editorState.error}>
             <Select
-              key={`editor-type-${editorState.isOpen}-${editorState.type}`}
               field="type"
               label={i18n._("responses.type.label", { message: "Response Type" })}
-              defaultValue={editorState.type}
+              value={editorState.type}
               options={typeOptions}
               onChange={(opt) => opt && setEditorState(prev => ({ ...prev, type: opt.value }))}
             />
@@ -570,29 +580,24 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
               placeholder="e.g. 30m, 1h, 1d"
             />
             {editorState.id && (
-              <div className="mt-4">
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editorState.isActive}
-                    onChange={(e) => setEditorState(prev => ({ ...prev, isActive: e.target.checked }))}
-                    className="mr-2"
-                  />
-                  <span><Trans id="responses.active.label">Active</Trans></span>
-                </label>
-              </div>
+              <Toggle
+                field="isActive"
+                label={i18n._("responses.active.label", { message: "Active" })}
+                active={editorState.isActive}
+                onToggle={() => setEditorState(prev => ({ ...prev, isActive: !prev.isActive }))}
+              />
             )}
           </Form>
         </Modal.Content>
         <Modal.Footer>
-          <Button variant="primary" onClick={handleEditorSubmit}>
+          <Button variant="primary" onClick={handleEditorSubmit} disabled={isSubmitting}>
             {editorState.id ? (
               <Trans id="action.save">Save</Trans>
             ) : (
               <Trans id="action.create">Create</Trans>
             )}
           </Button>
-          <Button variant="tertiary" onClick={closeEditor}>
+          <Button variant="tertiary" onClick={closeEditor} disabled={isSubmitting}>
             <Trans id="action.cancel">Cancel</Trans>
           </Button>
         </Modal.Footer>
@@ -611,10 +616,10 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
           <p><Trans id="responses.delete.message">Are you sure you want to delete this response? This action cannot be undone.</Trans></p>
         </Modal.Content>
         <Modal.Footer>
-          <Button variant="danger" onClick={handleDelete}>
+          <Button variant="danger" onClick={handleDelete} disabled={isDeleting}>
             <Trans id="action.delete">Delete</Trans>
           </Button>
-          <Button variant="tertiary" onClick={() => setDeleteConfirmation({ isOpen: false })}>
+          <Button variant="tertiary" onClick={() => setDeleteConfirmation({ isOpen: false })} disabled={isDeleting}>
             <Trans id="action.cancel">Cancel</Trans>
           </Button>
         </Modal.Footer>
@@ -655,14 +660,14 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
           </Form>
         </Modal.Content>
         <Modal.Footer>
-          <Button variant="primary" onClick={handleReasonEditorSubmit}>
+          <Button variant="primary" onClick={handleReasonEditorSubmit} disabled={isSubmitting}>
             {reasonEditorState.id ? (
               <Trans id="action.save">Save</Trans>
             ) : (
               <Trans id="action.create">Create</Trans>
             )}
           </Button>
-          <Button variant="tertiary" onClick={closeReasonEditor}>
+          <Button variant="tertiary" onClick={closeReasonEditor} disabled={isSubmitting}>
             <Trans id="action.cancel">Cancel</Trans>
           </Button>
         </Modal.Footer>
@@ -685,10 +690,10 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
           </p>
         </Modal.Content>
         <Modal.Footer>
-          <Button variant="danger" onClick={handleDeleteReason}>
+          <Button variant="danger" onClick={handleDeleteReason} disabled={isDeleting}>
             <Trans id="action.delete">Delete</Trans>
           </Button>
-          <Button variant="tertiary" onClick={() => setReasonDeleteConfirmation({ isOpen: false })}>
+          <Button variant="tertiary" onClick={() => setReasonDeleteConfirmation({ isOpen: false })} disabled={isDeleting}>
             <Trans id="action.cancel">Cancel</Trans>
           </Button>
         </Modal.Footer>
