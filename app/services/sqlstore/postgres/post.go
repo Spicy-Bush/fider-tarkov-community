@@ -131,33 +131,6 @@ var (
 								WHERE post_tags.tenant_id = $1
 								%s
 								GROUP BY post_id 
-							), 
-							agg_comments AS (
-									SELECT 
-											post_id, 
-											COUNT(CASE WHEN comments.created_at > CURRENT_DATE - INTERVAL '30 days' THEN 1 END) as recent,
-											COUNT(*) as all
-									FROM comments 
-									INNER JOIN posts
-									ON posts.id = comments.post_id
-									AND posts.tenant_id = comments.tenant_id
-									WHERE posts.tenant_id = $1
-									AND comments.deleted_at IS NULL
-									GROUP BY post_id
-							),
-							agg_votes AS (
-									SELECT 
-											post_id, 
-											SUM(CASE WHEN post_votes.created_at > CURRENT_DATE - INTERVAL '30 days' THEN vote_type ELSE 0 END) as recent,
-											SUM(vote_type) as all,
-											SUM(CASE WHEN vote_type > 0 THEN 1 ELSE 0 END) as upvotes,
-											SUM(CASE WHEN vote_type < 0 THEN 1 ELSE 0 END) as downvotes
-									FROM post_votes 
-									INNER JOIN posts
-									ON posts.id = post_votes.post_id
-									AND posts.tenant_id = post_votes.tenant_id
-									WHERE posts.tenant_id = $1
-									GROUP BY post_id
 							)
 							SELECT p.id, 
 										p.number, 
@@ -166,12 +139,12 @@ var (
 										p.description, 
 										p.created_at,
 										p.last_activity_at,
-										COALESCE(agg_s.all, 0) as votes_count,
-										COALESCE(agg_c.all, 0) as comments_count,
-										COALESCE(agg_s.recent, 0) AS recent_votes_count,
-										COALESCE(agg_c.recent, 0) AS recent_comments_count,
-										COALESCE(agg_s.upvotes, 0) AS upvotes,
-										COALESCE(agg_s.downvotes, 0) AS downvotes,																
+										(p.upvotes - p.downvotes) as votes_count,
+										p.comments_count,
+										p.recent_votes AS recent_votes_count,
+										p.recent_comments AS recent_comments_count,
+										p.upvotes,
+										p.downvotes,																
 										p.status, 
 										u.id AS user_id, 
 										u.name AS user_name, 
@@ -209,10 +182,6 @@ var (
 							LEFT JOIN posts d
 							ON d.id = p.original_id
 							AND d.tenant_id = $1
-							LEFT JOIN agg_comments agg_c
-							ON agg_c.post_id = p.id
-							LEFT JOIN agg_votes agg_s
-							ON agg_s.post_id = p.id
 							LEFT JOIN agg_tags agg_t 
 							ON agg_t.post_id = p.id
 							WHERE p.status != ` + strconv.Itoa(int(enum.PostDeleted)) + ` AND %s`
@@ -559,6 +528,38 @@ func getAllPosts(ctx context.Context, q *query.GetAllPosts) error {
 	})
 }
 
+func getPostsByIDs(ctx context.Context, q *query.GetPostsByIDs) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if len(q.PostIDs) == 0 {
+			q.Result = []*entity.Post{}
+			return nil
+		}
+
+		statuses := []enum.PostStatus{
+			enum.PostOpen,
+			enum.PostStarted,
+			enum.PostPlanned,
+			enum.PostCompleted,
+			enum.PostDeclined,
+		}
+
+		innerQuery := buildPostQuery(user, "p.tenant_id = $1 AND p.status = ANY($2) AND p.id = ANY($3)")
+		sql := fmt.Sprintf(`SELECT * FROM (%s) AS q`, innerQuery)
+
+		var posts []*dbPost
+		err := trx.Select(&posts, sql, tenant.ID, pq.Array(statuses), pq.Array(q.PostIDs))
+		if err != nil {
+			return errors.Wrap(err, "failed to get posts by IDs")
+		}
+
+		q.Result = make([]*entity.Post, len(posts))
+		for i, post := range posts {
+			q.Result[i] = post.toModel(ctx)
+		}
+		return nil
+	})
+}
+
 func querySinglePost(ctx context.Context, trx *dbx.Trx, query string, args ...any) (*entity.Post, error) {
 	post := dbPost{}
 
@@ -635,6 +636,41 @@ func unlockPost(ctx context.Context, c *cmd.UnlockPost) error {
 		}
 
 		c.Post.LockedSettings = nil
+		return nil
+	})
+}
+
+func refreshPostStats(ctx context.Context, c *cmd.RefreshPostStats) error {
+	return using(ctx, func(trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
+		baseQuery := `
+			UPDATE posts p SET
+				recent_votes = COALESCE((
+					SELECT SUM(v.vote_type) 
+					FROM post_votes v 
+					WHERE v.post_id = p.id AND v.tenant_id = p.tenant_id 
+					AND v.created_at > CURRENT_DATE - INTERVAL '30 days'
+				), 0),
+				recent_comments = COALESCE((
+					SELECT COUNT(*) 
+					FROM comments c 
+					WHERE c.post_id = p.id AND c.tenant_id = p.tenant_id 
+					AND c.deleted_at IS NULL 
+					AND c.created_at > CURRENT_DATE - INTERVAL '30 days'
+				), 0)
+			WHERE p.status != $1`
+
+		var rowsUpdated int64
+		var err error
+		if c.Since != nil {
+			rowsUpdated, err = trx.Execute(baseQuery+" AND p.last_activity_at >= $2", int(enum.PostDeleted), *c.Since)
+		} else {
+			rowsUpdated, err = trx.Execute(baseQuery, int(enum.PostDeleted))
+		}
+		if err != nil {
+			return errors.Wrap(err, "failed to refresh post stats")
+		}
+
+		c.RowsUpdated = rowsUpdated
 		return nil
 	})
 }

@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"time"
+
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 )
@@ -33,4 +35,9 @@ type LockPost struct {
 
 type UnlockPost struct {
 	Post *entity.Post
+}
+
+type RefreshPostStats struct {
+	Since       *time.Time
+	RowsUpdated int64
 }

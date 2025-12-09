@@ -69,6 +69,12 @@ type GetAllPosts struct {
 	Result []*entity.Post
 }
 
+type GetPostsByIDs struct {
+	PostIDs []int
+
+	Result []*entity.Post
+}
+
 func (q *SearchPosts) SetStatusesFromStrings(statuses []string) {
 	for _, v := range statuses {
 		var postStatus enum.PostStatus

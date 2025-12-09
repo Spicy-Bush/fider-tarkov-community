@@ -14,6 +14,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/markdown"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/tasks"
 )
@@ -81,34 +82,94 @@ func SearchPosts() web.HandlerFunc {
 			}
 		}
 
+		searchQuery := c.QueryParam("query")
+		myVotesOnly := false
+		if v, err := c.QueryParamAsBool("myvotes"); err == nil {
+			myVotesOnly = v
+		}
+		myPostsOnly := false
+		if v, err := c.QueryParamAsBool("myposts"); err == nil {
+			myPostsOnly = v
+		}
+		notMyVotes := false
+		if v, err := c.QueryParamAsBool("notmyvotes"); err == nil {
+			notMyVotes = v
+		}
+
+		statuses := c.QueryParamAsArray("statuses")
+		dateFilter := c.QueryParam("date")
+
+		isCacheable := postcache.IsCacheable(
+			viewQueryParams,
+			myVotesOnly,
+			myPostsOnly,
+			notMyVotes,
+			filteredTags,
+			searchQuery,
+			untagged,
+		) && clientOffset == 0 && len(statuses) == 0 && dateFilter == ""
+
+		tenantID := c.Tenant().ID
+
+		if isCacheable {
+			cacheKey := postcache.GetCacheKey(viewQueryParams)
+			if cachedIDs, ok := postcache.GetRanking(tenantID, cacheKey); ok && len(cachedIDs) > 0 {
+				endIdx := effectiveLimit
+				if endIdx > len(cachedIDs) {
+					endIdx = len(cachedIDs)
+				}
+				postIDs := cachedIDs[:endIdx]
+
+				getPostsByIDs := &query.GetPostsByIDs{PostIDs: postIDs}
+				if err := bus.Dispatch(c, getPostsByIDs); err != nil {
+					return c.Failure(err)
+				}
+
+				idToPost := make(map[int]*entity.Post)
+				for _, post := range getPostsByIDs.Result {
+					idToPost[post.ID] = post
+				}
+
+				result := make([]*entity.Post, 0, len(postIDs))
+				for _, id := range postIDs {
+					if post, ok := idToPost[id]; ok {
+						result = append(result, post)
+					}
+				}
+
+				return c.Ok(result)
+			}
+		}
+
 		searchPosts := &query.SearchPosts{
-			Query:    c.QueryParam("query"),
-			View:     viewQueryParams,
-			Limit:    strconv.Itoa(effectiveLimit),
-			Offset:   strconv.Itoa(clientOffset),
-			Tags:     filteredTags,
-			Untagged: untagged,
-			Date:     c.QueryParam("date"),
-			TagLogic: tagLogicParam,
+			Query:       searchQuery,
+			View:        viewQueryParams,
+			Limit:       strconv.Itoa(effectiveLimit),
+			Offset:      strconv.Itoa(clientOffset),
+			Tags:        filteredTags,
+			Untagged:    untagged,
+			Date:        dateFilter,
+			TagLogic:    tagLogicParam,
+			MyVotesOnly: myVotesOnly,
+			MyPostsOnly: myPostsOnly,
+			NotMyVotes:  notMyVotes,
 		}
 
-		if myVotesOnly, err := c.QueryParamAsBool("myvotes"); err == nil {
-			searchPosts.MyVotesOnly = myVotesOnly
-		}
-
-		if myPostsOnly, err := c.QueryParamAsBool("myposts"); err == nil {
-			searchPosts.MyPostsOnly = myPostsOnly
-		}
-
-		if notMyVotes, err := c.QueryParamAsBool("notmyvotes"); err == nil {
-			searchPosts.NotMyVotes = notMyVotes
-		}
-
-		searchPosts.SetStatusesFromStrings(c.QueryParamAsArray("statuses"))
+		searchPosts.SetStatusesFromStrings(statuses)
 
 		if err := bus.Dispatch(c, searchPosts); err != nil {
 			return c.Failure(err)
 		}
+
+		if isCacheable && len(searchPosts.Result) > 0 {
+			postIDs := make([]int, len(searchPosts.Result))
+			for i, post := range searchPosts.Result {
+				postIDs[i] = post.ID
+			}
+			cacheKey := postcache.GetCacheKey(viewQueryParams)
+			postcache.SetRanking(tenantID, cacheKey, postIDs)
+		}
+
 		return c.Ok(searchPosts.Result)
 	}
 }
@@ -156,6 +217,8 @@ func CreatePost() web.HandlerFunc {
 			}
 
 			c.Enqueue(tasks.NotifyAboutNewPost(newPost.Result))
+
+			postcache.InvalidateTenantRankings(c.Tenant().ID)
 
 			metrics.TotalPosts.Inc()
 			return c.Ok(web.Map{
@@ -265,6 +328,8 @@ func SetResponse() web.HandlerFunc {
 
 			c.Enqueue(tasks.NotifyAboutStatusChange(getPost.Result, prevStatus))
 
+			postcache.InvalidateTenantRankings(c.Tenant().ID)
+
 			return c.Ok(web.Map{})
 		})
 	}
@@ -289,6 +354,8 @@ func DeletePost() web.HandlerFunc {
 			}
 
 			c.Enqueue(tasks.TriggerDeleteWebhook(action.Post))
+
+			postcache.InvalidateTenantRankings(c.Tenant().ID)
 
 			return c.Ok(web.Map{})
 		})
@@ -428,6 +495,8 @@ func PostComment() web.HandlerFunc {
 
 			c.Enqueue(tasks.NotifyAboutNewComment(addNewComment.Result, getPost.Result))
 
+			postcache.InvalidateTenantRankings(c.Tenant().ID)
+
 			metrics.TotalComments.Inc()
 			return c.Ok(web.Map{
 				"id": addNewComment.Result.ID,
@@ -505,12 +574,21 @@ func DeleteComment() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
+		getPost := &query.GetPostByNumber{Number: action.PostNumber}
+		if err := bus.Dispatch(c, getPost); err != nil {
+			return c.Failure(err)
+		}
+
 		return c.WithTransaction(func() error {
 			err := bus.Dispatch(c, &cmd.DeleteComment{
 				CommentID: action.CommentID,
 			})
 			if err != nil {
 				return c.Failure(err)
+			}
+
+			if getPost.Result != nil {
+				postcache.InvalidateTenantRankings(c.Tenant().ID)
 			}
 
 			return c.Ok(web.Map{})
@@ -610,6 +688,9 @@ func ToggleVote() web.HandlerFunc {
 			if err != nil {
 				return c.Failure(err)
 			}
+
+			postcache.InvalidateTenantRankings(c.Tenant().ID)
+
 			metrics.TotalVotes.Inc()
 			return c.Ok(web.Map{"voted": (newVote == enum.VoteTypeUp)})
 		})
@@ -679,6 +760,8 @@ func addOrRemove(c *web.Context, getCommand func(post *entity.Post, user *entity
 		if err != nil {
 			return c.Failure(err)
 		}
+
+		postcache.InvalidateTenantRankings(c.Tenant().ID)
 
 		return c.Ok(web.Map{})
 	})
