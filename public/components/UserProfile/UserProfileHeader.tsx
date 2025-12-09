@@ -165,7 +165,7 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
                     <a className="text-link" rel="noopener" href="https://en.gravatar.com" target="_blank">
                       Gravatar
                     </a>{" "}
-                    will be used based on your email.
+                    will be used based on your email. If you don&apos;t have a Gravatar, a letter avatar based on your initials is generated for you.
                   </Trans>
                 </p>
               )}
@@ -182,7 +182,7 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
                 >
                   <p className="text-muted">
                     <Trans id="mysettings.message.avatar.custom">
-                      We accept JPG and PNG images, smaller than 5MB with 1:1 aspect ratio.
+                      We accept JPG and PNG images, smaller than 5MB and with an aspect ratio of 1:1 with minimum dimensions of 50x50 pixels.
                     </Trans>
                   </p>
                 </ImageUploader>

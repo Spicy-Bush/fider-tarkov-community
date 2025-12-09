@@ -29,9 +29,7 @@ export const SignInModal: React.FC<SignInModalProps> = (props) => {
   const content = email ? (
     <>
       <p>
-        <Trans id="signin.message.emailsent">
-          We have just sent a confirmation link to <b>{email}</b>. Click the link and you’ll be signed in.
-        </Trans>
+        <Trans id="signin.message.emailsent">We have just sent a confirmation link to <b>{email}</b>. Click the link and you'll be signed in.</Trans>
       </p>
       <p>
         <Button variant="tertiary" onClick={closeModal}>

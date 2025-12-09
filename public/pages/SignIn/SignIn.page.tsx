@@ -38,9 +38,7 @@ export const SignInPage = () => {
   const onEmailSent = (email: string) => {
     notify.success(
       <span>
-        <Trans id="signin.message.emailsent">
-          We have just sent a confirmation link to <b>{email}</b>. Click the link and you'll be signed in.
-        </Trans>
+        <Trans id="signin.message.emailsent">We have just sent a confirmation link to <b>{email}</b>. Click the link and you'll be signed in.</Trans>
       </span>
     )
   }
