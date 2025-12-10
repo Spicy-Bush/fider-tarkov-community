@@ -7,6 +7,8 @@ export type PageModule = {
   pageConfig?: PageConfig
 }
 
+const pageModules = import.meta.glob<PageModule>("./pages/**/*.page.tsx")
+
 const MAX_RETRIES = 6
 const INTERVAL = 1000
 
@@ -40,13 +42,13 @@ const loadPageModule = (pageName: string): Promise<PageModule> => {
     return existingPromise
   }
 
-  const loadPromise = retry(() =>
-    import(
-      /* webpackInclude: /\.page.tsx$/ */
-      /* webpackChunkName: "[request]" */
-      `@fider/pages/${pageName}`
-    )
-  ).then((module: PageModule) => {
+  const modulePath = `./pages/${pageName}.tsx`
+  const loader = pageModules[modulePath]
+  if (!loader) {
+    return Promise.reject(new Error(`Page not found: ${pageName}`))
+  }
+
+  const loadPromise = retry(() => loader()).then((module: PageModule) => {
     moduleCache.set(pageName, module)
     loadingPromises.delete(pageName)
     return module

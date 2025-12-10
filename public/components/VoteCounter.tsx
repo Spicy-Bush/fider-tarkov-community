@@ -5,8 +5,7 @@ import { Post, PostStatus, isPostLocked } from "@fider/models"
 import { actions, classSet } from "@fider/services"
 import { Icon, SignInModal } from "@fider/components"
 import { useFider } from "@fider/hooks"
-import FaCaretUp from "@fider/assets/images/fa-caretup.svg"
-import FaCaretDown from "@fider/assets/images/fa-caretdown.svg"
+import { faCaretup as FaCaretUp, faCaretdown as FaCaretDown } from "@fider/icons.generated"
 
 
 export interface VoteCounterProps {

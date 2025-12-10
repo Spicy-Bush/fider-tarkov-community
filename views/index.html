@@ -2,7 +2,7 @@
   {{range $asset := .private.preloadAssets}}
     {{if $asset}}
       {{range $asset.CSS}}<link rel="preload" href="{{ $.public.settings.assetsURL }}{{ . }}" as="style" />{{end}}
-      {{range $asset.JS}}<link rel="preload" href="{{ $.public.settings.assetsURL }}{{ . }}" as="script" />{{end}}
+      {{range $asset.JS}}<link rel="modulepreload" href="{{ $.public.settings.assetsURL }}{{ . }}" />{{end}}
     {{end}}
   {{end}}
 {{end}}
@@ -25,7 +25,7 @@
 {{define "end-of-body"}}
   {{ if .private.assets }}
     {{range .private.assets.JS}}
-    <script src="{{ $.public.settings.assetsURL }}{{ . }}" crossorigin="anonymous"></script>
+    <script type="module" src="{{ $.public.settings.assetsURL }}{{ . }}" crossorigin="anonymous"></script>
     {{end}}
   {{end}}
 {{end}}

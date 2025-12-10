@@ -5,9 +5,7 @@ import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
 import { UserAvatarType, ImageUpload } from "@fider/models"
 import { actions, Failure } from "@fider/services"
-import IconDocument from "@fider/assets/images/heroicons-pencil-alt.svg"
-import IconChat from "@fider/assets/images/heroicons-chat-alt-2.svg"
-import IconThumbsUp from "@fider/assets/images/heroicons-thumbsup.svg"
+import { heroiconsPencilAlt as IconDocument, heroiconsChatAlt2 as IconChat, heroiconsThumbsup as IconThumbsUp } from "@fider/icons.generated"
 
 interface UserProfileHeaderProps {
   compact?: boolean

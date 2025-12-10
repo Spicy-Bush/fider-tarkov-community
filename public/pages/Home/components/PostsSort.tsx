@@ -1,7 +1,7 @@
 import React from "react"
 import { Dropdown, Icon } from "@fider/components"
 import { HStack } from "@fider/components/layout"
-import HeroUpDown from "@fider/assets/images/heroicons-arrow-up-down.svg"
+import { heroiconsArrowUpDown as HeroUpDown } from "@fider/icons.generated"
 import { i18n } from "@lingui/core"
 
 interface PostsSortProps {

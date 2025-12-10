@@ -1,0 +1,42 @@
+{
+  "public/index.tsx": {
+    "file": "js/main.abc123.js",
+    "name": "main",
+    "src": "public/index.tsx",
+    "isEntry": true,
+    "imports": [
+      "_vendor.def456.js"
+    ],
+    "dynamicImports": [
+      "locale/en/client.json",
+      "public/pages/Home/Home.page.tsx"
+    ],
+    "css": [
+      "css/main.ghi789.css"
+    ]
+  },
+  "_vendor.def456.js": {
+    "file": "js/vendor.def456.js",
+    "name": "vendor"
+  },
+  "locale/en/client.json": {
+    "file": "js/client.jkl012.js",
+    "name": "client",
+    "src": "locale/en/client.json",
+    "isDynamicEntry": true
+  },
+  "public/pages/Home/Home.page.tsx": {
+    "file": "js/Home.page.mno345.js",
+    "name": "Home.page",
+    "src": "public/pages/Home/Home.page.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "public/index.tsx",
+      "_vendor.def456.js"
+    ],
+    "css": [
+      "css/Home.pqr678.css"
+    ]
+  }
+}
+

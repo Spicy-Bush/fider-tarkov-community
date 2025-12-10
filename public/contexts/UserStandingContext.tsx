@@ -85,7 +85,7 @@ export const UserStandingProvider: React.FC<{ children: ReactNode }> = ({ childr
     } finally {
       setIsLoading(false);
     }
-  }, [fider.session.isAuthenticated, fider.session.user?.id, setStandingData]);
+  }, [fider.session.isAuthenticated, fider.session.isAuthenticated ? fider.session.user.id : undefined, setStandingData]);
 
   return (
     <UserStandingContext.Provider 

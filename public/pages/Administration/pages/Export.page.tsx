@@ -1,6 +1,6 @@
 import React from "react"
 import { Button, Icon } from "@fider/components"
-import IconDownload from "@fider/assets/images/heroicons-download.svg"
+import { heroiconsDownload as IconDownload } from "@fider/icons.generated"
 import { PageConfig } from "@fider/components/layouts"
 
 export const pageConfig: PageConfig = {

@@ -1,7 +1,7 @@
 import "./Hint.scss"
 
 import React, { useState } from "react"
-import IconX from "@fider/assets/images/heroicons-x.svg"
+import { heroiconsX as IconX } from "@fider/icons.generated"
 import { HStack } from "@fider/components/layout"
 import { cache } from "@fider/services"
 import { Icon } from "./Icon"

@@ -2,9 +2,7 @@ import React, { ReactNode, Children, isValidElement } from "react"
 import { Icon } from "@fider/components"
 import { useUserProfile, ProfileTab } from "./context"
 import { Trans } from "@lingui/react/macro"
-import IconSearch from "@fider/assets/images/heroicons-search.svg"
-import IconWarning from "@fider/assets/images/heroicons-exclamation.svg"
-import IconDocument from "@fider/assets/images/heroicons-pencil-alt.svg"
+import { heroiconsSearch as IconSearch, heroiconsExclamation as IconWarning, heroiconsPencilAlt as IconDocument } from "@fider/icons.generated"
 
 interface UserProfileTabsProps {
   children: ReactNode

@@ -5,10 +5,7 @@ import { useUserProfile } from "./context"
 import { Trans } from "@lingui/react/macro"
 import { actions, notify } from "@fider/services"
 import { i18n } from "@lingui/core"
-import IconCalendar from "@fider/assets/images/heroicons-calendar.svg"
-import IconWarning from "@fider/assets/images/heroicons-exclamation.svg"
-import IconVolumeOff from "@fider/assets/images/heroicons-muted.svg"
-import IconThumbsUp from "@fider/assets/images/heroicons-thumbsup.svg"
+import { heroiconsCalendar as IconCalendar, heroiconsExclamation as IconWarning, heroiconsMuted as IconVolumeOff, heroiconsThumbsup as IconThumbsUp } from "@fider/icons.generated"
 
 const UserProfileStandingComponent: React.FC = () => {
   const { user, standing, canDeleteModeration, refreshStanding, isViewingOwnProfile } = useUserProfile()

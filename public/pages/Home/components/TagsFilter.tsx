@@ -1,7 +1,7 @@
 import React, { useState } from "react"
 import { Tag } from "@fider/models"
 import { Dropdown, Icon, ShowTag } from "@fider/components"
-import IconCheck from "@fider/assets/images/heroicons-check.svg"
+import { heroiconsCheck as IconCheck } from "@fider/icons.generated"
 import { HStack } from "@fider/components/layout"
 
 import { plural } from "@lingui/core/macro"

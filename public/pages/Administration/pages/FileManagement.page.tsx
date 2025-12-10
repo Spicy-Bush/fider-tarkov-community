@@ -6,12 +6,7 @@ import { Failure, actions, notify } from "@fider/services"
 import { ImageUpload } from "@fider/models"
 import { PageConfig } from "@fider/components/layouts"
 
-import IconTrash from "@fider/assets/images/heroicons-trash.svg"
-import IconPencilAlt from "@fider/assets/images/heroicons-pencil-alt.svg"
-import IconDownload from "@fider/assets/images/heroicons-download.svg"
-import IconUpload from "@fider/assets/images/heroicons-upload.svg"
-import IconEye from "@fider/assets/images/heroicons-eye.svg"
-import IconX from "@fider/assets/images/heroicons-x.svg"
+import { heroiconsTrash as IconTrash, heroiconsPencilAlt as IconPencilAlt, heroiconsDownload as IconDownload, heroiconsUpload as IconUpload, heroiconsEye as IconEye, heroiconsX as IconX } from "@fider/icons.generated"
 
 export const pageConfig: PageConfig = {
   title: "Media Library",

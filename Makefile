@@ -20,7 +20,7 @@ build-server: ## Build server
 	go build -ldflags '-s -w $(LDFLAGS)' -o fider .
 
 build-ui: ## Build all UI assets
-	NODE_ENV=production npx webpack-cli
+	npm run build
 
 build-ssr: ## Build SSR script and locales
 	npx lingui extract public/
@@ -64,8 +64,10 @@ watch:
 watch-server: migrate ## Build and run server in watch mode
 	air -c air.conf
 
-watch-ui: ## Build and run server in watch mode
-	npx webpack-cli -w
+watch-ui: ## Build UI in watch mode (rebuilds on changes)
+	npx lingui compile
+	npm run build:sprites
+	npx vite build --watch
 
 
 

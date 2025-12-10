@@ -1,9 +1,7 @@
 import React, { useEffect } from "react"
 import { navigator } from "@fider/services"
 import { Icon } from "@fider/components"
-import IconXCircle from "@fider/assets/images/heroicons-x-circle.svg"
-import IconCheckCircle from "@fider/assets/images/heroicons-check-circle.svg"
-import IconExclamation from "@fider/assets/images/heroicons-exclamation.svg"
+import { heroiconsXCircle as IconXCircle, heroiconsCheckCircle as IconCheckCircle, heroiconsExclamation as IconExclamation } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 
 interface OAuthEchoPageProps {

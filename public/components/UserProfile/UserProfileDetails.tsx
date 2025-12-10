@@ -3,10 +3,7 @@ import { Icon, Select, SelectOption } from "@fider/components"
 import { useUserProfile } from "./context"
 import { UserRole, VisualRole } from "@fider/models"
 import { actions, Fider } from "@fider/services"
-import IconChevronDown from "@fider/assets/images/heroicons-chevron-down.svg"
-import IconChevronUp from "@fider/assets/images/heroicons-chevron-up.svg"
-import IconMail from "@fider/assets/images/heroicons-mail.svg"
-import IconIdentification from "@fider/assets/images/heroicons-identification.svg"
+import { heroiconsChevronDown as IconChevronDown, heroiconsChevronUp as IconChevronUp, heroiconsMail as IconMail, heroiconsIdentification as IconIdentification } from "@fider/icons.generated"
 
 interface UserProfileDetailsProps {
   providers?: { name: string; uid: string }[]

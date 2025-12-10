@@ -20,7 +20,7 @@ import {
 import { HStack } from "@fider/components/layout"
 import { formatDate, Failure, actions, notify, copyToClipboard, classSet, clearUrlHash } from "@fider/services"
 import { useFider } from "@fider/hooks"
-import IconDotsHorizontal from "@fider/assets/images/heroicons-dots-horizontal.svg"
+import { heroiconsDotsHorizontal as IconDotsHorizontal } from "@fider/icons.generated"
 import { t } from "@lingui/core/macro"
 import { Trans } from "@lingui/react/macro"
 import { useUserStanding } from "@fider/contexts/UserStandingContext"

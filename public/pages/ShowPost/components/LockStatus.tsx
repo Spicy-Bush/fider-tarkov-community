@@ -4,7 +4,7 @@ import { UserName, Moment } from "@fider/components"
 import { useFider } from "@fider/hooks"
 import { Trans } from "@lingui/react/macro"
 import { Icon } from "@fider/components"
-import HeroIconLock from "@fider/assets/images/heroicons-lock.svg"
+import { heroiconsLock as HeroIconLock } from "@fider/icons.generated"
 
 interface LockStatusProps {
   post: Post

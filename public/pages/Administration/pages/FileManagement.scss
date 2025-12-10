@@ -1,4 +1,4 @@
-@import "~@fider/assets/styles/variables";
+@use "~@fider/assets/styles/variables" as *;
 
 .c-media-library {
   &__header {

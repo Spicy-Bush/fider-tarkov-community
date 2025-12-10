@@ -1,5 +1,5 @@
-@import "~@fider/assets/styles/variables.scss";
-@import "~@fider/assets/styles/skeleton.scss";
+@use "~@fider/assets/styles/variables" as *;
+@use "~@fider/assets/styles/skeleton";
 
 .c-posts-container {
   &__post {

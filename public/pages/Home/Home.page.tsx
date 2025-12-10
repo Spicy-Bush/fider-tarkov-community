@@ -1,5 +1,5 @@
 import "./Home.page.scss"
-import NoDataIllustration from "@fider/assets/images/undraw-no-data.svg"
+import { undrawNoData as NoDataIllustration, heroiconsX as IconX } from "@fider/icons.generated"
 
 import React, { useState, useEffect } from "react"
 import { Post, Tag, PostStatus } from "@fider/models"
@@ -106,6 +106,7 @@ What can we do better? This is the place for you to vote, discuss and share idea
             onClick={handleDismissMessage}
             aria-label="Dismiss message"
           >
+            <Icon sprite={IconX} />
           </button>
         </div>
       )

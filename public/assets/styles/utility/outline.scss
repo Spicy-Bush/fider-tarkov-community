@@ -1,3 +1,5 @@
+@use "../variables" as *;
+
 *:focus {
   outline: 0;
   &:not(.no-focus) {

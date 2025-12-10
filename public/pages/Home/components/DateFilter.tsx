@@ -1,7 +1,7 @@
 import React from "react"
 import { Dropdown, Icon } from "@fider/components"
 import { HStack } from "@fider/components/layout"
-import HeroIconCalendar from "@fider/assets/images/heroicons-calendar.svg"
+import { heroiconsCalendar as HeroIconCalendar } from "@fider/icons.generated"
 import { i18n } from "@lingui/core"
 
 interface DateFilterProps {

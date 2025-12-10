@@ -3,8 +3,7 @@ import { Button, OAuthProviderLogo, Icon, Field, Toggle, Form } from "@fider/com
 import { OAuthConfig, OAuthProviderOption } from "@fider/models"
 import { OAuthForm } from "../components/OAuthForm"
 import { actions, notify, Fider, Failure } from "@fider/services"
-import IconPlay from "@fider/assets/images/heroicons-play.svg"
-import IconPencilAlt from "@fider/assets/images/heroicons-pencil-alt.svg"
+import { heroiconsPlay as IconPlay, heroiconsPencilAlt as IconPencilAlt } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 import { PageConfig } from "@fider/components/layouts"
 

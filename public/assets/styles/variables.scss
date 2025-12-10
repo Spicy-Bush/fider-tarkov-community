@@ -1,8 +1,13 @@
-@import "variables/_functions";
-@import "variables/_colors";
-@import "variables/_spacing";
-@import "variables/_sizing";
-@import "variables/_text";
+@use "variables/functions" as fn;
+@use "variables/colors" as *;
+@use "variables/spacing" as *;
+@use "variables/sizing" as *;
+@use "variables/text" as *;
+
+@forward "variables/colors";
+@forward "variables/spacing";
+@forward "variables/sizing";
+@forward "variables/text";
 
 $all: (
   colors: $colors,
@@ -17,7 +22,16 @@ $all: (
   ),
 );
 
-// Queries
+@function get($key, $map: $all) {
+  $keys: fn.str-explode($key, ".");
+
+  @if not fn.deep-map-check($map, $keys...) {
+    @error 'The argument $map: `#{$map}` doesn\'t has some of the $keys: `#{$keys}`!';
+  }
+
+  @return fn.deep-map-get($map, $keys...);
+}
+
 $medias: "sm", "md", "lg", "xl";
 $sm-width: 576px;
 $md-width: 768px;

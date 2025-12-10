@@ -1,5 +1,8 @@
+@use "sass:meta";
+@use "../variables" as *;
+
 @each $name, $shades in $colors {
-  @if type-of($shades) == "map" {
+  @if meta.type-of($shades) == "map" {
     @each $shade, $color in $shades {
       .text-#{$name}-#{$shade} {
         color: #{$color};

@@ -1,4 +1,4 @@
-@import "~@fider/assets/styles/variables.scss";
+@use "~@fider/assets/styles/variables" as *;
 
 .c-public-layout {
   min-height: 100vh;

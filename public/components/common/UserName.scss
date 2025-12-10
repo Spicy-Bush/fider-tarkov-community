@@ -1,4 +1,4 @@
-@import "~@fider/assets/styles/variables.scss";
+@use "~@fider/assets/styles/variables" as *;
 
 .c-username {
   color: get("colors.gray.900");

@@ -1,11 +1,7 @@
 import React from "react"
 import { PostResponse, PostStatus } from "@fider/models"
 import { Icon, Markdown } from "@fider/components"
-import HeroIconDuplicate from "@fider/assets/images/heroicons-duplicate.svg"
-import HeroIconCheck from "@fider/assets/images/heroicons-check-circle.svg"
-import HeroIconSparkles from "@fider/assets/images/heroicons-sparkles-outline.svg"
-import HeroIconThumbsUp from "@fider/assets/images/heroicons-thumbsup.svg"
-import HeroIconThumbsDown from "@fider/assets/images/heroicons-thumbsdown.svg"
+import { heroiconsDuplicate as HeroIconDuplicate, heroiconsCheckCircle as HeroIconCheck, heroiconsSparklesOutline as HeroIconSparkles, heroiconsThumbsup as HeroIconThumbsUp, heroiconsThumbsdown as HeroIconThumbsDown } from "@fider/icons.generated"
 import { HStack, VStack } from "./layout"
 import { timeSince } from "@fider/services"
 

@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -26,23 +27,24 @@ type clientAssets struct {
 	JS  []string
 }
 
-type distAsset struct {
-	Name string `json:"name"`
-	Size int64  `json:"size"`
+type viteChunk struct {
+	File           string   `json:"file"`
+	Name           string   `json:"name,omitempty"`
+	Src            string   `json:"src,omitempty"`
+	IsEntry        bool     `json:"isEntry,omitempty"`
+	IsDynamicEntry bool     `json:"isDynamicEntry,omitempty"`
+	CSS            []string `json:"css,omitempty"`
+	Imports        []string `json:"imports,omitempty"`
+	DynamicImports []string `json:"dynamicImports,omitempty"`
 }
 
-type assetsFile struct {
-	Entrypoints struct {
-		Main struct {
-			Assets []distAsset `json:"assets"`
-		} `json:"main"`
-	} `json:"entrypoints"`
-	ChunkGroups map[string]struct {
-		Assets []distAsset `json:"assets"`
-	} `json:"namedChunkGroups"`
-}
+type viteManifest map[string]viteChunk
 
-// Renderer is the default HTML Render
+const (
+	viteEntryPoint  = "public/index.tsx"
+	assetsURLPrefix = "/assets/"
+)
+
 type Renderer struct {
 	templates     map[string]*template.Template
 	assets        *clientAssets
@@ -52,7 +54,6 @@ type Renderer struct {
 	reactRenderer *ReactRenderer
 }
 
-// NewRenderer creates a new Renderer
 func NewRenderer() *Renderer {
 	reactRenderer, err := NewReactRenderer("ssr.js")
 	if err != nil {
@@ -72,7 +73,6 @@ func NewRenderer() *Renderer {
 	return r
 }
 
-// precompileTemplates loads and caches templates at startup
 func (r *Renderer) precompileTemplates() {
 	baseTemplate := "/views/base.html"
 	templatesToCache := []string{"index.html", "ssr.html"}
@@ -93,7 +93,6 @@ func (r *Renderer) precompileTemplates() {
 
 func (r *Renderer) loadAssets() error {
 	if env.IsProduction() {
-		// In production, load assets once and cache them to stop io bottleneck
 		var loadErr error
 		r.assetsOnce.Do(func() {
 			loadErr = r.loadAssetsFromFile()
@@ -107,58 +106,110 @@ func (r *Renderer) loadAssets() error {
 }
 
 func (r *Renderer) loadAssetsFromFile() error {
-	assetsFilePath := "/dist/assets.json"
+	manifestPath := "/dist/.vite/manifest.json"
 	if env.IsTest() {
-		// Load a fake assets.json for Unit Testing
-		assetsFilePath = "/app/pkg/web/testdata/assets.json"
+		manifestPath = "/app/pkg/web/testdata/manifest.json"
 	}
 
-	jsonFile, err := os.Open(env.Path(assetsFilePath))
+	jsonFile, err := os.Open(env.Path(manifestPath))
 	if err != nil {
-		return errors.Wrap(err, "failed to open file: assets.json")
+		return errors.Wrap(err, "failed to open file: manifest.json")
 	}
 	defer jsonFile.Close()
 
 	jsonBytes, err := io.ReadAll(jsonFile)
 	if err != nil {
-		return errors.Wrap(err, "failed to parse file: assets.json")
+		return errors.Wrap(err, "failed to read file: manifest.json")
 	}
 
-	file := &assetsFile{}
-	if err = json.Unmarshal(jsonBytes, file); err != nil {
-		return errors.Wrap(err, "failed to parse file: assets.json")
+	manifest := make(viteManifest)
+	if err = json.Unmarshal(jsonBytes, &manifest); err != nil {
+		return errors.Wrap(err, "failed to parse file: manifest.json")
 	}
 
-	r.assets = getClientAssets(file.Entrypoints.Main.Assets)
+	if _, exists := manifest[viteEntryPoint]; !exists {
+		return errors.New("entry point %s not found in manifest", viteEntryPoint)
+	}
+	entryKey := viteEntryPoint
+
+	r.assets = r.collectChunkAssets(manifest, entryKey, make(map[string]bool))
+
 	r.chunkedAssets = make(map[string]*clientAssets)
-
-	for chunkName, chunkGroup := range file.ChunkGroups {
-		r.chunkedAssets[chunkName] = getClientAssets(chunkGroup.Assets)
+	for key, chunk := range manifest {
+		if chunk.IsDynamicEntry {
+			chunkName := convertSourceToChunkName(key)
+			visited := make(map[string]bool)
+			visited[entryKey] = true
+			for _, imp := range manifest[entryKey].Imports {
+				visited[imp] = true
+			}
+			r.chunkedAssets[chunkName] = r.collectChunkAssets(manifest, key, visited)
+		}
 	}
 
 	return nil
 }
 
-func getClientAssets(assets []distAsset) *clientAssets {
-	clientAssets := &clientAssets{
+func (r *Renderer) collectChunkAssets(manifest viteManifest, key string, visited map[string]bool) *clientAssets {
+	assets := &clientAssets{
 		CSS: make([]string, 0),
 		JS:  make([]string, 0),
 	}
 
-	for _, asset := range assets {
-		if strings.HasSuffix(asset.Name, ".map") {
-			continue
-		}
+	r.collectAssetsRecursive(manifest, key, visited, assets)
+	return assets
+}
 
-		assetURL := "/assets/" + asset.Name
-		if strings.HasSuffix(asset.Name, ".css") {
-			clientAssets.CSS = append(clientAssets.CSS, assetURL)
-		} else if strings.HasSuffix(asset.Name, ".js") {
-			clientAssets.JS = append(clientAssets.JS, assetURL)
+func (r *Renderer) collectAssetsRecursive(manifest viteManifest, key string, visited map[string]bool, assets *clientAssets) {
+	if visited[key] {
+		return
+	}
+	visited[key] = true
+
+	chunk, exists := manifest[key]
+	if !exists {
+		return
+	}
+
+	for _, imp := range chunk.Imports {
+		r.collectAssetsRecursive(manifest, imp, visited, assets)
+	}
+
+	for _, css := range chunk.CSS {
+		assets.CSS = append(assets.CSS, assetsURLPrefix+css)
+	}
+
+	if chunk.File != "" && strings.HasSuffix(chunk.File, ".js") {
+		assets.JS = append(assets.JS, assetsURLPrefix+chunk.File)
+	}
+}
+
+func convertSourceToChunkName(src string) string {
+	if strings.HasPrefix(src, "locale/") && strings.HasSuffix(src, "/client.json") {
+		parts := strings.Split(src, "/")
+		if len(parts) >= 2 {
+			locale := parts[1]
+			return fmt.Sprintf("locale-%s-client-json", locale)
 		}
 	}
 
-	return clientAssets
+	if strings.HasPrefix(src, "public/pages/") && strings.HasSuffix(src, ".tsx") {
+		pagePath := strings.TrimPrefix(src, "public/pages/")
+		pagePath = strings.TrimSuffix(pagePath, ".tsx")
+		pagePath = strings.ReplaceAll(pagePath, ".", "-")
+		pagePath = strings.ReplaceAll(pagePath, "/", "-")
+		return pagePath
+	}
+
+	if strings.HasPrefix(src, "public/services/") && strings.HasSuffix(src, ".tsx") {
+		name := filepath.Base(src)
+		name = strings.TrimSuffix(name, ".tsx")
+		return name
+	}
+
+	name := strings.ReplaceAll(src, "/", "-")
+	name = strings.ReplaceAll(name, ".", "-")
+	return name
 }
 
 type userStandingInfo struct {
@@ -253,9 +304,8 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 
 	locale := i18n.GetLocale(ctx)
 	localeChunkName := fmt.Sprintf("locale-%s-client-json", locale)
-
-	// webpack replaces "/" and "." with "-", so we do the same here
 	pageChunkName := strings.ReplaceAll(strings.ReplaceAll(props.Page, ".", "-"), "/", "-")
+
 	private["preloadAssets"] = []*clientAssets{
 		r.chunkedAssets[localeChunkName],
 		r.chunkedAssets[pageChunkName],
@@ -349,7 +399,6 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 			tmpl = tpl.GetTemplate("/views/base.html", fmt.Sprintf("/views/%s", templateName))
 		}
 	} else {
-		// In non-production environments, load the template dynamically
 		tmpl = tpl.GetTemplate("/views/base.html", fmt.Sprintf("/views/%s", templateName))
 	}
 

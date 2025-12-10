@@ -1,7 +1,7 @@
 import React from "react"
 import { Header, Icon } from "@fider/components"
 import { useLayout } from "@fider/contexts/LayoutContext"
-import IconMenu from "@fider/assets/images/heroicons-menu.svg"
+import { heroiconsMenu as IconMenu } from "@fider/icons.generated"
 
 export const AdminHeader: React.FC = () => {
   const { toggleSidebar } = useLayout()

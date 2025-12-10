@@ -6,7 +6,7 @@ import { actions, Fider } from "@fider/services"
 import { HStack, VStack } from "@fider/components/layout"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
-import IconTrash from "@fider/assets/images/heroicons-trash.svg"
+import { heroiconsTrash as IconTrash } from "@fider/icons.generated"
 import { Tabs } from "@fider/components/common/Tabs"
 
 interface MyNotificationsPageProps {

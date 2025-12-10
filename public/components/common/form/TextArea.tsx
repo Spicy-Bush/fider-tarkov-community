@@ -50,23 +50,23 @@ export const TextArea: React.FunctionComponent<TextAreaProps> = (props) => {
             )}
             <div className="c-textarea-wrap" data-value={props.value || ""}>
               <textarea
-                className={classSet({
-                  "c-textarea": true,
+              className={classSet({
+                "c-textarea": true,
                   "c-textarea--autosize": true,
-                  "c-textarea--error": hasError(props.field, ctx.error),
-                  [props.className || ""]: props.className,
-                })}
-                id={`input-${props.field}`}
-                disabled={props.disabled}
-                onChange={onChange}
-                onKeyDown={onKeyDown}
-                value={props.value}
+                "c-textarea--error": hasError(props.field, ctx.error),
+                [props.className || ""]: props.className,
+              })}
+              id={`input-${props.field}`}
+              disabled={props.disabled}
+              onChange={onChange}
+              onKeyDown={onKeyDown}
+              value={props.value}
                 rows={minRows}
-                placeholder={props.placeholder}
-                ref={props.inputRef}
-                onFocus={props.onFocus}
-                maxLength={props.maxLength}
-              />
+              placeholder={props.placeholder}
+              ref={props.inputRef}
+              onFocus={props.onFocus}
+              maxLength={props.maxLength}
+            />
             </div>
             <DisplayError fields={[props.field]} error={ctx.error} />
             {props.children}

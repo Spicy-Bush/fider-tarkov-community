@@ -6,9 +6,6 @@
   <link rel="icon" href="{{ .private.favicon }}?size=64" sizes="64x64" type="image/png">
   <link rel="icon" href="{{ .private.favicon }}?size=192" sizes="192x192" type="image/png">
   <link rel="apple-touch-icon" href="{{ .private.favicon }}?size=180&bg=white" sizes="180x180" type="image/png">
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet" />
   {{ if ne .public.settings.googleAdSense "" }}
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ .public.settings.googleAdSense }}" crossorigin="anonymous"></script>
   {{ end }}
@@ -33,6 +30,13 @@
   {{ end }}
 </head>
 <body>
+  <div id="svg-sprite" style="display:none"></div>
+  <script nonce="{{ .public.contextID }}">
+    fetch('{{ .public.settings.assetsURL }}/assets/sprite.svg')
+      .then(function(r){return r.text()})
+      .then(function(svg){document.getElementById('svg-sprite').innerHTML=svg})
+      .catch(function(){});
+  </script>
   {{block "noscript" .}}{{end}}
 
   {{template "content" .}}

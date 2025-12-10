@@ -3,8 +3,7 @@ import { Icon } from "@fider/components"
 import { useUserProfile } from "./context"
 import { Trans } from "@lingui/react/macro"
 import { UserStatus } from "@fider/models"
-import IconBan from "@fider/assets/images/heroicons-block.svg"
-import IconVolumeOff from "@fider/assets/images/heroicons-muted.svg"
+import { heroiconsBlock as IconBan, heroiconsMuted as IconVolumeOff } from "@fider/icons.generated"
 
 export const UserProfileStatus: React.FC = () => {
   const { user, standing } = useUserProfile()

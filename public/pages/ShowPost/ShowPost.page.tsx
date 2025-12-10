@@ -6,8 +6,7 @@ import { LockStatus } from "./components/LockStatus"
 import { PostLockingModal } from "./components/PostLockingModal"
 import { Comment, Post, Tag, Vote, ImageUpload, CurrentUser, PostStatus, isPostLocked, UserRole, ReportReason } from "@fider/models"
 import { actions, clearUrlHash, Failure, Fider, notify, timeAgo, formatDate } from "@fider/services"
-import IconDotsHorizontal from "@fider/assets/images/heroicons-dots-horizontal.svg"
-import IconChevronUp from "@fider/assets/images/heroicons-chevron-up.svg"
+import { heroiconsDotsHorizontal as IconDotsHorizontal, heroiconsChevronUp as IconChevronUp } from "@fider/icons.generated"
 
 import {
   ResponseDetails,
@@ -28,8 +27,7 @@ import {
 } from "@fider/components"
 import { DiscussionPanel } from "./components/DiscussionPanel"
 
-import IconX from "@fider/assets/images/heroicons-x.svg"
-import IconThumbsUp from "@fider/assets/images/heroicons-thumbsup.svg"
+import { heroiconsX as IconX, heroiconsThumbsup as IconThumbsUp } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 import { Trans } from "@lingui/react/macro" 
 import { TagsPanel } from "./components/TagsPanel"

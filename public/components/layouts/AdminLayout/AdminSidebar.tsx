@@ -6,21 +6,23 @@ import { useLayout } from "@fider/contexts/LayoutContext"
 import { useAdminLayout } from "./context"
 import { classSet } from "@fider/services"
 
-import IconChevron from "@fider/assets/images/heroicons-chevron-up.svg"
-import IconUsers from "@fider/assets/images/heroicons-users.svg"
-import IconFlag from "@fider/assets/images/heroicons-flag.svg"
-import IconCog from "@fider/assets/images/heroicons-cog.svg"
-import IconDocumentText from "@fider/assets/images/heroicons-document-text.svg"
-import IconChat from "@fider/assets/images/heroicons-chat-alt-2.svg"
-import IconTag from "@fider/assets/images/heroicons-tag.svg"
-import IconLink from "@fider/assets/images/heroicons-link.svg"
-import IconAdjustments from "@fider/assets/images/heroicons-adjustments.svg"
-import IconLock from "@fider/assets/images/heroicons-lock.svg"
-import IconEnvelope from "@fider/assets/images/heroicons-envelope.svg"
-import IconKey from "@fider/assets/images/heroicons-key.svg"
-import IconCreditCard from "@fider/assets/images/heroicons-credit-card.svg"
-import IconPhoto from "@fider/assets/images/heroicons-photograph.svg"
-import IconDownload from "@fider/assets/images/heroicons-download.svg"
+import {
+  heroiconsChevronUp as IconChevron,
+  heroiconsUsers as IconUsers,
+  heroiconsFlag as IconFlag,
+  heroiconsCog as IconCog,
+  heroiconsDocumentText as IconDocumentText,
+  heroiconsChatAlt2 as IconChat,
+  heroiconsTag as IconTag,
+  heroiconsLink as IconLink,
+  heroiconsAdjustments as IconAdjustments,
+  heroiconsLock as IconLock,
+  heroiconsEnvelope as IconEnvelope,
+  heroiconsKey as IconKey,
+  heroiconsCreditCard as IconCreditCard,
+  heroiconsPhotograph as IconPhoto,
+  heroiconsDownload as IconDownload,
+} from "@fider/icons.generated"
 
 interface SidebarItemProps {
   title: string

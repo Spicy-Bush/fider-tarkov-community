@@ -6,7 +6,7 @@ import { DisplayError, hasError } from "./DisplayError"
 import { classSet, fileToBase64, uploadedImageURL } from "@fider/services"
 import { Button, Icon, Modal } from "@fider/components"
 import { ImageUpload } from "@fider/models"
-import IconPhotograph from "@fider/assets/images/heroicons-photograph.svg"
+import { heroiconsPhotograph as IconPhotograph } from "@fider/icons.generated"
 
 const hardFileSizeLimit = 7.5 * 1024 * 1024
 

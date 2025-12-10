@@ -2,7 +2,7 @@ import React from "react"
 import { Icon } from "@fider/components"
 import { classSet } from "@fider/services"
 import { useFider } from "@fider/hooks"
-import IconFlag from "@fider/assets/images/heroicons-flag.svg"
+import { heroiconsFlag as IconFlag } from "@fider/icons.generated"
 import "./ReportButton.scss"
 
 interface ReportButtonProps {

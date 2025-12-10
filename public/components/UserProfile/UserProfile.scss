@@ -1,6 +1,6 @@
-@import "@fider/assets/styles/variables.scss";
-@import "@fider/assets/styles/utility.scss";
-@import "@fider/assets/styles/skeleton.scss";
+@use "~@fider/assets/styles/variables" as *;
+@use "~@fider/assets/styles/utility";
+@use "~@fider/assets/styles/skeleton";
 
 .c-user-profile {
   max-width: 1200px;

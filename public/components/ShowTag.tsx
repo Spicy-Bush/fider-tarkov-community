@@ -3,7 +3,7 @@ import "./ShowTag.scss"
 import React from "react"
 import { Tag } from "@fider/models"
 import { classSet } from "@fider/services"
-import ShieldCheck from "@fider/assets/images/heroicons-shieldcheck.svg"
+import { heroiconsShieldcheck as ShieldCheck } from "@fider/icons.generated"
 import { Icon } from "./common"
 
 interface TagProps {

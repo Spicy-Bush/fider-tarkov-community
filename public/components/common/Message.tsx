@@ -2,9 +2,7 @@ import "./Message.scss"
 
 import React from "react"
 import { classSet } from "@fider/services"
-import IconCheckCircle from "@fider/assets/images/heroicons-check-circle.svg"
-import IconExclamationCircle from "@fider/assets/images/heroicons-exclamation-circle.svg"
-import IconExclamation from "@fider/assets/images/heroicons-exclamation.svg"
+import { heroiconsCheckCircle as IconCheckCircle, heroiconsExclamationCircle as IconExclamationCircle, heroiconsExclamation as IconExclamation } from "@fider/icons.generated"
 import { HStack } from "@fider/components/layout"
 import { Icon } from "./Icon"
 

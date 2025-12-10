@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { ReactionCount } from "@fider/models"
 import { Icon } from "@fider/components"
-import ReactionAdd from "@fider/assets/images/reaction-add.svg"
+import { reactionAdd as ReactionAdd } from "@fider/icons.generated"
 import { HStack } from "@fider/components/layout"
 import { classSet } from "@fider/services"
 import { useFider } from "@fider/hooks"

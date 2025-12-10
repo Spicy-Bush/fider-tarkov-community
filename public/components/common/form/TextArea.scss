@@ -1,4 +1,4 @@
-@import "~@fider/assets/styles/variables.scss";
+@use "~@fider/assets/styles/variables" as *;
 
 // ::after mirrors textarea content (via data-value attr) but is invisible
 // both share same grid cell, so ::after's height determines cell height

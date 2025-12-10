@@ -1,7 +1,7 @@
 import React from "react"
 import { Post, Tag, CurrentUser } from "@fider/models"
 import { ShowTag, VoteCounter, Markdown, Icon, ResponseLozenge } from "@fider/components"
-import IconChatAlt2 from "@fider/assets/images/heroicons-chat-alt-2.svg"
+import { heroiconsChatAlt2 as IconChatAlt2 } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 import "./ListPosts.scss"
 

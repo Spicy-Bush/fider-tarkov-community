@@ -1,7 +1,6 @@
 import "./ModIndicator.scss"
 import React, { useEffect, useState } from "react"
-import IconShield from "@fider/assets/images/heroicons-shieldcheck.svg"
-import NoDataIllustration from "@fider/assets/images/undraw-empty.svg"
+import { heroiconsShieldcheck as IconShield, undrawEmpty as NoDataIllustration } from "@fider/icons.generated"
 import { useIsStaff } from "@fider/hooks"
 import { actions, Fider } from "@fider/services"
 import { Icon, Moment } from "./common"
