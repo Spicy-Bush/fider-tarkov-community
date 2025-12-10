@@ -1,13 +1,5 @@
-import { marked } from "marked"
+import { Marked } from "marked"
 import DOMPurify from "dompurify"
-
-marked.setOptions({
-  headerIds: false,
-  xhtml: true,
-  smartLists: true,
-  gfm: true,
-  breaks: true,
-})
 
 if (DOMPurify.isSupported) {
   DOMPurify.setConfig({
@@ -28,7 +20,7 @@ if (DOMPurify.isSupported) {
   })
 }
 
-const defaultLink = (href: string, title: string, text: string) => {
+const defaultLink = (href: string, title: string | null | undefined, text: string) => {
   const titleAttr = title ? ` title="${title}"` : ""
   return `<a class="text-link" href="${href}"${titleAttr} rel="noopener nofollow" target="_blank">${text}</a>`
 }
@@ -64,8 +56,6 @@ const parseYouTubeLink = (href: string) => {
 }
 
 const parseVKVideoLink = (href: string) => {
-  // Match direct video links like https://vkvideo.ru/video-89771130_456241539
-  // or https://vk.com/video-89771130_456242098
   try {
     const url = new URL(href);
     let oid, id, timestamp;
@@ -94,67 +84,108 @@ const parseVKVideoLink = (href: string) => {
   return null;
 }
 
-const fullRenderer = new marked.Renderer()
-fullRenderer.image = () => ""
+const fullMarked = new Marked({
+  gfm: true,
+  breaks: true,
+})
 
-fullRenderer.link = (href: string | null, title: string, text: string) => {
-  if (!href) return text
+fullMarked.use({
+  renderer: {
+    image() {
+      return ""
+    },
 
-  if ((href.includes('youtube.com/watch') || href.includes('youtu.be/'))) {
-    const parsedLink = parseYouTubeLink(href)
-    
-    if (parsedLink) {
-      const { videoId, timestamp } = parsedLink
-      const embedUrl = `https://www.youtube.com/embed/${videoId}?start=${timestamp}`
-      
-      return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="YouTube video"></iframe>`
-    }
-  }
-  
-  if (href.includes('vk.com/video') || href.includes('vkvideo.ru/video')) {
-    const parsedLink = parseVKVideoLink(href)
-    
-    if (parsedLink) {
-      const { oid, id, timestamp } = parsedLink
-      let embedUrl = `https://vk.com/video_ext.php?oid=${oid}&id=${id}`;
-      
-      if (timestamp) {
-        embedUrl += `&t=${timestamp}`;
+    link({ href, title, text }) {
+      if (!href) return text
+
+      if ((href.includes('youtube.com/watch') || href.includes('youtu.be/'))) {
+        const parsedLink = parseYouTubeLink(href)
+        
+        if (parsedLink) {
+          const { videoId, timestamp } = parsedLink
+          const embedUrl = `https://www.youtube.com/embed/${videoId}?start=${timestamp}`
+          
+          return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="YouTube video"></iframe>`
+        }
       }
       
-      return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="VK video"></iframe>`
-    }
-  }
-  
-  return defaultLink(href, title, text)
-}
+      if (href.includes('vk.com/video') || href.includes('vkvideo.ru/video')) {
+        const parsedLink = parseVKVideoLink(href)
+        
+        if (parsedLink) {
+          const { oid, id, timestamp } = parsedLink
+          let embedUrl = `https://vk.com/video_ext.php?oid=${oid}&id=${id}`;
+          
+          if (timestamp) {
+            embedUrl += `&t=${timestamp}`;
+          }
+          
+          return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="VK video"></iframe>`
+        }
+      }
+      
+      return defaultLink(href, title, text)
+    },
 
-fullRenderer.text = (text: string) => {
-  // Handling mention links (they're in the format @{id:1234, name:'John Doe'})
-  return text.replace(/@{([^}]+)}/g, (match) => {
-    try {
-      const json = match.substring(1).replace(/&quot;/g, '"')
-      const mention = JSON.parse(json)
-      return `<span class="text-blue-600">@${mention.name}</span>`
-    } catch {
-      return match
-    }
-  })
-}
+    text({ raw }) {
+      return raw.replace(/@{([^}]+)}/g, (match) => {
+        try {
+          const json = match.substring(1).replace(/&quot;/g, '"')
+          const mention = JSON.parse(json)
+          return `<span class="text-blue-600">@${mention.name}</span>`
+        } catch {
+          return match
+        }
+      })
+    },
+  },
+})
 
-const plainTextRenderer = new marked.Renderer()
-plainTextRenderer.link = (_href, _title, text) => text
-plainTextRenderer.image = () => ""
-plainTextRenderer.br = () => " "
-plainTextRenderer.strong = (text) => text
-plainTextRenderer.list = (body) => body
-plainTextRenderer.listitem = (text) => `${text} `
-plainTextRenderer.heading = (text) => text
-plainTextRenderer.paragraph = (text) => ` ${text} `
-plainTextRenderer.code = (code) => code
-plainTextRenderer.codespan = (code) => code
-plainTextRenderer.html = (html) => html
-plainTextRenderer.del = (text) => text
+const plainTextMarked = new Marked({
+  gfm: true,
+  breaks: true,
+})
+
+plainTextMarked.use({
+  renderer: {
+    link({ text }) {
+      return text
+    },
+    image() {
+      return ""
+    },
+    br() {
+      return " "
+    },
+    strong({ text }) {
+      return text
+    },
+    list({ items }) {
+      return items.map(item => item.text).join(" ")
+    },
+    listitem({ text }) {
+      return `${text} `
+    },
+    heading({ text }) {
+      return text
+    },
+    paragraph({ text }) {
+      return ` ${text} `
+    },
+    code({ text }) {
+      return text
+    },
+    codespan({ text }) {
+      return text
+    },
+    html({ text }) {
+      return text
+    },
+    del({ text }) {
+      return text
+    },
+  },
+})
 
 const entities: { [key: string]: string } = {
   "<": "&lt;",
@@ -165,9 +196,9 @@ const encodeHTML = (s: string) => s.replace(/[<>]/g, (tag) => entities[tag] || t
 const sanitize = (input: string) => DOMPurify.isSupported ? DOMPurify.sanitize(input) : input
 
 export const full = (input: string): string => {
-  return sanitize(marked(encodeHTML(input), { renderer: fullRenderer }).trim())
+  return sanitize(fullMarked.parse(encodeHTML(input)) as string).trim()
 }
 
 export const plainText = (input: string): string => {
-  return sanitize(marked(encodeHTML(input), { renderer: plainTextRenderer }).trim())
+  return sanitize(plainTextMarked.parse(encodeHTML(input)) as string).trim()
 }

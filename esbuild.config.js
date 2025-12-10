@@ -2,6 +2,7 @@
 /* eslint-disable no-undef */
 
 const fs = require("fs")
+const path = require("path")
 const esbuild = require("esbuild")
 const babel = require("@babel/core")
 
@@ -67,6 +68,9 @@ esbuild
   .build({
     entryPoints: ["./public/ssr.tsx"],
     bundle: true,
+    platform: "node",
+    target: "node18",
+    format: "cjs",
     define: {
       "process.env.NODE_ENV": `"${process.env.NODE_ENV || "development"}"`,
     },
