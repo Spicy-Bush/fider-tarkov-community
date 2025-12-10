@@ -72,6 +72,9 @@ esbuild
     },
     inject: ["./esbuild-shim.js"],
     outfile: "ssr.js",
-    plugins: [emptyCSS, emptySVG, babelPlugin()],
+    loader: {
+      ".json": "json",
+    },
+    plugins: [emptyCSS, emptySVG, babelPlugin({ filter: /\.(ts|tsx|js|jsx|mjs)$/ })],
   })
   .catch(() => process.exit(1))
