@@ -1,5 +1,7 @@
 import "./Footer.scss"
-import React, { useEffect, useRef } from "react"
+import React, { useEffect, useRef, useState } from "react"
+import { Icon } from "@fider/components/common"
+import { heroiconsChevronUp, heroiconsChevronDown } from "@fider/icons.generated"
 
 type FooterState = "revealing" | "visible" | "freezing" | "hidden" | "unhiding"
 
@@ -10,6 +12,7 @@ const Footer: React.FC = () => {
   const lastScrollY = useRef(0)
   const anchorY = useRef(0)
   const ticking = useRef(false)
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     const clamp = (val: number) => Math.min(1, Math.max(0, val))
@@ -89,36 +92,54 @@ const Footer: React.FC = () => {
   }, [])
 
   return (
-    <footer ref={ref} className="site-footer" style={{ transform: "translateY(100%)" }}>
-      <nav>
+    <footer ref={ref} className={`site-footer ${expanded ? "site-footer--expanded" : ""}`} style={{ transform: "translateY(100%)" }}>
+      <button 
+        className="site-footer__bar"
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-label={expanded ? "Collapse footer links" : "Expand footer links"}
+      >
+        <span>© {currentYear} Spicy Bush Team</span>
+        <Icon className="site-footer__toggle" sprite={expanded ? heroiconsChevronDown : heroiconsChevronUp} height="20" width="20" />
+      </button>
+      <nav className="site-footer__nav">
         <ul>
           <li>
-            <a href="/terms">Terms & Conditions</a>
+            <a href="/terms">
+              <span className="site-footer__text--short">Terms</span>
+              <span className="site-footer__text--full">Terms & Conditions</span>
+            </a>
           </li>
           <li>
-            <a href="/privacy">Privacy Policy</a>
+            <a href="/privacy">
+              <span className="site-footer__text--short">Privacy</span>
+              <span className="site-footer__text--full">Privacy Policy</span>
+            </a>
           </li>
           <li>
             <a href="mailto:contact@tarkov.community">Contact</a>
           </li>
           <li>
             <a href="https://discord.gg/escapefromtarkovofficial" target="_blank" rel="noreferrer">
-              Official Tarkov Discord
+              <span className="site-footer__text--short">Discord</span>
+              <span className="site-footer__text--full">Official Tarkov Discord</span>
             </a>
           </li>
           <li>
             <a href="https://www.escapefromtarkov.com/support" target="_blank" rel="noreferrer">
-              Official Tarkov Support
+              <span className="site-footer__text--short">Support</span>
+              <span className="site-footer__text--full">Official Tarkov Support</span>
             </a>
           </li>
           <li>
             <a href="https://ko-fi.com/tarkovcommunity" target="_blank" rel="noreferrer">
-              <span>Support us on Ko-fi</span>
+              <span className="site-footer__text--short">Ko-fi</span>
+              <span className="site-footer__text--full">Support us on Ko-fi</span>
             </a>
           </li>
         </ul>
       </nav>
-      <p>© {currentYear} - This website is proudly made by the Spicy Bush Team.</p>
+      <p className="site-footer__copyright">© {currentYear} - This website is proudly made by the Spicy Bush Team.</p>
     </footer>
   )
 }
