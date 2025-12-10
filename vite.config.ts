@@ -24,11 +24,6 @@ export default defineConfig({
   build: {
     outDir: "dist",
     manifest: true,
-    watch: {
-      chokidar: {
-        usePolling: true,
-      },
-    },
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, "public/index.tsx"),
