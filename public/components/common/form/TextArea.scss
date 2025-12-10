@@ -1,15 +1,34 @@
 @import "~@fider/assets/styles/variables.scss";
 
+// ::after mirrors textarea content (via data-value attr) but is invisible
+// both share same grid cell, so ::after's height determines cell height
+// textarea fills cell. It means we don't need JS needed for sizing textareas
+.c-textarea-wrap {
+  display: grid;
+  grid-template-columns: 1fr;
+
+  &::after,
+  > .c-textarea {
+    grid-area: 1 / 1;
+    font: inherit;
+    line-height: get("font.size.xl");
+    padding: spacing(2);
+    border: 1px solid get("colors.gray.300");
+    border-radius: get("border.radius.medium");
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  &::after {
+    content: attr(data-value) " ";
+    visibility: hidden;
+  }
+}
+
 .c-textarea {
   background-color: get("colors.white");
-  width: 100%;
-  line-height: get("font.size.xl");
-  padding: spacing(2);
   resize: none;
-  border: 1px solid get("colors.gray.300");
-  border-radius: get("border.radius.medium");
-  -webkit-appearance: none;
-  appearance: none;
+  overflow: hidden;
 
   &:disabled {
     @include disabled();

@@ -3,6 +3,7 @@
 .slate-editor {
   background-color: get("colors.white");
   width: 100%;
+  min-width: 0;
   line-height: get("font.size.xl");
   padding: spacing(2);
   resize: none;
@@ -11,6 +12,8 @@
   -webkit-appearance: none;
   appearance: none;
   margin: spacing(3) 0;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 
   &:disabled {
     @include disabled();
