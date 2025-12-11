@@ -5,6 +5,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/sse"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
@@ -97,6 +98,7 @@ func CreateEditTag() web.HandlerFunc {
 				if err := bus.Dispatch(c, updateTag); err != nil {
 					return c.Failure(err)
 				}
+				postcache.InvalidateTags(c.Tenant().ID)
 				return c.Ok(updateTag.Result)
 			}
 
@@ -108,6 +110,7 @@ func CreateEditTag() web.HandlerFunc {
 			if err := bus.Dispatch(c, addNewTag); err != nil {
 				return c.Failure(err)
 			}
+			postcache.InvalidateTags(c.Tenant().ID)
 			return c.Ok(addNewTag.Result)
 		})
 	}
@@ -127,6 +130,7 @@ func DeleteTag() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
+			postcache.InvalidateTags(c.Tenant().ID)
 			return c.Ok(web.Map{})
 		})
 	}

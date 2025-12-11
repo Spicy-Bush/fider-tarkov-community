@@ -3,10 +3,13 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/csv"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/markdown"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -15,11 +18,31 @@ func Index() web.HandlerFunc {
 	return func(c *web.Context) error {
 		c.SetCanonicalURL("")
 
-		getAllTags := &query.GetAllTags{}
-		countPerStatus := &query.CountPostPerStatus{}
+		tenantID := c.Tenant().ID
 
-		if err := bus.Dispatch(c, getAllTags, countPerStatus); err != nil {
-			return c.Failure(err)
+		var tags []*entity.Tag
+		var countPerStatus map[enum.PostStatus]int
+
+		if cached, ok := postcache.GetTags(tenantID); ok {
+			tags = cached
+		} else {
+			q := &query.GetAllTags{}
+			if err := bus.Dispatch(c, q); err != nil {
+				return c.Failure(err)
+			}
+			tags = q.Result
+			postcache.SetTags(tenantID, tags)
+		}
+
+		if cached, ok := postcache.GetCountPerStatus(tenantID); ok {
+			countPerStatus = cached
+		} else {
+			q := &query.CountPostPerStatus{}
+			if err := bus.Dispatch(c, q); err != nil {
+				return c.Failure(err)
+			}
+			countPerStatus = q.Result
+			postcache.SetCountPerStatus(tenantID, countPerStatus)
 		}
 
 		description := ""
@@ -34,8 +57,8 @@ func Index() web.HandlerFunc {
 			Description: description,
 			Data: web.Map{
 				"posts":          []interface{}{},
-				"tags":           getAllTags.Result,
-				"countPerStatus": countPerStatus.Result,
+				"tags":           tags,
+				"countPerStatus": countPerStatus,
 			},
 		})
 	}

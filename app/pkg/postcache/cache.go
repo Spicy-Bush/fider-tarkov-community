@@ -3,6 +3,9 @@ package postcache
 import (
 	"sync"
 	"time"
+
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 )
 
 // if we ever run multiple instances, each
@@ -16,7 +19,11 @@ type CachedRanking struct {
 }
 
 type TenantCache struct {
-	rankings sync.Map
+	rankings       sync.Map
+	tags           []*entity.Tag
+	tagsMu         sync.RWMutex
+	countPerStatus map[enum.PostStatus]int
+	countMu        sync.RWMutex
 }
 
 var (
@@ -86,4 +93,52 @@ func IsCacheable(view string, myVotesOnly bool, myPostsOnly bool, notMyVotes boo
 
 func GetCacheKey(view string) string {
 	return view
+}
+
+func GetTags(tenantID int) ([]*entity.Tag, bool) {
+	tc := getTenantCache(tenantID)
+	tc.tagsMu.RLock()
+	defer tc.tagsMu.RUnlock()
+	if tc.tags != nil {
+		return tc.tags, true
+	}
+	return nil, false
+}
+
+func SetTags(tenantID int, tags []*entity.Tag) {
+	tc := getTenantCache(tenantID)
+	tc.tagsMu.Lock()
+	tc.tags = tags
+	tc.tagsMu.Unlock()
+}
+
+func InvalidateTags(tenantID int) {
+	tc := getTenantCache(tenantID)
+	tc.tagsMu.Lock()
+	tc.tags = nil
+	tc.tagsMu.Unlock()
+}
+
+func GetCountPerStatus(tenantID int) (map[enum.PostStatus]int, bool) {
+	tc := getTenantCache(tenantID)
+	tc.countMu.RLock()
+	defer tc.countMu.RUnlock()
+	if tc.countPerStatus != nil {
+		return tc.countPerStatus, true
+	}
+	return nil, false
+}
+
+func SetCountPerStatus(tenantID int, counts map[enum.PostStatus]int) {
+	tc := getTenantCache(tenantID)
+	tc.countMu.Lock()
+	tc.countPerStatus = counts
+	tc.countMu.Unlock()
+}
+
+func InvalidateCountPerStatus(tenantID int) {
+	tc := getTenantCache(tenantID)
+	tc.countMu.Lock()
+	tc.countPerStatus = nil
+	tc.countMu.Unlock()
 }

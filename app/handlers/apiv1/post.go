@@ -240,6 +240,7 @@ func CreatePost() web.HandlerFunc {
 			c.Enqueue(tasks.NotifyAboutNewPost(newPost.Result))
 
 			postcache.InvalidateTenantRankings(c.Tenant().ID)
+			postcache.InvalidateCountPerStatus(c.Tenant().ID)
 
 			metrics.TotalPosts.Inc()
 			return c.Ok(web.Map{
@@ -350,6 +351,7 @@ func SetResponse() web.HandlerFunc {
 			c.Enqueue(tasks.NotifyAboutStatusChange(getPost.Result, prevStatus))
 
 			postcache.InvalidateTenantRankings(c.Tenant().ID)
+			postcache.InvalidateCountPerStatus(c.Tenant().ID)
 
 			return c.Ok(web.Map{})
 		})
@@ -377,6 +379,7 @@ func DeletePost() web.HandlerFunc {
 			c.Enqueue(tasks.TriggerDeleteWebhook(action.Post))
 
 			postcache.InvalidateTenantRankings(c.Tenant().ID)
+			postcache.InvalidateCountPerStatus(c.Tenant().ID)
 
 			return c.Ok(web.Map{})
 		})
