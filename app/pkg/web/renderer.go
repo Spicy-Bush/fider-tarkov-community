@@ -219,6 +219,54 @@ type userStandingInfo struct {
 	latestMuteID    int
 }
 
+var (
+	cachedOAuthProviders []*dto.OAuthProviderOption
+	oauthCacheOnce       sync.Once
+	oauthCacheMu         sync.RWMutex
+)
+
+func InvalidateOAuthCache() {
+	oauthCacheMu.Lock()
+	cachedOAuthProviders = nil
+	oauthCacheOnce = sync.Once{}
+	oauthCacheMu.Unlock()
+}
+
+func getOAuthProviders(ctx *Context) []*dto.OAuthProviderOption {
+	if ctx.IsAuthenticated() {
+		return nil
+	}
+
+	oauthCacheMu.RLock()
+	if cachedOAuthProviders != nil {
+		defer oauthCacheMu.RUnlock()
+		return cachedOAuthProviders
+	}
+	oauthCacheMu.RUnlock()
+
+	var loadErr error
+	oauthCacheOnce.Do(func() {
+		providers := &query.ListActiveOAuthProviders{
+			Result: make([]*dto.OAuthProviderOption, 0),
+		}
+		if err := bus.Dispatch(ctx, providers); err != nil {
+			loadErr = err
+			return
+		}
+		oauthCacheMu.Lock()
+		cachedOAuthProviders = providers.Result
+		oauthCacheMu.Unlock()
+	})
+
+	if loadErr != nil {
+		return nil
+	}
+
+	oauthCacheMu.RLock()
+	defer oauthCacheMu.RUnlock()
+	return cachedOAuthProviders
+}
+
 func getUserStandingInfo(ctx *Context, userID int) userStandingInfo {
 	result := userStandingInfo{}
 
@@ -322,14 +370,9 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 		private["canonicalURL"] = canonicalURL
 	}
 
-	oauthProviders := &query.ListActiveOAuthProviders{
-		Result: make([]*dto.OAuthProviderOption, 0),
-	}
-	if !ctx.IsAuthenticated() && statusCode >= 200 && statusCode < 500 {
-		err = bus.Dispatch(ctx, oauthProviders)
-		if err != nil {
-			panic(errors.Wrap(err, "failed to get list of providers"))
-		}
+	var oauthProviders []*dto.OAuthProviderOption
+	if statusCode >= 200 && statusCode < 500 {
+		oauthProviders = getOAuthProviders(ctx)
 	}
 
 	public["page"] = props.Page
@@ -348,7 +391,7 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 		"isBillingEnabled": env.IsBillingEnabled(),
 		"baseURL":          ctx.BaseURL(),
 		"assetsURL":        AssetsURL(ctx, ""),
-		"oauth":            oauthProviders.Result,
+		"oauth":            oauthProviders,
 	}
 
 	if ctx.IsAuthenticated() {

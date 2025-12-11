@@ -326,6 +326,7 @@ func SaveOAuthConfig() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
+			web.InvalidateOAuthCache()
 			return c.Ok(web.Map{})
 		})
 	}
