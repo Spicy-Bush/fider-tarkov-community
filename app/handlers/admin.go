@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/middlewares"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -60,6 +61,7 @@ func UpdateContentSettings() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
+			middlewares.InvalidateTenantCache()
 			return c.Ok(web.Map{})
 		})
 	}
@@ -114,6 +116,7 @@ func UpdateSettings() web.HandlerFunc {
 				}))
 			}
 
+			middlewares.InvalidateTenantCache()
 			return c.Ok(web.Map{})
 		})
 	}
@@ -136,6 +139,7 @@ func UpdateAdvancedSettings() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
+			middlewares.InvalidateTenantCache()
 			return c.Ok(web.Map{})
 		})
 	}
@@ -157,6 +161,7 @@ func UpdatePrivacy() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
+			middlewares.InvalidateTenantCache()
 			return c.Ok(web.Map{})
 		})
 	}
@@ -178,6 +183,7 @@ func UpdateEmailAuthAllowed() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
+			middlewares.InvalidateTenantCache()
 			return c.Ok(web.Map{})
 		})
 	}
@@ -337,6 +343,7 @@ func UpdateProfanityWords() web.HandlerFunc {
 			if err := action.Run(c); err != nil {
 				return c.Failure(err)
 			}
+			middlewares.InvalidateTenantCache()
 			return c.Ok(web.Map{})
 		})
 	}

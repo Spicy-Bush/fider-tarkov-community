@@ -2,7 +2,10 @@ package middlewares
 
 import (
 	"net/http"
+	"sync"
+	"sync/atomic"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 
@@ -13,6 +16,18 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
+// cachedTenant holds the cached tenant for single-tenant mode
+var (
+	cachedTenant atomic.Pointer[entity.Tenant]
+	tenantOnce   sync.Once
+)
+
+// InvalidateTenantCache clears the cached tenant (call after tenant updates)
+func InvalidateTenantCache() {
+	cachedTenant.Store(nil)
+	tenantOnce = sync.Once{}
+}
+
 // Tenant adds either SingleTenant or MultiTenant to the pipeline
 func Tenant() web.MiddlewareFunc {
 	if env.IsSingleHostMode() {
@@ -22,17 +37,38 @@ func Tenant() web.MiddlewareFunc {
 }
 
 // SingleTenant inject default tenant into current context
+// Caches the tenant after first load to avoid DB queries on every request
 func SingleTenant() web.MiddlewareFunc {
 	return func(next web.HandlerFunc) web.HandlerFunc {
 		return func(c *web.Context) error {
-			firstTenant := &query.GetFirstTenant{}
-			err := bus.Dispatch(c, firstTenant)
-			if err != nil && errors.Cause(err) != app.ErrNotFound {
-				return c.Failure(err)
+			// Try to get cached tenant first
+			tenant := cachedTenant.Load()
+			if tenant != nil && !tenant.IsDisabled() {
+				c.SetTenant(tenant)
+				return next(c)
 			}
 
-			if firstTenant.Result != nil && !firstTenant.Result.IsDisabled() {
-				c.SetTenant(firstTenant.Result)
+			// Load tenant from DB (only happens once due to sync.Once)
+			var loadErr error
+			tenantOnce.Do(func() {
+				firstTenant := &query.GetFirstTenant{}
+				err := bus.Dispatch(c, firstTenant)
+				if err != nil && errors.Cause(err) != app.ErrNotFound {
+					loadErr = err
+					return
+				}
+				if firstTenant.Result != nil {
+					cachedTenant.Store(firstTenant.Result)
+				}
+			})
+
+			if loadErr != nil {
+				return c.Failure(loadErr)
+			}
+
+			tenant = cachedTenant.Load()
+			if tenant != nil && !tenant.IsDisabled() {
+				c.SetTenant(tenant)
 			}
 
 			return next(c)
