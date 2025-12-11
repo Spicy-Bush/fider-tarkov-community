@@ -29,6 +29,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --maxsockets 1
 
 COPY . .
+# Cache bust: 2025-12-12
 RUN make build-ssr
 RUN make build-ui
 
