@@ -7,9 +7,17 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
+
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		gw, _ := gzip.NewWriterLevel(io.Discard, gzip.DefaultCompression)
+		return gw
+	},
+}
 
 type gzipResponseWriter struct {
 	io.Writer
@@ -30,7 +38,8 @@ func Compress() web.MiddlewareFunc {
 				res.Header().Del("Accept-Encoding")
 				res.Header().Add("Vary", "Accept-Encoding")
 
-				gw, _ := gzip.NewWriterLevel(res.Writer, gzip.DefaultCompression)
+				gw := gzipWriterPool.Get().(*gzip.Writer)
+				gw.Reset(res.Writer)
 
 				c.Response.Writer = &gzipResponseWriter{
 					Writer:         gw,
@@ -40,6 +49,7 @@ func Compress() web.MiddlewareFunc {
 
 				err := next(c)
 				gw.Close()
+				gzipWriterPool.Put(gw)
 				return err
 			}
 			return next(c)
