@@ -1,6 +1,6 @@
 import React from "react"
 import { Avatar } from "@fider/components"
-import { Fider, classSet } from "@fider/services"
+import { classSet } from "@fider/services"
 import { HStack, VStack } from "@fider/components/layout"
 import { User, UserRole, UserStatus } from "@fider/models"
 
@@ -31,9 +31,6 @@ export const UserListItem: React.FC<UserListItemProps> = ({
     <span className="c-member-item__role c-member-item__role--blocked">blocked</span>
   )
 
-  const canViewEmails =
-    Fider.session.user.isAdministrator || Fider.session.user.isCollaborator
-
   const className = classSet({
     "c-member-item": true,
     "c-member-item--selected": isSelected,
@@ -45,9 +42,6 @@ export const UserListItem: React.FC<UserListItemProps> = ({
         <Avatar user={user} />
         <VStack spacing={0}>
           <span className="c-member-item__name">{user.name}</span>
-          {canViewEmails && user.email && (
-            <span className="c-member-item__email">{user.email}</span>
-          )}
           <span className="c-member-item__roles">
             {admin} {moderator} {helper} {collaborator} {blocked}
           </span>
