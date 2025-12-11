@@ -127,7 +127,12 @@ func (action *AssignUnassignTag) Validate(ctx context.Context, user *entity.User
 			return validate.Unauthorized()
 		}
 
-		// Helper users cannot modify tags on posts where tags have been applied for more than 24 hours
+		// Helper users cannot modify tags on posts where tags
+		// have been applied for more than 7 days or since the post was created
+		if time.Since(action.Post.CreatedAt) > 7*24*time.Hour {
+			return validate.Unauthorized()
+		}
+
 		if action.Post.TagDates != "" {
 			var tagDates []struct {
 				Slug      string    `json:"slug"`

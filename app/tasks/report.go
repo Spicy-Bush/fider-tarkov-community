@@ -33,3 +33,32 @@ func NotifyAboutNewReport(reportID int, reportedType enum.ReportType, reportedID
 		return nil
 	})
 }
+
+func NotifyAboutReportResolved(reportID int, status enum.ReportStatus, resolutionNote string, reportedType enum.ReportType, reportedID int, reason string) worker.Task {
+	return describe("Notify about report resolved", func(c *worker.Context) error {
+		tenant := c.Tenant()
+		baseURL, logoURL := web.BaseURL(c), web.LogoURL(c)
+		resolver := c.User()
+
+		webhookProps := webhook.Props{
+			"reportId":       reportID,
+			"status":         status.String(),
+			"resolutionNote": resolutionNote,
+			"reportedType":   reportedType.String(),
+			"reportedId":     reportedID,
+			"reason":         reason,
+		}
+		webhookProps.SetTenant(tenant, "tenant", baseURL, logoURL)
+		webhookProps.SetUser(resolver, "resolver")
+
+		err := bus.Dispatch(c, &cmd.TriggerWebhooks{
+			Type:  enum.WebhookReportResolved,
+			Props: webhookProps,
+		})
+		if err != nil {
+			return c.Failure(err)
+		}
+
+		return nil
+	})
+}

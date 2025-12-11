@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect } from "react"
-import { Post, Tag } from "@fider/models"
-import { actions } from "@fider/services"
+import React, { useState, useMemo, useEffect, useCallback } from "react"
+import { Post, Tag, UserRole } from "@fider/models"
+import { actions, postPermissions, permissions } from "@fider/services"
 import { ShowTag, Button, Input } from "@fider/components"
 import { TagListItem } from "./TagListItem"
 import { useFider } from "@fider/hooks"
@@ -8,18 +8,27 @@ import { useFider } from "@fider/hooks"
 import { HStack, VStack } from "@fider/components/layout"
 import { Trans } from "@lingui/react/macro"
 
+import "./TagsPanel.scss"
+
 export interface TagsPanelProps {
   post: Post
   tags: Tag[]
+  onTagsChanged?: (postNumber: number) => void
 }
 
 export const TagsPanel = (props: TagsPanelProps) => {
   const fider = useFider()
-  const isHelper = fider.session.isAuthenticated && fider.session.user.isHelper && !fider.session.user.isCollaborator && !fider.session.user.isModerator && !fider.session.user.isAdministrator
-  const canEdit = fider.session.isAuthenticated && (fider.session.user.isCollaborator || fider.session.user.isModerator || fider.session.user.isAdministrator || fider.session.user.isHelper) && props.tags.length > 0
+  const isHelper = fider.session.isAuthenticated && permissions.hasRole(fider.session.user.role, UserRole.Helper) && !fider.session.user.isCollaborator && !fider.session.user.isModerator && !fider.session.user.isAdministrator
+  const canEdit = postPermissions.canTag() && props.tags.length > 0
 
   const helperCanEditTags = useMemo(() => {
     if (!isHelper) return true
+
+    const now = new Date()
+    const postCreatedAt = new Date(props.post.createdAt)
+    const postAgeDays = (now.getTime() - postCreatedAt.getTime()) / (1000 * 60 * 60 * 24)
+    if (postAgeDays > 7) return false
+
     if (!props.post.tagDates) return true
     
     try {
@@ -33,19 +42,23 @@ export const TagsPanel = (props: TagsPanelProps) => {
       
       if (!oldestDate) return true;
       
-      const now = new Date();
       const hoursDiff = (now.getTime() - oldestDate.getTime()) / (1000 * 60 * 60);
       return hoursDiff <= 24;
     } catch (e) {
-      console.error("Failed to parse tag dates", e);
-      return true;
+      return false;
     }
-  }, [isHelper, props.post.tagDates]);
+  }, [isHelper, props.post.createdAt, props.post.tagDates]);
 
   const [isEditing, setIsEditing] = useState(false)
   const [assignedTags, setAssignedTags] = useState(props.tags.filter((t) => props.post.tags.indexOf(t.slug) >= 0))
   const [searchQuery, setSearchQuery] = useState("")
   const [recentlyUsedTags, setRecentlyUsedTags] = useState<Tag[]>([])
+
+  useEffect(() => {
+    setAssignedTags(props.tags.filter((t) => props.post.tags.indexOf(t.slug) >= 0))
+  }, [props.post.tags, props.tags])
+
+  const assignedTagSlugs = useMemo(() => new Set(assignedTags.map(t => t.slug)), [assignedTags])
   
   useEffect(() => {
     if (isEditing) {
@@ -73,26 +86,31 @@ export const TagsPanel = (props: TagsPanelProps) => {
     }
   }
 
-  const assignOrUnassignTag = async (tag: Tag) => {
-    const idx = assignedTags.indexOf(tag)
+  const assignOrUnassignTag = useCallback(async (tag: Tag) => {
+    const isAssigned = assignedTagSlugs.has(tag.slug)
     let nextAssignedTags: Tag[] = []
 
-    if (idx >= 0) {
+    if (isAssigned) {
       const response = await actions.unassignTag(tag.slug, props.post.number)
       if (response.ok) {
-        nextAssignedTags = [...assignedTags]
-        nextAssignedTags.splice(idx, 1)
+        nextAssignedTags = assignedTags.filter(t => t.slug !== tag.slug)
+        props.onTagsChanged?.(props.post.number)
+      } else {
+        return
       }
     } else {
       const response = await actions.assignTag(tag.slug, props.post.number)
       if (response.ok) {
         nextAssignedTags = [...assignedTags, tag]
         saveRecentTag(tag)
+        props.onTagsChanged?.(props.post.number)
+      } else {
+        return
       }
     }
 
     setAssignedTags(nextAssignedTags)
-  }
+  }, [assignedTags, assignedTagSlugs, props.post.number, props.onTagsChanged])
 
   const onSubtitleClick = () => {
     if ((canEdit && !isHelper) || (isHelper && helperCanEditTags)) {
@@ -103,34 +121,47 @@ export const TagsPanel = (props: TagsPanelProps) => {
     }
   }
 
-  const clearAllTags = async () => {
+  const clearAllTags = useCallback(async () => {
     if (assignedTags.length === 0) return
     if (!window.confirm("Are you sure you want to remove all tags from this post?")) return
-    const promises = assignedTags.map(tag => actions.unassignTag(tag.slug, props.post.number))
-    await Promise.all(promises)
+    
+    const removedTags: Tag[] = []
+    
+    for (const tag of assignedTags) {
+      const response = await actions.unassignTag(tag.slug, props.post.number)
+      if (!response.ok) {
+        if (removedTags.length > 0) {
+          setAssignedTags(assignedTags.filter(t => !removedTags.includes(t)))
+          props.onTagsChanged?.(props.post.number)
+        }
+        return
+      }
+      removedTags.push(tag)
+    }
     
     setAssignedTags([])
-  }
+    props.onTagsChanged?.(props.post.number)
+  }, [assignedTags, props.post.number, props.onTagsChanged])
+
+  const recentTagSlugs = useMemo(() => new Set(recentlyUsedTags.map(t => t.slug)), [recentlyUsedTags])
 
   const filteredTags = useMemo(() => {
-    if (!searchQuery.trim()) return props.tags
-    const query = searchQuery.toLowerCase()
-    return props.tags.filter(
-      tag => tag.name.toLowerCase().includes(query) || tag.slug.toLowerCase().includes(query)
-    )
+    const query = searchQuery.toLowerCase().trim()
+    let tags = props.tags
+    
+    if (query) {
+      tags = tags.filter(
+        tag => tag.name.toLowerCase().includes(query) || tag.slug.toLowerCase().includes(query)
+      )
+    }
+    
+    return tags
   }, [props.tags, searchQuery])
 
-  const groupedTags = useMemo(() => {
-    if (searchQuery.trim()) return null
-    
-    const groups: { [key: string]: Tag[] } = {}
-    props.tags.forEach(tag => {
-      const firstChar = tag.name.charAt(0).toUpperCase()
-      if (!groups[firstChar]) groups[firstChar] = []
-      groups[firstChar].push(tag)
-    })
-    return groups
-  }, [props.tags, searchQuery])
+  const nonRecentTags = useMemo(() => {
+    if (searchQuery.trim()) return filteredTags
+    return filteredTags.filter(tag => !recentTagSlugs.has(tag.slug))
+  }, [filteredTags, recentTagSlugs, searchQuery])
 
   if (!canEdit && assignedTags.length === 0) {
     return null
@@ -151,56 +182,42 @@ export const TagsPanel = (props: TagsPanelProps) => {
   )
 
   const renderTagsGrid = () => {
-    if (groupedTags && !searchQuery.trim()) {
-      return (
-        <>
-          {recentlyUsedTags.length > 0 && (
-            <div className="mb-4">
-              <div className="font-bold text-sm text-gray-600 mb-1">
-                <Trans id="label.recent">Recently Used</Trans>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {recentlyUsedTags.map(tag => (
-                  <TagListItem 
-                    key={`recent-${tag.id}`} 
-                    tag={tag} 
-                    assigned={assignedTags.indexOf(tag) >= 0} 
-                    onClick={assignOrUnassignTag} 
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {Object.entries(groupedTags).sort().map(([letter, tags]) => (
-            <div key={letter} className="mb-4">
-              <div className="font-bold text-sm text-gray-600 mb-1">{letter}</div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {tags.map(tag => (
-                  <TagListItem 
-                    key={tag.id} 
-                    tag={tag} 
-                    assigned={assignedTags.indexOf(tag) >= 0} 
-                    onClick={assignOrUnassignTag} 
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </>
-      )
-    }
-    
+    const tagsToShow = searchQuery.trim() ? filteredTags : nonRecentTags
+    const showRecent = !searchQuery.trim() && recentlyUsedTags.length > 0
+
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-        {filteredTags.map(tag => (
-          <TagListItem 
-            key={tag.id} 
-            tag={tag} 
-            assigned={assignedTags.indexOf(tag) >= 0} 
-            onClick={assignOrUnassignTag} 
-          />
-        ))}
+      <div className="c-tags-selector">
+        {showRecent && (
+          <div className="c-tags-selector__section">
+            <span className="c-tags-selector__label">Recent</span>
+            <div className="c-tags-selector__tags">
+              {recentlyUsedTags.map(tag => (
+                <TagListItem 
+                  key={`recent-${tag.id}`} 
+                  tag={tag} 
+                  assigned={assignedTagSlugs.has(tag.slug)} 
+                  onClick={assignOrUnassignTag} 
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {tagsToShow.length > 0 && (
+          <div className="c-tags-selector__section">
+            {showRecent && <span className="c-tags-selector__label">All Tags</span>}
+            <div className="c-tags-selector__tags">
+              {tagsToShow.map(tag => (
+                <TagListItem 
+                  key={tag.id} 
+                  tag={tag} 
+                  assigned={assignedTagSlugs.has(tag.slug)} 
+                  onClick={assignOrUnassignTag} 
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     )
   }

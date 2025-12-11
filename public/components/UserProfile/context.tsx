@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react"
-import { UserRole, UserStatus, UserAvatarType } from "@fider/models"
-import { actions, Fider } from "@fider/services"
+import { UserStatus, UserAvatarType, UserRole } from "@fider/models"
+import { actions, Fider, userPermissions } from "@fider/services"
 import { useUserStanding } from "@fider/contexts/UserStandingContext"
 
 export type ProfileTab = "search" | "standing" | "settings"
@@ -76,79 +76,6 @@ interface UserProfileProviderProps {
   children: ReactNode
 }
 
-const isRole = (role: UserRole | number, expected: UserRole): boolean => {
-  return role === expected || role === (expected as unknown as number)
-}
-
-const canModerateUser = (targetUser: UserData | null): boolean => {
-  if (!targetUser) return false
-  const currentUser = Fider.session.user
-  if (!currentUser) return false
-  const currentRole = currentUser.role
-  const targetRole = targetUser.role
-  if (isRole(currentRole, UserRole.Visitor)) return false
-  if (currentUser.id === targetUser.id) return false
-  if (isRole(targetRole, UserRole.Administrator)) return false
-  if (isRole(currentRole, UserRole.Moderator)) {
-    return isRole(targetRole, UserRole.Visitor)
-  }
-  if (isRole(currentRole, UserRole.Collaborator)) {
-    return isRole(targetRole, UserRole.Visitor) || isRole(targetRole, UserRole.Moderator)
-  }
-  return isRole(currentRole, UserRole.Administrator)
-}
-
-const canBlockUser = (targetUser: UserData | null): boolean => {
-  if (!targetUser) return false
-  const currentUser = Fider.session.user
-  if (!currentUser) return false
-  if (!isRole(currentUser.role, UserRole.Administrator) && !isRole(currentUser.role, UserRole.Collaborator)) return false
-  if (currentUser.id === targetUser.id) return false
-  if (isRole(targetUser.role, UserRole.Administrator)) return false
-  if (isRole(currentUser.role, UserRole.Collaborator)) {
-    return isRole(targetUser.role, UserRole.Visitor)
-  }
-  return true
-}
-
-const canDeleteModerationAction = (targetUser: UserData | null): boolean => {
-  if (!targetUser) return false
-  const currentUser = Fider.session.user
-  if (!currentUser) return false
-  if (!isRole(currentUser.role, UserRole.Administrator) && 
-      !isRole(currentUser.role, UserRole.Collaborator) && 
-      !isRole(currentUser.role, UserRole.Moderator)) return false
-  if (currentUser.id === targetUser.id) return false
-  if (isRole(targetUser.role, UserRole.Administrator)) return false
-  if (isRole(currentUser.role, UserRole.Moderator)) {
-    return isRole(targetUser.role, UserRole.Visitor)
-  }
-  if (isRole(currentUser.role, UserRole.Collaborator)) {
-    return isRole(targetUser.role, UserRole.Visitor)
-  }
-  return true
-}
-
-const canEditUserName = (targetUser: UserData | null): boolean => {
-  if (!targetUser) return false
-  const currentUser = Fider.session.user
-  if (!currentUser) return false
-  if (currentUser.id === targetUser.id) return true
-  return isRole(currentUser.role, UserRole.Administrator) || 
-         isRole(currentUser.role, UserRole.Moderator) || 
-         isRole(currentUser.role, UserRole.Collaborator)
-}
-
-const canEditUserAvatar = (targetUser: UserData | null): boolean => {
-  if (!targetUser) return false
-  const currentUser = Fider.session.user
-  if (!currentUser) return false
-  if (currentUser.id === targetUser.id) return true
-  return isRole(currentUser.role, UserRole.Administrator) || 
-         isRole(currentUser.role, UserRole.Moderator) || 
-         isRole(currentUser.role, UserRole.Collaborator)
-}
-
 export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
   userId,
   user: initialUser,
@@ -166,6 +93,11 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
 
   const isViewingOwnProfile = Fider.session.isAuthenticated && Fider.session.user.id === userId
   const globalStanding = useUserStanding()
+  const globalStandingRef = useRef(globalStanding)
+  
+  useEffect(() => {
+    globalStandingRef.current = globalStanding
+  }, [globalStanding])
 
   const loadStats = useCallback(async () => {
     const result = await actions.getUserProfileStats(userId)
@@ -181,10 +113,10 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
     if (result.ok) {
       setStanding(result.data)
       if (isViewingOwnProfile) {
-        globalStanding.setStandingData(result.data.warnings, result.data.mutes)
+        globalStandingRef.current.setStandingData(result.data.warnings, result.data.mutes)
       }
     }
-  }, [userId, isViewingOwnProfile, globalStanding])
+  }, [userId, isViewingOwnProfile])
 
   const refreshStats = useCallback(async () => {
     await loadStats()
@@ -226,13 +158,13 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
       if (result.ok) {
         setStanding(result.data)
         if (isViewingOwnProfile) {
-          globalStanding.setStandingData(result.data.warnings, result.data.mutes)
+          globalStandingRef.current.setStandingData(result.data.warnings, result.data.mutes)
         }
       }
       setIsLoading(false)
     }
     init()
-  }, [userId, loadStats, isViewingOwnProfile, globalStanding])
+  }, [userId, loadStats, isViewingOwnProfile])
 
   useEffect(() => {
     if (embedded) return
@@ -264,11 +196,11 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
     updateUserName,
     updateUserAvatar,
     isViewingOwnProfile,
-    canModerate: canModerateUser(user),
-    canBlock: canBlockUser(user),
-    canDeleteModeration: canDeleteModerationAction(user),
-    canEditName: canEditUserName(user),
-    canEditAvatar: canEditUserAvatar(user),
+    canModerate: user ? userPermissions.canModerate(user) : false,
+    canBlock: user ? userPermissions.canBlock(user) : false,
+    canDeleteModeration: user ? userPermissions.canDeleteModeration(user) : false,
+    canEditName: user ? userPermissions.canEditName(user) : false,
+    canEditAvatar: user ? userPermissions.canEditAvatar(user) : false,
   }
 
   return (

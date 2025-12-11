@@ -7,6 +7,7 @@ import { HStack, VStack } from "@fider/components/layout"
 import { Webhook, WebhookData, WebhookPreviewResult, WebhookStatus, WebhookType } from "@fider/models"
 import { HoverInfo } from "@fider/components/common/HoverInfo"
 import { WebhookTemplateInfoModal } from "@fider/pages/Administration/components/webhook/WebhookTemplateInfoModal"
+import { WebhookDocsPanel } from "@fider/pages/Administration/components/webhook/WebhookDocsPanel"
 
 interface WebhookFormProps {
   webhook?: Webhook
@@ -91,6 +92,7 @@ export const WebhookForm = (props: WebhookFormProps) => {
   const [typing, setTyping] = useState<NodeJS.Timeout | undefined>()
   const [preview, setPreview] = useState<WebhookPreviewResult | null | undefined>()
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isDocsOpen, setIsDocsOpen] = useState(false)
   const [error, setError] = useState<Failure | undefined>()
 
   const calculatePreview = () => {
@@ -142,6 +144,8 @@ export const WebhookForm = (props: WebhookFormProps) => {
 
   const showModal = () => setIsModalOpen(true)
   const hideModal = () => setIsModalOpen(false)
+  const showDocs = () => setIsDocsOpen(true)
+  const hideDocs = () => setIsDocsOpen(false)
 
   const allHeaders = Object.keys(httpHeaders)
   const title = props.webhook ? `Webhook #${props.webhook.id}: ${props.webhook.name}` : "New webhook"
@@ -152,7 +156,12 @@ export const WebhookForm = (props: WebhookFormProps) => {
           This webhook has failed
         </Message>
       )}
-      <h2 className="text-title mb-4">{title}</h2>
+      <HStack justify="between" className="mb-4">
+        <h2 className="text-title">{title}</h2>
+        <Button variant="secondary" size="small" onClick={showDocs}>
+          Docs
+        </Button>
+      </HStack>
       <Form className="c-webhook-form" error={error}>
         <Input field="name" label="Name" value={name} onChange={setName} placeholder="My awesome webhook" />
         <Select
@@ -164,6 +173,8 @@ export const WebhookForm = (props: WebhookFormProps) => {
             { label: "New Comment", value: WebhookType.NEW_COMMENT },
             { label: "Change Status", value: WebhookType.CHANGE_STATUS },
             { label: "Delete Post", value: WebhookType.DELETE_POST },
+            { label: "New Report", value: WebhookType.NEW_REPORT },
+            { label: "Report Resolved", value: WebhookType.REPORT_RESOLVED },
           ]}
           onChange={setType}
         />
@@ -233,6 +244,7 @@ export const WebhookForm = (props: WebhookFormProps) => {
         </HStack>
       </Form>
       <WebhookTemplateInfoModal type={type} isModalOpen={isModalOpen} onModalClose={hideModal} />
+      <WebhookDocsPanel isOpen={isDocsOpen} onClose={hideDocs} />
     </>
   )
 }

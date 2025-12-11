@@ -4,7 +4,8 @@ import { Webhook, WebhookData, WebhookStatus } from "@fider/models"
 import { actions, Failure } from "@fider/services"
 import { WebhookForm } from "../components/webhook/WebhookForm"
 import { WebhookListItem } from "../components/webhook/WebhookListItem"
-import { VStack } from "@fider/components/layout"
+import { WebhookDocsPanel } from "../components/webhook/WebhookDocsPanel"
+import { VStack, HStack } from "@fider/components/layout"
 import { PageConfig } from "@fider/components/layouts"
 
 export const pageConfig: PageConfig = {
@@ -47,6 +48,7 @@ const ManageWebhooksPage: React.FC<ManageWebhooksPageProps> = (props) => {
   const [isAdding, setIsAdding] = useState(false)
   const [allWebhooks, setAllWebhooks] = useState(() => [...props.webhooks].sort(webhookSorter))
   const [editing, setEditing] = useState<Webhook | undefined>()
+  const [isDocsOpen, setIsDocsOpen] = useState(false)
 
   const sortWebhooks = () => setAllWebhooks(prev => [...prev].sort(webhookSorter))
 
@@ -101,6 +103,10 @@ const ManageWebhooksPage: React.FC<ManageWebhooksPageProps> = (props) => {
     sortWebhooks()
   }
 
+  const handleWebhookStatusChanged = (webhook: Webhook) => {
+    sortWebhooks()
+  }
+
   const getWebhookItems = () => {
     return allWebhooks.map((w) => (
       <WebhookListItem
@@ -109,6 +115,7 @@ const ManageWebhooksPage: React.FC<ManageWebhooksPageProps> = (props) => {
         onWebhookDeleted={handleWebhookDeleted}
         editWebhook={startWebhookEditing}
         onWebhookFailed={handleWebhookFailed}
+        onWebhookStatusChanged={handleWebhookStatusChanged}
       />
     ))
   }
@@ -122,21 +129,29 @@ const ManageWebhooksPage: React.FC<ManageWebhooksPageProps> = (props) => {
   }
 
   return (
-    <VStack spacing={8}>
-      <p>
-        Use webhooks to integrate Fider with other applications like Slack, Discord, Zapier and many others.{" "}
-        <a className="text-link" href="https://fider.io/docs/using-webhooks" target="_blank" rel="noopener">
-          Learn more in our documentation
-        </a>
-        .
-      </p>
-      <WebhooksList title="New Post" description="a new post is created on this site" list={getWebhookItems()} />
-      <div>
-        <Button variant="secondary" onClick={addNew}>
-          Add new webhook
-        </Button>
-      </div>
-    </VStack>
+    <>
+      <VStack spacing={8}>
+        <HStack justify="between" className="items-start">
+          <p>
+            Use webhooks to integrate Fider with other applications like Slack, Discord, Zapier and many others.{" "}
+            <a className="text-link" href="https://fider.io/docs/using-webhooks" target="_blank" rel="noopener">
+              Learn more in our documentation
+            </a>
+            .
+          </p>
+          <Button variant="secondary" size="small" onClick={() => setIsDocsOpen(true)}>
+            Docs
+          </Button>
+        </HStack>
+        <WebhooksList title="New Post" description="a new post is created on this site" list={getWebhookItems()} />
+        <div>
+          <Button variant="secondary" onClick={addNew}>
+            Add new webhook
+          </Button>
+        </div>
+      </VStack>
+      <WebhookDocsPanel isOpen={isDocsOpen} onClose={() => setIsDocsOpen(false)} />
+    </>
   )
 }
 

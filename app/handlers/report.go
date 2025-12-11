@@ -322,6 +322,18 @@ func ResolveReport() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
+			getReport := &query.GetReportByID{ReportID: reportID}
+			if err := bus.Dispatch(c, getReport); err == nil {
+				c.Enqueue(tasks.NotifyAboutReportResolved(
+					getReport.Result.ID,
+					status,
+					action.ResolutionNote,
+					getReport.Result.ReportedType,
+					getReport.Result.ReportedID,
+					getReport.Result.Reason,
+				))
+			}
+
 			sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgReportResolved, sse.ReportEventPayload{
 				ReportID: reportID,
 				Status:   action.Status,

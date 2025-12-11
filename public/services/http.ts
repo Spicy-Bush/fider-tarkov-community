@@ -13,15 +13,17 @@ export interface Result<T = void> {
   ok: boolean
   data: T
   error?: Failure
+  headers?: Headers
 }
 
-async function toResult<T>(response: Response): Promise<Result<T>> {
+async function toResult<T>(response: Response, includeHeaders = false): Promise<Result<T>> {
   const body = await response.json()
 
   if (response.status < 400) {
     return {
       ok: true,
       data: body as T,
+      headers: includeHeaders ? response.headers : undefined,
     }
   }
 
@@ -41,7 +43,11 @@ async function toResult<T>(response: Response): Promise<Result<T>> {
     },
   }
 }
-async function request<T>(url: string, method: "GET" | "POST" | "PUT" | "DELETE", body?: any): Promise<Result<T>> {
+interface RequestOptions {
+  includeHeaders?: boolean
+}
+
+async function request<T>(url: string, method: "GET" | "POST" | "PUT" | "DELETE", body?: any, options?: RequestOptions): Promise<Result<T>> {
   const headers: [string, string][] = [
     ["Accept", "application/json"],
     ["Content-Type", "application/json"],
@@ -53,7 +59,7 @@ async function request<T>(url: string, method: "GET" | "POST" | "PUT" | "DELETE"
       body: JSON.stringify(body),
       credentials: "same-origin",
     })
-    return await toResult<T>(response)
+    return await toResult<T>(response, options?.includeHeaders)
   } catch (err) {
     const truncatedBody = truncate(body ? JSON.stringify(body) : "<empty>", 1000)
     throw new Error(`Failed to ${method} ${url} with body '${truncatedBody}'`)
@@ -63,6 +69,9 @@ async function request<T>(url: string, method: "GET" | "POST" | "PUT" | "DELETE"
 export const http = {
   get: async <T = void>(url: string): Promise<Result<T>> => {
     return await request<T>(url, "GET")
+  },
+  getWithHeaders: async <T = void>(url: string): Promise<Result<T>> => {
+    return await request<T>(url, "GET", undefined, { includeHeaders: true })
   },
   post: async <T = void>(url: string, body?: any): Promise<Result<T>> => {
     return await request<T>(url, "POST", body)

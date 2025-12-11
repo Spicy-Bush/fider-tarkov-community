@@ -1,15 +1,14 @@
 import "./ShowPost.page.scss"
 
-import React from "react"
+import React, { useEffect, useCallback } from "react"
 
 import { LockStatus } from "./components/LockStatus"
 import { PostLockingModal } from "./components/PostLockingModal"
-import { Comment, Post, Tag, Vote, ImageUpload, CurrentUser, PostStatus, isPostLocked, UserRole, ReportReason } from "@fider/models"
-import { actions, clearUrlHash, Failure, Fider, notify, timeAgo, formatDate } from "@fider/services"
+import { Comment, Post, Tag, Vote, PostStatus, isPostLocked, ReportReason } from "@fider/models"
+import { actions, clearUrlHash, Fider, notify, formatDate, postPermissions } from "@fider/services"
 import { heroiconsDotsHorizontal as IconDotsHorizontal, heroiconsChevronUp as IconChevronUp } from "@fider/icons.generated"
 
 import {
-  ResponseDetails,
   Button,
   UserName,
   Moment,
@@ -25,16 +24,18 @@ import {
   ReportModal,
   ReportButton,
 } from "@fider/components"
+import { ResponseDetails } from "@fider/components/post/ShowPostResponse"
 import { DiscussionPanel } from "./components/DiscussionPanel"
 
 import { heroiconsX as IconX, heroiconsThumbsup as IconThumbsUp } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
-import { Trans } from "@lingui/react/macro" 
+import { Trans } from "@lingui/react/macro"
 import { TagsPanel } from "./components/TagsPanel"
 import { VoteSection } from "./components/VoteSection"
 import { DeletePostModal } from "./components/DeletePostModal"
 import { ResponseModal } from "./components/ResponseModal"
 import { VotesPanel } from "./components/VotesPanel"
+import { useShowPostState } from "./hooks"
 
 interface ReportStatus {
   hasReportedPost: boolean
@@ -53,396 +54,325 @@ interface ShowPostPageProps {
   reportReasons?: ReportReason[]
 }
 
-interface ShowPostPageState {
-  editMode: boolean
-  newTitle: string
-  showDeleteModal: boolean
-  showResponseModal: boolean
-  showReportModal: boolean
-  attachments: ImageUpload[]
-  newDescription: string
-  highlightedComment?: number
-  showLockModal: boolean;
-  showUnlockModal: boolean;
-  error?: Failure
-}
+const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
+  const state = useShowPostState({
+    initialTitle: props.post.title,
+    initialDescription: props.post.description,
+  })
 
-const oneHour = 3600
-const canEditPost = (user: CurrentUser, post: Post) => {
-  if (!user) {
-    return false
-  }
-
-  // If user is collaborator or admin, they can edit any post
-  if (user.isCollaborator || user.isAdministrator) {
-    return true
-  }
-
-  // If user is moderator, they can only edit posts from regular users
-  if (user.isModerator) {
-    return post.user.role === UserRole.Visitor
-  }
-
-  // Regular users can only edit their own posts within 1 hour
-  return user.id === post.user.id && timeAgo(post.createdAt) <= oneHour
-}
-
-export default class ShowPostPage extends React.Component<ShowPostPageProps, ShowPostPageState> {
-  constructor(props: ShowPostPageProps) {
-    super(props)
-
-    this.state = {
-      editMode: false,
-      showDeleteModal: false,
-      showResponseModal: false,
-      showReportModal: false,
-      newTitle: this.props.post.title,
-      newDescription: this.props.post.description,
-      attachments: [],
-      showLockModal: false,
-      showUnlockModal: false,
+  const handleCopyEvent = useCallback(() => {
+    const selection = window.getSelection()
+    if (selection && selection.toString().trim()) {
+      state.setHasCopiedContent(true)
     }
-  }
+  }, [state.setHasCopiedContent])
 
-  public componentDidMount() {
-    this.handleHashChange()
-    window.addEventListener("hashchange", this.handleHashChange)
-    const currentPath = window.location.pathname
-    
-    if (!currentPath.includes(this.props.post.slug)) {
-      const newPath = `${currentPath}/${this.props.post.slug}`
-      window.history.replaceState({}, document.title, newPath)
-    }
-  }
-
-  public componentWillUnmount() {
-    window.removeEventListener("hashchange", this.handleHashChange)
-  }
-
-  private handleScrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" })
-  }
-
-  private saveChanges = async () => {
-    const result = await actions.updatePost(this.props.post.number, this.state.newTitle, this.state.newDescription, this.state.attachments)
-    if (result.ok) {
-      location.reload()
-    } else {
-      this.setState({
-        error: result.error,
-      })
-    }
-  }
-
-  private setShowLockModal = (showLockModal: boolean) => {
-    this.setState({ showLockModal })
-  }
-  
-  private setShowUnlockModal = (showUnlockModal: boolean) => {
-    this.setState({ showUnlockModal })
-  }
-
-  private canDeletePost = () => {
-    const status = PostStatus.Get(this.props.post.status)
-    if (
-      !Fider.session.isAuthenticated ||
-      status.closed
-    ) {
-      return false
-    }
-
-    const user = Fider.session.user
-    if (!user) {
-      return false
-    }
-
-    // If user is collaborator or admin, they can delete any post
-    if (user.isCollaborator || user.isAdministrator) {
-      return true
-    }
-
-    // If user is moderator, they can only delete posts from regular users
-    if (user.isModerator) {
-      return this.props.post.user.role === UserRole.Visitor
-    }
-
-    return false
-  }
-
-  private setNewTitle = (newTitle: string) => {
-    this.setState({ newTitle })
-  }
-
-  private setNewDescription = (newDescription: string) => {
-    this.setState({ newDescription })
-  }
-
-  private setAttachments = (attachments: ImageUpload[]) => {
-    this.setState({ attachments })
-  }
-
-  private setShowDeleteModal = (showDeleteModal: boolean) => {
-    this.setState({ showDeleteModal })
-  }
-
-  private setShowResponseModal = (showResponseModal: boolean) => {
-    this.setState({ showResponseModal })
-  }
-
-  private setShowReportModal = (showReportModal: boolean) => {
-    this.setState({ showReportModal })
-  }
-
-  private cancelEdit = async () => {
-    this.setState({ error: undefined, editMode: false })
-  }
-
-  private startEdit = async () => {
-    this.setState({ editMode: true })
-  }
-
-  private handleHashChange = (e?: Event) => {
-    const hash = window.location.hash
-    const result = /#comment-([0-9]+)/.exec(hash)
-
-    let highlightedComment
-    if (result === null) {
-      // No match
-      highlightedComment = undefined
-    } else {
-      // Match, extract numeric ID
-      const id = parseInt(result[1])
-      if (this.props.comments.map((comment) => comment.id).includes(id)) {
-        highlightedComment = id
-      } else {
-        // Unknown comment
-        if (e?.cancelable) {
-          e.preventDefault()
-        } else {
-          clearUrlHash(true)
-        }
-        notify.error(<Trans id="showpost.comment.unknownhighlighted">Unknown comment ID #{id}</Trans>)
-        highlightedComment = undefined
-      }
-    }
-    this.setState({ highlightedComment }, () => {
-      this.scrollToHighlightedComment()
-    })
-  }
-  
-  private scrollToHighlightedComment = () => {
-    const { highlightedComment } = this.state
-    if (highlightedComment) {
+  const scrollToHighlightedComment = useCallback(() => {
+    if (state.highlightedComment) {
       setTimeout(() => {
-        const element = document.getElementById(`comment-${highlightedComment}`)
+        const element = document.getElementById(`comment-${state.highlightedComment}`)
         if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          element.scrollIntoView({ behavior: "smooth", block: "start" })
         }
       }, 100)
     }
-  }
+  }, [state.highlightedComment])
 
-  public onActionSelected = (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report") => () => {
-    if (action === "copy") {
-      navigator.clipboard.writeText(window.location.href)
-      notify.success(<Trans id="showpost.copylink.success">Link copied to clipboard</Trans>)
-    } else if (action === "delete") {
-      this.setShowDeleteModal(true)
-    } else if (action === "status") {
-      this.setShowResponseModal(true)
-    } else if (action === "edit") {
-      this.startEdit()
-    } else if (action === "lock") {
-      this.setShowLockModal(true)
-    } else if (action === "unlock") {
-      this.setShowUnlockModal(true)
-    } else if (action === "report") {
-      this.setShowReportModal(true)
+  const handleHashChange = useCallback(
+    (e?: Event) => {
+      const hash = window.location.hash
+      const result = /#comment-([0-9]+)/.exec(hash)
+
+      let newHighlightedComment: number | undefined
+      if (result === null) {
+        newHighlightedComment = undefined
+      } else {
+        const id = parseInt(result[1])
+        if (props.comments.map((comment) => comment.id).includes(id)) {
+          newHighlightedComment = id
+        } else {
+          if (e?.cancelable) {
+            e.preventDefault()
+          } else {
+            clearUrlHash(true)
+          }
+          notify.error(<Trans id="showpost.comment.unknownhighlighted">Unknown comment ID #{id}</Trans>)
+          newHighlightedComment = undefined
+        }
+      }
+      state.setHighlightedComment(newHighlightedComment)
+    },
+    [props.comments, state.setHighlightedComment]
+  )
+
+  useEffect(() => {
+    state.setNewTitle(props.post.title)
+    state.setNewDescription(props.post.description)
+  }, [props.post.number])
+
+  useEffect(() => {
+    handleHashChange()
+    window.addEventListener("hashchange", handleHashChange)
+    document.addEventListener("copy", handleCopyEvent)
+    const currentPath = window.location.pathname
+
+    if (!currentPath.includes(props.post.slug)) {
+      const newPath = `${currentPath}/${props.post.slug}`
+      window.history.replaceState({}, document.title, newPath)
     }
-  }
 
-  public render() {
-    return (
-      <>
-        <div id="p-show-post" className="page container">
-          <div className="p-show-post">
-            <div className="p-show-post__main-col">
-              <div className="p-show-post__header-col">
-                <VStack spacing={8}>
-                  <HStack justify="between">
-                    <VStack align="start">
-                      {!this.state.editMode && (
-                        <HStack>
-                          <Avatar user={this.props.post.user} />
-                          <VStack spacing={1}>
-                            <UserName user={this.props.post.user} />
-                            <span className="text-muted" data-tooltip={`Created ${formatDate(Fider.currentLocale, this.props.post.createdAt, "full")}`}>
-                              <Trans id="showpost.lastactivity">Last activity:</Trans>{" "}
-                              <Moment locale={Fider.currentLocale} date={this.props.post.lastActivityAt} />
-                            </span>
-                          </VStack>
-                        </HStack>
-                      )}
-                    </VStack>
+    return () => {
+      window.removeEventListener("hashchange", handleHashChange)
+      document.removeEventListener("copy", handleCopyEvent)
+    }
+  }, [handleHashChange, handleCopyEvent, props.post.slug])
 
-                    {!this.state.editMode && (
-                      <HStack spacing={1} className="items-center">
-                        <ReportButton
-                          reportedUserId={this.props.post.user.id}
-                          size="medium"
-                          hasReported={this.props.reportStatus?.hasReportedPost ?? false}
-                          dailyLimitReached={this.props.reportStatus?.dailyLimitReached ?? false}
-                          onReport={() => this.setState({ showReportModal: true })}
-                        />
-                        <Dropdown position="left" renderHandle={<Icon sprite={IconDotsHorizontal} width="24" height="24" />}>
-                          <Dropdown.ListItem onClick={this.onActionSelected("copy")}>
-                            <Trans id="action.copylink">Copy link</Trans>
-                          </Dropdown.ListItem>
-                          {Fider.session.isAuthenticated && canEditPost(Fider.session.user, this.props.post) && (
-                            <>
-                              <Dropdown.ListItem onClick={this.onActionSelected("edit")}>
-                                <Trans id="action.edit">Edit</Trans>
+  useEffect(() => {
+    scrollToHighlightedComment()
+  }, [scrollToHighlightedComment])
+
+  const handleScrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }, [])
+
+  const saveChanges = useCallback(async () => {
+    const result = await actions.updatePost(props.post.number, state.newTitle, state.newDescription, state.attachments)
+    if (result.ok) {
+      location.reload()
+    } else {
+      state.setError(result.error)
+    }
+  }, [props.post.number, state.newTitle, state.newDescription, state.attachments, state.setError])
+
+  const canDeletePost = useCallback(() => {
+    const status = PostStatus.Get(props.post.status)
+    if (status.closed) return false
+    return postPermissions.canDelete(props.post)
+  }, [props.post.status, props.post.user.role])
+
+  const onActionSelected = useCallback(
+    (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report") => () => {
+      if (action === "copy") {
+        navigator.clipboard.writeText(window.location.href)
+        notify.success(<Trans id="showpost.copylink.success">Link copied to clipboard</Trans>)
+      } else if (action === "delete") {
+        state.openModal("delete")
+      } else if (action === "status") {
+        state.openModal("response")
+      } else if (action === "edit") {
+        state.startEdit()
+      } else if (action === "lock") {
+        state.openModal("lock")
+      } else if (action === "unlock") {
+        state.openModal("unlock")
+      } else if (action === "report") {
+        state.openModal("report")
+      }
+    },
+    [state.startEdit, state.openModal]
+  )
+
+  return (
+    <>
+      <div id="p-show-post" className="page container">
+        <div className="p-show-post">
+          <div className="p-show-post__main-col">
+            <div className="p-show-post__header-col">
+              <VStack spacing={8}>
+                <HStack justify="between">
+                  <VStack align="start">
+                    {!state.editMode && (
+                      <HStack>
+                        <Avatar user={props.post.user} />
+                        <VStack spacing={1}>
+                          <UserName user={props.post.user} />
+                          <span
+                            className="text-muted"
+                            data-tooltip={`Created ${formatDate(Fider.currentLocale, props.post.createdAt, "full")}`}
+                          >
+                            <Trans id="showpost.lastactivity">Last activity:</Trans>{" "}
+                            <Moment locale={Fider.currentLocale} date={props.post.lastActivityAt} />
+                          </span>
+                        </VStack>
+                      </HStack>
+                    )}
+                  </VStack>
+
+                  {!state.editMode && (
+                    <HStack spacing={1} className="items-center">
+                      <ReportButton
+                        reportedUserId={props.post.user.id}
+                        size="medium"
+                        hasReported={props.reportStatus?.hasReportedPost ?? false}
+                        dailyLimitReached={props.reportStatus?.dailyLimitReached ?? false}
+                        onReport={() => state.openModal("report")}
+                      />
+                      <Dropdown
+                        position="left"
+                        renderHandle={<Icon sprite={IconDotsHorizontal} width="24" height="24" />}
+                      >
+                        <Dropdown.ListItem onClick={onActionSelected("copy")}>
+                          <Trans id="action.copylink">Copy link</Trans>
+                        </Dropdown.ListItem>
+                        {postPermissions.canEdit(props.post) && (
+                          <>
+                            <Dropdown.ListItem onClick={onActionSelected("edit")}>
+                              <Trans id="action.edit">Edit</Trans>
+                            </Dropdown.ListItem>
+                            {postPermissions.canRespond() && (
+                              <Dropdown.ListItem onClick={onActionSelected("status")}>
+                                <Trans id="action.respond">Respond</Trans>
                               </Dropdown.ListItem>
-                              {(Fider.session.user.isCollaborator || Fider.session.user.isModerator || Fider.session.user.isAdministrator) && (
-                                <Dropdown.ListItem onClick={this.onActionSelected("status")}>
-                                  <Trans id="action.respond">Respond</Trans>
-                                </Dropdown.ListItem>
-                              )}
-                              {(Fider.session.user.isCollaborator || Fider.session.user.isAdministrator) && (
-                                <>
-                                  {!isPostLocked(this.props.post) ? (
-                                    <Dropdown.ListItem onClick={this.onActionSelected("lock")}>
-                                      <Trans id="action.lock">Lock</Trans>
-                                    </Dropdown.ListItem>
-                                  ) : (
-                                    <Dropdown.ListItem onClick={this.onActionSelected("unlock")}>
-                                      <Trans id="action.unlock">Unlock</Trans>
-                                    </Dropdown.ListItem>
-                                  )}
-                                </>
-                              )}
+                            )}
+                            {postPermissions.canLock() && (
+                              <>
+                                {!isPostLocked(props.post) ? (
+                                  <Dropdown.ListItem onClick={onActionSelected("lock")}>
+                                    <Trans id="action.lock">Lock</Trans>
+                                  </Dropdown.ListItem>
+                                ) : (
+                                  <Dropdown.ListItem onClick={onActionSelected("unlock")}>
+                                    <Trans id="action.unlock">Unlock</Trans>
+                                  </Dropdown.ListItem>
+                                )}
+                              </>
+                            )}
                           </>
                         )}
-                        {this.canDeletePost() && (
-                          <Dropdown.ListItem onClick={this.onActionSelected("delete")} className="text-red-700">
+                        {canDeletePost() && (
+                          <Dropdown.ListItem onClick={onActionSelected("delete")} className="text-red-700">
                             <Trans id="action.delete">Delete</Trans>
                           </Dropdown.ListItem>
                         )}
                       </Dropdown>
                     </HStack>
                   )}
-                  </HStack>
+                </HStack>
 
-                  <div className="flex-grow">
-                    {this.state.editMode ? (
-                      <Form error={this.state.error}>
-                        <Input field="title" maxLength={100} value={this.state.newTitle} onChange={this.setNewTitle} />
-                      </Form>
-                    ) : (
-                      <>
-                        <h1 className="text-large">{this.props.post.title}</h1>
-                        {isPostLocked(this.props.post) && <LockStatus post={this.props.post} />}
-                      </>
-                    )}
-                  </div>
-
-                  <DeletePostModal onModalClose={() => this.setShowDeleteModal(false)} showModal={this.state.showDeleteModal} post={this.props.post} />
-                    {Fider.session.isAuthenticated && (Fider.session.user.isCollaborator || Fider.session.user.isModerator || Fider.session.user.isAdministrator) && (
-                      <ResponseModal onCloseModal={() => this.setShowResponseModal(false)} showModal={this.state.showResponseModal} post={this.props.post} />
-                    )}
-                  <VStack>
-                    {this.state.editMode ? (
-                      <Form error={this.state.error}>
-                        <TextArea field="description" value={this.state.newDescription} onChange={this.setNewDescription} />
-                        <MultiImageUploader field="attachments" bkeys={this.props.attachments} maxUploads={3} onChange={this.setAttachments} />
-                      </Form>
-                    ) : (
-                      <>
-                        {this.props.post.description && <Markdown className="description" text={this.props.post.description} style="full" />}
-                        {!this.props.post.description && (
-                          <em className="text-muted">
-                            <Trans id="showpost.message.nodescription">No description provided.</Trans>
-                          </em>
-                        )}
-                        {this.props.attachments.length > 0 && (
-                          <ImageGallery bkeys={this.props.attachments} />
-                        )}
-                      </>
-                    )}
-                  </VStack>
-                  <div className="mt-2">
-                    <TagsPanel post={this.props.post} tags={this.props.tags} />
-                  </div>
-
-                  <VStack spacing={4}>
-                    {!this.state.editMode ? (
-                      <div className="w-full">
-                        <VoteSection post={this.props.post} />
-                      </div>
-                    ) : (
-                      <HStack>
-                        <Button variant="primary" onClick={this.saveChanges} disabled={Fider.isReadOnly}>
-                          <Icon sprite={IconThumbsUp} />{" "}
-                          <span>
-                            <Trans id="action.save">Save</Trans>
-                          </span>
-                        </Button>
-                        <Button onClick={this.cancelEdit} disabled={Fider.isReadOnly}>
-                          <Icon sprite={IconX} />
-                          <span>
-                            <Trans id="action.cancel">Cancel</Trans>
-                          </span>
-                        </Button>
-                      </HStack>
-                    )}
-                    <div className="border-4 border-blue-500" />
-                  </VStack>
-
-                  <ResponseDetails status={this.props.post.status} response={this.props.post.response} />
-                </VStack>
-              </div>
-
-              <div className="p-show-post__discussion_col">
-                <DiscussionPanel
-                  post={this.props.post}
-                  comments={this.props.comments}
-                  highlightedComment={this.state.highlightedComment}
-                  subscribed={this.props.subscribed}
-                  reportedCommentIds={this.props.reportStatus?.reportedCommentIds ?? []}
-                  dailyLimitReached={this.props.reportStatus?.dailyLimitReached ?? false}
-                  reportReasons={this.props.reportReasons}
-                />
-                <div className="mt-4 flex items-center justify-between">
-                  <Button
-                    variant="secondary"
-                    onClick={this.handleScrollToTop}
-                  >
-                    <Icon sprite={IconChevronUp} />
-                    <span>
-                      <Trans id="returntop.button">Return to top</Trans>
-                    </span>
-                  </Button>
+                <div className="flex-grow">
+                  {state.editMode ? (
+                    <Form error={state.error}>
+                      <Input field="title" maxLength={100} value={state.newTitle} onChange={state.setNewTitle} />
+                    </Form>
+                  ) : (
+                    <>
+                      <h1 className="text-large">{props.post.title}</h1>
+                      {isPostLocked(props.post) && <LockStatus post={props.post} />}
+                    </>
+                  )}
                 </div>
-              </div>
+
+                <DeletePostModal
+                  onModalClose={state.closeModal}
+                  showModal={state.isModalOpen("delete")}
+                  post={props.post}
+                />
+                {postPermissions.canRespond() && (
+                  <ResponseModal
+                    onCloseModal={state.closeModal}
+                    showModal={state.isModalOpen("response")}
+                    post={props.post}
+                    tags={props.tags}
+                    attachments={props.attachments}
+                    hasCopiedContent={state.hasCopiedContent}
+                  />
+                )}
+                <VStack>
+                  {state.editMode ? (
+                    <Form error={state.error}>
+                      <TextArea field="description" value={state.newDescription} onChange={state.setNewDescription} />
+                      <MultiImageUploader
+                        field="attachments"
+                        bkeys={props.attachments}
+                        maxUploads={Fider.session.tenant.generalSettings?.maxImagesPerPost || 3}
+                        onChange={state.setAttachments}
+                      />
+                    </Form>
+                  ) : (
+                    <>
+                      {props.post.description && (
+                        <Markdown className="description" text={props.post.description} style="full" />
+                      )}
+                      {!props.post.description && (
+                        <em className="text-muted">
+                          <Trans id="showpost.message.nodescription">No description provided.</Trans>
+                        </em>
+                      )}
+                      {props.attachments.length > 0 && <ImageGallery bkeys={props.attachments} />}
+                    </>
+                  )}
+                </VStack>
+                <div className="mt-2">
+                  <TagsPanel post={props.post} tags={props.tags} />
+                </div>
+
+                <VStack spacing={4}>
+                  {!state.editMode ? (
+                    <div className="w-full">
+                      <VoteSection post={props.post} />
+                    </div>
+                  ) : (
+                    <HStack>
+                      <Button variant="primary" onClick={saveChanges} disabled={Fider.isReadOnly}>
+                        <Icon sprite={IconThumbsUp} />{" "}
+                        <span>
+                          <Trans id="action.save">Save</Trans>
+                        </span>
+                      </Button>
+                      <Button onClick={state.cancelEdit} disabled={Fider.isReadOnly}>
+                        <Icon sprite={IconX} />
+                        <span>
+                          <Trans id="action.cancel">Cancel</Trans>
+                        </span>
+                      </Button>
+                    </HStack>
+                  )}
+                  <div className="border-4 border-blue-500" />
+                </VStack>
+
+                <ResponseDetails status={props.post.status} response={props.post.response} />
+              </VStack>
             </div>
-            <div className="p-show-post__action-col">
-              <VotesPanel post={this.props.post} votes={this.props.votes} />
+
+            <div className="p-show-post__discussion_col">
+              <DiscussionPanel
+                post={props.post}
+                comments={props.comments}
+                highlightedComment={state.highlightedComment}
+                subscribed={props.subscribed}
+                reportedCommentIds={props.reportStatus?.reportedCommentIds ?? []}
+                dailyLimitReached={props.reportStatus?.dailyLimitReached ?? false}
+                reportReasons={props.reportReasons}
+              />
+              <div className="mt-4 flex items-center justify-between">
+                <Button variant="secondary" onClick={handleScrollToTop}>
+                  <Icon sprite={IconChevronUp} />
+                  <span>
+                    <Trans id="returntop.button">Return to top</Trans>
+                  </span>
+                </Button>
+              </div>
             </div>
           </div>
+          <div className="p-show-post__action-col">
+            <VotesPanel post={props.post} votes={props.votes} />
+          </div>
         </div>
-        <PostLockingModal
-          post={this.props.post}
-          isOpen={this.state.showLockModal || this.state.showUnlockModal}
-          onClose={() => this.state.showLockModal ? this.setShowLockModal(false) : this.setShowUnlockModal(false)}
-          mode={this.state.showLockModal ? "lock" : "unlock"}
-        />
-        <ReportModal
-          isOpen={this.state.showReportModal}
-          onClose={() => this.setShowReportModal(false)}
-          postNumber={this.props.post.number}
-          reasons={this.props.reportReasons}
-        />
-      </>
-    )
-  }
+      </div>
+      <PostLockingModal
+        post={props.post}
+        isOpen={state.isModalOpen("lock") || state.isModalOpen("unlock")}
+        onClose={state.closeModal}
+        mode={state.isModalOpen("lock") ? "lock" : "unlock"}
+      />
+      <ReportModal
+        isOpen={state.isModalOpen("report")}
+        onClose={state.closeModal}
+        postNumber={props.post.number}
+        reasons={props.reportReasons}
+      />
+    </>
+  )
 }
+
+export default ShowPostPage

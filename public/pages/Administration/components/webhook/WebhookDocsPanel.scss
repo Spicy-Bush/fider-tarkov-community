@@ -1,0 +1,108 @@
+.c-webhook-docs {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+}
+
+.c-webhook-docs__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.c-webhook-docs__panel {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  margin-left: auto;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.15);
+  overflow-y: auto;
+}
+
+.c-webhook-docs__header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.c-webhook-docs__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.c-webhook-docs__content {
+  padding: 1.5rem;
+  flex: 1;
+}
+
+.c-webhook-docs__section {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.c-webhook-docs__section-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: #f9fafb;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background: #f3f4f6;
+  }
+
+  h4 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+}
+
+.c-webhook-docs__section-content {
+  padding: 1.5rem;
+  background: white;
+}
+
+.c-webhook-docs__code {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  font-size: 0.875rem;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", "Consolas", "source-code-pro", monospace;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .c-webhook-docs__panel {
+    max-width: 100%;
+  }
+}
+

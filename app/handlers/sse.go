@@ -9,14 +9,13 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
-func ModSSE() web.HandlerFunc {
+func sseHandler(channel sse.Channel) web.HandlerFunc {
 	return func(c *web.Context) error {
 		c.Response.Header().Set("Content-Type", "text/event-stream")
 		c.Response.Header().Set("Cache-Control", "no-cache")
 		c.Response.Header().Set("Connection", "keep-alive")
 		c.Response.Header().Set("X-Accel-Buffering", "no")
 
-		//disables write deadline for SSE connections
 		rc := http.NewResponseController(c.Response.Writer)
 		if err := rc.SetWriteDeadline(time.Time{}); err != nil {
 			return c.Failure(fmt.Errorf("failed to disable write deadline: %w", err))
@@ -27,7 +26,7 @@ func ModSSE() web.HandlerFunc {
 			return c.Failure(fmt.Errorf("streaming not supported"))
 		}
 
-		client := sse.NewClient(c.Tenant().ID, c.User().ID, c.User().Name)
+		client := sse.NewClient(c.Tenant().ID, c.User().ID, c.User().Name, channel)
 		hub := sse.GetHub()
 		hub.Register(client)
 		defer hub.Unregister(client)
@@ -60,4 +59,12 @@ func ModSSE() web.HandlerFunc {
 			}
 		}
 	}
+}
+
+func ReportsSSE() web.HandlerFunc {
+	return sseHandler(sse.ChannelReports)
+}
+
+func QueueSSE() web.HandlerFunc {
+	return sseHandler(sse.ChannelQueue)
 }

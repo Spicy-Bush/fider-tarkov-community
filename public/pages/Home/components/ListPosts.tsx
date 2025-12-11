@@ -1,6 +1,7 @@
-import React from "react"
+import React, { useMemo } from "react"
 import { Post, Tag, CurrentUser } from "@fider/models"
-import { ShowTag, VoteCounter, Markdown, Icon, ResponseLozenge } from "@fider/components"
+import { ShowTag, VoteCounter, Markdown, Icon } from "@fider/components"
+import { ResponseLozenge } from "@fider/components/post/ShowPostResponse"
 import { heroiconsChatAlt2 as IconChatAlt2 } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 import "./ListPosts.scss"
@@ -10,6 +11,11 @@ interface ListPostsProps {
   tags: Tag[]
   emptyText: string
   loading?: boolean
+}
+
+interface PostWithTags {
+  post: Post
+  tags: Tag[]
 }
 
 const PostSkeleton = () => {
@@ -78,6 +84,14 @@ const ListPostItem = (props: { post: Post; user?: CurrentUser; tags: Tag[] }) =>
 }
 
 export const ListPosts = (props: ListPostsProps) => {
+  const postsWithTags = useMemo((): PostWithTags[] => {
+    if (!props.posts) return []
+    return props.posts.map((post) => ({
+      post,
+      tags: props.tags.filter((tag) => post.tags.includes(tag.slug)),
+    }))
+  }, [props.posts, props.tags])
+
   if (!props.posts && !props.loading) {
     return null
   }
@@ -92,16 +106,14 @@ export const ListPosts = (props: ListPostsProps) => {
     )
   }
 
-  const posts = props.posts!
-
-  if (posts.length === 0) {
+  if (postsWithTags.length === 0) {
     return <p className="text-center">{props.emptyText}</p>
   }
 
   return (
     <VStack spacing={4} divide>
-      {posts.map((post) => (
-        <ListPostItem key={post.id} post={post} tags={props.tags.filter((tag) => post.tags.indexOf(tag.slug) >= 0)} />
+      {postsWithTags.map(({ post, tags }) => (
+        <ListPostItem key={post.id} post={post} tags={tags} />
       ))}
     </VStack>
   )

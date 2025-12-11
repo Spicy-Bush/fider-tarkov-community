@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useState } from "react"
 import { CurrentUser, Comment, Post, ReportReason } from "@fider/models"
 import { ShowComment } from "./ShowComment"
 import { CommentInput } from "./CommentInput"
@@ -18,6 +18,12 @@ interface DiscussionPanelProps {
 }
 
 export const DiscussionPanel = (props: DiscussionPanelProps) => {
+  const [comments, setComments] = useState<Comment[]>(props.comments)
+
+  const handleCommentAdded = (newComment: Comment) => {
+    setComments(prev => [...prev, newComment])
+  }
+
   return (
     <>
       <VStack spacing={2} className="c-comment-list mt-8">
@@ -28,7 +34,7 @@ export const DiscussionPanel = (props: DiscussionPanelProps) => {
           <FollowButton post={props.post} subscribed={props.subscribed} />
         </HStack>
         <VStack spacing={4} className="c-comment-list">
-          {props.comments.map((c) => (
+          {comments.map((c) => (
             <ShowComment
               key={c.id}
               post={props.post}
@@ -39,7 +45,7 @@ export const DiscussionPanel = (props: DiscussionPanelProps) => {
               reportReasons={props.reportReasons}
             />
           ))}
-          <CommentInput post={props.post} />
+          <CommentInput post={props.post} onCommentAdded={handleCommentAdded} />
         </VStack>
       </VStack>
     </>

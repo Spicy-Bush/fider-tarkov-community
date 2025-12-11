@@ -1,0 +1,108 @@
+import React from "react"
+import { Button, Icon } from "@fider/components"
+import { classSet, Fider } from "@fider/services"
+import {
+  heroiconsChevronUp as IconChevronUp,
+  heroiconsArrowLeft as IconArrowLeft,
+} from "@fider/icons.generated"
+import { Report, Post, Comment, User } from "@fider/models"
+import { UserProfile } from "@fider/components/UserProfile"
+import { ContentPreview } from "./ContentPreview"
+import { ViewingUserType } from "../hooks/useReportsState"
+
+interface ReportsPreviewProps {
+  selectedReport: Report | null
+  viewingUser: ViewingUserType | null
+  profileKey: number
+  previewPost: Post | null
+  previewComment: Comment | null
+  isLoadingPreview: boolean
+  onDeselectReport: () => void
+  onCloseUserProfile: () => void
+  onAssign: () => Promise<void>
+  onUnassign: () => Promise<void>
+  onResolveClick: (status: "resolved" | "dismissed", shiftKey: boolean) => Promise<void>
+  onViewUser: (user: ViewingUserType) => void
+  onUserUpdate: (updates: Partial<ViewingUserType>) => void
+}
+
+export const ReportsPreview: React.FC<ReportsPreviewProps> = ({
+  selectedReport,
+  viewingUser,
+  profileKey,
+  previewPost,
+  previewComment,
+  isLoadingPreview,
+  onDeselectReport,
+  onCloseUserProfile,
+  onAssign,
+  onUnassign,
+  onResolveClick,
+  onViewUser,
+  onUserUpdate,
+}) => {
+  return (
+    <div
+      className={classSet({
+        "c-reports-split-view__preview": true,
+        "c-reports-split-view__preview--mobile-open": selectedReport !== null || viewingUser !== null,
+      })}
+    >
+      {viewingUser ? (
+        <>
+          <Button
+            variant="tertiary"
+            size="small"
+            className="c-reports-split-view__back-btn"
+            onClick={onCloseUserProfile}
+          >
+            <Icon sprite={IconArrowLeft} className="h-4" />
+            <span>Back to report</span>
+          </Button>
+          <UserProfile
+            key={profileKey}
+            userId={viewingUser.id}
+            user={viewingUser as User}
+            embedded
+            compact
+            onUserUpdate={onUserUpdate}
+          >
+            <UserProfile.Header compact />
+            <UserProfile.Actions />
+            <UserProfile.Status />
+            <UserProfile.Tabs>
+              <UserProfile.Search />
+              <UserProfile.Standing />
+            </UserProfile.Tabs>
+          </UserProfile>
+        </>
+      ) : (
+        <>
+          {selectedReport && (
+            <Button
+              variant="tertiary"
+              size="small"
+              className="c-reports-split-view__mobile-back"
+              onClick={onDeselectReport}
+            >
+              <Icon sprite={IconChevronUp} className="c-reports-split-view__mobile-back-icon" />
+              <span>Back to list</span>
+            </Button>
+          )}
+          <ContentPreview
+            report={selectedReport}
+            post={previewPost}
+            comment={previewComment}
+            isLoading={isLoadingPreview}
+            onAssign={onAssign}
+            onUnassign={onUnassign}
+            onResolve={onResolveClick}
+            currentUserId={Fider.session.user.id}
+            onUserClick={onViewUser}
+          />
+        </>
+      )}
+    </div>
+  )
+}
+

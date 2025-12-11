@@ -228,7 +228,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
         >
           {bkeys.slice(0, 4).map((bkey, index) => (
             <div 
-              key={bkey} 
+              key={`${bkey}-${index}`} 
               className={`c-image-gallery__item ${bkeys.length === 3 && index === 2 ? 'c-image-gallery__item--wide' : ''}`}
               onClick={() => openModal(index)}
             >
@@ -253,6 +253,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
         onClose={closeModal} 
         center={false} 
         size="fluid"
+        manageHistory={false}
       >
         <Modal.Content>
           <div 

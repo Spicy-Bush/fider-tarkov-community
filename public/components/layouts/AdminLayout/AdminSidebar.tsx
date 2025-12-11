@@ -1,5 +1,5 @@
 import React from "react"
-import { Icon } from "@fider/components"
+import { Icon, AdminLink } from "@fider/components"
 import { VStack } from "@fider/components/layout"
 import { useFider } from "@fider/hooks"
 import { useLayout } from "@fider/contexts/LayoutContext"
@@ -10,6 +10,7 @@ import {
   heroiconsChevronUp as IconChevron,
   heroiconsUsers as IconUsers,
   heroiconsFlag as IconFlag,
+  heroiconsInbox as IconInbox,
   heroiconsCog as IconCog,
   heroiconsDocumentText as IconDocumentText,
   heroiconsChatAlt2 as IconChat,
@@ -45,10 +46,10 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ title, href, isActive, icon }
   }
 
   return (
-    <a className={className} href={href} title={title} onClick={handleClick}>
+    <AdminLink className={className} href={href} title={title} onClick={handleClick}>
       <Icon sprite={icon} className="c-admin-sidebar__item-icon" />
       <span className="c-admin-sidebar__item-text">{title}</span>
-    </a>
+    </AdminLink>
   )
 }
 
@@ -67,8 +68,13 @@ export const AdminSidebar: React.FC = () => {
     <aside className={className}>
       <nav className="c-admin-sidebar__nav">
         <VStack spacing={0}>
-          <SidebarItem title="Members" href="/admin/members" isActive={activeItem === "members"} icon={IconUsers} />
-          <SidebarItem title="Reports" href="/admin/reports" isActive={activeItem === "reports"} icon={IconFlag} />
+          <SidebarItem title="Post Queue" href="/admin/queue" isActive={activeItem === "queue"} icon={IconInbox} />
+          {(fider.session.user.isModerator || fider.session.user.isCollaborator || fider.session.user.isAdministrator) && (
+            <>
+              <SidebarItem title="Members" href="/admin/members" isActive={activeItem === "members"} icon={IconUsers} />
+              <SidebarItem title="Reports" href="/admin/reports" isActive={activeItem === "reports"} icon={IconFlag} />
+            </>
+          )}
           {fider.session.user.isCollaborator && (
             <>
               <SidebarItem title="General" href="/admin" isActive={activeItem === "general"} icon={IconCog} />

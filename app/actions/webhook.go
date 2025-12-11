@@ -40,7 +40,9 @@ func (action *CreateEditWebhook) Validate(ctx context.Context, _ *entity.User) *
 	} else if action.Type != enum.WebhookNewPost &&
 		action.Type != enum.WebhookNewComment &&
 		action.Type != enum.WebhookChangeStatus &&
-		action.Type != enum.WebhookDeletePost {
+		action.Type != enum.WebhookDeletePost &&
+		action.Type != enum.WebhookNewReport &&
+		action.Type != enum.WebhookReportResolved {
 		result.AddFieldFailure("type", "Type must be valid.")
 	}
 
@@ -130,7 +132,9 @@ func (action *PreviewWebhook) Validate(context.Context, *entity.User) *validate.
 	} else if action.Type != enum.WebhookNewPost &&
 		action.Type != enum.WebhookNewComment &&
 		action.Type != enum.WebhookChangeStatus &&
-		action.Type != enum.WebhookDeletePost {
+		action.Type != enum.WebhookDeletePost &&
+		action.Type != enum.WebhookNewReport &&
+		action.Type != enum.WebhookReportResolved {
 		result.AddFieldFailure("type", "Type must be valid.")
 	}
 

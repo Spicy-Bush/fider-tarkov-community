@@ -70,7 +70,7 @@ esbuild
     bundle: true,
     platform: "node",
     target: "node18",
-    format: "cjs",
+    format: "esm",
     define: {
       "process.env.NODE_ENV": `"${process.env.NODE_ENV || "development"}"`,
     },

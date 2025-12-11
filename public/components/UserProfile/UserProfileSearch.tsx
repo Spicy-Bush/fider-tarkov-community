@@ -296,7 +296,7 @@ const UserProfileSearchComponent: React.FC = () => {
                       <div className="c-user-profile__post-meta">
                         <div className="flex flex-x flex--spacing-2 flex-items-center">
                           <a href={`/profile/${user.id}`}>
-                            <Avatar user={userForComponents} size="small" />
+                            <Avatar user={userForComponents} size="small" clickable={false} />
                           </a>
                           <UserName user={userForComponents} />
                           <div className="text-xs">

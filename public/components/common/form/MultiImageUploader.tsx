@@ -30,42 +30,62 @@ export class MultiImageUploader extends React.Component<MultiImageUploaderProps,
   constructor(props: MultiImageUploaderProps) {
     super(props)
 
-    let count = 1
     const instances = {}
     if (props.bkeys) {
       for (const bkey of props.bkeys) {
-        count++
         this.addNewElement(instances, bkey)
       }
     }
 
-    if (count <= this.props.maxUploads) {
-      count++
+    const actualAttachmentCount = this.getActualAttachmentCount(instances, [])
+    if (actualAttachmentCount < this.props.maxUploads) {
       this.addNewElement(instances)
     }
 
-    this.state = { instances, count, removed: [] }
+    this.state = { instances, count: Object.keys(instances).length, removed: [] }
+  }
+
+  private getActualAttachmentCount(instances: MultiImageUploaderInstances, removed: ImageUpload[]): number {
+    const currentAttachments = Object.keys(instances)
+      .map((k) => instances[k].upload)
+      .filter((x) => x && (x.bkey || x.upload) && !x.remove) as ImageUpload[]
+    return currentAttachments.length
+  }
+
+  private getEmptyUploaderIds(instances: MultiImageUploaderInstances): string[] {
+    return Object.keys(instances).filter((k) => {
+      const upload = instances[k].upload
+      return !upload || (!upload.bkey && !upload.upload && !upload.remove)
+    })
   }
 
   private imageUploaded = (upload: ImageUpload, instanceID: string) => {
     const instances = { ...this.state.instances }
     const removed = [...this.state.removed]
-    let count = this.state.count
+    
     if (upload.remove) {
       if (upload.bkey) {
         removed.push(upload)
       }
       delete instances[instanceID]
-      if (--count === this.props.maxUploads) {
+    } else {
+      instances[instanceID].upload = upload
+    }
+
+    const actualAttachmentCount = this.getActualAttachmentCount(instances, removed)
+    const emptyUploaderIds = this.getEmptyUploaderIds(instances)
+
+    if (actualAttachmentCount < this.props.maxUploads) {
+      if (emptyUploaderIds.length === 0) {
         this.addNewElement(instances)
       }
     } else {
-      instances[instanceID].upload = upload
-      if (count++ <= this.props.maxUploads) {
-        this.addNewElement(instances)
-      }
+      emptyUploaderIds.forEach((id) => {
+        delete instances[id]
+      })
     }
-    this.setState({ instances, count, removed }, this.triggerOnChange)
+
+    this.setState({ instances, count: Object.keys(instances).length, removed }, this.triggerOnChange)
   }
 
   private triggerOnChange() {

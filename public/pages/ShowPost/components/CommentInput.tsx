@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 
-import { Post, ImageUpload, isPostLocked } from "@fider/models"
+import { Post, ImageUpload, isPostLocked, Comment } from "@fider/models"
 import { Avatar, UserName, Button, Form, MultiImageUploader } from "@fider/components"
 import { SignInModal } from "@fider/components"
 
@@ -15,6 +15,7 @@ import { useUserStanding } from "@fider/contexts/UserStandingContext"
 
 interface CommentInputProps {
   post: Post
+  onCommentAdded?: (comment: Comment) => void
 }
 
 const CACHE_TITLE_KEY = "CommentInput-Comment-"
@@ -56,7 +57,21 @@ export const CommentInput = (props: CommentInputProps) => {
     const result = await actions.createComment(props.post.number, content, attachments)
     if (result.ok) {
       cache.session.remove(getCacheKey())
-      location.reload()
+      
+      if (props.onCommentAdded && fider.session.user) {
+        const newComment: Comment = {
+          id: result.data.id,
+          content: content,
+          createdAt: new Date().toISOString(),
+          user: fider.session.user,
+          attachments: attachments.map(a => a.bkey).filter((b): b is string => !!b),
+        }
+        props.onCommentAdded(newComment)
+        setContent("")
+        setAttachments([])
+      } else {
+        location.reload()
+      }
     } else {
       setError(result.error)
     }

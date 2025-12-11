@@ -20,6 +20,8 @@ export * from "./common/Toggle"
 export * from "./common/PageTitle"
 export * from "./common/Dropdown"
 export * from "./common/Money"
+export * from "./common/AdminLink"
+export * from "./common/EditOriginalPostPanel"
 
 // Form components
 export * from "./common/form/Form"
@@ -35,19 +37,14 @@ export * from "./common/form/MultiImageUploader"
 export * from "./common/form/RadioButton"
 export * from "./common/form/DisplayError"
 
-// Root level components
-export * from "./Header"
-export * from "./ReadOnlyNotice"
-export * from "./ShowTag"
-export * from "./ShowPostResponse"
-export * from "./SignInModal"
-export * from "./Reactions"
-export * from "./ShowPostStatus"
-export * from "./ErrorBoundary"
-export * from "./VoteCounter"
-export * from "./NotificationIndicator"
-export * from "./UserMenu"
-export * from "./ReportModal"
-export * from "./ReportButton"
-export * from "./ModerationModal"
-export * from "./ModIndicator" 
+// App shell components
+export * from "./app"
+
+// Post-related components
+export * from "./post"
+
+// Moderation components
+export * from "./moderation"
+
+// Auth components
+export * from "./auth"

@@ -1,8 +1,7 @@
 import "./PublicLayout.scss"
 
 import React, { ReactNode } from "react"
-import { Header } from "@fider/components"
-import Footer from "@fider/components/Footer"
+import { Header, Footer } from "@fider/components"
 
 interface PublicLayoutProps {
   children: ReactNode

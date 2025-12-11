@@ -1,13 +1,6 @@
-import { useFider } from "./use-fider"
+import { permissions } from "@fider/services"
 
 export const useIsStaff = (): boolean => {
-  const fider = useFider()
-  
-  if (!fider.session.isAuthenticated) {
-    return false
-  }
-  
-  const user = fider.session.user
-  return user.isCollaborator || user.isAdministrator || user.isModerator
+  return permissions.admin.canAccessAdmin()
 }
 

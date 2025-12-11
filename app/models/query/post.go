@@ -69,6 +69,12 @@ type GetAllPosts struct {
 	Result []*entity.Post
 }
 
+type CountUntaggedPosts struct {
+	Date     string
+	Statuses []enum.PostStatus
+	Result   int
+}
+
 type GetPostsByIDs struct {
 	PostIDs []int
 
@@ -76,6 +82,15 @@ type GetPostsByIDs struct {
 }
 
 func (q *SearchPosts) SetStatusesFromStrings(statuses []string) {
+	for _, v := range statuses {
+		var postStatus enum.PostStatus
+		if err := postStatus.UnmarshalText([]byte(v)); err == nil {
+			q.Statuses = append(q.Statuses, postStatus)
+		}
+	}
+}
+
+func (q *CountUntaggedPosts) SetStatusesFromStrings(statuses []string) {
 	for _, v := range statuses {
 		var postStatus enum.PostStatus
 		if err := postStatus.UnmarshalText([]byte(v)); err == nil {

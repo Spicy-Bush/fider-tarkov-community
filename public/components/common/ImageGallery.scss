@@ -30,7 +30,7 @@
   &__grid {
     display: grid;
     grid-gap: 8px;
-    max-width: 100%;
+    max-width: 500px;
   }
   
   &__item {
@@ -38,7 +38,7 @@
     cursor: pointer;
     overflow: hidden;
     border-radius: 4px;
-    height: 150px;
+    height: 100px;
     
     &--wide {
       grid-column: span 2;
@@ -80,8 +80,10 @@
     align-items: center;
     justify-content: center;
     width: 100%;
-    max-height: 80vh;
+    height: 80vh;
+    min-height: 80vh;
     touch-action: manipulation;
+    padding-bottom: 80px;
     
     &--zoomed {
       cursor: zoom-out;
@@ -89,19 +91,22 @@
     
     img {
       max-width: 90vw;
-      max-height: 80vh;
+      max-height: calc(80vh - 100px);
       object-fit: contain;
       will-change: transform;
+      flex-shrink: 0;
     }
 
     &:fullscreen, &:-webkit-full-screen, &:-moz-full-screen, &:-ms-fullscreen {
       background-color: #000;
       width: 100vw;
       height: 100vh;
+      min-height: 100vh;
+      padding-bottom: 0;
       
       img {
         max-width: 95vw;
-        max-height: 90vh;
+        max-height: calc(90vh - 100px);
       }
     }
   }
@@ -109,17 +114,17 @@
   &__navigation {
     position: absolute;
     bottom: 16px;
-    left: 0;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 8px;
     background-color: rgba(0, 0, 0, 0.5);
     border-radius: 4px;
-    margin: 0 auto;
     width: fit-content;
     z-index: 1;
+    flex-shrink: 0;
   }
   
   &__counter {
@@ -173,6 +178,16 @@
   }
   
   .c-image-gallery-modal {
+    &__container {
+      height: 80vh;
+      min-height: 80vh;
+      padding-bottom: 80px;
+      
+      img {
+        max-height: calc(80vh - 100px);
+      }
+    }
+    
     &__navigation {
       bottom: 8px;
       padding: 4px;

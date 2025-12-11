@@ -31,4 +31,4 @@ export * from "./Toggle"
 export * from "./PageTitle"
 export * from "./Dropdown"
 export * from "./Money"
-
+export * from "./EditOriginalPostPanel"

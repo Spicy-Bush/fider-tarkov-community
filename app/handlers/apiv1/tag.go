@@ -5,6 +5,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/sse"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -28,10 +29,19 @@ func AssignTag() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
+		wasUntagged := len(action.Post.Tags) == 0
+
 		return c.WithTransaction(func() error {
 			err := bus.Dispatch(c, &cmd.AssignTag{Tag: action.Tag, Post: action.Post})
 			if err != nil {
 				return c.Failure(err)
+			}
+
+			if wasUntagged {
+				sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgQueuePostTagged, sse.QueueEventPayload{
+					PostID:         action.Post.ID,
+					TaggedByUserID: c.User().ID,
+				})
 			}
 
 			return c.Ok(web.Map{})
@@ -47,10 +57,20 @@ func UnassignTag() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
+		willBeUntagged := len(action.Post.Tags) == 1
+
 		return c.WithTransaction(func() error {
 			err := bus.Dispatch(c, &cmd.UnassignTag{Tag: action.Tag, Post: action.Post})
 			if err != nil {
 				return c.Failure(err)
+			}
+
+			if willBeUntagged {
+				sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgQueuePostNew, sse.QueueEventPayload{
+					PostID:           action.Post.ID,
+					PostNumber:       action.Post.Number,
+					UntaggedByUserID: c.User().ID,
+				})
 			}
 
 			return c.Ok(web.Map{})

@@ -125,6 +125,7 @@ func routes(r *web.Engine) *web.Engine {
 		publicApi.Get("/api/v1/posts/:number", apiv1.GetPost())
 		publicApi.Get("/api/v1/posts/:number/comments", apiv1.ListComments())
 		publicApi.Get("/api/v1/posts/:number/comments/:id", apiv1.GetComment())
+		publicApi.Get("/api/v1/posts/:number/attachments", apiv1.GetPostAttachments())
 	}
 
 	// Available to any authenticated user
@@ -184,6 +185,12 @@ func routes(r *web.Engine) *web.Engine {
 		helper.Use(middlewares.IsAuthorized(enum.RoleHelper, enum.RoleCollaborator, enum.RoleAdministrator, enum.RoleModerator))
 		helper.Use(middlewares.BlockLockedTenants())
 
+		// post queue
+		helper.Get("/admin/queue", handlers.PostQueuePage())
+		helper.Post("/api/v1/queue/:id/heartbeat", handlers.QueuePostHeartbeat())
+		helper.Delete("/api/mod/queue-viewing", handlers.StopViewingQueuePost())
+		helper.Get("/api/mod/queue-events", handlers.QueueSSE())
+
 		// tags
 		helper.Post("/api/v1/posts/:number/tags/:slug", apiv1.AssignTag())
 		helper.Delete("/api/v1/posts/:number/tags/:slug", apiv1.UnassignTag())
@@ -222,7 +229,7 @@ func routes(r *web.Engine) *web.Engine {
 		staff.Put("/api/v1/reports/:id/resolve", handlers.ResolveReport())
 		staff.Post("/api/v1/reports/:id/heartbeat", handlers.ReportHeartbeat())
 		staff.Delete("/api/mod/viewing", handlers.StopViewingReport())
-		staff.Get("/api/mod/events", handlers.ModSSE())
+		staff.Get("/api/mod/report-events", handlers.ReportsSSE())
 	}
 
 	// Operations available only to collaborators and administrators

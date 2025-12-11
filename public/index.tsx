@@ -2,7 +2,7 @@ import "@fider/assets/styles/index.scss"
 
 import React from "react"
 import { createRoot } from "react-dom/client"
-import { ErrorBoundary, ReadOnlyNotice, DevBanner, WarningBanner } from "@fider/components"
+import { ErrorBoundary, ReadOnlyNotice, DevBanner, WarningBanner, AdminPageLoader } from "@fider/components"
 import { classSet, Fider, FiderContext, actions, activateI18N } from "@fider/services"
 import { UserStandingProvider } from "@fider/contexts/UserStandingContext"
 import { LayoutProvider } from "@fider/contexts/LayoutContext"
@@ -44,6 +44,28 @@ const bootstrapApp = (i18n: I18n) => {
   const rootElement = document.getElementById("root")
   if (rootElement) {
     const root = createRoot(rootElement)
+    const isAdminPage = fider.session.page.startsWith("Administration/")
+
+    const pageContent = isAdminPage ? (
+      <AdminPageLoader
+        initialPageName={fider.session.page}
+        initialPageProps={fider.session.props}
+      />
+    ) : (
+      <AsyncPageLoader
+        pageName={fider.session.page}
+        pageProps={fider.session.props}
+        renderWithLayout={(Component, pageConfig, props) => (
+          <LayoutResolver
+            pageName={fider.session.page}
+            pageComponent={Component}
+            pageProps={props}
+            pageConfig={pageConfig}
+          />
+        )}
+      />
+    )
+
     root.render(
       <React.StrictMode>
         <ErrorBoundary onError={logProductionError}>
@@ -54,18 +76,7 @@ const bootstrapApp = (i18n: I18n) => {
                   <DevBanner />
                   <WarningBanner />
                   <ReadOnlyNotice />
-                  <AsyncPageLoader
-                    pageName={fider.session.page}
-                    pageProps={fider.session.props}
-                    renderWithLayout={(Component, pageConfig, props) => (
-                      <LayoutResolver
-                        pageName={fider.session.page}
-                        pageComponent={Component}
-                        pageProps={props}
-                        pageConfig={pageConfig}
-                      />
-                    )}
-                  />
+                  {pageContent}
                 </UserStandingProvider>
               </LayoutProvider>
             </FiderContext.Provider>

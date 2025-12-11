@@ -1,8 +1,5 @@
 package sse
 
-// main logic for all SSE events which use a fire and
-// forget approach to broadcast to all clients in a tenant
-
 import (
 	"encoding/json"
 	"sync"
@@ -16,6 +13,11 @@ const (
 	MsgReportResolved     = "report.resolved"
 	MsgReportViewerJoined = "report.viewer_joined"
 	MsgReportViewerLeft   = "report.viewer_left"
+
+	MsgQueuePostNew      = "queue.post_new"
+	MsgQueuePostTagged   = "queue.post_tagged"
+	MsgQueueViewerJoined = "queue.viewer_joined"
+	MsgQueueViewerLeft   = "queue.viewer_left"
 )
 
 type Message struct {
@@ -43,18 +45,57 @@ type ViewerEventPayload struct {
 	UserName string `json:"userName"`
 }
 
+type QueueEventPayload struct {
+	PostID           int `json:"postId"`
+	PostNumber       int `json:"postNumber,omitempty"`
+	TaggedByUserID   int `json:"taggedByUserId,omitempty"`
+	UntaggedByUserID int `json:"untaggedByUserId,omitempty"`
+}
+
+type QueueViewerEventPayload struct {
+	PostID   int    `json:"postId"`
+	UserID   int    `json:"userId"`
+	UserName string `json:"userName"`
+}
+
 type viewerPresence struct {
 	userID    int
 	userName  string
-	reportID  int
+	itemID    int
 	lastSeen  time.Time
 	announced bool
 }
 
+type presenceConfig struct {
+	channel        Channel
+	joinedMessage  string
+	leftMessage    string
+	payloadBuilder func(itemID, userID int, userName string) interface{}
+}
+
+var reportPresenceConfig = presenceConfig{
+	channel:       ChannelReports,
+	joinedMessage: MsgReportViewerJoined,
+	leftMessage:   MsgReportViewerLeft,
+	payloadBuilder: func(itemID, userID int, userName string) interface{} {
+		return ViewerEventPayload{ReportID: itemID, UserID: userID, UserName: userName}
+	},
+}
+
+var queuePresenceConfig = presenceConfig{
+	channel:       ChannelQueue,
+	joinedMessage: MsgQueueViewerJoined,
+	leftMessage:   MsgQueueViewerLeft,
+	payloadBuilder: func(itemID, userID int, userName string) interface{} {
+		return QueueViewerEventPayload{PostID: itemID, UserID: userID, UserName: userName}
+	},
+}
+
 type TenantHub struct {
-	clients  map[*Client]bool
-	presence map[int]*viewerPresence
-	mu       sync.RWMutex
+	clients       map[*Client]bool
+	presence      map[int]*viewerPresence
+	queuePresence map[int]*viewerPresence
+	mu            sync.RWMutex
 }
 
 type Hub struct {
@@ -92,8 +133,9 @@ func (h *Hub) getTenantHub(tenantID int) *TenantHub {
 	}
 
 	th = &TenantHub{
-		clients:  make(map[*Client]bool),
-		presence: make(map[int]*viewerPresence),
+		clients:       make(map[*Client]bool),
+		presence:      make(map[int]*viewerPresence),
+		queuePresence: make(map[int]*viewerPresence),
 	}
 	h.tenants[tenantID] = th
 	return th
@@ -121,7 +163,7 @@ func (h *Hub) Unregister(client *Client) {
 	var pendingBroadcast *ViewerEventPayload
 	if p, ok := th.presence[client.userID]; ok && p.announced {
 		pendingBroadcast = &ViewerEventPayload{
-			ReportID: p.reportID,
+			ReportID: p.itemID,
 			UserID:   client.userID,
 			UserName: p.userName,
 		}
@@ -146,7 +188,17 @@ func (h *Hub) Unregister(client *Client) {
 	}
 }
 
-// sends a message to all clients in the tenant
+func getChannelForMessage(messageType string) Channel {
+	switch messageType {
+	case MsgReportNew, MsgReportAssigned, MsgReportUnassigned, MsgReportResolved, MsgReportViewerJoined, MsgReportViewerLeft:
+		return ChannelReports
+	case MsgQueuePostNew, MsgQueuePostTagged, MsgQueueViewerJoined, MsgQueueViewerLeft:
+		return ChannelQueue
+	default:
+		return ""
+	}
+}
+
 func (h *Hub) BroadcastToTenant(tenantID int, messageType string, payload interface{}) {
 	h.mu.RLock()
 	th := h.tenants[tenantID]
@@ -162,94 +214,80 @@ func (h *Hub) BroadcastToTenant(tenantID int, messageType string, payload interf
 		return
 	}
 
+	targetChannel := getChannelForMessage(messageType)
+
 	th.mu.RLock()
 	defer th.mu.RUnlock()
 
 	for client := range th.clients {
-		select {
-		case client.send <- data:
-		default:
-			// Channel full, will skip here
+		if client.channel == targetChannel {
+			select {
+			case client.send <- data:
+			default:
+			}
+		}
+	}
+}
+
+func (h *Hub) updatePresence(tenantID, userID int, userName string, itemID int, presenceMap *map[int]*viewerPresence, config presenceConfig) {
+	th := h.getTenantHub(tenantID)
+
+	th.mu.Lock()
+	defer th.mu.Unlock()
+
+	existing := (*presenceMap)[userID]
+
+	if existing != nil && existing.itemID != itemID && existing.announced {
+		h.broadcastViewerEventLocked(th, config.leftMessage, config.channel, config.payloadBuilder(existing.itemID, userID, existing.userName))
+	}
+
+	if itemID == 0 {
+		if existing != nil {
+			delete(*presenceMap, userID)
+		}
+		return
+	}
+
+	isNew := existing == nil || existing.itemID != itemID || !existing.announced
+
+	(*presenceMap)[userID] = &viewerPresence{
+		userID:    userID,
+		userName:  userName,
+		itemID:    itemID,
+		lastSeen:  time.Now(),
+		announced: true,
+	}
+
+	if isNew {
+		h.broadcastViewerEventLocked(th, config.joinedMessage, config.channel, config.payloadBuilder(itemID, userID, userName))
+	}
+}
+
+func (h *Hub) broadcastViewerEventLocked(th *TenantHub, messageType string, channel Channel, payload interface{}) {
+	msg := &Message{Type: messageType, Payload: payload}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+
+	for client := range th.clients {
+		if client.channel == channel {
+			select {
+			case client.send <- data:
+			default:
+			}
 		}
 	}
 }
 
 func (h *Hub) UpdatePresence(tenantID, userID int, userName string, reportID int) {
 	th := h.getTenantHub(tenantID)
-
-	th.mu.Lock()
-	defer th.mu.Unlock()
-
-	existing := th.presence[userID]
-
-	if existing != nil && existing.reportID != reportID && existing.announced {
-		h.broadcastViewerLeftLocked(th, existing.reportID, userID, existing.userName)
-	}
-
-	if reportID == 0 {
-		if existing != nil {
-			delete(th.presence, userID)
-		}
-		return
-	}
-
-	isNew := existing == nil || existing.reportID != reportID || !existing.announced
-
-	th.presence[userID] = &viewerPresence{
-		userID:    userID,
-		userName:  userName,
-		reportID:  reportID,
-		lastSeen:  time.Now(),
-		announced: true,
-	}
-
-	if isNew {
-		h.broadcastViewerJoinedLocked(th, reportID, userID, userName)
-	}
+	h.updatePresence(tenantID, userID, userName, reportID, &th.presence, reportPresenceConfig)
 }
 
-func (h *Hub) broadcastViewerJoinedLocked(th *TenantHub, reportID, userID int, userName string) {
-	msg := &Message{
-		Type: MsgReportViewerJoined,
-		Payload: ViewerEventPayload{
-			ReportID: reportID,
-			UserID:   userID,
-			UserName: userName,
-		},
-	}
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return
-	}
-
-	for client := range th.clients {
-		select {
-		case client.send <- data:
-		default:
-		}
-	}
-}
-
-func (h *Hub) broadcastViewerLeftLocked(th *TenantHub, reportID, userID int, userName string) {
-	msg := &Message{
-		Type: MsgReportViewerLeft,
-		Payload: ViewerEventPayload{
-			ReportID: reportID,
-			UserID:   userID,
-			UserName: userName,
-		},
-	}
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return
-	}
-
-	for client := range th.clients {
-		select {
-		case client.send <- data:
-		default:
-		}
-	}
+func (h *Hub) UpdateQueuePresence(tenantID, userID int, userName string, postID int) {
+	th := h.getTenantHub(tenantID)
+	h.updatePresence(tenantID, userID, userName, postID, &th.queuePresence, queuePresenceConfig)
 }
 
 type ReportViewers struct {
@@ -258,6 +296,33 @@ type ReportViewers struct {
 }
 
 func (h *Hub) GetAllActiveViewers(tenantID int) []ReportViewers {
+	result := h.getViewers(tenantID, func(th *TenantHub) map[int]*viewerPresence { return th.presence },
+		func(itemID int, viewers []*ClientInfo) interface{} {
+			return ReportViewers{ReportID: itemID, Viewers: viewers}
+		})
+	if result == nil {
+		return []ReportViewers{}
+	}
+	return result.([]ReportViewers)
+}
+
+type QueuePostViewers struct {
+	PostID  int           `json:"postId"`
+	Viewers []*ClientInfo `json:"viewers"`
+}
+
+func (h *Hub) GetAllQueueViewers(tenantID int) []QueuePostViewers {
+	result := h.getViewers(tenantID, func(th *TenantHub) map[int]*viewerPresence { return th.queuePresence },
+		func(itemID int, viewers []*ClientInfo) interface{} {
+			return QueuePostViewers{PostID: itemID, Viewers: viewers}
+		})
+	if result == nil {
+		return []QueuePostViewers{}
+	}
+	return result.([]QueuePostViewers)
+}
+
+func (h *Hub) getViewers(tenantID int, getPresenceMap func(*TenantHub) map[int]*viewerPresence, buildResult func(int, []*ClientInfo) interface{}) interface{} {
 	h.mu.RLock()
 	th := h.tenants[tenantID]
 	h.mu.RUnlock()
@@ -269,24 +334,32 @@ func (h *Hub) GetAllActiveViewers(tenantID int) []ReportViewers {
 	th.mu.RLock()
 	defer th.mu.RUnlock()
 
-	byReport := make(map[int][]*ClientInfo)
-	for _, p := range th.presence {
+	byItem := make(map[int][]*ClientInfo)
+	presenceMap := getPresenceMap(th)
+	for _, p := range presenceMap {
 		if p.announced {
-			byReport[p.reportID] = append(byReport[p.reportID], &ClientInfo{
+			byItem[p.itemID] = append(byItem[p.itemID], &ClientInfo{
 				UserID:   p.userID,
 				UserName: p.userName,
 			})
 		}
 	}
 
-	result := make([]ReportViewers, 0, len(byReport))
-	for reportID, viewers := range byReport {
-		result = append(result, ReportViewers{
-			ReportID: reportID,
-			Viewers:  viewers,
-		})
+	switch buildResult(0, nil).(type) {
+	case ReportViewers:
+		result := make([]ReportViewers, 0, len(byItem))
+		for itemID, viewers := range byItem {
+			result = append(result, buildResult(itemID, viewers).(ReportViewers))
+		}
+		return result
+	case QueuePostViewers:
+		result := make([]QueuePostViewers, 0, len(byItem))
+		for itemID, viewers := range byItem {
+			result = append(result, buildResult(itemID, viewers).(QueuePostViewers))
+		}
+		return result
 	}
-	return result
+	return nil
 }
 
 func (h *Hub) presenceSweep() {
@@ -299,7 +372,7 @@ func (h *Hub) presenceSweep() {
 }
 
 func (h *Hub) sweepStalePresence() {
-	threshold := time.Now().Add(-45 * time.Second)
+	threshold := time.Now().Add(-1 * time.Minute)
 
 	h.mu.RLock()
 	tenantIDs := make([]int, 0, len(h.tenants))
@@ -318,23 +391,30 @@ func (h *Hub) sweepStalePresence() {
 		}
 
 		th.mu.Lock()
-		var stale []*viewerPresence
-		for userID, p := range th.presence {
-			if p.lastSeen.Before(threshold) {
-				stale = append(stale, p)
-				delete(th.presence, userID)
-			}
-		}
+		staleReports := h.collectStalePresence(th.presence, threshold)
+		staleQueue := h.collectStalePresence(th.queuePresence, threshold)
 		th.mu.Unlock()
 
-		for _, p := range stale {
-			if p.announced {
-				h.BroadcastToTenant(tenantID, MsgReportViewerLeft, ViewerEventPayload{
-					ReportID: p.reportID,
-					UserID:   p.userID,
-					UserName: p.userName,
-				})
-			}
+		h.broadcastStaleViewerLeft(tenantID, staleReports, reportPresenceConfig)
+		h.broadcastStaleViewerLeft(tenantID, staleQueue, queuePresenceConfig)
+	}
+}
+
+func (h *Hub) collectStalePresence(presenceMap map[int]*viewerPresence, threshold time.Time) []*viewerPresence {
+	var stale []*viewerPresence
+	for userID, p := range presenceMap {
+		if p.lastSeen.Before(threshold) {
+			stale = append(stale, p)
+			delete(presenceMap, userID)
+		}
+	}
+	return stale
+}
+
+func (h *Hub) broadcastStaleViewerLeft(tenantID int, stale []*viewerPresence, config presenceConfig) {
+	for _, p := range stale {
+		if p.announced {
+			h.BroadcastToTenant(tenantID, config.leftMessage, config.payloadBuilder(p.itemID, p.userID, p.userName))
 		}
 	}
 }

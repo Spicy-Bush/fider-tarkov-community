@@ -3,7 +3,7 @@ import { useUserProfile } from "./context"
 import { Trans } from "@lingui/react/macro"
 import { actions, Failure } from "@fider/services"
 import { UserStatus } from "@fider/models"
-import { ModerationModal } from "@fider/components/ModerationModal"
+import { ModerationModal } from "@fider/components"
 
 export const UserProfileActions: React.FC = () => {
   const { user, canModerate, canBlock, refreshStanding, refreshUser } = useUserProfile()

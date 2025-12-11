@@ -13,6 +13,10 @@ export const getAllComments = async (postNumber: number): Promise<Result<Comment
   return await http.get<Comment[]>(`/api/v1/posts/${postNumber}/comments`)
 }
 
+export const getPostAttachments = async (postNumber: number): Promise<Result<string[]>> => {
+  return await http.get<string[]>(`/api/v1/posts/${postNumber}/attachments`)
+}
+
 export interface SearchPostsParams {
   query?: string
   view?: string
@@ -25,6 +29,7 @@ export interface SearchPostsParams {
   statuses?: string[]
   date?: string
   tagLogic?: "OR" | "AND"
+  includeCount?: boolean
 }
 
 export const searchPosts = async (params: SearchPostsParams): Promise<Result<Post[]>> => {
@@ -46,6 +51,10 @@ export const searchPosts = async (params: SearchPostsParams): Promise<Result<Pos
   }
   if (params.notMyVotes) {
     qsParams += `&notmyvotes=true`
+  }
+  if (params.includeCount) {
+    qsParams += `&includeCount=true`
+    return await http.getWithHeaders<Post[]>(`/api/v1/posts${qsParams}`)
   }
   return await http.get<Post[]>(`/api/v1/posts${qsParams}`)
 }
@@ -90,8 +99,8 @@ export const getTaggableUsers = async (nameFilter: string): Promise<Result<UserN
   return http.get<UserNames[]>(`/api/v1/taggable-users${querystring.stringify({ name: nameFilter })}`)
 }
 
-export const createComment = async (postNumber: number, content: string, attachments: ImageUpload[]): Promise<Result> => {
-  return http.post(`/api/v1/posts/${postNumber}/comments`, { content, attachments }).then(http.event("comment", "create"))
+export const createComment = async (postNumber: number, content: string, attachments: ImageUpload[]): Promise<Result<{ id: number }>> => {
+  return http.post<{ id: number }>(`/api/v1/posts/${postNumber}/comments`, { content, attachments }).then(http.event("comment", "create"))
 }
 
 export const updateComment = async (postNumber: number, commentID: number, content: string, attachments: ImageUpload[]): Promise<Result> => {

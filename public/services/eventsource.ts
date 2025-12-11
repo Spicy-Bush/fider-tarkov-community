@@ -1,4 +1,5 @@
 import { http } from "./http"
+import { TIME, RETRY } from "./constants"
 
 type MessageHandler = (type: string, payload: unknown) => void
 
@@ -7,151 +8,272 @@ interface EventSourceMessage {
   payload: unknown
 }
 
-class ModEventSourceService {
-  private es: EventSource | null = null
-  private handlers: Map<string, Set<MessageHandler>> = new Map()
-  private reconnectAttempts = 0
-  private maxReconnectAttempts = 10
-  private reconnectDelay = 1000
-  private isIntentionallyClosed = false
-  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
-  private viewingReportId: number | null = null
+interface HeartbeatConfig {
+  heartbeatEndpoint: (itemId: number) => string
+  stopViewingEndpoint: string
+}
 
-  connect(): void {
-    if (this.es !== null) {
-      return
+interface EventSourceConfig {
+  endpoint: string
+  heartbeatConfig?: HeartbeatConfig
+}
+
+interface EventSourceInstance {
+  connect: () => void
+  disconnect: () => void
+  on: (type: string, handler: MessageHandler) => () => void
+  isConnected: () => boolean
+  viewItem: (itemId: number) => void
+  stopViewing: () => void
+}
+
+export const createEventSource = (config: EventSourceConfig): EventSourceInstance => {
+  const { endpoint, heartbeatConfig } = config
+
+  let es: EventSource | null = null
+  const handlers = new Map<string, Set<MessageHandler>>()
+  let reconnectAttempts = 0
+  let reconnectDelay = TIME.RECONNECT_DELAY_MS
+  let isIntentionallyClosed = false
+  let heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  let viewingItemId: number | null = null
+  let visibilityChangeHandler: (() => void) | null = null
+  let connectionCount = 0
+
+  const emit = (type: string, payload: unknown): void => {
+    const typeHandlers = handlers.get(type)
+    if (typeHandlers) {
+      typeHandlers.forEach((handler) => handler(type, payload))
     }
 
-    this.isIntentionallyClosed = false
-
-    try {
-      this.es = new EventSource("/api/mod/events")
-
-      this.es.onopen = () => {
-        this.reconnectAttempts = 0
-        this.reconnectDelay = 1000
-        // re announce presence if we were viewing a report before disconnect
-        if (this.viewingReportId) {
-          this.sendHeartbeat()
-        }
-        this.emit("connection.open", {})
-      }
-
-      this.es.onmessage = (event) => {
-        try {
-          const message: EventSourceMessage = JSON.parse(event.data)
-          this.emit(message.type, message.payload)
-        } catch {}
-      }
-
-      this.es.onerror = () => {
-        this.emit("connection.error", {})
-
-        if (this.es?.readyState === EventSource.CLOSED) {
-          this.es = null
-          if (!this.isIntentionallyClosed) {
-            this.emit("connection.closed", {})
-            this.scheduleReconnect()
-          }
-        }
-      }
-    } catch {
-      this.es = null
-      this.scheduleReconnect()
-    }
-  }
-
-  private scheduleReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts || this.isIntentionallyClosed) {
-      this.emit("connection.failed", {})
-      return
-    }
-
-    this.reconnectAttempts++
-    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000)
-
-    setTimeout(() => {
-      if (!this.isIntentionallyClosed && this.es === null) {
-        this.connect()
-      }
-    }, delay)
-  }
-
-  disconnect(): void {
-    this.isIntentionallyClosed = true
-    this.stopHeartbeat()
-    this.viewingReportId = null
-    if (this.es) {
-      this.es.close()
-      this.es = null
-    }
-  }
-
-  on(type: string, handler: MessageHandler): () => void {
-    if (!this.handlers.has(type)) {
-      this.handlers.set(type, new Set())
-    }
-    this.handlers.get(type)!.add(handler)
-
-    return () => {
-      this.handlers.get(type)?.delete(handler)
-    }
-  }
-
-  private emit(type: string, payload: unknown): void {
-    const handlers = this.handlers.get(type)
-    if (handlers) {
-      handlers.forEach((handler) => handler(type, payload))
-    }
-
-    const wildcardHandlers = this.handlers.get("*")
+    const wildcardHandlers = handlers.get("*")
     if (wildcardHandlers) {
       wildcardHandlers.forEach((handler) => handler(type, payload))
     }
   }
 
-  viewReport(reportId: number): void {
-    const isNewReport = this.viewingReportId !== reportId
-    this.viewingReportId = reportId
+  const sendHeartbeat = (): void => {
+    if (!isPageVisible() || !viewingItemId || !heartbeatConfig) return
+    http.post(heartbeatConfig.heartbeatEndpoint(viewingItemId)).catch(() => {})
+  }
 
-    this.sendHeartbeat()
+  const isPageVisible = (): boolean => {
+    return typeof document !== "undefined" && !document.hidden
+  }
 
-    if (isNewReport) {
-      this.startHeartbeat()
+  const stopHeartbeat = (): void => {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval)
+      heartbeatInterval = null
     }
   }
 
-  stopViewingReport(): void {
-    this.stopHeartbeat()
-    if (this.viewingReportId) {
-      this.viewingReportId = null
-      http.delete("/api/mod/viewing")
+  const removeVisibilityListener = (): void => {
+    if (visibilityChangeHandler && typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", visibilityChangeHandler)
+      visibilityChangeHandler = null
     }
   }
 
-  private startHeartbeat(): void {
-    this.stopHeartbeat()
-    this.heartbeatInterval = setInterval(() => {
-      this.sendHeartbeat()
-    }, 30000)
+  const setupVisibilityListener = (): void => {
+    removeVisibilityListener()
+    if (typeof document === "undefined") return
+
+    visibilityChangeHandler = () => {
+      if (isPageVisible()) {
+        if (!heartbeatInterval && viewingItemId) {
+          heartbeatInterval = setInterval(() => {
+            if (isPageVisible()) sendHeartbeat()
+          }, TIME.HEARTBEAT_INTERVAL_MS)
+        }
+        if (viewingItemId) sendHeartbeat()
+      } else {
+        stopHeartbeat()
+      }
+    }
+
+    document.addEventListener("visibilitychange", visibilityChangeHandler)
   }
 
-  private stopHeartbeat(): void {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval)
-      this.heartbeatInterval = null
+  const startHeartbeat = (): void => {
+    stopHeartbeat()
+    setupVisibilityListener()
+
+    if (isPageVisible()) {
+      heartbeatInterval = setInterval(() => {
+        if (isPageVisible()) sendHeartbeat()
+      }, TIME.HEARTBEAT_INTERVAL_MS)
     }
   }
 
-  private sendHeartbeat(): void {
-    if (this.viewingReportId) {
-      http.post(`/api/v1/reports/${this.viewingReportId}/heartbeat`)
+  const onReconnected = (): void => {
+    if (viewingItemId && heartbeatConfig) {
+      sendHeartbeat()
     }
   }
 
-  isConnected(): boolean {
-    return this.es?.readyState === EventSource.OPEN
+  const scheduleReconnect = (): void => {
+    if (reconnectAttempts >= RETRY.MAX_ATTEMPTS || isIntentionallyClosed) {
+      emit("connection.failed", {})
+      return
+    }
+
+    reconnectAttempts++
+    const delay = Math.min(reconnectDelay * Math.pow(2, reconnectAttempts - 1), TIME.MAX_RECONNECT_DELAY_MS)
+
+    setTimeout(() => {
+      if (!isIntentionallyClosed && es === null) {
+        connect()
+      }
+    }, delay)
+  }
+
+  const connect = (): void => {
+    connectionCount++
+
+    if (es !== null) return
+
+    isIntentionallyClosed = false
+
+    try {
+      es = new EventSource(endpoint)
+
+      es.onopen = () => {
+        reconnectAttempts = 0
+        reconnectDelay = TIME.RECONNECT_DELAY_MS
+        onReconnected()
+        emit("connection.open", {})
+      }
+
+      es.onmessage = (event) => {
+        try {
+          const message: EventSourceMessage = JSON.parse(event.data)
+          emit(message.type, message.payload)
+        } catch {}
+      }
+
+      es.onerror = () => {
+        emit("connection.error", {})
+
+        if (es?.readyState === EventSource.CLOSED) {
+          es = null
+          if (!isIntentionallyClosed) {
+            emit("connection.closed", {})
+            scheduleReconnect()
+          }
+        }
+      }
+    } catch {
+      es = null
+      scheduleReconnect()
+    }
+  }
+
+  const disconnect = (): void => {
+    connectionCount = Math.max(0, connectionCount - 1)
+
+    if (connectionCount > 0) return
+
+    isIntentionallyClosed = true
+    stopHeartbeat()
+    removeVisibilityListener()
+    viewingItemId = null
+    if (es) {
+      es.close()
+      es = null
+    }
+  }
+
+  const on = (type: string, handler: MessageHandler): (() => void) => {
+    if (!handlers.has(type)) {
+      handlers.set(type, new Set())
+    }
+    handlers.get(type)!.add(handler)
+
+    return () => {
+      handlers.get(type)?.delete(handler)
+    }
+  }
+
+  const isConnected = (): boolean => {
+    return es?.readyState === EventSource.OPEN
+  }
+
+  const viewItem = (itemId: number): void => {
+    if (!heartbeatConfig) return
+
+    const isNewItem = viewingItemId !== itemId
+    viewingItemId = itemId
+
+    sendHeartbeat()
+
+    if (isNewItem) {
+      startHeartbeat()
+    }
+  }
+
+  const stopViewing = (): void => {
+    if (!heartbeatConfig) return
+
+    stopHeartbeat()
+    removeVisibilityListener()
+    if (viewingItemId) {
+      viewingItemId = null
+      http.delete(heartbeatConfig.stopViewingEndpoint).catch(() => {})
+    }
+  }
+
+  return {
+    connect,
+    disconnect,
+    on,
+    isConnected,
+    viewItem,
+    stopViewing,
   }
 }
 
-export const modEventSource = new ModEventSourceService()
+interface ReportsEventSource extends EventSourceInstance {
+  viewReport: (reportId: number) => void
+  stopViewingReport: () => void
+}
+
+interface QueueEventSource extends EventSourceInstance {
+  viewPost: (postId: number) => void
+  stopViewingPost: () => void
+}
+
+const createReportsEventSource = (): ReportsEventSource => {
+  const instance = createEventSource({
+    endpoint: "/api/mod/report-events",
+    heartbeatConfig: {
+      heartbeatEndpoint: (reportId) => `/api/v1/reports/${reportId}/heartbeat`,
+      stopViewingEndpoint: "/api/mod/viewing",
+    },
+  })
+
+  return {
+    ...instance,
+    viewReport: (reportId: number) => instance.viewItem(reportId),
+    stopViewingReport: () => instance.stopViewing(),
+  }
+}
+
+const createQueueEventSource = (): QueueEventSource => {
+  const instance = createEventSource({
+    endpoint: "/api/mod/queue-events",
+    heartbeatConfig: {
+      heartbeatEndpoint: (postId) => `/api/v1/queue/${postId}/heartbeat`,
+      stopViewingEndpoint: "/api/mod/queue-viewing",
+    },
+  })
+
+  return {
+    ...instance,
+    viewPost: (postId: number) => instance.viewItem(postId),
+    stopViewingPost: () => instance.stopViewing(),
+  }
+}
+
+export const reportsEventSource = createReportsEventSource()
+export const queueEventSource = createQueueEventSource()

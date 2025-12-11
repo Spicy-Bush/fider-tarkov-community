@@ -7,6 +7,7 @@ interface ButtonProps {
   children?: React.ReactNode
   className?: string
   disabled?: boolean
+  loading?: boolean
   href?: string
   rel?: "nofollow"
   target?: "_self" | "_blank" | "_parent" | "_top"
@@ -27,11 +28,15 @@ export class ButtonClickEvent {
   }
 }
 
-export const Button: React.FC<ButtonProps> = ({ size = "default", variant = "secondary", type = "button", ...props }) => {
+export const Button: React.FC<ButtonProps> = ({ size = "default", variant = "secondary", type = "button", loading, ...props }) => {
   const [clicked, setClicked] = useState(false)
   const unmountedContainer = useRef(false)
+  
+  const isControlled = loading !== undefined
+  const isLoading = isControlled ? loading : clicked
 
   useEffect(() => {
+    unmountedContainer.current = false
     return () => {
       unmountedContainer.current = true
     }
@@ -41,8 +46,8 @@ export const Button: React.FC<ButtonProps> = ({ size = "default", variant = "sec
     "c-button": true,
     [`c-button--${size}`]: size,
     [`c-button--${variant}`]: variant,
-    "c-button--loading": clicked,
-    "c-button--disabled": clicked || props.disabled,
+    "c-button--loading": isLoading,
+    "c-button--disabled": isLoading || props.disabled,
     [props.className || ""]: props.className,
     "shadow-sm": variant == "primary" || variant == "secondary",
   })
@@ -63,16 +68,19 @@ export const Button: React.FC<ButtonProps> = ({ size = "default", variant = "sec
         e.stopPropagation()
       }
 
-      if (clicked) {
+      if (isLoading) {
         return
       }
 
       const event = new ButtonClickEvent()
-      setClicked(true)
+      
+      if (!isControlled) {
+        setClicked(true)
+      }
 
       await onClickProp(event)
 
-      if (!unmountedContainer.current && event.canEnable()) {
+      if (!isControlled && !unmountedContainer.current && event.canEnable()) {
         setClicked(false)
       }
     }

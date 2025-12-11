@@ -1,17 +1,8 @@
 import { useState, useEffect, useCallback } from "react"
-import { querystring, Fider } from "@fider/services"
+import { querystring, Fider, PAGINATION, filterStorage, StoredFilters } from "@fider/services"
 
-export interface FilterState {
-  tags: string[]
-  statuses: string[]
-  myVotes: boolean
-  myPosts: boolean
-  notMyVotes: boolean
-  date?: string
-  tagLogic?: "OR" | "AND"
+export interface FilterState extends StoredFilters {
   query: string
-  view: string
-  limit: number
 }
 
 const DEFAULT_FILTERS: FilterState = {
@@ -24,15 +15,10 @@ const DEFAULT_FILTERS: FilterState = {
   tagLogic: "OR",
   query: "",
   view: "trending",
-  limit: 15
+  limit: PAGINATION.DEFAULT_LIMIT,
 }
 
-const STORAGE_KEY = "post_filters"
-const FILTER_TIMESTAMP_KEY = "post_filters_timestamp"
-const AUTH_STATE_KEY = "post_filters_auth"
-const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000
-
-const getUrlParams = () => {
+const getUrlParams = (): FilterState | null => {
   const params = new URLSearchParams(window.location.search)
   if (!params.toString()) return null
 
@@ -46,17 +32,17 @@ const getUrlParams = () => {
     tagLogic: (params.get("taglogic") as "OR" | "AND") || "OR",
     query: params.get("query") || "",
     view: params.get("view") || "trending",
-    limit: Number(params.get("limit")) || 15
+    limit: Number(params.get("limit")) || PAGINATION.DEFAULT_LIMIT,
   }
 }
 
 const updateUrl = (filters: FilterState) => {
   const params = new URLSearchParams()
   if (filters.tags.length > 0) {
-    filters.tags.forEach(tag => params.append("tags", tag))
+    filters.tags.forEach((tag) => params.append("tags", tag))
   }
   if (filters.statuses.length > 0) {
-    filters.statuses.forEach(status => params.append("statuses", status))
+    filters.statuses.forEach((status) => params.append("statuses", status))
   }
   if (filters.myVotes) params.set("myvotes", "true")
   if (filters.myPosts) params.set("myposts", "true")
@@ -65,51 +51,43 @@ const updateUrl = (filters: FilterState) => {
   if (filters.tagLogic !== "OR") params.set("taglogic", filters.tagLogic!)
   if (filters.query) params.set("query", filters.query)
   if (filters.view !== "trending") params.set("view", filters.view)
-  if (filters.limit !== 15) params.set("limit", filters.limit.toString())
+  if (filters.limit !== PAGINATION.DEFAULT_LIMIT) params.set("limit", filters.limit.toString())
 
   const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname
   window.history.replaceState({}, "", newUrl)
 }
 
-const saveToLocalStorage = (filters: FilterState) => {
-  const filtersToSave = { ...filters, query: "" }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtersToSave))
-  localStorage.setItem(FILTER_TIMESTAMP_KEY, Date.now().toString())
-  localStorage.setItem(AUTH_STATE_KEY, Fider.session.isAuthenticated ? "true" : "false")
+const toStoredFilters = (filters: FilterState): StoredFilters => {
+  const { query, ...rest } = filters
+  return rest
 }
 
 export const usePostFilters = () => {
   const [filters, setFilters] = useState<FilterState>(() => {
     const urlParams = getUrlParams()
     if (urlParams) {
-      saveToLocalStorage(urlParams)
+      filterStorage.save(toStoredFilters(urlParams))
       return urlParams
     }
 
-    const stored = localStorage.getItem(STORAGE_KEY)
-    const timestamp = localStorage.getItem(FILTER_TIMESTAMP_KEY)
-    const wasAuthenticated = localStorage.getItem(AUTH_STATE_KEY) === "true"
-    const now = Date.now()
-    
+    const stored = filterStorage.get()
+    const metadata = filterStorage.getMetadata()
+
     if (stored) {
-      try {
-        const parsedFilters = JSON.parse(stored)
-        let restoredFilters = { ...parsedFilters, query: "" }
-        
-        if (Fider.session.isAuthenticated && !wasAuthenticated) {
-          restoredFilters = { ...restoredFilters, notMyVotes: true }
-        }
-        
-        if (timestamp && (now - parseInt(timestamp)) > TWELVE_HOURS_MS) {
-          const updatedFilters = { ...restoredFilters, view: "trending" }
-          saveToLocalStorage(updatedFilters)
-          return updatedFilters
-        }
-        saveToLocalStorage(restoredFilters)
-        return restoredFilters
-      } catch {
-        return DEFAULT_FILTERS
+      let restoredFilters: FilterState = { ...stored, query: "" }
+
+      if (filterStorage.shouldEnableNotMyVotes(metadata)) {
+        restoredFilters = { ...restoredFilters, notMyVotes: true }
       }
+
+      if (metadata && filterStorage.isExpired(metadata)) {
+        const updatedFilters = { ...restoredFilters, view: "trending" }
+        filterStorage.save(toStoredFilters(updatedFilters))
+        return updatedFilters
+      }
+
+      filterStorage.save(toStoredFilters(restoredFilters))
+      return restoredFilters
     }
 
     if (Fider.session.isAuthenticated) {
@@ -122,21 +100,19 @@ export const usePostFilters = () => {
   const [offset, setOffset] = useState(0)
 
   useEffect(() => {
-    saveToLocalStorage(filters)
+    filterStorage.save(toStoredFilters(filters))
     updateUrl(filters)
   }, [filters])
 
   const updateFilters = useCallback((newFilters: Partial<FilterState>) => {
-    setFilters(prev => ({ ...prev, ...newFilters }))
+    setFilters((prev) => ({ ...prev, ...newFilters }))
     setOffset(0)
   }, [])
 
   const resetFilters = useCallback(() => {
     setFilters(DEFAULT_FILTERS)
     setOffset(0)
-    localStorage.removeItem(STORAGE_KEY)
-    localStorage.removeItem(FILTER_TIMESTAMP_KEY)
-    localStorage.removeItem(AUTH_STATE_KEY)
+    filterStorage.clear()
   }, [])
 
   const hasActiveFilters = useCallback(() => {
@@ -159,6 +135,6 @@ export const usePostFilters = () => {
     setOffset,
     updateFilters,
     resetFilters,
-    hasActiveFilters
+    hasActiveFilters,
   }
-} 
+}

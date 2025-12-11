@@ -1,0 +1,210 @@
+@use "~@fider/assets/styles/variables" as *;
+
+.c-duplicate-search {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: get("colors.white");
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: spacing(3);
+    padding: spacing(4) spacing(4) spacing(4) spacing(4);
+    border-bottom: 1px solid get("colors.gray.200");
+    background: get("colors.gray.50");
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  &__title {
+    font-size: get("font.size.lg");
+    font-weight: 600;
+    margin: 0;
+  }
+
+  &__filters {
+    display: flex;
+    gap: spacing(2);
+    padding: spacing(3) spacing(4);
+    border-bottom: 1px solid get("colors.gray.200");
+  }
+
+  &__search {
+    flex: 1;
+  }
+
+  &__tag-btn {
+    display: flex;
+    align-items: center;
+    gap: spacing(1);
+
+    &--active {
+      background: get("colors.blue.100");
+      color: get("colors.blue.700");
+    }
+  }
+
+  &__tag-filter {
+    padding: spacing(3) spacing(4);
+    border-bottom: 1px solid get("colors.gray.200");
+    background: get("colors.gray.50");
+  }
+
+  &__tag-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: spacing(2);
+    margin-bottom: spacing(2);
+  }
+
+  &__tag-item {
+    display: flex;
+    align-items: center;
+    gap: spacing(1);
+    padding: spacing(1) spacing(2);
+    border-radius: get("border.radius.medium");
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: get("colors.gray.100");
+    }
+
+    &--selected {
+      background: get("colors.blue.50");
+    }
+  }
+
+  &__results {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  &__result {
+    border-bottom: 1px solid get("colors.gray.200");
+  }
+
+  &__result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: spacing(3) spacing(4);
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: get("colors.gray.50");
+    }
+  }
+
+  &__result-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__result-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: spacing(2);
+    font-size: get("font.size.xs");
+    color: get("colors.gray.500");
+    margin-bottom: spacing(1);
+  }
+
+  &__result-votes {
+    &--positive {
+      color: get("colors.green.600");
+    }
+
+    &--negative {
+      color: get("colors.red.600");
+    }
+  }
+
+  &__result-number {
+    font-weight: 600;
+    color: get("colors.gray.600");
+  }
+
+  &__result-status {
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: get("font.size.xs");
+  }
+
+  &__result-title {
+    font-weight: 600;
+    font-size: get("font.size.base");
+    color: get("colors.gray.800");
+    overflow-wrap: anywhere;
+    margin-top: spacing(2);
+    margin-bottom: spacing(2);
+  }
+
+  &__result-tags {
+    .c-tag {
+      font-size: 10px;
+      padding: 1px 4px;
+    }
+  }
+
+  &__result-expanded {
+    padding: spacing(3) spacing(4);
+    background: get("colors.gray.50");
+    border-top: 1px solid get("colors.gray.200");
+  }
+
+  &__content {
+    background: get("colors.white");
+    border: 1px solid get("colors.gray.200");
+    border-radius: get("border.radius.medium");
+    padding: spacing(3);
+    margin-bottom: spacing(3);
+  }
+
+  &__content-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: spacing(2);
+  }
+
+  &__comments {
+    background: get("colors.white");
+    border: 1px solid get("colors.gray.200");
+    border-radius: get("border.radius.medium");
+    padding: spacing(3);
+  }
+
+  &__comments-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+
+    &:hover {
+      opacity: 0.7;
+    }
+  }
+
+  &__comment {
+    padding: spacing(2);
+    background: get("colors.gray.50");
+    border-radius: get("border.radius.medium");
+
+    .c-avatar {
+      width: 20px;
+      height: 20px;
+    }
+  }
+}
+

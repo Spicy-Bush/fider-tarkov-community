@@ -15,6 +15,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/markdown"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/sse"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/tasks"
 )
@@ -98,6 +99,7 @@ func SearchPosts() web.HandlerFunc {
 
 		statuses := c.QueryParamAsArray("statuses")
 		dateFilter := c.QueryParam("date")
+		includeCount, _ := c.QueryParamAsBool("includeCount")
 
 		isCacheable := postcache.IsCacheable(
 			viewQueryParams,
@@ -170,6 +172,17 @@ func SearchPosts() web.HandlerFunc {
 			postcache.SetRanking(tenantID, cacheKey, postIDs)
 		}
 
+		if includeCount && untagged {
+			user := c.User()
+			if user != nil && (user.IsHelper() || user.IsModerator() || user.IsCollaborator() || user.IsAdministrator()) {
+				countQuery := &query.CountUntaggedPosts{Date: dateFilter}
+				countQuery.SetStatusesFromStrings(statuses)
+				if err := bus.Dispatch(c, countQuery); err == nil {
+					c.Response.Header().Set("X-Total-Count", strconv.Itoa(countQuery.Result))
+				}
+			}
+		}
+
 		return c.Ok(searchPosts.Result)
 	}
 }
@@ -207,13 +220,21 @@ func CreatePost() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
+			tagsAssigned := 0
 			if env.Config.PostCreationWithTagsEnabled {
 				for _, tag := range action.Tags {
 					assignTag := &cmd.AssignTag{Tag: tag, Post: newPost.Result}
 					if err := bus.Dispatch(c, assignTag); err != nil {
 						return c.Failure(err)
 					}
+					tagsAssigned++
 				}
+			}
+
+			if tagsAssigned == 0 {
+				sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgQueuePostNew, sse.QueueEventPayload{
+					PostID: newPost.Result.ID,
+				})
 			}
 
 			c.Enqueue(tasks.NotifyAboutNewPost(newPost.Result))
@@ -313,7 +334,7 @@ func SetResponse() web.HandlerFunc {
 		return c.WithTransaction(func() error {
 			var command bus.Msg
 			if action.Status == enum.PostDuplicate {
-				command = &cmd.MarkPostAsDuplicate{Post: getPost.Result, Original: action.Original}
+				command = &cmd.MarkPostAsDuplicate{Post: getPost.Result, Original: action.Original, Text: action.Text}
 			} else {
 				command = &cmd.SetPostResponse{
 					Post:   getPost.Result,
@@ -386,6 +407,28 @@ func ListComments() web.HandlerFunc {
 		}
 
 		return c.Ok(getComments.Result)
+	}
+}
+
+// GetPostAttachments returns a list of attachments for a post
+func GetPostAttachments() web.HandlerFunc {
+	return func(c *web.Context) error {
+		number, err := c.ParamAsInt("number")
+		if err != nil {
+			return c.NotFound()
+		}
+
+		getPost := &query.GetPostByNumber{Number: number}
+		if err := bus.Dispatch(c, getPost); err != nil {
+			return c.Failure(err)
+		}
+
+		getAttachments := &query.GetAttachments{Post: getPost.Result}
+		if err := bus.Dispatch(c, getAttachments); err != nil {
+			return c.Failure(err)
+		}
+
+		return c.Ok(getAttachments.Result)
 	}
 }
 

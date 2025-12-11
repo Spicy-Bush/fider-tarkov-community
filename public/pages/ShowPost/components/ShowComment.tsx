@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
-import { Comment, Post, ImageUpload, isPostLocked, UserRole, ReportReason } from "@fider/models"
+import { Comment, Post, ImageUpload, isPostLocked, ReportReason } from "@fider/models"
 import {
   Reactions,
   Avatar,
@@ -18,7 +18,7 @@ import {
   ReportButton,
 } from "@fider/components"
 import { HStack } from "@fider/components/layout"
-import { formatDate, Failure, actions, notify, copyToClipboard, classSet, clearUrlHash } from "@fider/services"
+import { formatDate, Failure, actions, notify, copyToClipboard, classSet, clearUrlHash, commentPermissions } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { heroiconsDotsHorizontal as IconDotsHorizontal } from "@fider/icons.generated"
 import { t } from "@lingui/core/macro"
@@ -66,49 +66,13 @@ export const ShowComment = (props: ShowCommentProps) => {
   }, [props.highlighted])
 
   const canEditComment = () => {
-    if (!fider.session.isAuthenticated) {
-      return false
-    }
-
-    if (isMuted) {
-      return false
-    }
-
-    // If user is collaborator or admin, they can edit any comment
-    if (fider.session.user.isCollaborator || fider.session.user.isAdministrator) {
-      return true
-    }
-
-    // If user is moderator, they can only edit comments from regular users
-    if (fider.session.user.isModerator) {
-      return props.comment.user.role === UserRole.Visitor
-    }
-
-    // Regular users can only edit their own comments
-    return fider.session.user.id === props.comment.user.id
+    if (isMuted) return false
+    return commentPermissions.canEdit(props.comment)
   }
 
   const canDeleteComment = () => {
-    if (!fider.session.isAuthenticated) {
-      return false
-    }
-
-    if (isMuted) {
-      return false
-    }
-
-    // If user is collaborator or admin, they can delete any comment
-    if (fider.session.user.isCollaborator || fider.session.user.isAdministrator) {
-      return true
-    }
-
-    // If user is moderator, they can only delete comments from regular users
-    if (fider.session.user.isModerator) {
-      return props.comment.user.role === UserRole.Visitor
-    }
-
-    // Regular users can only delete their own comments
-    return fider.session.user.id === props.comment.user.id
+    if (isMuted) return false
+    return commentPermissions.canDelete(props.comment)
   }
 
   const clearError = () => setError(undefined)

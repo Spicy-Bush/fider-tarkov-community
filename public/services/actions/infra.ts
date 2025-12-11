@@ -6,6 +6,7 @@ const ignoreErrors = [
   "Refused to evaluate a string as JavaScript because 'unsafe-eval'", // CSP error: usually thrown because of bad Chrome Extensions
   "vid_mate_check is not defined", // CSP error: thrown by VidMate, an Android Browser
   "SecurityError: Failed to read the 'cssRules' property from 'CSSStyleSheet': Cannot access rules", // CSP error: usually thrown because of bad Chrome Extensions
+  "ERR_BLOCKED_BY_CLIENT", // Network error: resource blocked by ad blocker or browser extension
 ]
 
 export const logError = async (message: string, err?: Error): Promise<Result | undefined> => {

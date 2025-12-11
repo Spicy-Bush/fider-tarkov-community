@@ -18,6 +18,8 @@
     content: attr(data-tooltip);
     transform: translate(-50%, 100%) scale(0);
     transition: 0.1s;
+    z-index: 99999;
+    pointer-events: none;
   }
 
   &:hover:before {

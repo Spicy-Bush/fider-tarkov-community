@@ -19,4 +19,5 @@ type RemoveVote struct {
 type MarkPostAsDuplicate struct {
 	Post     *entity.Post
 	Original *entity.Post
+	Text     string
 }

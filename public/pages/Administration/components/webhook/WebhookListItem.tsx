@@ -2,7 +2,7 @@ import "./WebhookListItem.scss"
 
 import React, { useState } from "react"
 import { Webhook, WebhookStatus, WebhookTriggerResult, WebhookType } from "@fider/models"
-import { Button, Icon } from "@fider/components"
+import { Button, Icon, Toggle } from "@fider/components"
 import { actions, notify } from "@fider/services"
 
 import { heroiconsX as IconX, heroiconsPencilAlt as IconPencilAlt, heroiconsPlay as IconPlay, heroiconsCheckCircle as IconCheckCircle, heroiconsXCircle as IconXCircle, heroiconsExclamation as IconExclamation } from "@fider/icons.generated"
@@ -14,6 +14,7 @@ interface WebhookListItemProps {
   editWebhook: (webhook: Webhook) => void
   onWebhookDeleted: (webhook: Webhook) => void
   onWebhookFailed: (webhook: Webhook) => void
+  onWebhookStatusChanged: (webhook: Webhook) => void
 }
 
 interface WebhookIconProps {
@@ -68,6 +69,10 @@ export const WebhookListItem = (props: WebhookListItemProps) => {
         return "Delete Post"
       case WebhookType.NEW_POST:
         return "New Post"
+      case WebhookType.NEW_REPORT:
+        return "New Report"
+      case WebhookType.REPORT_RESOLVED:
+        return "Report Resolved"
     }
   }
 
@@ -79,6 +84,21 @@ export const WebhookListItem = (props: WebhookListItemProps) => {
     } else {
       notify.error(result.data.message)
       props.onWebhookFailed(props.webhook)
+    }
+  }
+
+  const toggleWebhookStatus = async (active: boolean) => {
+    const newStatus = active ? WebhookStatus.ENABLED : WebhookStatus.DISABLED
+    const result = await actions.updateWebhook(props.webhook.id, {
+      ...props.webhook,
+      status: newStatus,
+    })
+    if (result.ok) {
+      props.webhook.status = newStatus
+      props.onWebhookStatusChanged(props.webhook)
+      notify.success(`Webhook ${active ? "enabled" : "disabled"}`)
+    } else {
+      notify.error("Failed to update webhook status")
     }
   }
 
@@ -117,6 +137,11 @@ export const WebhookListItem = (props: WebhookListItemProps) => {
           )}
         </HStack>
         <HStack>
+          <Toggle
+            active={props.webhook.status === WebhookStatus.ENABLED}
+            onToggle={toggleWebhookStatus}
+            disabled={props.webhook.status === WebhookStatus.FAILED}
+          />
           <Button size="small" onClick={testWebhook}>
             <Icon sprite={IconPlay} />
             <span>Test</span>

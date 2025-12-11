@@ -67,7 +67,7 @@ const ContentSettingsPage: React.FC = () => {
   const [error, setError] = useState<Failure | undefined>(undefined)
   const [activeTab, setActiveTab] = useState<'global' | 'post' | 'comment' | 'report'>('global')
 
-  const roles = fider.session.props.roles as string[]
+  const roles = (fider.session.props.roles as string[]) || []
   
   const canEdit = (fider.session.user.isAdministrator || fider.session.user.isCollaborator)
 

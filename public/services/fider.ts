@@ -1,5 +1,26 @@
 import { createContext } from "react"
-import { CurrentUser, SystemSettings, Tenant, TenantStatus } from "@fider/models"
+import { CurrentUser, SystemSettings, Tenant, TenantStatus, UserRole } from "@fider/models"
+
+const normalizeUserRole = (user: any): CurrentUser | undefined => {
+  if (!user) return undefined
+  
+  const roleMap: Record<number, UserRole> = {
+    1: UserRole.Visitor,
+    2: UserRole.Collaborator,
+    3: UserRole.Administrator,
+    4: UserRole.Moderator,
+    5: UserRole.Helper,
+  }
+  
+  const normalizedRole = typeof user.role === "number" 
+    ? roleMap[user.role] || UserRole.Visitor 
+    : user.role
+  
+  return {
+    ...user,
+    role: normalizedRole,
+  }
+}
 
 export class FiderSession {
   private pPage: string
@@ -12,7 +33,7 @@ export class FiderSession {
     this.pPage = data.page
     this.pContextID = data.contextID
     this.pProps = data.props
-    this.pUser = data.user
+    this.pUser = normalizeUserRole(data.user)
     this.pTenant = data.tenant
   }
 

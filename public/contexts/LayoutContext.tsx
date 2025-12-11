@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react"
+import { STORAGE_KEYS, tryParseJSON, tryLocalStorageGet, tryLocalStorageSet } from "@fider/services"
 
 export type LayoutVariant = "default" | "fullWidth" | "custom"
 
@@ -15,39 +16,31 @@ interface LayoutContextType {
   setLayoutVariant: (variant: LayoutVariant) => void
 }
 
-const STORAGE_KEY = "fider:layout"
-
 const defaultState: LayoutState = {
   sidebarOpen: true,
   layoutVariant: "default",
 }
 
 const loadFromStorage = (): LayoutState => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      if (typeof parsed.sidebarCollapsed === "boolean") {
-        return {
-          sidebarOpen: !parsed.sidebarCollapsed,
-          layoutVariant: parsed.layoutVariant || defaultState.layoutVariant,
-        }
-      }
+  const stored = tryLocalStorageGet(STORAGE_KEYS.LAYOUT)
+  if (stored) {
+    const parsed = tryParseJSON<Partial<LayoutState> & { sidebarCollapsed?: boolean }>(stored, {})
+    if (typeof parsed.sidebarCollapsed === "boolean") {
       return {
-        sidebarOpen: typeof parsed.sidebarOpen === "boolean" ? parsed.sidebarOpen : defaultState.sidebarOpen,
+        sidebarOpen: !parsed.sidebarCollapsed,
         layoutVariant: parsed.layoutVariant || defaultState.layoutVariant,
       }
     }
-  } catch {
+    return {
+      sidebarOpen: typeof parsed.sidebarOpen === "boolean" ? parsed.sidebarOpen : defaultState.sidebarOpen,
+      layoutVariant: parsed.layoutVariant || defaultState.layoutVariant,
+    }
   }
   return defaultState
 }
 
 const saveToStorage = (state: LayoutState): void => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  } catch {
-  }
+  tryLocalStorageSet(STORAGE_KEYS.LAYOUT, JSON.stringify(state))
 }
 
 const LayoutContext = createContext<LayoutContextType | null>(null)
@@ -63,7 +56,8 @@ export const LayoutProvider: React.FC<LayoutProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const stored = loadFromStorage()
-    setSidebarOpenState(stored.sidebarOpen)
+    const isMobile = window.innerWidth < 640
+    setSidebarOpenState(isMobile ? false : stored.sidebarOpen)
     setLayoutVariantState(stored.layoutVariant)
     setIsHydrated(true)
   }, [])

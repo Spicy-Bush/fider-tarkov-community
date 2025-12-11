@@ -5,14 +5,14 @@
 .c-user-profile {
   max-width: 1200px;
   margin: 0 auto;
-  padding: spacing(5);
+  padding: spacing(5) spacing(5) calc(#{spacing(5)} + 100px);
   display: grid;
   grid-template-columns: 1fr;
   gap: spacing(3);
   position: relative;
 
   @media (max-width: 768px) {
-    padding: spacing(3);
+    padding: spacing(3) spacing(3) calc(#{spacing(3)} + 100px);
   }
 
   &--embedded {

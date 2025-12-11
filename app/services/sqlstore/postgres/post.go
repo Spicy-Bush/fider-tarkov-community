@@ -246,15 +246,16 @@ func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error 
 
 		_, err := trx.Execute(`
 		UPDATE posts 
-		SET response = '', original_id = $3, response_date = $4, response_user_id = $5, status = $6 
+		SET response = $7, original_id = $3, response_date = $4, response_user_id = $5, status = $6 
 		WHERE id = $1 and tenant_id = $2
-		`, c.Post.ID, tenant.ID, c.Original.ID, respondedAt, user.ID, enum.PostDuplicate)
+		`, c.Post.ID, tenant.ID, c.Original.ID, respondedAt, user.ID, enum.PostDuplicate, c.Text)
 		if err != nil {
 			return errors.Wrap(err, "failed to update post's response")
 		}
 
 		c.Post.Status = enum.PostDuplicate
 		c.Post.Response = &entity.PostResponse{
+			Text:        c.Text,
 			RespondedAt: respondedAt,
 			User:        user,
 			Original: &entity.OriginalPost{
@@ -441,12 +442,73 @@ func getUserCommentCount(ctx context.Context, q *query.GetUserCommentCount) erro
 	})
 }
 
+func countUntaggedPosts(ctx context.Context, q *query.CountUntaggedPosts) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if user != nil && user.IsHelper() && !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
+			if q.Date == "" {
+				q.Date = "7d"
+			}
+		}
+
+		if len(q.Statuses) == 0 {
+			q.Statuses = []enum.PostStatus{
+				enum.PostOpen,
+				enum.PostStarted,
+				enum.PostPlanned,
+				enum.PostCompleted,
+			}
+		}
+
+		var count int
+		sqlQuery := `
+			SELECT COUNT(*)
+			FROM posts p
+			WHERE p.tenant_id = $1
+			  AND p.status = ANY($2)
+			  AND NOT EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id)
+		`
+
+		args := []any{tenant.ID, pq.Array(q.Statuses)}
+
+		if q.Date != "" {
+			var days int
+			switch q.Date {
+			case "1d":
+				days = 1
+			case "7d":
+				days = 7
+			case "30d":
+				days = 30
+			case "1y":
+				days = 365
+			}
+			if days > 0 {
+				sqlQuery += fmt.Sprintf(" AND p.created_at >= NOW() - INTERVAL '%d days'", days)
+			}
+		}
+
+		if err := trx.Scalar(&count, sqlQuery, args...); err != nil {
+			return errors.Wrap(err, "failed to count untagged posts")
+		}
+
+		q.Result = count
+		return nil
+	})
+}
+
 func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		innerQuery := buildPostQuery(user, "p.tenant_id = $1 AND p.status = ANY($2)")
 		if q.Untagged {
 			innerQuery = fmt.Sprintf("%s AND NOT EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id)", innerQuery)
 		}
+
+		if user != nil && user.IsHelper() && !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
+			if q.Untagged && q.Date == "" {
+				q.Date = "7d"
+			}
+		}
+
 		if q.Tags == nil {
 			q.Tags = []string{}
 		}
@@ -493,13 +555,13 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 				userID = user.ID
 			}
 
-			condition, statuses, sort, extraParams := getViewData(*q, userID)
+			condition, statuses, sort, sortDir, extraParams := getViewData(*q, userID)
 			sql := fmt.Sprintf(`
 				SELECT * FROM (%s) AS q 
 				WHERE 1 = 1 %s
-				ORDER BY %s DESC
+				ORDER BY %s %s
 				LIMIT %s OFFSET %s
-			`, innerQuery, condition, sort, q.Limit, q.Offset)
+			`, innerQuery, condition, sort, sortDir, q.Limit, q.Offset)
 			params := []interface{}{tenant.ID, pq.Array(statuses)}
 			params = append(params, extraParams...)
 			err = trx.Select(&posts, sql, params...)

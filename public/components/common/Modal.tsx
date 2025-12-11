@@ -11,6 +11,7 @@ interface ModalWindowProps {
   size?: "small" | "large" | "fluid"
   canClose?: boolean
   center?: boolean
+  manageHistory?: boolean
   onClose: () => void
 }
 
@@ -19,15 +20,29 @@ interface ModalFooterProps {
   children?: React.ReactNode
 }
 
-const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small", canClose = true, center = true, ...props }) => {
+const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small", canClose = true, center = true, manageHistory = true, ...props }) => {
   const root = useRef<HTMLElement>(document.getElementById("root-modal"))
   const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
+  const pushedHistory = useRef(false);
+  // use refs for onClose and canClose so the popstate handler always has current values.
+  // without refs, the handler would capture stale values from when it was created,
+  // and react's effect cleanup/setup cycle during re renders could cause the handler
+  // to miss events or use outdated callbacks
+  const onCloseRef = useRef(props.onClose);
+  const canCloseRef = useRef(canClose);
+  onCloseRef.current = props.onClose;
+  canCloseRef.current = canClose;
 
   useEffect(() => {
     if (props.isOpen) {
       document.body.style.overflow = "hidden"
       document.addEventListener("keydown", keyDown, false)
+
+      if (manageHistory && !pushedHistory.current) {
+        window.history.pushState({ _modal: true }, "")
+        pushedHistory.current = true
+      }
     } else {
       document.body.style.overflow = ""
       document.removeEventListener("keydown", keyDown, false)
@@ -36,7 +51,21 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
     return () => {
       document.removeEventListener("keydown", keyDown, false)
     }
-  }, [props.isOpen])
+  }, [props.isOpen, manageHistory])
+
+  useEffect(() => {
+    if (!manageHistory) return
+
+    const handlePopState = (event: PopStateEvent) => {
+      if (pushedHistory.current && !event.state?._modal && canCloseRef.current) {
+        pushedHistory.current = false
+        onCloseRef.current()
+      }
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [manageHistory])
 
   const handleDimmerMouseDown = (e: React.MouseEvent) => {
     const modalWindow = e.currentTarget.querySelector('.c-modal-window');
@@ -60,7 +89,7 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
       Math.abs(e.clientY - startY.current) < 5 &&
       canClose
     ) {
-      props.onClose();
+      close();
     }
     
     startX.current = null;
@@ -69,14 +98,17 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
 
   const keyDown = (event: KeyboardEvent) => {
     if (event.keyCode === 27) {
-      // ESC
       close()
     }
   }
 
   const close = () => {
-    if (canClose) {
-      props.onClose()
+    if (!canCloseRef.current) return
+    
+    if (pushedHistory.current) {
+      window.history.back()
+    } else {
+      onCloseRef.current()
     }
   }
 
