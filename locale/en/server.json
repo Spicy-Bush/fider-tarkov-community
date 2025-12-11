@@ -87,5 +87,7 @@
   "web.new_post.text": "**{userName}** created a new post **{title}**.",
   "web.change_status.text": "**{userName}** changed status of **{title}** to **{status}**.",
   "web.delete_post.text": "**{userName}** deleted **{title}**",
-  "web.new_report.text": "New {type} report: **{reason}**"
+  "web.new_report.text": "New {type} report: **{reason}**",
+  "web.user_muted.text": "You have been muted. Reason: **{reason}**",
+  "web.user_warned.text": "You have been warned. Reason: **{reason}**"
 }

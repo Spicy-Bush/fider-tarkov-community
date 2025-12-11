@@ -1,11 +1,14 @@
 @use "~@fider/assets/styles/variables" as *;
 
-.c-warning-banner {
-  position: sticky;
+.c-warning-banner-container {
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: 500;
+}
+
+.c-warning-banner {
   padding: spacing(3) 0;
 
   &--warning {
@@ -27,19 +30,16 @@
   }
 
   &__content {
-    display: flex;
-    align-items: center;
-    gap: spacing(3);
     margin: 0 auto;
     padding: 0 spacing(4);
   }
 
-  &__icon {
-    flex-shrink: 0;
+  &__left {
+    flex: 1;
+    min-width: 0;
   }
 
   &__message {
-    flex-grow: 1;
     font-size: get("font.size.sm");
     color: get("colors.gray.900");
 
@@ -52,4 +52,15 @@
       }
     }
   }
-} 
+
+  &__close {
+    flex-shrink: 0;
+    cursor: pointer;
+    color: get("colors.gray.500");
+    transition: color 0.15s;
+
+    &:hover {
+      color: get("colors.gray.700");
+    }
+  }
+}

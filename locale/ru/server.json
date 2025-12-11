@@ -73,5 +73,7 @@
   "web.new_mention.text": "**{userName}** упомянул вас в **{title}**.",
   "web.new_post.text": "**{userName}** создал новый пост **{title}**.",
   "web.delete_post.text": "**{userName}** удалил **{title}**",
-  "web.change_status.text": "**{userName}** изменил статус **{title}** на **{status}**."
+  "web.change_status.text": "**{userName}** изменил статус **{title}** на **{status}**.",
+  "web.user_muted.text": "Вы были заглушены. Причина: **{reason}**",
+  "web.user_warned.text": "Вы получили предупреждение. Причина: **{reason}**"
 }

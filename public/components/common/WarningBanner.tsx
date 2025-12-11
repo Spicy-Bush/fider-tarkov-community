@@ -1,10 +1,9 @@
-import React from "react"
+import React, { useState, useEffect } from "react"
 import { useFider } from "@fider/hooks"
 import { Trans } from "@lingui/react/macro"
 import { Icon } from "./Icon"
-import { heroiconsExclamation as IconExclamation, heroiconsVolumeOff as IconVolumeOff } from "@fider/icons.generated"
-import { Button } from "./Button"
-import { classSet } from "@fider/services"
+import { heroiconsExclamation as IconExclamation, heroiconsVolumeOff as IconVolumeOff, heroiconsX as IconX } from "@fider/icons.generated"
+import { HStack } from "@fider/components/layout"
 import "./WarningBanner.scss"
 
 interface DismissalRecord {
@@ -49,9 +48,30 @@ const shouldShowForId = (id: number | undefined, dismissalKey: string): boolean 
   return hoursSinceDismissed >= DISMISSAL_DURATION_HOURS
 }
 
+interface AlertBarProps {
+  type: "warning" | "muted"
+  onDismiss: () => void
+  children: React.ReactNode
+}
+
+const AlertBar: React.FC<AlertBarProps> = ({ type, onDismiss, children }) => {
+  const icon = type === "warning" ? IconExclamation : IconVolumeOff
+
+  return (
+    <div className={`c-warning-banner c-warning-banner--${type}`}>
+      <HStack className="c-warning-banner__content" spacing={4} justify="between" align="center">
+        <HStack spacing={4} align="center" className="c-warning-banner__left">
+          <Icon sprite={icon} className="h-5" />
+          <span className="c-warning-banner__message">{children}</span>
+        </HStack>
+        <Icon sprite={IconX} className="c-warning-banner__close h-5" onClick={onDismiss} />
+      </HStack>
+    </div>
+  )
+}
+
 export const WarningBanner = () => {
   const fider = useFider()
-  const [isVisible, setIsVisible] = React.useState(true)
 
   const isAuthenticated = fider.session.isAuthenticated
   const hasWarning = isAuthenticated ? fider.session.user.hasWarning : false
@@ -59,53 +79,66 @@ export const WarningBanner = () => {
   const latestWarningId = isAuthenticated ? fider.session.user.latestWarningId : undefined
   const latestMuteId = isAuthenticated ? fider.session.user.latestMuteId : undefined
 
-  const showWarning = hasWarning && shouldShowForId(latestWarningId, 'dismissedWarning')
-  const showMute = isMuted && shouldShowForId(latestMuteId, 'dismissedMute')
+  const [warningVisible, setWarningVisible] = useState(() => 
+    hasWarning && shouldShowForId(latestWarningId, 'dismissedWarning')
+  )
+  const [muteVisible, setMuteVisible] = useState(() => 
+    isMuted && shouldShowForId(latestMuteId, 'dismissedMute')
+  )
 
-  React.useEffect(() => {
-    setIsVisible(true)
-  }, [latestWarningId, latestMuteId])
+  useEffect(() => {
+    if (hasWarning && latestWarningId) {
+      setWarningVisible(shouldShowForId(latestWarningId, 'dismissedWarning'))
+    }
+  }, [hasWarning, latestWarningId])
 
-  const handleDismiss = () => {
-    setIsVisible(false)
-    if (showWarning && latestWarningId) {
+  useEffect(() => {
+    if (isMuted && latestMuteId) {
+      setMuteVisible(shouldShowForId(latestMuteId, 'dismissedMute'))
+    }
+  }, [isMuted, latestMuteId])
+
+  const handleDismissWarning = () => {
+    if (latestWarningId) {
       setDismissalRecord('dismissedWarning', latestWarningId)
     }
-    if (showMute && latestMuteId) {
-      setDismissalRecord('dismissedMute', latestMuteId)
-    }
+    setWarningVisible(false)
   }
 
-  const className = classSet({
-    "c-warning-banner": true,
-    "c-warning-banner--warning": showWarning && !showMute,
-    "c-warning-banner--muted": showMute,
-  })
+  const handleDismissMute = () => {
+    if (latestMuteId) {
+      setDismissalRecord('dismissedMute', latestMuteId)
+    }
+    setMuteVisible(false)
+  }
 
-  if (!isAuthenticated || (!showWarning && !showMute) || !isVisible) {
+  if (!isAuthenticated) {
+    return null
+  }
+
+  const showWarning = warningVisible && hasWarning
+  const showMute = muteVisible && isMuted
+
+  if (!showWarning && !showMute) {
     return null
   }
 
   return (
-    <div className={className}>
-      <div className="c-warning-banner__content">
-        <Icon sprite={showWarning ? IconExclamation : IconVolumeOff} className="h-5" />
-        <div className="c-warning-banner__message">
-          {showWarning && (
-            <Trans id="warning.banner.message">
-              You have been warned. <a href="/profile#standing"><Trans id="warning.banner.review">Please review your recent behavior and ensure it aligns with our community guidelines.</Trans></a>
-            </Trans>
-          )}
-          {showMute && (
-            <Trans id="warning.banner.muted">
-              You have been muted. You will not be able to post or comment until the mute expires. <a href="/profile#standing"><Trans id="warning.banner.review">Please review your recent behavior and ensure it aligns with our community guidelines.</Trans></a>
-            </Trans>
-          )}
-        </div>
-        <Button variant="tertiary" size="small" onClick={handleDismiss}>
-          <Trans id="action.dismiss">Dismiss</Trans>
-        </Button>
-      </div>
+    <div className="c-warning-banner-container">
+      {showMute && (
+        <AlertBar type="muted" onDismiss={handleDismissMute}>
+          <Trans id="warning.banner.muted">
+            You have been muted. You will not be able to post or comment until the mute expires. <a href="/profile#standing"><Trans id="warning.banner.review">Please review your recent behavior and ensure it aligns with our community guidelines.</Trans></a>
+          </Trans>
+        </AlertBar>
+      )}
+      {showWarning && (
+        <AlertBar type="warning" onDismiss={handleDismissWarning}>
+          <Trans id="warning.banner.message">
+            You have been warned. <a href="/profile#standing"><Trans id="warning.banner.review">Please review your recent behavior and ensure it aligns with our community guidelines.</Trans></a>
+          </Trans>
+        </AlertBar>
+      )}
     </div>
   )
-} 
+}
