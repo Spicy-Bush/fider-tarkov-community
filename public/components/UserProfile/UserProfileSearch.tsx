@@ -43,7 +43,8 @@ const UserProfileSearchComponent: React.FC = () => {
   const [showBackToTop, setShowBackToTop] = useState(false)
   const [searchResults, setSearchResults] = useState<SearchResults>({ posts: [], comments: [] })
   const timerRef = useRef<number>()
-  const containerRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  const stateRef = useRef({ loading: false, hasMore: true, results: searchResults, contentType, activeTab })
 
   const loadSearchResults = useCallback(async (offset: number) => {
     if (!user) return
@@ -61,26 +62,54 @@ const UserProfileSearchComponent: React.FC = () => {
     if (result.ok) {
       if (offset === 0) {
         setSearchResults(result.data)
+        stateRef.current.results = result.data
       } else {
-        setSearchResults(prev => ({
-          posts: [...prev.posts, ...result.data.posts],
-          comments: [...prev.comments, ...result.data.comments],
-        }))
+        setSearchResults(prev => {
+          const newResults = {
+            posts: [...prev.posts, ...result.data.posts],
+            comments: [...prev.comments, ...result.data.comments],
+          }
+          stateRef.current.results = newResults
+          return newResults
+        })
       }
       const hasMorePosts = result.data.posts.length === options.limit
       const hasMoreComments = result.data.comments.length === options.limit
-      setHasMore(hasMorePosts || hasMoreComments)
+      const newHasMore = hasMorePosts || hasMoreComments
+      setHasMore(newHasMore)
+      stateRef.current.hasMore = newHasMore
     }
     setIsLoading(false)
     setLoadingMore(false)
+    stateRef.current.loading = false
+
+    requestAnimationFrame(() => {
+      const sentinel = loadMoreRef.current
+      if (sentinel && stateRef.current.hasMore) {
+        const rect = sentinel.getBoundingClientRect()
+        if (rect.top < window.innerHeight + 200) {
+          stateRef.current.loading = true
+          setLoadingMore(true)
+          loadSearchResults(getNextOffset())
+        }
+      }
+    })
   }, [user, contentType, voteType, sortField, sortOrder, searchQuery])
 
-  const loadMoreResults = useCallback(() => {
-    if (loadingMore || !hasMore) return
-    setLoadingMore(true)
-    const nextOffset = searchResults.posts.length + searchResults.comments.length
-    loadSearchResults(nextOffset)
-  }, [loadingMore, hasMore, searchResults, loadSearchResults])
+  const getNextOffset = () => {
+    const { results, contentType: type } = stateRef.current
+    if (type === "all") {
+      return Math.max(results.posts.length, results.comments.length)
+    } else if (type === "posts" || type === "voted") {
+      return results.posts.length
+    }
+    return results.comments.length
+  }
+
+  useEffect(() => {
+    stateRef.current.contentType = contentType
+    stateRef.current.activeTab = activeTab
+  }, [contentType, activeTab])
 
   useEffect(() => {
     if (timerRef.current) {
@@ -88,10 +117,13 @@ const UserProfileSearchComponent: React.FC = () => {
     }
 
     setHasMore(true)
+    setSearchResults({ posts: [], comments: [] })
+    stateRef.current = { ...stateRef.current, hasMore: true, results: { posts: [], comments: [] }, loading: false }
 
     if (activeTab !== "search") return
 
     setIsLoading(true)
+    stateRef.current.loading = true
     timerRef.current = window.setTimeout(() => {
       loadSearchResults(0)
     }, 300)
@@ -103,30 +135,37 @@ const UserProfileSearchComponent: React.FC = () => {
     }
   }, [searchQuery, contentType, voteType, sortField, sortOrder, user?.id, activeTab, loadSearchResults])
 
+  const hasResults = searchResults.posts.length > 0 || searchResults.comments.length > 0
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current
+    if (!sentinel || !hasResults) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const { loading, hasMore: more, activeTab: tab } = stateRef.current
+        if (entries[0].isIntersecting && !loading && more && tab === "search") {
+          stateRef.current.loading = true
+          setLoadingMore(true)
+          loadSearchResults(getNextOffset())
+        }
+      },
+      { rootMargin: "200px" }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [loadSearchResults, hasResults])
+
   useEffect(() => {
     const handleScroll = () => {
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop
       setShowBackToTop(scrollTop > 300)
-
-      if (
-        containerRef.current &&
-        activeTab === "search" &&
-        !isLoading &&
-        !loadingMore &&
-        hasMore
-      ) {
-        const containerBottom = containerRef.current.getBoundingClientRect().bottom
-        const windowHeight = window.innerHeight
-
-        if (containerBottom <= windowHeight + 200) {
-          loadMoreResults()
-        }
-      }
     }
 
     window.addEventListener("scroll", handleScroll)
     return () => window.removeEventListener("scroll", handleScroll)
-  }, [activeTab, isLoading, loadingMore, hasMore, loadMoreResults])
+  }, [])
 
   const clearSearch = () => {
     setSearchQuery("")
@@ -223,7 +262,7 @@ const UserProfileSearchComponent: React.FC = () => {
           <Loader />
         </div>
       ) : searchResults.posts.length > 0 || searchResults.comments.length > 0 ? (
-        <div className="c-user-profile__search-results" ref={containerRef}>
+        <div className="c-user-profile__search-results">
           <div className="c-user-profile__search-header">
             <div className="c-user-profile__search-sort">
               <Button
@@ -319,6 +358,8 @@ const UserProfileSearchComponent: React.FC = () => {
               <Loader />
             </div>
           )}
+
+          {hasMore && <div ref={loadMoreRef} style={{ height: "1px" }} />}
         </div>
       ) : searchQuery ? (
         <div className="c-user-profile__no-results">
