@@ -11,6 +11,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/crawler"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/log"
@@ -47,11 +48,21 @@ func RunServer() int {
 	}
 
 	copyEtcFiles(ctx)
+	initCrawlerVerifier(ctx)
 	startJobs(ctx)
 
 	e := routes(web.New())
 	go e.Start(":" + env.Config.Port)
 	return listenSignals(e)
+}
+
+func initCrawlerVerifier(ctx context.Context) {
+	crawler.Init()
+	if err := crawler.DefaultVerifier.Refresh(ctx); err != nil {
+		log.Warnf(ctx, "Failed to load crawler IP ranges on startup: @{Error}", dto.Props{
+			"Error": err.Error(),
+		})
+	}
 }
 
 // Starts all scheduled jobs
@@ -60,6 +71,7 @@ func startJobs(ctx context.Context) {
 	_ = c.AddJob(jobs.NewJob(ctx, "PurgeExpiredNotificationsJob", jobs.PurgeExpiredNotificationsJobHandler{}))
 	_ = c.AddJob(jobs.NewJob(ctx, "EmailSupressionJob", jobs.EmailSupressionJobHandler{}))
 	_ = c.AddJob(jobs.NewJob(ctx, "RefreshPostStatsJob", jobs.RefreshPostStatsJobHandler{}))
+	_ = c.AddJob(jobs.NewJob(ctx, "RefreshCrawlerIPsJob", jobs.RefreshCrawlerIPsJobHandler{}))
 
 	if env.IsBillingEnabled() {
 		_ = c.AddJob(jobs.NewJob(ctx, "LockExpiredTenantsJob", jobs.LockExpiredTenantsJobHandler{}))

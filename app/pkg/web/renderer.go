@@ -377,7 +377,7 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 
 	templateName := "index.html"
 
-	if ctx.Request.IsCrawler() {
+	if ctx.Request.IsVerifiedCrawler() {
 		html, err := r.reactRenderer.Render(ctx.Request.URL, public)
 		if err != nil {
 			log.Errorf(ctx, "Failed to render react page: @{Error}", dto.Props{

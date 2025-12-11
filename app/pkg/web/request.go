@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/crawler"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 )
@@ -94,6 +95,17 @@ var crawlerRegex = regexp.MustCompile("(?i)(baidu)|(msnbot)|(bingbot)|(bingprevi
 // IsCrawler returns true if the request is coming from a crawler
 func (r *Request) IsCrawler() bool {
 	return crawlerRegex.MatchString(r.GetHeader("User-Agent"))
+}
+
+func (r *Request) IsVerifiedCrawler() bool {
+	if !r.IsCrawler() {
+		return false
+	}
+	if crawler.DefaultVerifier == nil {
+		return false
+	}
+	ip := crawler.GetRealIP(r.instance)
+	return crawler.DefaultVerifier.IsVerified(ip)
 }
 
 // IsCustomDomain returns true if the request was made using a custom domain (CNAME)
