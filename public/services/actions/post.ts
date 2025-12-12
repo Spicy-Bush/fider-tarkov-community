@@ -99,8 +99,8 @@ export const getTaggableUsers = async (nameFilter: string): Promise<Result<UserN
   return http.get<UserNames[]>(`/api/v1/taggable-users${querystring.stringify({ name: nameFilter })}`)
 }
 
-export const createComment = async (postNumber: number, content: string, attachments: ImageUpload[]): Promise<Result<{ id: number }>> => {
-  return http.post<{ id: number }>(`/api/v1/posts/${postNumber}/comments`, { content, attachments }).then(http.event("comment", "create"))
+export const createComment = async (postNumber: number, content: string, attachments: ImageUpload[]): Promise<Result<{ id: number; attachments: string[] }>> => {
+  return http.post<{ id: number; attachments: string[] }>(`/api/v1/posts/${postNumber}/comments`, { content, attachments }).then(http.event("comment", "create"))
 }
 
 export const updateComment = async (postNumber: number, commentID: number, content: string, attachments: ImageUpload[]): Promise<Result> => {

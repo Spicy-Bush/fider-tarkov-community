@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react"
+import { createPortal } from "react-dom"
 import { uploadedImageURL, classSet } from "@fider/services"
 import { Icon } from "@fider/components"
 import { heroiconsChevronUp as IconChevron, heroiconsX as IconClose } from "@fider/icons.generated"
@@ -88,9 +89,9 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
         )}
       </div>
 
-      {showModal && (
+      {showModal && createPortal(
         <div 
-          className="fixed inset-0 z-10000 bg-black/90 flex items-center justify-center"
+          className="fixed inset-0 z-[10000] bg-black/90 flex items-center justify-center"
           onClick={closeModal}
         >
           <button
@@ -143,7 +144,8 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
               {currentIndex + 1} / {bkeys.length}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

@@ -552,8 +552,17 @@ func PostComment() web.HandlerFunc {
 			postcache.InvalidateTenantRankings(c.Tenant().ID)
 
 			metrics.TotalComments.Inc()
+			
+			attachmentBKeys := make([]string, 0)
+			for _, att := range action.Attachments {
+				if att.BlobKey != "" && !att.Remove {
+					attachmentBKeys = append(attachmentBKeys, att.BlobKey)
+				}
+			}
+			
 			return c.Ok(web.Map{
-				"id": addNewComment.Result.ID,
+				"id":          addNewComment.Result.ID,
+				"attachments": attachmentBKeys,
 			})
 		})
 	}

@@ -71,7 +71,7 @@ export const CommentInput = (props: CommentInputProps) => {
           content: content,
           createdAt: new Date().toISOString(),
           user: fider.session.user,
-          attachments: attachments.map(a => a.bkey).filter((b): b is string => !!b),
+          attachments: result.data.attachments || [],
         }
         props.onCommentAdded(newComment)
         setContent("")
