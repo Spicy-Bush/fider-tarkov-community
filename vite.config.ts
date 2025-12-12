@@ -39,7 +39,6 @@ export default defineConfig({
         },
         manualChunks: {
           vendor: ["react", "react-dom", "@lingui/core", "@lingui/react"],
-          slate: ["slate", "slate-react", "slate-history"],
           markdown: ["marked", "dompurify"],
         },
       },
