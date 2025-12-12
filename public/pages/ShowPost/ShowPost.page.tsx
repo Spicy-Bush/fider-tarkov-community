@@ -31,6 +31,7 @@ import { DiscussionPanel } from "./components/DiscussionPanel"
 import { heroiconsX as IconX, heroiconsThumbsup as IconThumbsUp } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 import { Trans } from "@lingui/react/macro"
+import { i18n } from "@lingui/core"
 import { TagsPanel } from "./components/TagsPanel"
 import { VoteSection } from "./components/VoteSection"
 import { DeletePostModal } from "./components/DeletePostModal"
@@ -201,7 +202,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                           <UserName user={props.post.user} />
                           <span
                             className="text-muted"
-                            data-tooltip={`Created ${formatDate(Fider.currentLocale, props.post.createdAt, "full")}`}
+                            data-tooltip={i18n._("showpost.createdat", { message: "Created {date}", date: formatDate(Fider.currentLocale, props.post.createdAt, "full") })}
                           >
                             <Trans id="showpost.lastactivity">Last activity:</Trans>{" "}
                             <Moment locale={Fider.currentLocale} date={props.post.lastActivityAt} />

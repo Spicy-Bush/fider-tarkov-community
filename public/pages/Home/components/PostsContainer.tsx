@@ -2,7 +2,7 @@ import "./PostsContainer.scss"
 
 import React, { useEffect, useRef, useState, useCallback } from "react"
 import { Post, Tag, CurrentUser } from "@fider/models"
-import { Input } from "@fider/components"
+import { Input, SwipeMode, SwipeModeButton } from "@fider/components"
 import { actions } from "@fider/services"
 import { heroiconsSearch as IconSearch, heroiconsX as IconX } from "@fider/icons.generated"
 import { FilterPanel } from "./FilterPanel"
@@ -31,6 +31,7 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
   const [loadingMore, setLoadingMore] = useState(false)
   const [posts, setPosts] = useState<Post[]>([])
   const [hasMore, setHasMore] = useState(true)
+  const [isSwipeModeOpen, setIsSwipeModeOpen] = useState(false)
   const timerRef = useRef<number>()
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const seenPostIds = useRef(new Set<number>())
@@ -162,6 +163,7 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
               countPerStatus={props.countPerStatus}
             />
             <PostsSort onChange={handleSortChanged} value={filters.view || "trending"} />
+            <SwipeModeButton onClick={() => setIsSwipeModeOpen(true)} />
           </div>
         )}
         <div className="c-posts-container__search-col">
@@ -197,6 +199,14 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
         </div>
       )}
       {hasMore && <div ref={loadMoreRef} style={{ height: "1px" }}></div>}
+      <SwipeMode
+        tags={props.tags}
+        isOpen={isSwipeModeOpen}
+        onClose={() => {
+          setIsSwipeModeOpen(false)
+          searchPosts()
+        }}
+      />
     </div>
   )
 }

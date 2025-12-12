@@ -77,6 +77,7 @@ export const heroiconsVolumeOn: SpriteSymbol = { id: "heroicons-volume-on", view
 export const heroiconsXCircle: SpriteSymbol = { id: "heroicons-x-circle", viewBox: "0 0 24 24" }
 export const heroiconsX: SpriteSymbol = { id: "heroicons-x", viewBox: "0 0 24 24" }
 export const reactionAdd: SpriteSymbol = { id: "reaction-add", viewBox: "0 0 24 24" }
+export const swipeCards: SpriteSymbol = { id: "swipe-cards", viewBox: "0 0 24 24" }
 export const undrawEmpty: SpriteSymbol = { id: "undraw-empty", viewBox: "0 0 24 24" }
 export const undrawNoData: SpriteSymbol = { id: "undraw-no-data", viewBox: "0 0 647.63626 632.17383" }
 export const undrawPost: SpriteSymbol = { id: "undraw-post", viewBox: "0 0 843.57946 640.51678" }
@@ -155,6 +156,7 @@ export const icons: Record<string, SpriteSymbol> = {
   "heroicons-x-circle": heroiconsXCircle,
   "heroicons-x": heroiconsX,
   "reaction-add": reactionAdd,
+  "swipe-cards": swipeCards,
   "undraw-empty": undrawEmpty,
   "undraw-no-data": undrawNoData,
   "undraw-post": undrawPost,

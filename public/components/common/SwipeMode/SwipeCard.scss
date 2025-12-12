@@ -1,0 +1,72 @@
+@use "~@fider/assets/styles/variables" as *;
+
+.c-swipe-card {
+  position: absolute;
+  inset: 0;
+  background: get("colors.white");
+  overflow: hidden;
+  user-select: none;
+
+  &--active {
+    z-index: 2;
+  }
+
+  &__content {
+    height: 100%;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  &__open-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 1px solid get("colors.gray.300");
+    background: get("colors.white");
+    color: get("colors.gray.600");
+    cursor: pointer;
+    flex-shrink: 0;
+
+    &:hover {
+      background: get("colors.gray.100");
+    }
+  }
+
+  &__title {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: get("colors.gray.900");
+    margin: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  &__description {
+    font-size: 14px;
+    line-height: 1.6;
+    color: get("colors.gray.700");
+    
+    img {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+  }
+
+  &__tags {
+    margin: 8px 0;
+  }
+}

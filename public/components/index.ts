@@ -22,6 +22,7 @@ export * from "./common/Dropdown"
 export * from "./common/Money"
 export * from "./common/AdminLink"
 export * from "./common/EditOriginalPostPanel"
+export * from "./common/SwipeMode"
 
 // Form components
 export * from "./common/form/Form"

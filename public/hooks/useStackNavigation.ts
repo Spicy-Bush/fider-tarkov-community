@@ -39,7 +39,7 @@ export function useStackNavigation<T extends Record<string, unknown>>(
   const pushState = useCallback(
     (state: T) => {
       if (!isNavigatingRef.current) {
-        const path = urlPath ?? window.location.pathname
+        const path = urlPath ?? window.location.href
         window.history.pushState(state, "", path)
       }
     },
@@ -48,7 +48,7 @@ export function useStackNavigation<T extends Record<string, unknown>>(
 
   const replaceState = useCallback(
     (state: T) => {
-      const path = urlPath ?? window.location.pathname
+      const path = urlPath ?? window.location.href
       window.history.replaceState(state, "", path)
     },
     [urlPath]
@@ -60,4 +60,3 @@ export function useStackNavigation<T extends Record<string, unknown>>(
     isNavigating: isNavigatingRef,
   }
 }
-

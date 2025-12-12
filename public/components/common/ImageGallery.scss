@@ -72,7 +72,11 @@
   }
 }
 
-.c-image-gallery-modal {  
+.c-modal-dimmer:has(.c-image-gallery-modal) {
+  z-index: 10000;
+}
+
+.c-image-gallery-modal {
   &__container {
     position: relative;
     display: flex;
