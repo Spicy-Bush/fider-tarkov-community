@@ -31,7 +31,7 @@
 </head>
 <body>
   <div id="svg-sprite" style="display:none"></div>
-  <script nonce="{{ .public.contextID }}">
+  <script data-cfasync="false" nonce="{{ .public.contextID }}">
     fetch('{{ .public.settings.assetsURL }}/assets/sprite.svg')
       .then(function(r){return r.text()})
       .then(function(svg){document.getElementById('svg-sprite').innerHTML=svg})
