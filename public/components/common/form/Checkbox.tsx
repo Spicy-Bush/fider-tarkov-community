@@ -1,6 +1,6 @@
 // Checkbox converted to Tailwind
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { classSet } from "@fider/services"
 import { DisplayError, ValidationContext, hasError } from "../"
 import { HStack } from "@fider/components/layout"
@@ -15,6 +15,10 @@ interface CheckboxProps {
 
 export const Checkbox: React.FC<CheckboxProps> = (props) => {
   const [checked, setChecked] = useState<boolean>(props.checked || false)
+
+  useEffect(() => {
+    setChecked(props.checked || false)
+  }, [props.checked])
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const isChecked: boolean = e.currentTarget.checked

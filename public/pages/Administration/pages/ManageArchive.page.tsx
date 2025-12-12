@@ -230,6 +230,7 @@ const ManageArchivePage: React.FC<ManageArchivePageProps> = (props) => {
   }
 
   const handleApplyPreset = (preset: "stale" | "lowEngagement") => {
+    setSelectedIds(new Set())
     if (preset === "stale") {
       setCreatedDaysAgo("180")
       setInactiveDays("90")
@@ -249,6 +250,7 @@ const ManageArchivePage: React.FC<ManageArchivePageProps> = (props) => {
   }
 
   const handleClearFilters = () => {
+    setSelectedIds(new Set())
     setMaxVotes("")
     setMaxComments("")
     setInactiveDays("")
