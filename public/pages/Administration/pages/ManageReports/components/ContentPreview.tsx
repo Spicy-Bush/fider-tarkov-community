@@ -275,6 +275,46 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
           </div>
         </div>
       )}
+
+      {(report.status === "resolved" || report.status === "dismissed") && (
+        <div className={`c-report-detail__section c-report-detail__section--resolution c-report-detail__section--resolution-${report.status}`}>
+          <h4 className="c-report-detail__section-title">
+            {report.status === "resolved" ? "Resolution Details" : "Dismissal Details"}
+          </h4>
+          <div className="c-report-detail__grid">
+            {report.resolvedBy && (
+              <div className="c-report-detail__field">
+                <label>{report.status === "resolved" ? "Resolved by" : "Dismissed by"}</label>
+                <HStack spacing={2}>
+                  <Avatar user={report.resolvedBy} clickable={false} />
+                  <span className="font-medium">{report.resolvedBy.name}</span>
+                </HStack>
+              </div>
+            )}
+            {report.resolvedAt && (
+              <div className="c-report-detail__field">
+                <label>{report.status === "resolved" ? "Resolved at" : "Dismissed at"}</label>
+                <span className="c-report-detail__timestamp">
+                  <Moment locale={Fider.currentLocale} date={report.resolvedAt} />
+                </span>
+              </div>
+            )}
+          </div>
+          {report.resolutionNote && (
+            <div className="c-report-detail__resolution-note">
+              <label>Notes</label>
+              <div className="c-report-detail__resolution-note-content">
+                {report.resolutionNote}
+              </div>
+            </div>
+          )}
+          {!report.resolutionNote && (
+            <div className="c-report-detail__no-note">
+              No notes provided
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

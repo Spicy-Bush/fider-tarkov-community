@@ -35,6 +35,8 @@ type dbReport struct {
 	ResolvedAt           sql.NullTime   `db:"resolved_at"`
 	ResolvedByID         sql.NullInt64  `db:"resolved_by_id"`
 	ResolvedByName       sql.NullString `db:"resolved_by_name"`
+	ResolvedByAvatarType sql.NullInt64  `db:"resolved_by_avatar_type"`
+	ResolvedByAvatarBkey sql.NullString `db:"resolved_by_avatar_bkey"`
 	ResolutionNote       sql.NullString `db:"resolution_note"`
 	PostNumber           sql.NullInt64  `db:"post_number"`
 	PostSlug             sql.NullString `db:"post_slug"`
@@ -85,6 +87,9 @@ func (r *dbReport) toModel(ctx context.Context) *entity.Report {
 		report.ResolvedBy = &entity.User{
 			ID:   int(r.ResolvedByID.Int64),
 			Name: r.ResolvedByName.String,
+		}
+		if r.ResolvedByAvatarType.Valid {
+			report.ResolvedBy.AvatarURL = buildAvatarURL(ctx, enum.AvatarType(r.ResolvedByAvatarType.Int64), int(r.ResolvedByID.Int64), r.ResolvedByName.String, r.ResolvedByAvatarBkey.String)
 		}
 	}
 
@@ -203,7 +208,7 @@ func getReportByID(ctx context.Context, q *query.GetReportByID) error {
 				r.id, r.reported_type, r.reported_id, r.reason, r.details, r.status, r.created_at,
 				r.reporter_id, ru.name as reporter_name, ru.avatar_type as reporter_avatar_type, ru.avatar_bkey as reporter_avatar_bkey,
 				r.assigned_to as assigned_to_id, au.name as assigned_to_name, au.avatar_type as assigned_to_avatar_type, au.avatar_bkey as assigned_to_avatar_bkey, r.assigned_at,
-				r.resolved_at, r.resolved_by as resolved_by_id, rbu.name as resolved_by_name,
+				r.resolved_at, r.resolved_by as resolved_by_id, rbu.name as resolved_by_name, rbu.avatar_type as resolved_by_avatar_type, rbu.avatar_bkey as resolved_by_avatar_bkey,
 				r.resolution_note,
 				COALESCE(p.number, cp.number) as post_number,
 				COALESCE(p.slug, cp.slug) as post_slug
@@ -271,7 +276,7 @@ func listReports(ctx context.Context, q *query.ListReports) error {
 				r.id, r.reported_type, r.reported_id, r.reason, r.details, r.status, r.created_at,
 				r.reporter_id, ru.name as reporter_name, ru.avatar_type as reporter_avatar_type, ru.avatar_bkey as reporter_avatar_bkey,
 				r.assigned_to as assigned_to_id, au.name as assigned_to_name, au.avatar_type as assigned_to_avatar_type, au.avatar_bkey as assigned_to_avatar_bkey, r.assigned_at,
-				r.resolved_at, r.resolved_by as resolved_by_id, rbu.name as resolved_by_name,
+				r.resolved_at, r.resolved_by as resolved_by_id, rbu.name as resolved_by_name, rbu.avatar_type as resolved_by_avatar_type, rbu.avatar_bkey as resolved_by_avatar_bkey,
 				r.resolution_note,
 				COALESCE(p.number, cp.number) as post_number,
 				COALESCE(p.slug, cp.slug) as post_slug
