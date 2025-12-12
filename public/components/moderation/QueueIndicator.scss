@@ -1,6 +1,6 @@
 @use "~@fider/assets/styles/variables" as *;
 
-.c-notification-indicator {
+.c-queue-indicator {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -13,11 +13,11 @@
     }
   }
 
-  .c-notification-indicator-counter {
+  .c-queue-indicator-counter {
     position: absolute;
     top: -5px;
     right: -8px;
-    background-color: get("colors.red.500");
+    background-color: get("colors.green.500");
     color: white !important;
     font-size: 10px;
     font-weight: bold;
@@ -28,9 +28,10 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    
+
     &.is-max-count {
       right: -16px;
     }
   }
 }
+

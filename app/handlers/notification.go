@@ -55,7 +55,7 @@ func GetAllNotifications() web.HandlerFunc {
 }
 
 // TotalUnreadNotifications returns the total number of unread notifications
-// For staff members, it also includes the pending reports count
+// For staff members, it also includes the pending reports count and post queue count
 func TotalUnreadNotifications() web.HandlerFunc {
 	return func(c *web.Context) error {
 		q := &query.CountUnreadNotifications{}
@@ -71,6 +71,13 @@ func TotalUnreadNotifications() web.HandlerFunc {
 			reportCount := &query.CountPendingReports{}
 			if err := bus.Dispatch(c, reportCount); err == nil {
 				response["pendingReports"] = reportCount.Result
+			}
+		}
+
+		if c.User() != nil && (c.User().IsHelper() || c.User().IsCollaborator() || c.User().IsModerator() || c.User().IsAdministrator()) {
+			queueCount := &query.CountUntaggedPosts{}
+			if err := bus.Dispatch(c, queueCount); err == nil {
+				response["queueCount"] = queueCount.Result
 			}
 		}
 

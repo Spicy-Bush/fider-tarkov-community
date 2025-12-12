@@ -11,6 +11,7 @@ interface PaginatedNotifications {
 export interface UnreadCountsResponse {
   total: number
   pendingReports?: number
+  queueCount?: number
 }
 
 export const getUnreadCounts = async (): Promise<Result<UnreadCountsResponse>> => {

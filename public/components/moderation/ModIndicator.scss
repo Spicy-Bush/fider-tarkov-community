@@ -1,8 +1,17 @@
 @use "~@fider/assets/styles/variables" as *;
-@use "~@fider/assets/styles/skeleton";
 
 .c-mod-indicator {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-right: spacing(3);
+  cursor: pointer;
+  
+  &:hover {
+    svg {
+      color: get("colors.gray.700");
+    }
+  }
 
   .c-mod-indicator-counter {
     position: absolute;
@@ -25,36 +34,3 @@
     }
   }
 }
-
-.c-mod-indicator__container {
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  @include media("lg") {
-    min-width: 360px;
-  }
-}
-
-.c-mod-indicator__scroll-container {
-  overflow-y: auto;
-  max-height: 400px;
-  padding-bottom: 10px;
-  scroll-behavior: smooth;
-}
-
-.c-mod-indicator__type-badge {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background-color: get("colors.gray.200");
-  color: get("colors.gray.700");
-}
-
-.c-mod-indicator__reason {
-  font-weight: 500;
-  margin-bottom: 2px;
-  font-size: 14px;
-}
-

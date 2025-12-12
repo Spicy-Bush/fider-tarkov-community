@@ -1,5 +1,5 @@
 import React, { useState } from "react"
-import { SignInModal, TenantLogo, NotificationIndicator, UserMenu, ModIndicator } from "@fider/components"
+import { SignInModal, TenantLogo, NotificationIndicator, UserMenu, ModIndicator, QueueIndicator } from "@fider/components"
 import { useFider } from "@fider/hooks"
 import { HStack } from "../layout"
 import { Trans } from "@lingui/react/macro"
@@ -29,6 +29,7 @@ export const Header = () => {
             {fider.session.isAuthenticated && (
               <UnreadCountsProvider>
                 <HStack spacing={2}>
+                  <QueueIndicator />
                   <ModIndicator />
                   <NotificationIndicator />
                   <UserMenu />

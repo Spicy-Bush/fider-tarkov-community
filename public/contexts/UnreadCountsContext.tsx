@@ -5,6 +5,7 @@ import { useFider } from "@fider/hooks"
 interface UnreadCounts {
   notifications: number
   pendingReports: number
+  queueCount: number
 }
 
 interface UnreadCountsContextValue {
@@ -17,7 +18,7 @@ const UnreadCountsContext = createContext<UnreadCountsContextValue | null>(null)
 
 export const UnreadCountsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const fider = useFider()
-  const [counts, setCounts] = useState<UnreadCounts>({ notifications: 0, pendingReports: 0 })
+  const [counts, setCounts] = useState<UnreadCounts>({ notifications: 0, pendingReports: 0, queueCount: 0 })
 
   const refreshCounts = useCallback(() => {
     if (fider.session.isAuthenticated) {
@@ -26,6 +27,7 @@ export const UnreadCountsProvider: React.FC<{ children: ReactNode }> = ({ childr
           setCounts({
             notifications: result.data.total || 0,
             pendingReports: result.data.pendingReports || 0,
+            queueCount: result.data.queueCount || 0,
           })
         }
       })
