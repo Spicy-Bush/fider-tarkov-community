@@ -48,6 +48,11 @@ export const SignInModal: React.FC<SignInModalProps> = (props) => {
       </Modal.Header>
       <Modal.Content>{content}</Modal.Content>
       <LegalFooter />
+      <Modal.Footer>
+        <Button variant="tertiary" onClick={closeModal}>
+          <Trans id="action.close">Close</Trans>
+        </Button>
+      </Modal.Footer>
     </Modal.Window>
   )
 }
