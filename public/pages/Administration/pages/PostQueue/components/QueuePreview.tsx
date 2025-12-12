@@ -1,12 +1,13 @@
-import React from "react"
+import React, { useMemo } from "react"
 import { Button, Icon, EditOriginalPostPanel } from "@fider/components"
-import { classSet } from "@fider/services"
+import { classSet, Fider } from "@fider/services"
 import {
   heroiconsChevronUp as IconChevronUp,
   heroiconsExclamation as IconExclamation,
   heroiconsRefresh as IconRefresh,
+  heroiconsEye as IconEye,
 } from "@fider/icons.generated"
-import { Post, Tag, Comment } from "@fider/models"
+import { Post, Tag, Comment, ViewerInfo } from "@fider/models"
 import { PostViewer } from "./PostViewer"
 import { PostQueueDuplicateSearch } from "./PostQueueDuplicateSearch"
 
@@ -23,6 +24,7 @@ interface QueuePreviewProps {
   selectedImagesToTransfer: string[]
   isLoadingOriginalPost: boolean
   editPanelKey: number
+  viewers: ViewerInfo[]
   onDeselectPost: () => void
   onRefreshTaggedPost: () => void
   onDismissTaggedPost: () => void
@@ -34,6 +36,7 @@ interface QueuePreviewProps {
   onContentCopied: () => void
   onOriginalPostSaved: () => void
   onOriginalPostCancelled: () => void
+  onNextPost: () => void
 }
 
 export const QueuePreview: React.FC<QueuePreviewProps> = ({
@@ -49,6 +52,7 @@ export const QueuePreview: React.FC<QueuePreviewProps> = ({
   selectedImagesToTransfer,
   isLoadingOriginalPost,
   editPanelKey,
+  viewers,
   onDeselectPost,
   onRefreshTaggedPost,
   onDismissTaggedPost,
@@ -60,7 +64,13 @@ export const QueuePreview: React.FC<QueuePreviewProps> = ({
   onContentCopied,
   onOriginalPostSaved,
   onOriginalPostCancelled,
+  onNextPost,
 }) => {
+  const otherViewers = useMemo(() => 
+    viewers.filter((v) => v.userId !== Fider.session.user.id),
+    [viewers]
+  )
+
   return (
     <div
       className={classSet({
@@ -69,15 +79,26 @@ export const QueuePreview: React.FC<QueuePreviewProps> = ({
       })}
     >
       {selectedPost && (
-        <Button
-          variant="tertiary"
-          size="small"
-          className="c-queue-split-view__mobile-back"
-          onClick={onDeselectPost}
-        >
-          <Icon sprite={IconChevronUp} className="c-queue-split-view__mobile-back-icon" />
-          <span>Back to list</span>
-        </Button>
+        <div className="c-queue-split-view__mobile-header">
+          <Button
+            variant="tertiary"
+            size="small"
+            className="c-queue-split-view__mobile-back"
+            onClick={onDeselectPost}
+          >
+            <Icon sprite={IconChevronUp} className="c-queue-split-view__mobile-back-icon" />
+            <span>Back to list</span>
+          </Button>
+          {otherViewers.length > 0 && (
+            <span
+              className="c-queue-split-view__mobile-viewers"
+              data-tooltip={otherViewers.map((v) => v.userName).join(", ")}
+            >
+              <Icon sprite={IconEye} className="h-4" />
+              <span>{otherViewers.length}</span>
+            </span>
+          )}
+        </div>
       )}
       
       {isCurrentPostTaggedByOther && (
@@ -113,6 +134,7 @@ export const QueuePreview: React.FC<QueuePreviewProps> = ({
         onDuplicateReset={onDuplicateReset}
         onPostUpdated={onPostUpdated}
         onContentCopied={onContentCopied}
+        onNextPost={onNextPost}
       />
       
       {showDuplicateSearch && selectedPost && (

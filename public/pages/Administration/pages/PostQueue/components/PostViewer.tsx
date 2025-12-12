@@ -42,6 +42,7 @@ export interface PostViewerProps {
   onPostUpdated: (post: Post) => void
   onContentCopied: () => void
   onTagsChanged?: (postNumber: number) => void
+  onNextPost?: () => void
 }
 
 export const PostViewer: React.FC<PostViewerProps> = ({
@@ -60,6 +61,7 @@ export const PostViewer: React.FC<PostViewerProps> = ({
   onPostUpdated,
   onContentCopied,
   onTagsChanged,
+  onNextPost,
 }) => {
   const [editMode, setEditMode] = useState(false)
   const [editTitle, setEditTitle] = useState("")
@@ -273,7 +275,7 @@ export const PostViewer: React.FC<PostViewerProps> = ({
 
       <div className="c-queue-detail__section">
         <h4 className="c-queue-detail__section-title">Tags</h4>
-        <TagsPanel post={post} tags={tags} onTagsChanged={onTagsChanged} />
+        <TagsPanel post={post} tags={tags} onTagsChanged={onTagsChanged} onNextPost={onNextPost} />
       </div>
 
       <div className="c-queue-detail__section">

@@ -115,6 +115,30 @@ const PostQueuePage: React.FC<PostQueuePageProps> = (props) => {
     ? state.taggedByOtherIds.has(state.selectedPost.id) 
     : false
 
+  const currentPostViewers = state.selectedPost
+    ? viewers.get(state.selectedPost.id) || []
+    : []
+
+  const handleNextPost = useCallback(() => {
+    if (!state.selectedPost || state.posts.length === 0) return
+    
+    const currentIndex = state.posts.findIndex((p) => p.id === state.selectedPost?.id)
+    const nextIndex = currentIndex + 1
+    
+    if (nextIndex < state.posts.length) {
+      actions.handleSelectPost(state.posts[nextIndex])
+    } else if (state.posts.length > 0) {
+      actions.handleSelectPost(state.posts[0])
+    }
+    
+    const previewEl = document.querySelector(".c-queue-split-view__preview--mobile-open")
+    if (previewEl) {
+      previewEl.scrollTo({ top: 0, behavior: "smooth" })
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    }
+  }, [state.selectedPost, state.posts, actions.handleSelectPost])
+
   return (
     <div className="c-queue-split-view">
       <QueueList
@@ -147,6 +171,7 @@ const PostQueuePage: React.FC<PostQueuePageProps> = (props) => {
         selectedImagesToTransfer={actions.selectedImagesToTransfer}
         isLoadingOriginalPost={actions.isLoadingOriginalPost}
         editPanelKey={actions.editPanelKey}
+        viewers={currentPostViewers}
         onDeselectPost={actions.handleDeselectPost}
         onRefreshTaggedPost={actions.handleRefreshTaggedPost}
         onDismissTaggedPost={actions.handleDismissTaggedPost}
@@ -158,6 +183,7 @@ const PostQueuePage: React.FC<PostQueuePageProps> = (props) => {
         onContentCopied={actions.handleContentCopied}
         onOriginalPostSaved={actions.handleOriginalPostSaved}
         onOriginalPostCancelled={actions.handleOriginalPostCancelled}
+        onNextPost={handleNextPost}
       />
     </div>
   )

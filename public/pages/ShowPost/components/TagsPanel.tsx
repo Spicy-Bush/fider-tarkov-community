@@ -14,6 +14,7 @@ export interface TagsPanelProps {
   post: Post
   tags: Tag[]
   onTagsChanged?: (postNumber: number) => void
+  onNextPost?: () => void
 }
 
 export const TagsPanel = (props: TagsPanelProps) => {
@@ -260,9 +261,16 @@ export const TagsPanel = (props: TagsPanelProps) => {
             </Button>
           )}
         </div>
-        <Button variant="secondary" size="small" onClick={onSubtitleClick}>
-          <Trans id="action.close">Close</Trans>
-        </Button>
+        <HStack spacing={2}>
+          <Button variant="secondary" size="small" onClick={onSubtitleClick}>
+            <Trans id="action.close">Close</Trans>
+          </Button>
+          {props.onNextPost && (
+            <Button variant="primary" size="small" onClick={props.onNextPost} className="c-tags__next-post-btn">
+              <Trans id="action.nextPost">Next Post</Trans>
+            </Button>
+          )}
+        </HStack>
       </HStack>
     </VStack>
   )
