@@ -469,7 +469,7 @@ const ContentSettingsPage: React.FC = () => {
           {renderReportSettings()}
         </div>
 
-        <div className="settings-actions">
+        <div className="settings-actions c-admin-actions">
           <Button disabled={!canEdit} variant="primary" onClick={handleSave}>
             Save Settings
           </Button>

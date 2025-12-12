@@ -147,7 +147,7 @@ const ManageAuthenticationPage: React.FC<ManageAuthenticationPageProps> = (props
               )}
             </div>
           ))}
-          <div>
+          <div className="c-admin-actions">
             {Fider.session.user.isAdministrator && (
               <Button variant="secondary" onClick={addNew}>
                 Add new

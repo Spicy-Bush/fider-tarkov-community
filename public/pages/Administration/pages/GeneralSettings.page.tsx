@@ -166,7 +166,7 @@ const GeneralSettingsPage = () => {
         </>
       )}
 
-      <div className="field">
+      <div className="c-admin-actions">
         <Button variant="primary" onClick={handleSave}>
           Save
         </Button>

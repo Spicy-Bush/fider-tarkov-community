@@ -144,7 +144,7 @@ const ManageWebhooksPage: React.FC<ManageWebhooksPageProps> = (props) => {
           </Button>
         </HStack>
         <WebhooksList title="New Post" description="a new post is created on this site" list={getWebhookItems()} />
-        <div>
+        <div className="c-admin-actions">
           <Button variant="secondary" onClick={addNew}>
             Add new webhook
           </Button>

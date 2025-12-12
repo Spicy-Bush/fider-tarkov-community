@@ -94,18 +94,22 @@ ${Fider.session.user.name} (${Fider.session.tenant.name})`)
       </TextArea>
 
       <Field label="Sample Invite">
-        {Fider.session.user.email ? (
-          <Button onClick={sendSample}>Send a sample email to {Fider.session.user.email}</Button>
-        ) : (
-          <Button disabled={true}>Your profile doesn&apos;t have an email</Button>
-        )}
+        <div className="c-admin-actions">
+          {Fider.session.user.email ? (
+            <Button onClick={sendSample}>Send a sample email to {Fider.session.user.email}</Button>
+          ) : (
+            <Button disabled={true}>Your profile doesn&apos;t have an email</Button>
+          )}
+        </div>
       </Field>
 
       <Field label="Confirmation">
         <p className="text-muted">Whenever you&apos;re ready, click the following button to send out these invites.</p>
-        <Button onClick={sendInvites} variant="primary" disabled={numOfRecipients === 0}>
-          Send {numOfRecipients} {numOfRecipients === 1 ? "invite" : "invites"}
-        </Button>
+        <div className="c-admin-actions">
+          <Button onClick={sendInvites} variant="primary" disabled={numOfRecipients === 0}>
+            Send {numOfRecipients} {numOfRecipients === 1 ? "invite" : "invites"}
+          </Button>
+        </div>
       </Field>
     </Form>
   )

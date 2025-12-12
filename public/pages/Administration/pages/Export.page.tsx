@@ -17,20 +17,24 @@ const ExportPage: React.FC = () => {
         Use this button to download a CSV file with all posts in this site. This can be useful to analyse the data with an external tool or simply to back it
         up.
       </p>
-      <Button variant="secondary" href="/admin/export/posts.csv">
-        <Icon sprite={IconDownload} />
-        <span>posts.csv</span>
-      </Button>
+      <div className="c-admin-actions">
+        <Button variant="secondary" href="/admin/export/posts.csv">
+          <Icon sprite={IconDownload} />
+          <span>posts.csv</span>
+        </Button>
+      </div>
 
       <div className="mt-8">
         <h2 className="text-display">Backup your data</h2>
         <p className="text-muted">
           Use this button to download a ZIP file with your data in JSON format. This is a full backup and contains all of your data.
         </p>
-        <Button variant="secondary" href="/admin/export/backup.zip">
-          <Icon sprite={IconDownload} />
-          <span>backup.zip</span>
-        </Button>
+        <div className="c-admin-actions">
+          <Button variant="secondary" href="/admin/export/backup.zip">
+            <Icon sprite={IconDownload} />
+            <span>backup.zip</span>
+          </Button>
+        </div>
       </div>
     </>
   )

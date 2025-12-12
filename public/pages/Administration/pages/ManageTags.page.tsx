@@ -91,7 +91,7 @@ const ManageTagsPage: React.FC<ManageTagsPageProps> = (props) => {
           {privateTagList.length === 0 ? <p className="text-muted">There aren't any private tags yet.</p> : privateTagList}
         </VStack>
       </div>
-      <div>{form}</div>
+      <div className="c-admin-actions">{form}</div>
     </VStack>
   )
 }

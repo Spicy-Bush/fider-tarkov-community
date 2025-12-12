@@ -52,7 +52,7 @@ const AdvancedSettingsPage: React.FC<AdvancedSettingsPageProps> = (props) => {
           {}
         </TextArea>
 
-        <div className="field">
+        <div className="c-admin-actions">
           <Button variant="primary" onClick={handleSaveCustomCSS}>
             Save Custom CSS
           </Button>
@@ -72,7 +72,7 @@ const AdvancedSettingsPage: React.FC<AdvancedSettingsPageProps> = (props) => {
         </p>
       </TextArea>
 
-      <div className="field">
+      <div className="c-admin-actions">
         <Button variant="primary" onClick={handleSaveProfanityWords}>
           Save Profanity Words
         </Button>

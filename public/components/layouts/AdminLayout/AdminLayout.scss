@@ -258,10 +258,12 @@
   max-width: 900px;
   width: 100%;
   margin: 0 auto;
+  padding: spacing(6);
   container-type: inline-size;
   container-name: admin-content;
 
   @include media("sm") {
+    padding: spacing(4);
     padding-bottom: spacing(8);
   }
 
@@ -272,6 +274,15 @@
 
   &--no-padding {
     padding: 0;
+  }
+}
+
+.c-admin-actions {
+  display: flex;
+  gap: spacing(2);
+
+  @include media("sm") {
+    justify-content: flex-end;
   }
 }
 
