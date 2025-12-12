@@ -46,6 +46,7 @@ interface DropdownProps {
   children: React.ReactNode
   wide?: boolean
   fullscreenSm?: boolean
+  className?: string
 }
 
 interface DropdownContextFuncs {
@@ -98,9 +99,14 @@ export const Dropdown = (props: DropdownProps) => {
     [`c-dropdown__list--${position}`]: position === "left",
   })
 
+  const dropdownClassName = classSet({
+    "c-dropdown": true,
+    [props.className || ""]: !!props.className,
+  })
+
   return (
     <DropdownContext.Provider value={{ close }}>
-      <div ref={node} className="c-dropdown">
+      <div ref={node} className={dropdownClassName}>
         <button type="button" className="c-dropdown__handle" onClick={toggleIsOpen}>
           {props.renderHandle}
         </button>

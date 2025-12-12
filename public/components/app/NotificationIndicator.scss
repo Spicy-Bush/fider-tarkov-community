@@ -1,4 +1,15 @@
 @use "~@fider/assets/styles/variables" as *;
+@use "~@fider/assets/styles/skeleton";
+
+.c-notification-dropdown {
+  display: inline-flex;
+  align-items: center;
+  
+  .c-dropdown__handle {
+    display: flex;
+    align-items: center;
+  }
+}
 
 .c-notification-indicator {
   position: relative;
@@ -13,7 +24,7 @@
     }
   }
 
-  .c-notification-indicator-counter {
+  .c-notification-indicator-unread-counter {
     position: absolute;
     top: -5px;
     right: -8px;
@@ -32,5 +43,52 @@
     &.is-max-count {
       right: -16px;
     }
+  }
+}
+
+.c-notifications-container {
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  @include media("lg") {
+    min-width: 400px;
+    max-width: 500px;
+  }
+}
+
+.c-notifications-scroll-container {
+  overflow-y: auto;
+  max-height: 400px;
+  padding-bottom: 10px;
+  scroll-behavior: smooth;
+}
+
+.c-notification-item-content {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.c-notification-indicator-text {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+  display: block;
+  
+  p {
+    margin: 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
   }
 }
