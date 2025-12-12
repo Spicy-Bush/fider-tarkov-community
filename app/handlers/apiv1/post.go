@@ -539,7 +539,12 @@ func PostComment() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
-			c.Enqueue(tasks.NotifyAboutNewComment(addNewComment.Result, getPost.Result))
+			commentForNotification := &entity.Comment{
+				ID:      addNewComment.Result.ID,
+				Content: action.Content,
+				User:    addNewComment.Result.User,
+			}
+			c.Enqueue(tasks.NotifyAboutNewComment(commentForNotification, getPost.Result))
 
 			if getPost.Result.Status == enum.PostArchived {
 				unarchiveCmd := &cmd.UnarchivePost{Post: getPost.Result, Reason: "New comment"}

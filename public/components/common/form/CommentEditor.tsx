@@ -1,65 +1,8 @@
-// CommentEditor converted to Tailwind
-
-import React, { useMemo, useCallback, useRef, useEffect, useState, Fragment, ReactNode } from "react"
-import { Element, Editor, Transforms, Range, createEditor, Descendant, BaseEditor, BaseRange, Node } from "slate"
-import { HistoryEditor, withHistory } from "slate-history"
-import { Slate, Editable, ReactEditor, withReact, useSelected, useFocused, RenderPlaceholderProps } from "slate-react"
-import { classSet } from "@fider/services"
-
-export const IS_MAC = typeof navigator !== "undefined" && /Mac OS X/.test(navigator.userAgent)
-
+import React, { useState, useRef, useEffect, useCallback } from "react"
 import ReactDOM from "react-dom"
+import { classSet } from "@fider/services"
 import { UserNames } from "@fider/models"
 import { actions } from "@fider/services"
-
-export type TextType = { text: string }
-
-interface RenderElementProps {
-  attributes: React.HTMLAttributes<HTMLElement>
-  element: CustomElement
-  children: React.ReactNode
-}
-
-type MentionElement = {
-  type: "mention"
-  character: string
-  children: TextType[]
-}
-
-export type ParagraphElement = {
-  type: "paragraph"
-  children: Descendant[]
-}
-
-type CustomElement = MentionElement | ParagraphElement
-
-type CustomEditor = BaseEditor &
-  ReactEditor &
-  HistoryEditor & {
-    nodeToDecorations?: Map<Element, Range[]>
-  }
-
-const emptyValue: Descendant[] = [
-  {
-    type: "paragraph",
-    children: [{ text: "" }],
-  },
-]
-
-declare module "slate" {
-  interface CustomTypes {
-    Editor: CustomEditor
-    Element: CustomElement
-    Text: TextType
-    Range: BaseRange & {
-      [key: string]: unknown
-    }
-  }
-}
-
-const Portal = ({ children }: { children?: ReactNode }) => {
-  return typeof document === "object" ? ReactDOM.createPortal(children, document.body) : null
-}
 
 interface CommentEditorProps {
   initialValue?: string
@@ -70,282 +13,280 @@ interface CommentEditorProps {
   readOnly?: boolean
 }
 
-const Placeholder = ({ attributes, children }: RenderPlaceholderProps) => {
-  return (
-    <span
-      {...attributes}
-      className="absolute opacity-30 select-none pointer-events-none"
-    >
-      {children}
-    </span>
-  )
+const Portal = ({ children }: { children?: React.ReactNode }) => {
+  return typeof document === "object" ? ReactDOM.createPortal(children, document.body) : null
 }
 
-export const CommentEditor: React.FunctionComponent<CommentEditorProps> = (props) => {
+const serializeContent = (element: HTMLElement): string => {
+  let result = ""
+  element.childNodes.forEach((node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      result += node.textContent || ""
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement
+      if (el.dataset.mentionId && el.dataset.mentionName) {
+        result += `@{"id":${el.dataset.mentionId},"name":"${el.dataset.mentionName}","isNew":true}`
+      } else if (el.tagName === "BR") {
+        result += "\n"
+      } else if (el.tagName === "DIV" || el.tagName === "P") {
+        result += "\n" + serializeContent(el)
+      } else {
+        result += serializeContent(el)
+      }
+    }
+  })
+  return result
+}
+
+const deserializeToHTML = (text: string): string => {
+  return text.replace(/@\{"id":(\d+),"name":"([^"]+)"[^}]*\}/g, (_, id, name) => {
+    return `<span class="mention" contenteditable="false" data-mention-id="${id}" data-mention-name="${name}">@${name}</span>`
+  }).replace(/\n/g, "<br>")
+}
+
+export const CommentEditor: React.FC<CommentEditorProps> = (props) => {
   const [users, setUsers] = useState<UserNames[]>([])
-  const ref = useRef<HTMLDivElement | null>(null)
-  const [target, setTarget] = useState<Range | undefined>()
-  const [index, setIndex] = useState(0)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [dropdownIndex, setDropdownIndex] = useState(0)
   const [search, setSearch] = useState("")
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
+  const [mentionRange, setMentionRange] = useState<Range | null>(null)
+  
+  const editorRef = useRef<HTMLDivElement>(null)
+  const initializedRef = useRef(false)
 
   useEffect(() => {
-    if (target) {
+    if (editorRef.current && !initializedRef.current) {
+      if (props.initialValue) {
+        editorRef.current.innerHTML = deserializeToHTML(props.initialValue)
+      }
+      initializedRef.current = true
+    }
+  }, [props.initialValue])
+
+  const handleFocus = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
+    if (editorRef.current && editorRef.current.innerHTML === "") {
+      const textNode = document.createTextNode("")
+      editorRef.current.appendChild(textNode)
+      const selection = window.getSelection()
+      if (selection) {
+        const range = document.createRange()
+        range.setStart(textNode, 0)
+        range.collapse(true)
+        selection.removeAllRanges()
+        selection.addRange(range)
+      }
+    }
+    props.onFocus?.(e)
+  }, [props.onFocus])
+
+  useEffect(() => {
+    if (showDropdown && search !== undefined) {
       const loadUsers = async () => {
         const result = await actions.getTaggableUsers(search)
         if (result.ok) {
           setUsers(result.data)
+          setDropdownIndex(0)
         }
       }
       loadUsers()
     }
-  }, [search, target])
-  const filteredUsers = users
+  }, [search, showDropdown])
 
-  const renderElement = useCallback((props: RenderElementProps) => <SlateElement {...props} />, [])
-  const editor = useMemo(() => withMentions(withReact(withHistory(createEditor()))), [])
+  const updateDropdownPosition = useCallback(() => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return
 
-  const onKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (target && filteredUsers.length > 0) {
-        switch (event.key) {
-          case "ArrowDown": {
-            event.preventDefault()
-            const prevIndex = index >= filteredUsers.length - 1 ? 0 : index + 1
-            setIndex(prevIndex)
-            break
-          }
-          case "ArrowUp": {
-            event.preventDefault()
-            const nextIndex = index <= 0 ? filteredUsers.length - 1 : index - 1
-            setIndex(nextIndex)
-            break
-          }
-          case "Tab":
-          case "Enter":
-            event.preventDefault()
-            Transforms.select(editor, target)
-            insertMention(editor, filteredUsers[index])
-            setTarget(undefined)
-            break
-          case "Escape":
-            event.preventDefault()
-            setTarget(undefined)
-            break
-        }
+    const range = selection.getRangeAt(0)
+    const rect = range.getBoundingClientRect()
+    
+    if (rect.top === 0 && rect.left === 0) {
+      if (editorRef.current) {
+        const editorRect = editorRef.current.getBoundingClientRect()
+        setDropdownPosition({
+          top: editorRect.top + 24 + window.scrollY,
+          left: editorRect.left + window.scrollX,
+        })
       }
-    },
-    [filteredUsers, editor, index, target]
-  )
-
-  useEffect(() => {
-    if (target && filteredUsers.length > 0 && ref.current) {
-      const el = ref.current
-      const domRange = ReactEditor.toDOMRange(editor, target)
-      const rect = domRange.getBoundingClientRect()
-      el.style.top = `${rect.top + window.pageYOffset + 24}px`
-      el.style.left = `${rect.left + window.pageXOffset}px`
+      return
     }
-  }, [filteredUsers.length, editor, index, search, target])
+    
+    setDropdownPosition({
+      top: rect.bottom + window.scrollY + 4,
+      left: rect.left + window.scrollX,
+    })
+  }, [])
 
-  const initialValue = props.initialValue ? deserialize(props.initialValue) : emptyValue
+  const checkForMention = useCallback(() => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return
+
+    const range = selection.getRangeAt(0)
+    if (!range.collapsed) {
+      setShowDropdown(false)
+      return
+    }
+
+    const node = range.startContainer
+    if (node.nodeType !== Node.TEXT_NODE) {
+      setShowDropdown(false)
+      return
+    }
+
+    const text = node.textContent || ""
+    const cursorPos = range.startOffset
+    const textBeforeCursor = text.substring(0, cursorPos)
+    
+    const lastAtIndex = textBeforeCursor.lastIndexOf("@")
+    if (lastAtIndex === -1) {
+      setShowDropdown(false)
+      return
+    }
+
+    const textAfterAt = textBeforeCursor.substring(lastAtIndex + 1)
+    if (textAfterAt.includes(" ") || textAfterAt.includes("\n")) {
+      setShowDropdown(false)
+      return
+    }
+
+    const mentionStartRange = document.createRange()
+    mentionStartRange.setStart(node, lastAtIndex)
+    mentionStartRange.setEnd(node, cursorPos)
+    
+    setMentionRange(mentionStartRange)
+    setSearch(textAfterAt)
+    setShowDropdown(true)
+    updateDropdownPosition()
+  }, [updateDropdownPosition])
+
+  const insertMention = useCallback((user: UserNames) => {
+    if (!mentionRange || !editorRef.current) return
+
+    mentionRange.deleteContents()
+    
+    const mentionSpan = document.createElement("span")
+    mentionSpan.className = "mention"
+    mentionSpan.contentEditable = "false"
+    mentionSpan.dataset.mentionId = String(user.id)
+    mentionSpan.dataset.mentionName = user.name
+    mentionSpan.textContent = `@${user.name}`
+    
+    mentionRange.insertNode(mentionSpan)
+    
+    const space = document.createTextNode("\u00A0")
+    mentionSpan.after(space)
+    
+    const selection = window.getSelection()
+    if (selection) {
+      const newRange = document.createRange()
+      newRange.setStartAfter(space)
+      newRange.collapse(true)
+      selection.removeAllRanges()
+      selection.addRange(newRange)
+    }
+    
+    setShowDropdown(false)
+    setMentionRange(null)
+    
+    if (props.onChange) {
+      props.onChange(serializeContent(editorRef.current))
+    }
+  }, [mentionRange, props.onChange])
+
+  const handleInput = useCallback(() => {
+    if (!editorRef.current) return
+    
+    checkForMention()
+    
+    if (props.onChange) {
+      props.onChange(serializeContent(editorRef.current))
+    }
+  }, [checkForMention, props.onChange])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!showDropdown || users.length === 0) return
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault()
+        setDropdownIndex((prev) => (prev >= users.length - 1 ? 0 : prev + 1))
+        break
+      case "ArrowUp":
+        e.preventDefault()
+        setDropdownIndex((prev) => (prev <= 0 ? users.length - 1 : prev - 1))
+        break
+      case "Tab":
+      case "Enter":
+        e.preventDefault()
+        insertMention(users[dropdownIndex])
+        break
+      case "Escape":
+        e.preventDefault()
+        setShowDropdown(false)
+        break
+    }
+  }, [showDropdown, users, dropdownIndex, insertMention])
+
+  const handleBlur = useCallback(() => {
+    setTimeout(() => {
+      setShowDropdown(false)
+    }, 200)
+  }, [])
 
   return (
-    <Slate
-      editor={editor}
-      initialValue={initialValue}
-      onChange={(descendant) => {
-        const { selection } = editor
-
-        if (selection && Range.isCollapsed(selection)) {
-          const [start] = Range.edges(selection)
-          
-          const currentPoint = { path: start.path, offset: start.offset }
-          const [node] = Editor.node(editor, start.path)
-          const textBeforeCursor = Node.string(node).slice(0, start.offset)
-          const lastAtIndex = textBeforeCursor.lastIndexOf('@')
-          if (lastAtIndex !== -1) {
-            const potentialMention = textBeforeCursor.slice(lastAtIndex + 1)
-            const after = Editor.after(editor, currentPoint)
-            const isAtEndOrFollowedBySpace = !after || /^\s/.test(Editor.string(editor, Editor.range(editor, currentPoint, after)))
-            
-            if (!potentialMention.includes(' ') && isAtEndOrFollowedBySpace) {
-              const mentionRange = {
-                anchor: { path: start.path, offset: lastAtIndex },
-                focus: currentPoint
-              }
-              
-              setTarget(mentionRange)
-              setSearch(potentialMention)
-              setIndex(0)
-              props.onChange && props.onChange(serialize(descendant))
-              return
-            }
-          }
-
-          props.onChange && props.onChange(serialize(descendant))
-        }
-
-        setTarget(undefined)
-        props.onChange && props.onChange(serialize(descendant))
-      }}
-    >
-      <Editable
-        readOnly={props.readOnly || false}
+    <>
+      <div
+        ref={editorRef}
+        contentEditable={!props.readOnly}
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        data-placeholder={props.placeholder}
         className={classSet({
-          "bg-elevated w-full min-w-0 leading-6 p-2 resize-none border border-border rounded-input appearance-none my-3 break-all wrap-anywhere [&_p]:mb-0": true,
+          "bg-elevated w-full min-w-0 leading-6 p-2 border border-border rounded-input appearance-none my-3 min-h-[80px] outline-none whitespace-pre-wrap wrap-break-word": true,
           "cursor-not-allowed opacity-45 pointer-events-none": props.readOnly,
+          "empty:before:content-[attr(data-placeholder)] empty:before:text-muted empty:before:pointer-events-none": true,
         })}
-        renderElement={renderElement}
-        onKeyDown={onKeyDown}
-        onFocus={props.onFocus}
-        placeholder={props.placeholder}
-        renderPlaceholder={Placeholder}
       />
-      {target && filteredUsers.length > 0 && !props.readOnly && (
+      
+      {showDropdown && !props.readOnly && (
         <Portal>
-          <div 
-            ref={ref} 
-            className="absolute z-10 p-1 bg-elevated rounded shadow-md"
-            style={{ top: '-9999px', left: '-9999px' }}
-            data-cy="mentions-portal"
+          <div
+            className="bg-elevated rounded shadow-lg border border-border"
+            style={{
+              position: "absolute",
+              top: dropdownPosition.top,
+              left: dropdownPosition.left,
+              zIndex: 10000,
+              maxHeight: "200px",
+              overflowY: "auto",
+              minWidth: "150px",
+            }}
           >
-            {filteredUsers.map((user, i) => (
-              <div
-                key={user.id}
-                onClick={() => {
-                  Transforms.select(editor, target)
-                  insertMention(editor, user)
-                  setTarget(undefined)
-                }}
-                className={classSet({
-                  "px-3 py-1.5 rounded cursor-pointer": true,
-                  "bg-accent-light": i === index,
-                })}
-              >
-                {user.name}
-              </div>
-            ))}
+            {users.length > 0 ? (
+              users.map((user, i) => (
+                <div
+                  key={user.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    insertMention(user)
+                  }}
+                  className={classSet({
+                    "px-3 py-2 cursor-pointer text-sm": true,
+                    "bg-accent-light": i === dropdownIndex,
+                    "hover:bg-surface-alt": i !== dropdownIndex,
+                  })}
+                >
+                  @{user.name}
+                </div>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-sm text-muted">No users found</div>
+            )}
           </div>
         </Portal>
       )}
-    </Slate>
+    </>
   )
-}
-
-const withMentions = (editor: CustomEditor) => {
-  const { isInline, isVoid, markableVoid } = editor
-
-  editor.isInline = (element: CustomElement) => {
-    return element.type === "mention" ? true : isInline(element)
-  }
-
-  editor.isVoid = (element: CustomElement) => {
-    return element.type === "mention" ? true : isVoid(element)
-  }
-
-  editor.markableVoid = (element: CustomElement) => {
-    return element.type === "mention" || markableVoid(element)
-  }
-
-  return editor
-}
-
-const insertMention = (editor: Editor, user: UserNames) => {
-  const newMention = { ...user, isNew: true }
-  const mention: MentionElement = {
-    type: "mention",
-    character: user.name,
-    children: [{ text: "@" + JSON.stringify(newMention) }],
-  }
-  Transforms.insertNodes(editor, mention)
-  Transforms.move(editor)
-}
-
-const SlateElement = (props: RenderElementProps) => {
-  const { attributes, children, element } = props
-  switch (element.type) {
-    case "mention":
-      return <Mention {...(props as { attributes: React.HTMLAttributes<HTMLSpanElement>; children: React.ReactNode; element: MentionElement })} />
-    default:
-      return <p {...attributes}>{children}</p>
-  }
-}
-
-const Mention = ({
-  attributes,
-  children,
-  element,
-}: {
-  attributes: React.HTMLAttributes<HTMLSpanElement>
-  children: React.ReactNode
-  element: MentionElement
-}) => {
-  const selected = useSelected()
-  const focused = useFocused()
-  
-  return (
-    <span 
-      {...attributes} 
-      className="mx-px align-baseline inline-block rounded bg-surface-alt text-sm"
-      contentEditable={false} 
-      data-cy={`mention-${element.character.replace(" ", "-")}`} 
-      style={{ boxShadow: selected && focused ? "0 0 0 2px var(--color-primary)" : "none" }}
-    >
-      <div contentEditable={false}>
-        {IS_MAC ? (
-          <Fragment>
-            {children}@{element.character}
-          </Fragment>
-        ) : (
-          <Fragment>
-            @{element.character}
-            {children}
-          </Fragment>
-        )}
-      </div>
-    </span>
-  )
-}
-
-const serialize = (nodes: Descendant[]): string => {
-  return nodes.map((n) => Node.string(n)).join("\n")
-}
-
-const deserialize = (markdown: string): Descendant[] => {
-  return markdown.split("\n").map((line) => {
-    const children: Descendant[] = []
-    const regex = /@{\\?"id\\?":\d+,\\?"name\\?":\\?"[^"]+\\?"(,\\?"isNew\\?":[^}]+)?}/g
-    let lastIndex = 0
-
-    let match
-    while ((match = regex.exec(line)) !== null) {
-      if (match.index > lastIndex) {
-        children.push({ text: line.slice(lastIndex, match.index) })
-      }
-
-      try {
-        const jsonStr = match[0].replace(/\\/g, "").slice(1)
-        const mentionData = JSON.parse(jsonStr)
-        children.push({
-          type: "mention",
-          character: mentionData.name,
-          children: [{ text: match[0] }],
-        })
-      } catch (err) {
-        console.error("Error parsing mention:", err)
-        children.push({ text: line })
-      }
-
-      lastIndex = match.index + match[0].length
-    }
-
-    if (lastIndex <= line.length) {
-      children.push({ text: line.slice(lastIndex) })
-    }
-
-    return {
-      type: "paragraph",
-      children,
-    }
-  })
 }

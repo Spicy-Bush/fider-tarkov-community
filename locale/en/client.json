@@ -1,7 +1,6 @@
 {
   "J/hVSQ": "{0}",
   "action.archive": "Archive",
-  "enum.poststatus.archived": "Archived",
   "action.block": "Block User",
   "action.cancel": "Cancel",
   "action.change": "change",
@@ -57,6 +56,7 @@
   "d41FkJ": "{count, plural, one {# tag} other {# tags}}",
   "duplicate.search.noresults": "No matching posts found.",
   "duplicate.search.placeholder": "Search for original post...",
+  "enum.poststatus.archived": "Archived",
   "enum.poststatus.completed": "Completed",
   "enum.poststatus.declined": "Declined",
   "enum.poststatus.deleted": "Deleted",

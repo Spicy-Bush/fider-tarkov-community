@@ -63,15 +63,22 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
   
   const [upvotes, setUpvotes] = useState(props.post.upvotes || 0)
   const [downvotes, setDownvotes] = useState(props.post.downvotes || 0)
+  const [lastActivityAt, setLastActivityAt] = useState(props.post.lastActivityAt)
   
   useEffect(() => {
     setUpvotes(props.post.upvotes || 0)
     setDownvotes(props.post.downvotes || 0)
-  }, [props.post.upvotes, props.post.downvotes])
+    setLastActivityAt(props.post.lastActivityAt)
+  }, [props.post.upvotes, props.post.downvotes, props.post.lastActivityAt])
   
   const handleVoteChange = useCallback((newUpvotes: number, newDownvotes: number) => {
     setUpvotes(newUpvotes)
     setDownvotes(newDownvotes)
+    setLastActivityAt(new Date().toISOString())
+  }, [])
+
+  const handleCommentAdded = useCallback(() => {
+    setLastActivityAt(new Date().toISOString())
   }, [])
 
   const handleCopyEvent = useCallback(() => {
@@ -219,7 +226,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                             data-tooltip={i18n._("showpost.createdat", { message: "Created {date}", date: formatDate(Fider.currentLocale, props.post.createdAt, "full") })}
                           >
                             <Trans id="showpost.lastactivity">Last activity:</Trans>{" "}
-                            <Moment locale={Fider.currentLocale} date={props.post.lastActivityAt} />
+                            <Moment locale={Fider.currentLocale} date={lastActivityAt} />
                           </span>
                         </VStack>
                       </HStack>
@@ -383,6 +390,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                 reportedCommentIds={props.reportStatus?.reportedCommentIds ?? []}
                 dailyLimitReached={props.reportStatus?.dailyLimitReached ?? false}
                 reportReasons={props.reportReasons}
+                onCommentAdded={handleCommentAdded}
               />
               <div className="mt-4 flex items-center justify-between">
                 <Button variant="secondary" onClick={handleScrollToTop}>

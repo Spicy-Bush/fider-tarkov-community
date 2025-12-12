@@ -29,7 +29,7 @@ var (
 	cspBase    = "base-uri 'self'"
 	cspDefault = "default-src 'self'"
 	cspStyle   = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.paddle.com %[2]s"
-	cspScript  = "script-src 'self' 'nonce-%[1]s' https://ep1.adtrafficquality.google https://www.google-analytics.com https://*.paddle.com https://*.googletagmanager.com https://pagead2.googlesyndication.com https://static.cloudflareinsights.com https://*.cloudflare.com %[2]s"
+	cspScript  = "script-src 'self' 'unsafe-inline' 'nonce-%[1]s' https://ep1.adtrafficquality.google https://www.google-analytics.com https://*.paddle.com https://*.googletagmanager.com https://pagead2.googlesyndication.com https://static.cloudflareinsights.com https://*.cloudflare.com %[2]s"
 	cspFont    = "font-src 'self' https://fonts.gstatic.com data: %[2]s"
 	cspImage   = "img-src 'self' https: data: https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net %[2]s"
 	cspObject  = "object-src 'none'"
