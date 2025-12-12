@@ -8,7 +8,7 @@ import { i18n } from "@lingui/core"
 import { heroiconsCalendar as IconCalendar, heroiconsExclamation as IconWarning, heroiconsMuted as IconVolumeOff, heroiconsThumbsup as IconThumbsUp } from "@fider/icons.generated"
 
 const UserProfileStandingComponent: React.FC = () => {
-  const { user, standing, canDeleteModeration, refreshStanding, isViewingOwnProfile } = useUserProfile()
+  const { user, standing, canDeleteModeration, canModerate, refreshStanding, isViewingOwnProfile } = useUserProfile()
 
   if (!user) return null
 
@@ -25,6 +25,22 @@ const UserProfileStandingComponent: React.FC = () => {
     if (result.ok) {
       await refreshStanding()
       notify.success(i18n._("profile.mute.delete.success", { message: "Mute has been deleted successfully" }))
+    }
+  }
+
+  const handleExpireWarning = async (warningId: number) => {
+    const result = await actions.expireWarning(user.id, warningId)
+    if (result.ok) {
+      await refreshStanding()
+      notify.success(i18n._("profile.warning.expire.success", { message: "Warning has been removed" }))
+    }
+  }
+
+  const handleExpireMute = async (muteId: number) => {
+    const result = await actions.expireMute(user.id, muteId)
+    if (result.ok) {
+      await refreshStanding()
+      notify.success(i18n._("profile.mute.expire.success", { message: "User has been unmuted" }))
     }
   }
 
@@ -89,6 +105,11 @@ const UserProfileStandingComponent: React.FC = () => {
                         {isExpired ? "Expired" : "Active"}
                       </span>
                     )}
+                    {isActive && canModerate && (
+                      <Button variant="secondary" size="small" onClick={() => handleExpireWarning(warning.id)}>
+                        <Trans id="action.removeWarning">Remove</Trans>
+                      </Button>
+                    )}
                     {canDeleteModeration && (
                       <Button variant="danger" size="small" onClick={() => handleDeleteWarning(warning.id)}>
                         <Trans id="action.delete">Delete</Trans>
@@ -138,6 +159,11 @@ const UserProfileStandingComponent: React.FC = () => {
                       <span className={`c-user-profile__standing-status ${isExpired ? "expired" : "active"}`}>
                         {isExpired ? "Expired" : "Active"}
                       </span>
+                    )}
+                    {isActive && canModerate && (
+                      <Button variant="secondary" size="small" onClick={() => handleExpireMute(mute.id)}>
+                        <Trans id="action.unmute">Unmute</Trans>
+                      </Button>
                     )}
                     {canDeleteModeration && (
                       <Button variant="danger" size="small" onClick={() => handleDeleteMute(mute.id)}>

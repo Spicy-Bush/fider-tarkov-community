@@ -16,7 +16,7 @@ const setup = () => {
       const root = ReactDOM.createRoot(rootElement)
       root.render(
         <I18nProvider i18n={i18n}>
-          <ToastContainer position={toast.POSITION.TOP_RIGHT} />
+          <ToastContainer position="top-right" />
         </I18nProvider>
       )
     }

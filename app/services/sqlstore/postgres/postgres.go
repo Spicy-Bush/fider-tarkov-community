@@ -174,6 +174,8 @@ func (s Service) Init() {
 	bus.AddHandler(warnUser)
 	bus.AddHandler(deleteWarning)
 	bus.AddHandler(deleteMute)
+	bus.AddHandler(expireWarning)
+	bus.AddHandler(expireMute)
 	bus.AddHandler(getUsersToNotify)
 
 	bus.AddHandler(updateUser)

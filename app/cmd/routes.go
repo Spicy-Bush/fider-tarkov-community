@@ -211,6 +211,8 @@ func routes(r *web.Engine) *web.Engine {
 		// user moderation
 		staff.Post("/_api/admin/users/:userID/mute", handlers.MuteUser())
 		staff.Post("/_api/admin/users/:userID/warn", handlers.WarnUser())
+		staff.Post("/_api/admin/users/:userID/warnings/:warningID/expire", handlers.ExpireWarning())
+		staff.Post("/_api/admin/users/:userID/mutes/:muteID/expire", handlers.ExpireMute())
 		staff.Get("/api/v1/responses/:type", apiv1.ListCannedResponses())
 		staff.Get("/admin/members", handlers.ManageMembers())
 		staff.Get("/api/v1/users", apiv1.ListUsers())

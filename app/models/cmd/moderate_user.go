@@ -29,3 +29,13 @@ type DeleteMute struct {
 	UserID int
 	MuteID int
 }
+
+type ExpireWarning struct {
+	UserID    int
+	WarningID int
+}
+
+type ExpireMute struct {
+	UserID int
+	MuteID int
+}

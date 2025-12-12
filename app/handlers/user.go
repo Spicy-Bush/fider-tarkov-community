@@ -156,3 +156,55 @@ func DeleteMute() web.HandlerFunc {
 		})
 	}
 }
+
+// ExpireWarning handles expiring a warning early (keeps history)
+func ExpireWarning() web.HandlerFunc {
+	return func(c *web.Context) error {
+		userID, err := c.ParamAsInt("userID")
+		if err != nil {
+			return c.NotFound()
+		}
+
+		warningID, err := c.ParamAsInt("warningID")
+		if err != nil {
+			return c.NotFound()
+		}
+
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.ExpireWarning{
+				UserID:    userID,
+				WarningID: warningID,
+			}); err != nil {
+				return c.Failure(err)
+			}
+
+			return c.Ok(web.Map{})
+		})
+	}
+}
+
+// ExpireMute handles expiring a mute early (keeps history)
+func ExpireMute() web.HandlerFunc {
+	return func(c *web.Context) error {
+		userID, err := c.ParamAsInt("userID")
+		if err != nil {
+			return c.NotFound()
+		}
+
+		muteID, err := c.ParamAsInt("muteID")
+		if err != nil {
+			return c.NotFound()
+		}
+
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.ExpireMute{
+				UserID: userID,
+				MuteID: muteID,
+			}); err != nil {
+				return c.Failure(err)
+			}
+
+			return c.Ok(web.Map{})
+		})
+	}
+}

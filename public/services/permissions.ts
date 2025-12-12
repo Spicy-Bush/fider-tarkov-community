@@ -163,14 +163,9 @@ export const userPermissions = {
   canDeleteModeration: (targetUser: UserLike, user?: CurrentUser): boolean => {
     const currentUser = user ?? getCurrentUser()
     if (!currentUser) return false
-    if (!isAdmin(currentUser.role) && 
-        !hasRole(currentUser.role, UserRole.Collaborator) && 
-        !hasRole(currentUser.role, UserRole.Moderator)) return false
+    if (!isAdmin(currentUser.role) && !hasRole(currentUser.role, UserRole.Collaborator)) return false
     if (currentUser.id === targetUser.id) return false
     if (isAdmin(targetUser.role)) return false
-    if (hasRole(currentUser.role, UserRole.Moderator)) {
-      return hasRole(targetUser.role, UserRole.Visitor)
-    }
     if (hasRole(currentUser.role, UserRole.Collaborator)) {
       return hasRole(targetUser.role, UserRole.Visitor)
     }

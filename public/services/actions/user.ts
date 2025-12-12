@@ -177,3 +177,13 @@ export const deleteMute = async (userID: number, muteID: number): Promise<Result
   const response = await http.delete(`/_api/admin/users/${userID}/mutes/${muteID}`)
   return response
 }
+
+export const expireWarning = async (userID: number, warningID: number): Promise<Result<void>> => {
+  const response = await http.post(`/_api/admin/users/${userID}/warnings/${warningID}/expire`)
+  return response
+}
+
+export const expireMute = async (userID: number, muteID: number): Promise<Result<void>> => {
+  const response = await http.post(`/_api/admin/users/${userID}/mutes/${muteID}/expire`)
+  return response
+}

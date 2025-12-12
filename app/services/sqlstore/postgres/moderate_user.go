@@ -34,3 +34,31 @@ func deleteMute(ctx context.Context, c *cmd.DeleteMute) error {
 		return nil
 	})
 }
+
+func expireWarning(ctx context.Context, c *cmd.ExpireWarning) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		_, err := trx.Execute(`
+			UPDATE user_warnings 
+			SET expires_at = NOW()
+			WHERE id = $1 AND user_id = $2 AND tenant_id = $3 AND (expires_at IS NULL OR expires_at > NOW())
+		`, c.WarningID, c.UserID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to expire warning")
+		}
+		return nil
+	})
+}
+
+func expireMute(ctx context.Context, c *cmd.ExpireMute) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		_, err := trx.Execute(`
+			UPDATE user_mutes 
+			SET expires_at = NOW()
+			WHERE id = $1 AND user_id = $2 AND tenant_id = $3 AND (expires_at IS NULL OR expires_at > NOW())
+		`, c.MuteID, c.UserID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to expire mute")
+		}
+		return nil
+	})
+}
