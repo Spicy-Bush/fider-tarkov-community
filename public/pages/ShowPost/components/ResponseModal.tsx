@@ -8,8 +8,6 @@ import { HStack } from "@fider/components/layout"
 import { DuplicateSearchPanel } from "./DuplicateSearchPanel"
 import { useResponseModal } from "../hooks"
 
-import "./ResponseModal.scss"
-
 interface ResponseModalProps {
   post: Post
   tags: Tag[]
@@ -35,7 +33,7 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
   })
 
   const options = useMemo(() => {
-    return PostStatus.All.map((s) => {
+    return PostStatus.All.filter((s) => s.value !== PostStatus.Archived.value).map((s) => {
       const id = `enum.poststatus.${s.value.toString()}`
       return {
         value: s.value.toString(),
@@ -54,12 +52,12 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
     <>
       <Modal.Window isOpen={showModal} onClose={onCloseModal} center={false} size="large">
         <Modal.Content>
-          <Form error={modal.error} className="c-response-form">
+          <Form error={modal.error}>
             <Select field="status" label="Status" defaultValue={modal.status} options={options} onChange={handleStatusChange} />
             {modal.status === PostStatus.Duplicate.value ? (
               <>
                 {post.description && (
-                  <div className="p-3 bg-gray-50 rounded mb-3 border border-gray-200">
+                  <div className="p-3 bg-tertiary rounded mb-3 border border-surface-alt">
                     <HStack justify="between" className="mb-1">
                       <span className="text-xs text-muted uppercase">Copy content from this post</span>
                       <Button variant="tertiary" size="small" onClick={modal.handleCopyContent}>
@@ -71,7 +69,7 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
                   </div>
                 )}
                 {modal.originalNumber > 0 ? (
-                  <div className="p-3 bg-gray-100 rounded mb-2">
+                  <div className="p-3 bg-surface-alt rounded mb-2">
                     <span className="font-medium">Original Post: </span>
                     <span>#{modal.originalNumber}</span>
                     <HStack spacing={1} className="ml-2">

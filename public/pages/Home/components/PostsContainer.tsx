@@ -1,4 +1,4 @@
-import "./PostsContainer.scss"
+// import "./PostsContainer.scss"
 
 import React, { useEffect, useRef, useState, useCallback } from "react"
 import { Post, Tag, CurrentUser } from "@fider/models"
@@ -152,30 +152,43 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
   const showResetButton = hasFilters && hasNoPosts
 
   return (
-    <div className="c-posts-container">
-      <div className="c-posts-container__header mb-5">
-        {!filters.query && (
-          <div className="c-posts-container__filter-col">
-            <FilterPanel
-              tags={[untaggedTag, ...props.tags]}
-              activeFilter={filters}
-              filtersChanged={handleFilterChanged}
-              countPerStatus={props.countPerStatus}
+    <div>
+      <div className="flex flex-col gap-3 mb-5">
+        <div className="flex items-center gap-2">
+          {!filters.query && (
+            <>
+              <FilterPanel
+                tags={[untaggedTag, ...props.tags]}
+                activeFilter={filters}
+                filtersChanged={handleFilterChanged}
+                countPerStatus={props.countPerStatus}
+              />
+              <PostsSort onChange={handleSortChanged} value={filters.view || "trending"} />
+              <SwipeModeButton onClick={() => setIsSwipeModeOpen(true)} />
+            </>
+          )}
+          <div className={`${filters.query ? 'w-full' : 'ml-auto w-[200px] max-md:hidden'}`}>
+            <Input
+              field="query"
+              icon={filters.query ? IconX : IconSearch}
+              onIconClick={filters.query ? clearSearch : undefined}
+              placeholder={i18n._("home.postscontainer.query.placeholder", { message: "Search" })}
+              value={filters.query}
+              onChange={handleSearchFilterChanged}
             />
-            <PostsSort onChange={handleSortChanged} value={filters.view || "trending"} />
-            <SwipeModeButton onClick={() => setIsSwipeModeOpen(true)} />
+          </div>
+        </div>
+        {!filters.query && (
+          <div className="md:hidden">
+            <Input
+              field="query-mobile"
+              icon={IconSearch}
+              placeholder={i18n._("home.postscontainer.query.placeholder", { message: "Search" })}
+              value={filters.query}
+              onChange={handleSearchFilterChanged}
+            />
           </div>
         )}
-        <div className="c-posts-container__search-col">
-          <Input
-            field="query"
-            icon={filters.query ? IconX : IconSearch}
-            onIconClick={filters.query ? clearSearch : undefined}
-            placeholder={i18n._("home.postscontainer.query.placeholder", { message: "Search" })}
-            value={filters.query}
-            onChange={handleSearchFilterChanged}
-          />
-        </div>
       </div>
       <ListPosts
         posts={posts}
@@ -186,7 +199,7 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
       {showResetButton && (
         <div className="mt-4 text-center">
           <button 
-            className="c-button c-button--default c-button--primary"
+            className="inline-flex items-center px-4 py-2 bg-primary text-white rounded cursor-pointer"
             onClick={resetFilters}
           >
             {i18n._("home.postscontainer.resetfilters", { message: "Reset all filters" })}
@@ -195,10 +208,10 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
       )}
       {loadingMore && (
         <div className="mt-4 text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-base"></div>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
       )}
-      {hasMore && <div ref={loadMoreRef} style={{ height: "1px" }}></div>}
+      {hasMore && <div ref={loadMoreRef} className="h-px"></div>}
       <SwipeMode
         tags={props.tags}
         isOpen={isSwipeModeOpen}

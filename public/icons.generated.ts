@@ -42,6 +42,7 @@ export const heroiconsExternalLink: SpriteSymbol = { id: "heroicons-external-lin
 export const heroiconsEye: SpriteSymbol = { id: "heroicons-eye", viewBox: "0 0 24 24" }
 export const heroiconsFilter: SpriteSymbol = { id: "heroicons-filter", viewBox: "0 0 24 24" }
 export const heroiconsFlag: SpriteSymbol = { id: "heroicons-flag", viewBox: "0 0 24 24" }
+export const heroiconsHome: SpriteSymbol = { id: "heroicons-home", viewBox: "0 0 24 24" }
 export const heroiconsIdentification: SpriteSymbol = { id: "heroicons-identification", viewBox: "0 0 24 24" }
 export const heroiconsInbox: SpriteSymbol = { id: "heroicons-inbox", viewBox: "0 0 24 24" }
 export const heroiconsInformationCircle: SpriteSymbol = { id: "heroicons-information-circle", viewBox: "0 0 24 24" }
@@ -121,6 +122,7 @@ export const icons: Record<string, SpriteSymbol> = {
   "heroicons-eye": heroiconsEye,
   "heroicons-filter": heroiconsFilter,
   "heroicons-flag": heroiconsFlag,
+  "heroicons-home": heroiconsHome,
   "heroicons-identification": heroiconsIdentification,
   "heroicons-inbox": heroiconsInbox,
   "heroicons-information-circle": heroiconsInformationCircle,

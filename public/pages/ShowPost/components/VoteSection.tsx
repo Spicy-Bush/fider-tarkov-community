@@ -1,5 +1,3 @@
-import "./VoteSection.scss"
-
 import React, { useState, useEffect } from "react"
 import { Post, PostStatus, isPostLocked, isPostArchived } from "@fider/models"
 import { actions, classSet } from "@fider/services"
@@ -11,6 +9,7 @@ import { HStack, VStack } from "@fider/components/layout"
 
 interface VoteSectionProps {
   post: Post
+  onVoteChange?: (upvotes: number, downvotes: number) => void
 }
 
 export const VoteSection = (props: VoteSectionProps) => {
@@ -51,7 +50,6 @@ export const VoteSection = (props: VoteSectionProps) => {
       response = await actions.removeVote(props.post.number);
       newVoteType = 'none';
       
-      // Remove upvote or downvote
       if (type === 'up') {
         upvoteChange = -1;
       } else {
@@ -63,7 +61,6 @@ export const VoteSection = (props: VoteSectionProps) => {
       response = await actions.toggleVote(props.post.number, type);
       newVoteType = type;
       
-      // Switch vote type
       if (type === 'up') {
         upvoteChange = 1;
         downvoteChange = -1;
@@ -87,12 +84,17 @@ export const VoteSection = (props: VoteSectionProps) => {
 
     if (response.ok) {
       if (isPostArchived(props.post)) {
-        location.reload() // change this later to be like, idk a replace in place or something
+        location.reload()
         return
       }
       setVoteType(newVoteType);
-      setUpvotes(upvotes + upvoteChange);
-      setDownvotes(downvotes + downvoteChange);
+      const newUpvotes = upvotes + upvoteChange;
+      const newDownvotes = downvotes + downvoteChange;
+      setUpvotes(newUpvotes);
+      setDownvotes(newDownvotes);
+      if (props.onVoteChange) {
+        props.onVoteChange(newUpvotes, newDownvotes);
+      }
     }
   }
 
@@ -102,34 +104,26 @@ export const VoteSection = (props: VoteSectionProps) => {
   const isDisabled = status.closed || fider.isReadOnly || isPostLocked(props.post)
 
   const countClassName = classSet({
-    "c-vote-section__count": true,
-    "c-vote-section__count--positive": votesDifference > 0,
-    "c-vote-section__count--negative": votesDifference < 0,
-    "c-vote-section__count--neutral": votesDifference === 0,
-  })
-
-  const upButtonClassName = classSet({
-    "c-vote-section__button": true,
-    "c-vote-section__button--up": true,
-    "voted": voteType === 'up'
-  })
-
-  const downButtonClassName = classSet({
-    "c-vote-section__button": true,
-    "c-vote-section__button--down": true,
-    "voted": voteType === 'down'
+    "text-2xl font-bold min-w-10 text-center": true,
+    "text-success": votesDifference > 0,
+    "text-danger": votesDifference < 0,
+    "text-muted": votesDifference === 0,
   })
 
   return (
     <>
       <SignInModal isOpen={isSignInModalOpen} onClose={hideModal} />
-      <div className="c-vote-section w-full">
-        <div className="c-vote-section__buttons">
+      <div className="w-full">
+        <div className="flex items-center justify-between gap-4 w-full max-md:gap-2">
           <Button 
-            variant={voteType === 'up' ? "primary" : "secondary"} 
+            variant="secondary"
             onClick={() => handleVote('up')} 
             disabled={isDisabled}
-            className={upButtonClassName}
+            className={classSet({
+              "flex-1 overflow-hidden whitespace-nowrap text-ellipsis md:max-w-[30%] max-md:text-sm": true,
+              "!bg-success !text-white !border-success": voteType === 'up',
+              "text-success": voteType !== 'up',
+            })}
           >
             <HStack spacing={2} justify="center" className="w-full">
               <Icon sprite={IconThumbsUp} /> 
@@ -139,17 +133,21 @@ export const VoteSection = (props: VoteSectionProps) => {
             </HStack>
           </Button>
           
-          <div className="c-vote-section__count-wrapper">
+          <div className="flex items-center justify-center min-w-10 text-center max-md:min-w-8">
             <span className={countClassName}>
               {votesDifference}
             </span>
           </div>
           
           <Button 
-            variant={voteType === 'down' ? "danger" : "secondary"} 
+            variant="secondary"
             onClick={() => handleVote('down')} 
             disabled={isDisabled}
-            className={downButtonClassName}
+            className={classSet({
+              "flex-1 overflow-hidden whitespace-nowrap text-ellipsis md:max-w-[30%] max-md:text-sm": true,
+              "!bg-danger !text-white !border-danger": voteType === 'down',
+              "!text-danger": voteType !== 'down',
+            })}
           >
             <HStack spacing={2} justify="center" className="w-full">
               <Icon sprite={IconThumbsDown} /> 
@@ -162,14 +160,14 @@ export const VoteSection = (props: VoteSectionProps) => {
         
         {totalEngagement > 10 && (
           <VStack spacing={1} className="w-full">
-            <div className="c-vote-section__bar">
+            <div className="h-1 bg-danger mt-2 w-full rounded-badge overflow-hidden">
               <div 
-                className="c-vote-section__bar-upvotes" 
+                className="h-full bg-success" 
                 style={{ width: `${upvotePercentage}%` }}
               />
             </div>
-            <div className="c-vote-section__engagement">
-              <span className="text-xs text-gray-500">
+            <div className="flex justify-center w-full mt-1 italic">
+              <span className="text-xs text-muted">
                 <Trans id="votes.engagement">{totalEngagement} total votes</Trans>
               </span>
             </div>

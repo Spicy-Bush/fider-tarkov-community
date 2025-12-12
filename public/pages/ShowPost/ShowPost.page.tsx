@@ -1,6 +1,4 @@
-import "./ShowPost.page.scss"
-
-import React, { useEffect, useCallback } from "react"
+import React, { useEffect, useCallback, useState } from "react"
 
 import { LockStatus } from "./components/LockStatus"
 import { ArchiveStatus } from "./components/ArchiveStatus"
@@ -26,6 +24,7 @@ import {
   ReportButton,
 } from "@fider/components"
 import { ResponseDetails } from "@fider/components/post/ShowPostResponse"
+import { SentimentBar } from "@fider/components/post/SentimentBar"
 import { DiscussionPanel } from "./components/DiscussionPanel"
 
 import { heroiconsX as IconX, heroiconsThumbsup as IconThumbsUp } from "@fider/icons.generated"
@@ -61,6 +60,19 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
     initialTitle: props.post.title,
     initialDescription: props.post.description,
   })
+  
+  const [upvotes, setUpvotes] = useState(props.post.upvotes || 0)
+  const [downvotes, setDownvotes] = useState(props.post.downvotes || 0)
+  
+  useEffect(() => {
+    setUpvotes(props.post.upvotes || 0)
+    setDownvotes(props.post.downvotes || 0)
+  }, [props.post.upvotes, props.post.downvotes])
+  
+  const handleVoteChange = useCallback((newUpvotes: number, newDownvotes: number) => {
+    setUpvotes(newUpvotes)
+    setDownvotes(newDownvotes)
+  }, [])
 
   const handleCopyEvent = useCallback(() => {
     const selection = window.getSelection()
@@ -135,6 +147,8 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
 
   const handleScrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" })
+    document.documentElement.scrollTo({ top: 0, behavior: "smooth" })
+    document.body.scrollTo({ top: 0, behavior: "smooth" })
   }, [])
 
   const saveChanges = useCallback(async () => {
@@ -188,10 +202,10 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
 
   return (
     <>
-      <div id="p-show-post" className="page container">
-        <div className="p-show-post">
-          <div className="p-show-post__main-col">
-            <div className="p-show-post__header-col">
+      <div id="p-show-post" className="page container overflow-hidden">
+        <div className="lg:grid lg:gap-6 lg:grid-cols-[2fr_6fr_1fr] lg:grid-rows-[auto] lg:items-start">
+          <div className="mb-4 lg:col-start-2 lg:col-end-3 lg:row-start-1 min-w-0 bg-border tag-clipped p-px self-start">
+            <div className="p-4 bg-elevated tag-clipped-inner wrap-anywhere">
               <VStack spacing={8}>
                 <HStack justify="between">
                   <VStack align="start">
@@ -267,7 +281,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                           </>
                         )}
                         {canDeletePost() && (
-                          <Dropdown.ListItem onClick={onActionSelected("delete")} className="text-red-700">
+                          <Dropdown.ListItem onClick={onActionSelected("delete")} className="text-danger">
                             <Trans id="action.delete">Delete</Trans>
                           </Dropdown.ListItem>
                         )}
@@ -337,7 +351,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                 <VStack spacing={4}>
                   {!state.editMode ? (
                     <div className="w-full">
-                      <VoteSection post={props.post} />
+                      <VoteSection post={props.post} onVoteChange={handleVoteChange} />
                     </div>
                   ) : (
                     <HStack>
@@ -347,7 +361,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                           <Trans id="action.save">Save</Trans>
                         </span>
                       </Button>
-                      <Button onClick={state.cancelEdit} disabled={Fider.isReadOnly}>
+                      <Button variant="tertiary" onClick={state.cancelEdit} disabled={Fider.isReadOnly}>
                         <Icon sprite={IconX} />
                         <span>
                           <Trans id="action.cancel">Cancel</Trans>
@@ -355,14 +369,12 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                       </Button>
                     </HStack>
                   )}
-                  <div className="border-4 border-blue-500" />
+                  <SentimentBar post={props.post} upvotes={upvotes} downvotes={downvotes} />
                 </VStack>
 
                 <ResponseDetails status={props.post.status} response={props.post.response} />
               </VStack>
-            </div>
 
-            <div className="p-show-post__discussion_col">
               <DiscussionPanel
                 post={props.post}
                 comments={props.comments}
@@ -382,7 +394,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
               </div>
             </div>
           </div>
-          <div className="p-show-post__action-col">
+          <div className="lg:col-start-1 lg:col-end-2 lg:row-start-1 min-w-0 bg-elevated rounded-panel p-4 h-fit">
             <VotesPanel post={props.post} votes={props.votes} />
           </div>
         </div>

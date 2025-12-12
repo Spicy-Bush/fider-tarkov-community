@@ -1,15 +1,48 @@
+// UserProfileSearch converted to Tailwind
+
 import React, { useState, useEffect, useRef, useCallback } from "react"
-import { Input, Select, Button, Icon, Loader, Avatar, UserName, Markdown } from "@fider/components"
-import { HStack, VStack } from "@fider/components/layout"
+import { Input, Select, Icon, Loader } from "@fider/components"
 import { useUserProfile } from "./context"
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
 import { actions } from "@fider/services"
-import { heroiconsSearch as IconSearch, heroiconsX as IconX, heroiconsCalendar as IconCalendar, heroiconsArrowUpDown as IconSort, heroiconsPencilAlt as IconDocument, heroiconsChevronUp as IconChevronUp } from "@fider/icons.generated"
+import { heroiconsSearch as IconSearch, heroiconsX as IconX, heroiconsArrowUpDown as IconSort, heroiconsChevronUp as IconChevronUp } from "@fider/icons.generated"
 
 type ContentType = "all" | "posts" | "comments" | "voted"
 type SortField = "createdAt" | "title"
 type SortOrder = "asc" | "desc"
+
+const parseMentions = (text: string): React.ReactNode => {
+  const parts: React.ReactNode[] = []
+  const regex = /@\{[^}]+\}/g
+  let lastIndex = 0
+  let match
+  let key = 0
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+
+    try {
+      const json = match[0].substring(1)
+      const mention = JSON.parse(json)
+      parts.push(
+        <span key={key++} className="text-primary font-medium">@{mention.name}</span>
+      )
+    } catch {
+      parts.push(match[0])
+    }
+
+    lastIndex = match.index + match[0].length
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+
+  return parts.length > 0 ? parts : text
+}
 
 interface Post {
   id: number
@@ -116,14 +149,12 @@ const UserProfileSearchComponent: React.FC = () => {
       clearTimeout(timerRef.current)
     }
 
-    setHasMore(true)
-    setSearchResults({ posts: [], comments: [] })
-    stateRef.current = { ...stateRef.current, hasMore: true, results: { posts: [], comments: [] }, loading: false }
-
     if (activeTab !== "search") return
 
+    setHasMore(true)
+    stateRef.current = { ...stateRef.current, hasMore: true, loading: true }
     setIsLoading(true)
-    stateRef.current.loading = true
+    
     timerRef.current = window.setTimeout(() => {
       loadSearchResults(0)
     }, 300)
@@ -212,165 +243,143 @@ const UserProfileSearchComponent: React.FC = () => {
 
   if (!user) return null
 
-  const userForComponents = {
-    ...user,
-    role: user.role as any,
-    status: user.status as any,
-  }
-
   const filteredResults = getFilteredResults()
 
   return (
     <>
-      <div className="c-user-profile__search-controls">
-        <div className="c-user-profile__search-input">
-          <Input
-            field="search"
-            icon={searchQuery ? IconX : IconSearch}
-            onIconClick={searchQuery ? clearSearch : undefined}
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder={i18n._("profile.search.placeholder", { message: "Search posts and comments..." })}
-          />
-        </div>
-        <Select
-          field="contentType"
-          defaultValue={contentType}
-          onChange={handleContentTypeChange}
-          options={[
-            { value: "all", label: i18n._("profile.search.filter.all", { message: "All" }) },
-            { value: "posts", label: i18n._("profile.search.filter.posts", { message: "Posts" }) },
-            { value: "comments", label: i18n._("profile.search.filter.comments", { message: "Comments" }) },
-            { value: "voted", label: i18n._("profile.search.filter.voted", { message: "Voted" }) },
-          ]}
-        />
-        {contentType === "voted" && (
+      <div className="flex flex-col gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex-1 min-w-[200px]">
+            <Input
+              field="search"
+              icon={searchQuery ? IconX : IconSearch}
+              onIconClick={searchQuery ? clearSearch : undefined}
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder={i18n._("profile.search.placeholder", { message: "Search posts and comments..." })}
+            />
+          </div>
           <Select
-            field="voteType"
-            defaultValue={voteType}
-            onChange={handleVoteTypeChange}
+            field="contentType"
+            defaultValue={contentType}
+            onChange={handleContentTypeChange}
             options={[
-              { value: "up", label: i18n._("profile.search.votes.upvotes", { message: "Upvotes" }) },
-              { value: "down", label: i18n._("profile.search.votes.downvotes", { message: "Downvotes" }) },
+              { value: "all", label: i18n._("profile.search.filter.all", { message: "All" }) },
+              { value: "posts", label: i18n._("profile.search.filter.posts", { message: "Posts" }) },
+              { value: "comments", label: i18n._("profile.search.filter.comments", { message: "Comments" }) },
+              { value: "voted", label: i18n._("profile.search.filter.voted", { message: "Voted" }) },
             ]}
           />
-        )}
+          {contentType === "voted" && (
+            <Select
+              field="voteType"
+              defaultValue={voteType}
+              onChange={handleVoteTypeChange}
+              options={[
+                { value: "up", label: i18n._("profile.search.votes.upvotes", { message: "Upvotes" }) },
+                { value: "down", label: i18n._("profile.search.votes.downvotes", { message: "Downvotes" }) },
+              ]}
+            />
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted"><Trans id="profile.search.sort.label">Sort:</Trans></span>
+          <button
+            type="button"
+            onClick={() => handleSortChange("createdAt")}
+            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded cursor-pointer transition-colors ${
+              sortField === "createdAt" 
+                ? "bg-accent-light text-primary font-medium" 
+                : "bg-transparent text-muted hover:text-foreground"
+            }`}
+          >
+            <Trans id="profile.search.sort.date">Date</Trans>
+            {sortField === "createdAt" && (
+              <Icon sprite={IconSort} className={`h-3 transition-transform ${sortOrder === "asc" ? "rotate-180" : ""}`} />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSortChange("title")}
+            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded cursor-pointer transition-colors ${
+              sortField === "title" 
+                ? "bg-accent-light text-primary font-medium" 
+                : "bg-transparent text-muted hover:text-foreground"
+            }`}
+          >
+            <Trans id="profile.search.sort.title">Title</Trans>
+            {sortField === "title" && (
+              <Icon sprite={IconSort} className={`h-3 transition-transform ${sortOrder === "asc" ? "rotate-180" : ""}`} />
+            )}
+          </button>
+        </div>
       </div>
 
-      {isLoading && searchResults.posts.length === 0 && searchResults.comments.length === 0 ? (
-        <div className="c-user-profile__loading">
-          <Loader />
-        </div>
-      ) : searchResults.posts.length > 0 || searchResults.comments.length > 0 ? (
-        <div className="c-user-profile__search-results">
-          <div className="c-user-profile__search-header">
-            <div className="c-user-profile__search-sort">
-              <Button
-                variant="tertiary"
-                onClick={() => handleSortChange("createdAt")}
-                className={sortField === "createdAt" ? "active" : ""}
-              >
-                <HStack spacing={2}>
-                  <Icon sprite={IconCalendar} className="h-4" />
-                  <span><Trans id="profile.search.sort.date">Date</Trans></span>
-                  {sortField === "createdAt" && (
-                    <Icon sprite={IconSort} className={`h-4 transform ${sortOrder === "asc" ? "rotate-180" : ""}`} />
-                  )}
-                </HStack>
-              </Button>
-              <Button
-                variant="tertiary"
-                onClick={() => handleSortChange("title")}
-                className={sortField === "title" ? "active" : ""}
-              >
-                <HStack spacing={2}>
-                  <Icon sprite={IconDocument} className="h-4" />
-                  <span><Trans id="profile.search.sort.title">Title</Trans></span>
-                  {sortField === "title" && (
-                    <Icon sprite={IconSort} className={`h-4 transform ${sortOrder === "asc" ? "rotate-180" : ""}`} />
-                  )}
-                </HStack>
-              </Button>
-            </div>
-          </div>
-
-          <VStack spacing={4} divide>
-            {filteredResults.map(item => (
-              <div key={`${item.type}-${item.id}`} className="c-user-profile__search-item" data-type={item.type}>
-                {item.type === "comment" ? (
-                  <>
-                    <div className="flex-items-baseline flex flex-x flex--spacing-2">
-                      <div className="pt-4">
-                        <a href={`/profile/${user.id}`}>
-                          <Avatar user={userForComponents} clickable={false} size="small" />
-                        </a>
-                      </div>
-                      <div className="flex-grow rounded-md p-2">
-                        <div className="mb-1">
-                          <div className="flex flex-x flex--spacing-2 justify-between flex-items-center">
-                            <div className="flex flex-x flex--spacing-2 flex-items-center">
-                              <UserName user={userForComponents} />
-                              <div className="text-xs">
-                                · <span className="date">{new Date(item.createdAt).toLocaleDateString()}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="c-markdown">
-                            <Markdown text={item.content} style="full" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="c-user-profile__comment-actions">
-                      <a href={`/posts/${item.postNumber}#comment-${item.id}`} className="comment-link">
-                        <Trans id="profile.search.comment.view">View in context</Trans>
-                      </a>
-                    </div>
-                  </>
+      {filteredResults.length > 0 ? (
+        <div className="flex flex-col bg-elevated rounded-card border border-border overflow-hidden">
+          {filteredResults.map(item => (
+            <a 
+              key={`${item.type}-${item.id}`} 
+              href={item.type === "comment" ? `/posts/${item.postNumber}#comment-${item.id}` : `/posts/${item.id}`}
+              className="flex items-center gap-3 px-4 py-3 border-b border-surface-alt last:border-b-0 hover:bg-tertiary transition-colors no-underline"
+            >
+              <div className="flex-1 min-w-0">
+                {item.type === "post" ? (
+                  <div className="text-foreground font-medium text-sm leading-snug truncate">
+                    {item.title}
+                  </div>
                 ) : (
-                  <div className="c-user-profile__post-card">
-                    <div className="c-user-profile__post-header">
-                      <div className="c-user-profile__post-meta">
-                        <div className="flex flex-x flex--spacing-2 flex-items-center">
-                          <a href={`/profile/${user.id}`}>
-                            <Avatar user={userForComponents} size="small" clickable={false} />
-                          </a>
-                          <UserName user={userForComponents} />
-                          <div className="text-xs">
-                            · <span className="date">{new Date(item.createdAt).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                      </div>
+                  <div className="flex flex-col gap-0.5">
+                    <div className="text-foreground text-sm leading-snug truncate">
+                      {parseMentions(item.content.substring(0, 100))}{item.content.length > 100 ? "..." : ""}
                     </div>
-                    <div className="c-user-profile__post-title">
-                      <a href={`/posts/${item.id}`}>{item.title}</a>
+                    <div className="text-xs text-subtle truncate">
+                      on "{item.postTitle}"
                     </div>
                   </div>
                 )}
               </div>
-            ))}
-          </VStack>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-subtle">
+                  {new Date(item.createdAt).toLocaleDateString()}
+                </span>
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                  item.type === "post" 
+                    ? "bg-accent-light text-primary" 
+                    : "bg-surface-alt text-muted"
+                }`}>
+                  {item.type === "post" ? "Post" : "Comment"}
+                </span>
+              </div>
+            </a>
+          ))}
 
           {loadingMore && (
-            <div className="c-user-profile__loading-more">
+            <div className="flex justify-center p-4">
               <Loader />
             </div>
           )}
 
           {hasMore && <div ref={loadMoreRef} style={{ height: "1px" }} />}
         </div>
-      ) : searchQuery ? (
-        <div className="c-user-profile__no-results">
+      ) : isLoading ? (
+        <div className="flex justify-center p-10">
+          <Loader />
+        </div>
+      ) : (
+        <div className="text-center p-10 text-muted">
           <Trans id="profile.search.noresults">No results found</Trans>
         </div>
-      ) : null}
+      )}
 
       {showBackToTop && (
-        <button onClick={scrollToTop} className="c-user-profile__back-to-top c-button--primary">
+        <button 
+          type="button"
+          onClick={scrollToTop} 
+          className="fixed bottom-24 right-4 flex items-center gap-1.5 px-3 py-2 rounded-button border border-border shadow-lg z-10 cursor-pointer text-sm bg-elevated text-foreground hover:bg-tertiary hover:border-border-strong transition-colors max-md:bottom-20 max-md:right-3"
+        >
           <Icon sprite={IconChevronUp} className="h-4" />
-          <Trans id="profile.search.backtotop">Back to Top</Trans>
+          <Trans id="profile.search.backtotop">Top</Trans>
         </button>
       )}
     </>
@@ -380,4 +389,3 @@ const UserProfileSearchComponent: React.FC = () => {
 UserProfileSearchComponent.displayName = "UserProfileSearch"
 
 export const UserProfileSearch = UserProfileSearchComponent
-

@@ -1,10 +1,12 @@
+// WarningBanner converted to Tailwind
+
 import React, { useState, useEffect } from "react"
 import { useFider } from "@fider/hooks"
 import { Trans } from "@lingui/react/macro"
 import { Icon } from "./Icon"
 import { heroiconsExclamation as IconExclamation, heroiconsVolumeOff as IconVolumeOff, heroiconsX as IconX } from "@fider/icons.generated"
 import { HStack } from "@fider/components/layout"
-import "./WarningBanner.scss"
+import { classSet } from "@fider/services"
 
 interface DismissalRecord {
   id: number
@@ -56,15 +58,30 @@ interface AlertBarProps {
 
 const AlertBar: React.FC<AlertBarProps> = ({ type, onDismiss, children }) => {
   const icon = type === "warning" ? IconExclamation : IconVolumeOff
+  const isWarning = type === "warning"
 
   return (
-    <div className={`c-warning-banner c-warning-banner--${type}`}>
-      <HStack className="c-warning-banner__content" spacing={4} justify="between" align="center">
-        <HStack spacing={4} align="center" className="c-warning-banner__left">
-          <Icon sprite={icon} className="h-5" />
-          <span className="c-warning-banner__message">{children}</span>
+    <div className={classSet({
+      "py-3": true,
+      "bg-warning-light border-b border-warning-light": isWarning,
+      "bg-danger-light border-b border-danger-light": !isWarning,
+    })}>
+      <HStack className="mx-auto px-4" spacing={4} justify="between" align="center">
+        <HStack spacing={4} align="center" className="flex-1 min-w-0">
+          <Icon sprite={icon} className={classSet({
+            "h-5": true,
+            "text-warning": isWarning,
+            "text-danger": !isWarning,
+          })} />
+          <span className="text-sm text-foreground [&_a]:text-primary [&_a]:underline [&_a:hover]:text-primary-hover">
+            {children}
+          </span>
         </HStack>
-        <Icon sprite={IconX} className="c-warning-banner__close h-5" onClick={onDismiss} />
+        <Icon 
+          sprite={IconX} 
+          className="h-5 shrink-0 cursor-pointer text-border-strong hover:text-muted transition-colors duration-50" 
+          onClick={onDismiss} 
+        />
       </HStack>
     </div>
   )
@@ -124,7 +141,7 @@ export const WarningBanner = () => {
   }
 
   return (
-    <div className="c-warning-banner-container">
+    <div className="fixed top-0 left-0 right-0 z-toolbar">
       {showMute && (
         <AlertBar type="muted" onDismiss={handleDismissMute}>
           <Trans id="warning.banner.muted">

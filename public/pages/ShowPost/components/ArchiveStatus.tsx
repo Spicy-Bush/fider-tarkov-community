@@ -4,7 +4,7 @@ import { Moment } from "@fider/components"
 import { useFider } from "@fider/hooks"
 import { Trans } from "@lingui/react/macro"
 import { Icon } from "@fider/components"
-import { heroiconsInbox as IconArchive } from "@fider/icons.generated"
+import { heroiconsArchive as IconArchive } from "@fider/icons.generated"
 
 interface ArchiveStatusProps {
   post: Post
@@ -19,25 +19,25 @@ export const ArchiveStatus = (props: ArchiveStatusProps) => {
   }
 
   return (
-    <div className="c-archived-post mt-2">
-      <div className="c-archived-post__header">
-        <div className="c-archived-post__icon">
-          <Icon height="14" width="14" sprite={IconArchive} />
+    <div className="mt-4 rounded-card border border-border bg-surface-alt overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 bg-tertiary border-b border-border">
+        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/20">
+          <Icon height="14" width="14" sprite={IconArchive} className="text-muted" />
         </div>
-        
-        <div className="c-archived-post__title">
+        <span className="font-medium text-foreground">
           <Trans id="showpost.archived.title">This post has been archived</Trans>
-        </div>
+        </span>
       </div>
       
-      <div className="c-archived-post__message">
+      <div className="px-4 py-3 text-sm text-foreground border-b border-border">
         <Trans id="showpost.archived.message">
           This post was archived due to inactivity, or is no longer relevant. Vote or comment to bring it back.
         </Trans>
       </div>
       
       {post.archivedSettings && (
-        <div className="c-archived-post__footer">
+        <div className="px-4 py-2 text-xs text-muted">
+          <Trans id="showpost.archived.archivedat">Archived</Trans>{" "}
           <Moment locale={fider.currentLocale} date={post.archivedSettings.archivedAt} />
         </div>
       )}

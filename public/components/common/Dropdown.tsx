@@ -1,4 +1,4 @@
-import "./Dropdown.scss"
+// import "./Dropdown.scss"
 
 import React, { createContext, useContext, useEffect, useRef, useState } from "react"
 import { classSet } from "@fider/services"
@@ -20,23 +20,25 @@ const ListItem = (props: DropdownListItemProps) => {
     ctx?.close()
   }
 
+  const baseClass = "block p-2 cursor-pointer hover:bg-surface-alt"
+
   if (props.href) {
     return (
-      <a href={props.href} className={`c-dropdown__listitem ${props.className}`}>
+      <a href={props.href} className={`${baseClass} ${props.className || ""}`}>
         {props.children}
       </a>
     )
   }
 
   return (
-    <div onClick={handleClick} className={`c-dropdown__listitem ${props.className}`}>
+    <div onClick={handleClick} className={`${baseClass} ${props.className || ""}`}>
       {props.children}
     </div>
   )
 }
 
 const Divider = () => {
-  return <hr className="c-dropdown__divider" />
+  return <hr className="m-1 bg-surface-alt h-px border-none" />
 }
 
 interface DropdownProps {
@@ -93,21 +95,21 @@ export const Dropdown = (props: DropdownProps) => {
   }, [])
 
   const listClassName = classSet({
-    "c-dropdown__list--wide": props.wide,
-    "c-dropdown__list shadow-lg": true,
-    "c-dropdown__list--fullscreen-small": props.fullscreenSm,
-    [`c-dropdown__list--${position}`]: position === "left",
+    "absolute top-full mt-1 overflow-auto w-max min-w-40 max-w-60 py-1 bg-elevated rounded-card border border-border shadow-lg z-toolbar": true,
+    "max-w-[45rem]": props.wide,
+    "max-sm:fixed max-sm:left-0 max-sm:right-0 max-sm:w-auto max-sm:top-[60px] max-sm:mt-0 max-sm:max-h-[calc(100vh-60px)] max-sm:rounded-none max-sm:border-x-0": props.fullscreenSm,
+    "right-0": position === "left",
   })
 
   const dropdownClassName = classSet({
-    "c-dropdown": true,
+    "inline-flex relative text-sm": true,
     [props.className || ""]: !!props.className,
   })
 
   return (
     <DropdownContext.Provider value={{ close }}>
       <div ref={node} className={dropdownClassName}>
-        <button type="button" className="c-dropdown__handle" onClick={toggleIsOpen}>
+        <button type="button" className="text-left bg-transparent border-none p-0 cursor-pointer inline-flex items-center" onClick={toggleIsOpen}>
           {props.renderHandle}
         </button>
         {isOpen && <div className={listClassName}>{props.children}</div>}

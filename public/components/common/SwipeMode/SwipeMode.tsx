@@ -14,7 +14,6 @@ import {
   swipeCards as IconSwipeCards,
 } from "@fider/icons.generated"
 import { Trans } from "@lingui/react/macro"
-import "./SwipeMode.scss"
 
 type ControlMode = "swipe" | "buttons"
 
@@ -203,34 +202,49 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
   const isComplete = currentIndex >= posts.length
 
   const content = (
-    <div className="c-swipe-mode">
-      <div className="c-swipe-mode__toolbar">
-        <button className="c-swipe-mode__toolbar-btn" onClick={onClose}>
+    <div className="fixed inset-0 z-toolbar bg-elevated flex flex-col">
+      <div className="fixed bottom-5 right-5 flex gap-2 z-sidebar">
+        <button 
+          className="flex items-center justify-center w-11 h-11 rounded-full border border-border bg-elevated text-muted cursor-pointer shadow-lg hover:bg-surface-alt"
+          onClick={onClose}
+        >
           <Icon sprite={IconX} className="h-5 w-5" />
         </button>
       </div>
 
       {controlMode === "buttons" && !showOnboarding && !isComplete && (
-        <div className="c-swipe-mode__buttons">
-          <button className="c-swipe-mode__vote-btn c-swipe-mode__vote-btn--down" onClick={() => handleVote("left")}>
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 flex gap-8 z-511">
+          <button 
+            className="flex items-center justify-center w-16 h-16 rounded-full border-none cursor-pointer shadow-xl bg-danger text-white active:scale-95"
+            onClick={() => handleVote("left")}
+          >
             <Icon sprite={IconDown} className="h-8 w-8" />
           </button>
-          <button className="c-swipe-mode__vote-btn c-swipe-mode__vote-btn--up" onClick={() => handleVote("right")}>
+          <button 
+            className="flex items-center justify-center w-16 h-16 rounded-full border-none cursor-pointer shadow-xl bg-success text-white active:scale-95"
+            onClick={() => handleVote("right")}
+          >
             <Icon sprite={IconUp} className="h-8 w-8" />
           </button>
         </div>
       )}
 
       {controlMode === "swipe" && !showOnboarding && !isComplete && swipeProgress > 0 && (
-        <div className="c-swipe-mode__swipe-indicator">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-512 pointer-events-none">
           {swipeDirection === "right" && (
-            <div className="c-swipe-mode__swipe-indicator-content c-swipe-mode__swipe-indicator-content--up" style={{ opacity: swipeProgress }}>
+            <div 
+              className="flex flex-col items-center gap-1 px-6 py-4 rounded-2xl font-bold text-sm uppercase tracking-wider bg-success/95 text-white shadow-lg"
+              style={{ opacity: swipeProgress }}
+            >
               <Icon sprite={IconUp} className="h-12 w-12" />
               <span><Trans id="action.upvote">Upvote</Trans></span>
             </div>
           )}
           {swipeDirection === "left" && (
-            <div className="c-swipe-mode__swipe-indicator-content c-swipe-mode__swipe-indicator-content--down" style={{ opacity: swipeProgress }}>
+            <div 
+              className="flex flex-col items-center gap-1 px-6 py-4 rounded-2xl font-bold text-sm uppercase tracking-wider bg-danger/95 text-white shadow-lg"
+              style={{ opacity: swipeProgress }}
+            >
               <Icon sprite={IconDown} className="h-12 w-12" />
               <span><Trans id="action.downvote">Downvote</Trans></span>
             </div>
@@ -238,13 +252,13 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
         </div>
       )}
 
-      <div className="c-swipe-mode__content">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {showOnboarding ? (
           <OnboardingScreen onComplete={(mode) => { setControlMode(mode); setShowOnboarding(false) }} />
         ) : isComplete ? (
           <CompleteScreen onClose={onClose} votedCount={voteHistory.length} />
         ) : (
-          <div className="c-swipe-mode__cards">
+          <div className="relative flex-1">
             {nextPost && (
               <SwipeCard post={nextPost} tags={tags} isActive={false} controlMode={controlMode} style={{ opacity: 0.3 }} />
             )}
@@ -274,39 +288,53 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
 }
 
 const OnboardingScreen: React.FC<{ onComplete: (mode: ControlMode) => void }> = ({ onComplete }) => (
-  <div className="c-swipe-mode__onboarding">
-    <div className="c-swipe-mode__onboarding-content">
-      <Icon sprite={IconSwipeCards} className="c-swipe-mode__onboarding-icon" />
-      <h2><Trans id="swipemode.onboarding.title">Swipe Mode</Trans></h2>
-      <p><Trans id="swipemode.onboarding.description">Quickly vote on posts by swiping through them.</Trans></p>
-      <div className="c-swipe-mode__onboarding-demo">
-        <div className="c-swipe-mode__demo-arrow c-swipe-mode__demo-arrow--left">
+  <div className="flex items-center justify-center flex-1 p-6">
+    <div className="flex flex-col items-center justify-center text-center w-full h-full">
+      <Icon sprite={IconSwipeCards} className="w-[72px] h-[72px] mb-5" />
+      <h2 className="text-[28px] font-semibold text-foreground m-0 mb-3">
+        <Trans id="swipemode.onboarding.title">Swipe Mode</Trans>
+      </h2>
+      <p className="text-base text-muted m-0">
+        <Trans id="swipemode.onboarding.description">Quickly vote on posts by swiping through them.</Trans>
+      </p>
+      <div className="flex items-center justify-center gap-6 my-8">
+        <div className="flex flex-col items-center gap-2 text-sm font-semibold text-danger">
           <Icon sprite={IconDown} className="h-6 w-6" />
           <span><Trans id="action.downvote">Downvote</Trans></span>
         </div>
-        <div className="c-swipe-mode__demo-card"><Trans id="swipemode.onboarding.post">Post</Trans></div>
-        <div className="c-swipe-mode__demo-arrow c-swipe-mode__demo-arrow--right">
+        <div className="w-20 h-[100px] bg-surface-alt rounded-panel flex items-center justify-center font-medium text-muted border border-border text-sm">
+          <Trans id="swipemode.onboarding.post">Post</Trans>
+        </div>
+        <div className="flex flex-col items-center gap-2 text-sm font-semibold text-success">
           <Icon sprite={IconUp} className="h-6 w-6" />
           <span><Trans id="action.upvote">Upvote</Trans></span>
         </div>
       </div>
-      <p className="c-swipe-mode__onboarding-subtitle"><Trans id="swipemode.onboarding.chooseinput">How do you want to vote?</Trans></p>
-      <VStack spacing={2} className="c-swipe-mode__onboarding-options">
-        <button className="c-swipe-mode__option" onClick={() => onComplete("swipe")}>
+      <p className="text-lg font-semibold text-foreground mt-8 mb-4">
+        <Trans id="swipemode.onboarding.chooseinput">How do you want to vote?</Trans>
+      </p>
+      <VStack spacing={2} className="w-full max-w-[320px]">
+        <button 
+          className="flex items-center gap-4 w-full px-5 py-4 border border-surface-alt rounded-panel bg-elevated cursor-pointer text-left hover:border-primary hover:bg-tertiary [&>svg]:shrink-0 [&>svg]:text-primary [&>svg]:rotate-90"
+          onClick={() => onComplete("swipe")}
+        >
           <Icon sprite={IconHand} className="h-5 w-5" />
-          <div>
-            <strong><Trans id="swipemode.option.swipe.title">Swipe Gestures</Trans></strong>
-            <span><Trans id="swipemode.option.swipe.description">Swipe left or right</Trans></span>
+          <div className="flex flex-col gap-0.5">
+            <strong className="text-base text-foreground"><Trans id="swipemode.option.swipe.title">Swipe Gestures</Trans></strong>
+            <span className="text-xs text-muted"><Trans id="swipemode.option.swipe.description">Swipe left or right</Trans></span>
           </div>
         </button>
-        <button className="c-swipe-mode__option" onClick={() => onComplete("buttons")}>
+        <button 
+          className="flex items-center gap-4 w-full px-5 py-4 border border-surface-alt rounded-panel bg-elevated cursor-pointer text-left hover:border-primary hover:bg-tertiary [&>div:first-child]:shrink-0 [&>div:first-child]:text-primary"
+          onClick={() => onComplete("buttons")}
+        >
           <HStack spacing={1}>
             <Icon sprite={IconDown} className="h-4 w-4" />
             <Icon sprite={IconUp} className="h-4 w-4" />
           </HStack>
-          <div>
-            <strong><Trans id="swipemode.option.buttons.title">Floating Buttons</Trans></strong>
-            <span><Trans id="swipemode.option.buttons.description">Tap buttons to vote</Trans></span>
+          <div className="flex flex-col gap-0.5">
+            <strong className="text-base text-foreground"><Trans id="swipemode.option.buttons.title">Floating Buttons</Trans></strong>
+            <span className="text-xs text-muted"><Trans id="swipemode.option.buttons.description">Tap buttons to vote</Trans></span>
           </div>
         </button>
       </VStack>
@@ -315,11 +343,19 @@ const OnboardingScreen: React.FC<{ onComplete: (mode: ControlMode) => void }> = 
 )
 
 const CompleteScreen: React.FC<{ onClose: () => void; votedCount: number }> = ({ onClose, votedCount }) => (
-  <div className="c-swipe-mode__complete">
-    <h2><Trans id="swipemode.complete.title">All Done</Trans></h2>
-    <p><Trans id="swipemode.complete.noposts">No more posts to vote on.</Trans></p>
-    {votedCount > 0 && <p><Trans id="swipemode.complete.votedcount">You voted on <strong>{votedCount}</strong> posts.</Trans></p>}
-    <Button variant="primary" onClick={onClose}>
+  <div className="flex flex-col items-center justify-center flex-1 text-center p-5">
+    <h2 className="text-xl font-semibold text-foreground m-0 mb-2">
+      <Trans id="swipemode.complete.title">All Done</Trans>
+    </h2>
+    <p className="text-sm text-muted m-0 mb-2">
+      <Trans id="swipemode.complete.noposts">No more posts to vote on.</Trans>
+    </p>
+    {votedCount > 0 && (
+      <p className="text-sm text-muted m-0 mb-2">
+        <Trans id="swipemode.complete.votedcount">You voted on <strong className="text-primary">{votedCount}</strong> posts.</Trans>
+      </p>
+    )}
+    <Button variant="primary" className="mt-4" onClick={onClose}>
       <Trans id="swipemode.complete.return">Return to Posts</Trans>
     </Button>
   </div>

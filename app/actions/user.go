@@ -119,7 +119,7 @@ func (action *ChangeUserVisualRole) Validate(ctx context.Context, user *entity.U
 		result.AddFieldFailure("userID", "User not found.")
 	}
 
-	if user.IsCollaborator() && userByID.Result.Role == enum.RoleAdministrator {
+	if user.IsCollaborator() && !user.IsAdministrator() && userByID.Result.Role == enum.RoleAdministrator {
 		result.AddFieldFailure("visualRole", "You are not authorized to change the visual role of an administrator.")
 	}
 

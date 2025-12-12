@@ -1,5 +1,5 @@
 import React from "react"
-import { UserRole, UserStatus, UserAvatarType, UserSettings } from "@fider/models"
+import { UserRole, UserStatus, UserAvatarType, UserSettings, VisualRole } from "@fider/models"
 import { UserProfile } from "@fider/components/UserProfile"
 
 interface UserProfilePageProps {
@@ -7,6 +7,7 @@ interface UserProfilePageProps {
     id: number
     name: string
     role: UserRole
+    visualRole?: VisualRole
     avatarURL: string
     status: UserStatus
     avatarType: UserAvatarType
@@ -17,7 +18,7 @@ interface UserProfilePageProps {
 export default function UserProfilePage({ user, userSettings }: UserProfilePageProps) {
   return (
     <div className="container">
-      <UserProfile userId={user.id} user={user}>
+      <UserProfile userId={user.id} user={{ ...user, visualRole: user.visualRole }}>
         <UserProfile.Header />
         <UserProfile.Actions />
         <UserProfile.Status />

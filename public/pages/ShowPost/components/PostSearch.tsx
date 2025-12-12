@@ -53,7 +53,7 @@ export const PostSearch = (props: PostSearchProps) => {
       />
       <div className="grid gap-2 grid-cols-1 lg:grid-cols-3">
         {posts.map((p) => (
-          <VStack onClick={selectPost(p)} className={`bg-gray-50 p-4 clickable border-2 rounded ${selectedPost === p ? "border-primary-base" : ""}`} key={p.id}>
+          <VStack onClick={selectPost(p)} className={`bg-tertiary p-4 cursor-pointer border-2 rounded transition-colors hover:bg-surface-alt ${selectedPost === p ? "border-primary" : "border-transparent"}`} key={p.id}>
             <HStack className="text-2xs">
               <span>#{p.number}</span> <span>&middot;</span> <ShowPostStatus status={PostStatus.Get(p.status)} /> <span>&middot;</span>{" "}
               <span>

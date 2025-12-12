@@ -1,5 +1,3 @@
-import "./UserName.scss"
-
 import React from "react"
 import { isAdministrator, isCollaborator, isHelper, isModerator, UserRole, VisualRole, getVisualRoleName } from "@fider/models"
 import { classSet } from "@fider/services"
@@ -10,7 +8,7 @@ interface UserNameProps {
     id: number
     name: string
     role?: UserRole
-    visualRole?: VisualRole
+    visualRole?: VisualRole | string
     email?: string
   }
   showEmail?: boolean
@@ -35,22 +33,13 @@ export const UserName = (props: UserNameProps) => {
     return VisualRole.Visitor;
   }
   
-  let visualRole = props.user.visualRole || getDefaultVisualRole();
-  
-  const classNames: Record<string, boolean> = {
-    "c-username": true,
-  }
-  
-  if (visualRole) {
-    classNames[`vr-${visualRole}`] = true;
-  }
-  
-  const className = classSet(classNames)
+  const visualRole = props.user.visualRole || getDefaultVisualRole();
   const visualRoleName = getVisualRoleName(visualRole)
+  const vrClass = visualRole ? `vr-${visualRole}` : ""
 
   const userName = props.user.name || "Anonymous"
   const userEmail = props.showEmail && props.user.email && (
-    <span className="c-username--email">{props.user.email}</span>
+    <span className="ml-2.5 text-subtle text-xs font-normal">{props.user.email}</span>
   )
   
   const visualRoleSpan = visualRoleName && visualRole !== VisualRole.Visitor && (
@@ -66,8 +55,8 @@ export const UserName = (props: UserNameProps) => {
   if (canViewProfile && props.user.id && clickable) {
     return (
       <>
-        <div className={className}>
-          <a href={`/profile/${props.user.id}`}>
+        <div className="font-semibold inline-flex items-center">
+          <a href={`/profile/${props.user.id}`} className={classSet({ "hover:underline": true, [vrClass]: !!vrClass })}>
             <span>{userName}</span>
             {visualRoleSpan}
           </a>
@@ -79,8 +68,8 @@ export const UserName = (props: UserNameProps) => {
 
   return (
     <>
-      <div className={className}>
-        <span>{userName}</span>
+      <div className="font-semibold inline-flex items-center">
+        <span className={vrClass || "text-foreground"}>{userName}</span>
         {visualRoleSpan}
       </div>
       {userEmail}

@@ -367,7 +367,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
   const tabClass = (tab: TabType) => classSet({
     "px-4 py-2 font-medium cursor-pointer border-b-2 transition-colors": true,
     "border-primary-base text-primary-base": activeTab === tab,
-    "border-transparent text-gray-600 hover:text-gray-800": activeTab !== tab,
+    "border-transparent text-muted hover:text-foreground": activeTab !== tab,
   })
 
   return (
@@ -406,7 +406,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
               <Loader />
             </div>
           ) : error ? (
-            <div className="py-4 text-red-500">{error}</div>
+            <div className="py-4 text-danger">{error}</div>
           ) : responses.length === 0 ? (
             <div className="py-8 text-center text-muted">
               <p><Trans id="responses.empty">No responses found. Click the "New" button to create one.</Trans></p>
@@ -471,7 +471,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
               <Loader />
             </div>
           ) : reasonsError ? (
-            <div className="py-4 text-red-500">{reasonsError}</div>
+            <div className="py-4 text-danger">{reasonsError}</div>
           ) : reasons.length === 0 ? (
             <div className="py-8 text-center text-muted">
               <p><Trans id="reportReasons.empty">No report reasons found. Click the "New" button to create one.</Trans></p>
@@ -506,14 +506,14 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
                     })}
                   >
                     <td className="p-2 cursor-grab active:cursor-grabbing">
-                      <Icon sprite={IconMenu} className="h-4 w-4 text-gray-400" />
+                      <Icon sprite={IconMenu} className="h-4 w-4 text-subtle" />
                     </td>
                     <td className="p-2">{reason.title}</td>
                     <td className="p-2">
                       <div className="truncate max-w-md">{reason.description || "-"}</div>
                     </td>
                     <td className="p-2 text-center">
-                      <span className={`px-2 py-1 rounded text-xs ${reason.isActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}`}>
+                      <span className={`px-2 py-1 rounded text-xs ${reason.isActive ? "bg-success-light text-success" : "bg-surface-alt text-muted"}`}>
                         {reason.isActive ? "Active" : "Inactive"}
                       </span>
                     </td>

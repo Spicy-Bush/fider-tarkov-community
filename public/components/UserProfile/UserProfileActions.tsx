@@ -1,9 +1,11 @@
+// UserProfileActions converted to Tailwind
+
 import React, { useState } from "react"
 import { useUserProfile } from "./context"
 import { Trans } from "@lingui/react/macro"
 import { actions, Failure } from "@fider/services"
 import { UserStatus } from "@fider/models"
-import { ModerationModal } from "@fider/components"
+import { ModerationModal, Button } from "@fider/components"
 
 export const UserProfileActions: React.FC = () => {
   const { user, canModerate, canBlock, refreshStanding, refreshUser } = useUserProfile()
@@ -80,28 +82,28 @@ export const UserProfileActions: React.FC = () => {
 
   return (
     <>
-      <div className="c-user-profile__actions">
+      <div className="flex gap-2 p-3 bg-elevated border-b border-surface-alt max-md:flex-wrap max-md:justify-center">
         {canBlock && (
-          <div className="c-user-profile__moderation">
+          <div className="flex gap-2 max-md:flex-wrap max-md:justify-center">
             {!isBlocked ? (
-              <button className="danger" onClick={handleBlockUser}>
+              <Button variant="danger" onClick={handleBlockUser}>
                 <Trans id="action.block">Block User</Trans>
-              </button>
+              </Button>
             ) : (
-              <button className="secondary" onClick={handleUnblockUser}>
+              <Button variant="secondary" onClick={handleUnblockUser}>
                 <Trans id="action.unblock">Unblock User</Trans>
-              </button>
+              </Button>
             )}
           </div>
         )}
         {canModerate && !isBlocked && (
-          <div className="c-user-profile__moderation">
-            <button className="danger" onClick={openMuteModal}>
+          <div className="flex gap-2 max-md:flex-wrap max-md:justify-center">
+            <Button variant="danger" onClick={openMuteModal}>
               <Trans id="action.mute">Mute User</Trans>
-            </button>
-            <button className="secondary" onClick={openWarnModal}>
+            </Button>
+            <Button variant="secondary" onClick={openWarnModal}>
               <Trans id="action.warn">Warn User</Trans>
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -116,4 +118,3 @@ export const UserProfileActions: React.FC = () => {
     </>
   )
 }
-

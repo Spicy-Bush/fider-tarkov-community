@@ -33,6 +33,7 @@ export const CommentInput = (props: CommentInputProps) => {
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
   const [attachments, setAttachments] = useState<ImageUpload[]>([])
   const [error, setError] = useState<Failure | undefined>(undefined)
+  const [editorKey, setEditorKey] = useState(0)
 
   const settings = fider.session.tenant.generalSettings || {
     maxImagesPerComment: 2,
@@ -75,6 +76,7 @@ export const CommentInput = (props: CommentInputProps) => {
         props.onCommentAdded(newComment)
         setContent("")
         setAttachments([])
+        setEditorKey(prev => prev + 1)
       } else {
         location.reload()
       }
@@ -103,48 +105,47 @@ export const CommentInput = (props: CommentInputProps) => {
   return (
     <>
       <SignInModal isOpen={isSignInModalOpen} onClose={hideModal} />
-      <HStack spacing={2} className="c-comment-input">
-        <Avatar user={fider.session.user} />
-        <div className="flex-grow bg-gray-50 rounded-md p-2">
-          <Form error={error}>
-            {isCommentingDisabled && (
-              <div className="c-message c-message--warning">
-                {isMuted ? (
-                  <Trans id="showpost.commentinput.muted">
-                    You are currently muted. Reason: {muteReason}
-                  </Trans>
-                ) : (
-                  <Trans id="showpost.commentinput.disabled">
-                    Commenting has been disabled by the administrators.
-                  </Trans>
-                )}
+      <div className="mt-3 rounded-card p-3 bg-tertiary">
+        <Form error={error}>
+          {isCommentingDisabled && (
+            <div className="p-3 rounded bg-warning-light border border-warning-light text-warning text-sm">
+              {isMuted ? (
+                <Trans id="showpost.commentinput.muted">
+                  You are currently muted. Reason: {muteReason}
+                </Trans>
+              ) : (
+                <Trans id="showpost.commentinput.disabled">
+                  Commenting has been disabled by the administrators.
+                </Trans>
+              )}
+            </div>
+          )}
+          {!isCommentingDisabled && (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <Avatar user={fider.session.user} size="small" />
+                <UserName user={fider.session.user} />
               </div>
-            )}
-            {!isCommentingDisabled && (
-              <>
-                <div className="mb-1">
-                  <UserName user={fider.session.user} />
+              <CommentEditor
+                key={editorKey}
+                initialValue={content}
+                onChange={commentChanged}
+                onFocus={editorFocused}
+                readOnly={isCommentingDisabled}
+                placeholder={i18n._("showpost.commentinput.placeholder", { message: "Leave a comment" })}
+              />
+              {hasContent && !isCommentingDisabled && (
+                <div className="mt-2">
+                  <MultiImageUploader field="attachments" maxUploads={settings.maxImagesPerComment || 2} onChange={setAttachments} />
+                  <Button variant="primary" onClick={submit}>
+                    <Trans id="action.submit">Submit</Trans>
+                  </Button>
                 </div>
-                <CommentEditor
-                  initialValue={content}
-                  onChange={commentChanged}
-                  onFocus={editorFocused}
-                  readOnly={isCommentingDisabled}
-                  placeholder={i18n._("showpost.commentinput.placeholder", { message: "Leave a comment" })}
-                />
-                {hasContent && !isCommentingDisabled && (
-                  <>
-                    <MultiImageUploader field="attachments" maxUploads={settings.maxImagesPerComment || 2} onChange={setAttachments} />
-                    <Button variant="primary" onClick={submit}>
-                      <Trans id="action.submit">Submit</Trans>
-                    </Button>
-                  </>
-                )}
-              </>
-            )}
-          </Form>
-        </div>
-      </HStack>
+              )}
+            </>
+          )}
+        </Form>
+      </div>
     </>
   )
 }

@@ -1,3 +1,5 @@
+// UserProfileHeader converted to Tailwind
+
 import React, { useState } from "react"
 import { Avatar, UserName, Icon, Modal, Form, Input, Button, Select, SelectOption, ImageUploader } from "@fider/components"
 import { useUserProfile } from "./context"
@@ -88,27 +90,27 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
 
   return (
     <>
-      <div className="c-user-profile__header">
+      <div className="col-span-full flex items-start gap-5 p-5 bg-surface-raised rounded-card shadow-sm max-md:flex-col max-md:p-3 max-md:gap-3 max-md:items-center">
         <div 
-          className="c-user-profile__avatar"
+          className={`relative rounded-full overflow-hidden shrink-0 flex items-center justify-center ${isCompact ? 'w-20 h-20' : 'w-[120px] h-[120px]'} max-md:w-[100px] max-md:h-[100px]`}
           onMouseEnter={() => setAvatarModalState(prev => ({ ...prev, isHoveringAvatar: true }))}
           onMouseLeave={() => setAvatarModalState(prev => ({ ...prev, isHoveringAvatar: false }))}
           onClick={handleAvatarClick}
           style={canEditAvatar ? { cursor: "pointer" } : undefined}
         >
-          <Avatar user={userForComponents} size="normal" imageSize={isCompact ? 80 : 120} />
+          <Avatar user={userForComponents} size="fill" imageSize={isCompact ? 80 : 120} clickable={false} />
           {canEditAvatar && avatarModalState.isHoveringAvatar && (
-            <div className="c-user-profile__avatar-overlay">
+            <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity text-sm">
               <Trans id="profile.avatar.change">Change Avatar</Trans>
             </div>
           )}
         </div>
-        <div className="c-user-profile__info">
-          <div className="c-user-profile__name-container">
+        <div className="flex-grow flex flex-col gap-2 max-md:w-full max-md:items-center max-md:text-center">
+          <div className="flex items-center gap-2">
             <UserName user={userForComponents} />
             {canEditName && (
               <button 
-                className="c-user-profile__edit-name"
+                className="bg-transparent border-none p-1 cursor-pointer text-muted rounded hover:text-foreground hover:bg-surface-alt transition-all"
                 onClick={() => setNameModalState(prev => ({ ...prev, isOpen: true, name: user.name }))}
               >
                 <Icon sprite={IconDocument} className="h-4" />
@@ -116,19 +118,19 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
             )}
           </div>
         </div>
-        <div className="c-user-profile__stats-card">
-          <div className="c-user-profile__stats">
-            <div className="stat-item">
-              <Icon sprite={IconDocument} className="h-4" />
-              <span>{stats.posts}</span>
+        <div className="shrink-0 w-auto py-2 max-md:w-full max-md:mt-2">
+          <div className="flex flex-col gap-2 max-md:flex-row max-md:justify-around">
+            <div className="flex items-center gap-1 text-muted text-sm whitespace-nowrap">
+              <Icon sprite={IconDocument} className="h-4 text-subtle" />
+              <span className="font-medium">{stats.posts}</span>
             </div>
-            <div className="stat-item">
-              <Icon sprite={IconChat} className="h-4" />
-              <span>{stats.comments}</span>
+            <div className="flex items-center gap-1 text-muted text-sm whitespace-nowrap">
+              <Icon sprite={IconChat} className="h-4 text-subtle" />
+              <span className="font-medium">{stats.comments}</span>
             </div>
-            <div className="stat-item">
-              <Icon sprite={IconThumbsUp} className="h-4" />
-              <span>{stats.votes}</span>
+            <div className="flex items-center gap-1 text-muted text-sm whitespace-nowrap">
+              <Icon sprite={IconThumbsUp} className="h-4 text-subtle" />
+              <span className="font-medium">{stats.votes}</span>
             </div>
           </div>
         </div>
@@ -230,4 +232,3 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
     </>
   )
 }
-

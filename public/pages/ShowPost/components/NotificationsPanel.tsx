@@ -30,14 +30,14 @@ export const NotificationsPanel = (props: NotificationsPanelProps) => {
   }
 
   const button = subscribed ? (
-    <Button className="w-full" onClick={subscribeOrUnsubscribe} disabled={fider.isReadOnly}>
+    <Button variant="primary" className="w-full" onClick={subscribeOrUnsubscribe} disabled={fider.isReadOnly}>
       <Icon sprite={IconVolumeOff} />{" "}
       <span>
         <Trans id="label.unsubscribe">Unsubscribe</Trans>
       </span>
     </Button>
   ) : (
-    <Button className="w-full" onClick={subscribeOrUnsubscribe} disabled={fider.isReadOnly}>
+    <Button variant="secondary" className="w-full" onClick={subscribeOrUnsubscribe} disabled={fider.isReadOnly}>
       <Icon sprite={IconVolumeOn} />
       <span>
         <Trans id="label.subscribe">Subscribe</Trans>

@@ -36,9 +36,13 @@ interface WebhooksListProps {
 const WebhooksList = (props: WebhooksListProps) => {
   return (
     <div>
-      <h2 className="text-display mb-4">My Webhooks</h2>
-      <VStack spacing={4} divide>
-        {props.list.length === 0 ? <p className="text-muted">There aren't any webhooks yet.</p> : props.list}
+      <h2 className="text-lg font-semibold text-foreground mb-4">My Webhooks</h2>
+      <VStack spacing={3}>
+        {props.list.length === 0 ? (
+          <div className="p-8 text-center bg-tertiary rounded-card border border-surface-alt">
+            <p className="text-muted m-0">There aren&apos;t any webhooks yet.</p>
+          </div>
+        ) : props.list}
       </VStack>
     </div>
   )
@@ -130,22 +134,21 @@ const ManageWebhooksPage: React.FC<ManageWebhooksPageProps> = (props) => {
 
   return (
     <>
-      <VStack spacing={8}>
-        <HStack justify="between" className="items-start">
-          <p>
+      <VStack spacing={6}>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 p-4 bg-tertiary rounded-card border border-surface-alt">
+          <p className="text-muted m-0">
             Use webhooks to integrate Fider with other applications like Slack, Discord, Zapier and many others.{" "}
             <a className="text-link" href="https://fider.io/docs/using-webhooks" target="_blank" rel="noopener">
-              Learn more in our documentation
+              Learn more
             </a>
-            .
           </p>
-          <Button variant="secondary" size="small" onClick={() => setIsDocsOpen(true)}>
+          <Button variant="secondary" size="small" onClick={() => setIsDocsOpen(true)} className="shrink-0">
             Docs
           </Button>
-        </HStack>
+        </div>
         <WebhooksList title="New Post" description="a new post is created on this site" list={getWebhookItems()} />
-        <div className="c-admin-actions">
-          <Button variant="secondary" onClick={addNew}>
+        <div className="pt-4 border-t border-surface-alt">
+          <Button variant="primary" onClick={addNew}>
             Add new webhook
           </Button>
         </div>

@@ -8,7 +8,6 @@ import { UserProfile } from "@fider/components/UserProfile"
 import { useStackNavigation } from "@fider/hooks"
 import { UserListItem } from "./components"
 
-import "../ManageMembers.page.scss"
 
 export const pageConfig: PageConfig = {
   title: "Members",
@@ -140,9 +139,9 @@ const ManageMembersPage: React.FC<ManageMembersPageProps> = (props) => {
   const searchPlaceholder = canViewEmails ? "Search by name / email / provider..." : "Search by name / provider..."
 
   return (
-    <div className="c-members-split-view">
-      <div className="c-members-split-view__list">
-        <div className="c-members-split-view__search">
+    <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-130px)] min-h-[500px]">
+      <div className="flex-[0_0_100%] lg:flex-[0_0_400px] lg:min-w-[400px] lg:h-full flex flex-col bg-elevated rounded-panel border border-surface-alt overflow-hidden">
+        <div className="p-3 border-b border-surface-alt bg-tertiary shrink-0">
           <Input
             field="query"
             icon={query ? IconX : IconSearch}
@@ -152,7 +151,7 @@ const ManageMembersPage: React.FC<ManageMembersPageProps> = (props) => {
             onChange={handleSearchFilterChanged}
           />
         </div>
-        <div className="c-members-split-view__list-content">
+        <div className="flex-1 overflow-y-auto min-h-0">
           {visibleUsers.map((user) => (
             <UserListItem
               key={user.id}
@@ -162,22 +161,23 @@ const ManageMembersPage: React.FC<ManageMembersPageProps> = (props) => {
             />
           ))}
           {visibleUsers.length < filteredUsers.length && (
-            <div className="c-members-split-view__load-more">
+            <div className="p-4 text-center">
               <Button variant="tertiary" onClick={showMore}>
                 Load more ({filteredUsers.length - visibleUsers.length} remaining)
               </Button>
             </div>
           )}
         </div>
-        <div className="c-members-split-view__footer">
+        <div className="py-2 px-3 border-t border-surface-alt bg-tertiary shrink-0 text-sm text-muted">
           {filteredUsers.length} users {query && `matching "${query}"`}
         </div>
       </div>
 
       <div
         className={classSet({
-          "c-members-split-view__preview": true,
-          "c-members-split-view__preview--mobile-open": selectedUser !== null,
+          "flex-1 min-w-0 h-full min-h-full overflow-y-auto bg-tertiary rounded-panel border border-surface-alt relative lg:max-h-[90vh]": true,
+          "max-lg:hidden": selectedUser === null,
+          "max-lg:fixed max-lg:inset-0 max-lg:z-modal max-lg:overflow-y-auto max-lg:p-4": selectedUser !== null,
         })}
       >
         {selectedUser ? (
@@ -185,7 +185,7 @@ const ManageMembersPage: React.FC<ManageMembersPageProps> = (props) => {
             <Button
               variant="tertiary"
               size="small"
-              className="c-members-split-view__back-btn"
+              className="hidden max-lg:flex mb-3"
               onClick={handleDeselectUser}
             >
               <Icon sprite={IconArrowLeft} className="h-4" />
@@ -200,6 +200,7 @@ const ManageMembersPage: React.FC<ManageMembersPageProps> = (props) => {
                 avatarURL: selectedUser.avatarURL,
                 role: selectedUser.role,
                 status: selectedUser.status,
+                visualRole: (selectedUser as any).visualRole,
               }}
               embedded
               compact
@@ -226,7 +227,7 @@ const ManageMembersPage: React.FC<ManageMembersPageProps> = (props) => {
             </UserProfile>
           </>
         ) : (
-          <div className="c-members-split-view__empty">
+          <div className="flex items-center justify-center min-h-[400px]">
             <p className="text-muted">Select a member to view their profile</p>
           </div>
         )}
@@ -236,4 +237,3 @@ const ManageMembersPage: React.FC<ManageMembersPageProps> = (props) => {
 }
 
 export default ManageMembersPage
-

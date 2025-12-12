@@ -1,9 +1,9 @@
+// Select converted to Tailwind
+
 import React from "react"
 import { classSet } from "@fider/services"
 import { ValidationContext } from "./Form"
 import { DisplayError, hasError } from "./DisplayError"
-
-import "./Select.scss"
 
 export interface SelectOption {
   value: string
@@ -60,13 +60,19 @@ export const Select: React.FunctionComponent<SelectProps> = (props) => {
     <ValidationContext.Consumer>
       {(ctx) => (
         <>
-          <div className="c-form-field">
-            {!!props.label && <label htmlFor={`input-${props.field}`}>{props.label}</label>}
+          <div className="mb-4">
+            {!!props.label && <label htmlFor={`input-${props.field}`} className="block text-sm font-medium mb-1">{props.label}</label>}
             <select
               className={classSet({
-                "c-select": true,
-                "c-select--error": hasError(props.field, ctx.error),
+                "w-full bg-elevated p-2 border rounded-input appearance-none bg-no-repeat pr-10 disabled:opacity-45 disabled:cursor-not-allowed disabled:pointer-events-none": true,
+                "border-border": !hasError(props.field, ctx.error),
+                "border-danger": hasError(props.field, ctx.error),
               })}
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                backgroundPosition: "right 0.5rem center",
+                backgroundSize: "1.5em 1.5em",
+              }}
               value={selected?.value || ""}
               id={`input-${props.field}`}
               onChange={onChange}

@@ -23,7 +23,6 @@ import {
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
 
-import "./PostQueueDuplicateSearch.scss"
 
 interface PostQueueDuplicateSearchProps {
   excludePostNumber: number
@@ -120,17 +119,17 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
   }
 
   return (
-    <div className="c-duplicate-search">
-      <div className="c-duplicate-search__header">
+    <div className="h-full flex flex-col bg-elevated">
+      <div className="flex items-center gap-3 p-4 border-b border-surface-alt bg-tertiary sticky top-0 z-10">
         <Button variant="tertiary" size="small" onClick={onCancel}>
           <Icon sprite={IconArrowLeft} className="h-4" />
           <span>Back</span>
         </Button>
-        <h3 className="c-duplicate-search__title">Find Original Post</h3>
+        <h3 className="text-lg font-semibold m-0">Find Original Post</h3>
       </div>
 
-      <div className="c-duplicate-search__filters">
-        <div className="c-duplicate-search__search">
+      <div className="flex gap-2 p-3 px-4 border-b border-surface-alt">
+        <div className="flex-1">
           <Input
             field="query"
             icon={query ? IconX : IconSearch}
@@ -145,8 +144,8 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
           size="small"
           onClick={() => setShowTagFilter(!showTagFilter)}
           className={classSet({
-            "c-duplicate-search__tag-btn": true,
-            "c-duplicate-search__tag-btn--active": selectedTags.length > 0,
+            "flex items-center gap-1": true,
+            "bg-info-medium text-primary": selectedTags.length > 0,
           })}
         >
           Tags {selectedTags.length > 0 && `(${selectedTags.length})`}
@@ -155,12 +154,12 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
       </div>
 
       {showTagFilter && (
-        <div className="c-duplicate-search__tag-filter">
-          <div className="c-duplicate-search__tag-grid">
+        <div className="p-3 px-4 border-b border-surface-alt bg-tertiary">
+          <div className="flex flex-wrap gap-2 mb-2">
             {tags.map((tag) => (
               <div
                 key={tag.id}
-                className="c-duplicate-search__tag-item"
+                className="cursor-pointer"
                 onClick={() => toggleTag(tag.slug)}
               >
                 <ShowTag tag={tag} selectable selected={selectedTags.includes(tag.slug)} />
@@ -175,7 +174,7 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
         </div>
       )}
 
-      <div className="c-duplicate-search__results">
+      <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="py-8 text-center">
             <Loader />
@@ -193,39 +192,38 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
               return (
                 <div
                   key={post.id}
-                  className="c-duplicate-search__result"
+                  className="border-b border-surface-alt"
                   ref={(el) => {
                     if (el) resultRefs.current.set(post.id, el)
                   }}
                 >
-                  <div className="c-duplicate-search__result-header" onClick={() => handleExpand(post)}>
-                    <div className="c-duplicate-search__result-info">
-                      <div className="c-duplicate-search__result-meta">
-                        <span className="c-duplicate-search__result-number">#{post.number}</span>
+                  <div 
+                    className="flex items-center justify-between p-3 px-4 cursor-pointer hover:bg-surface-alt transition-colors"
+                    onClick={() => handleExpand(post)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 text-xs text-muted mb-1">
+                        <span className="font-semibold text-muted">#{post.number}</span>
                         <span className={classSet({
-                          "c-duplicate-search__result-status": true,
-                          "bg-gray-200 text-gray-700": post.status === "open",
-                          "bg-blue-100 text-blue-700": post.status === "planned",
-                          "bg-green-100 text-green-700": post.status === "started",
-                          "bg-green-300 text-green-800": post.status === "completed",
-                          "bg-red-100 text-red-700": post.status === "declined",
+                          "px-1.5 py-0.5 rounded text-xs": true,
+                          "bg-surface-alt text-muted": post.status === "open",
+                          "bg-info-light text-primary": post.status === "planned",
+                          "bg-success-light text-success": post.status === "started",
+                          "bg-success-medium text-success": post.status === "completed",
+                          "bg-danger-light text-danger": post.status === "declined",
                         })}>
                           {PostStatus.Get(post.status).title}
                         </span>
-                        <span className={classSet({
-                          "c-duplicate-search__result-votes": true,
-                          "c-duplicate-search__result-votes--positive": (post.upvotes || 0) - (post.downvotes || 0) > 0,
-                          "c-duplicate-search__result-votes--negative": (post.upvotes || 0) - (post.downvotes || 0) < 0,
-                        })}>
+                        <span className="text-muted">
                           {(post.upvotes || 0) - (post.downvotes || 0)} votes
                         </span>
-                        <span className="c-duplicate-search__result-comments">
+                        <span className="text-muted">
                           {post.commentsCount} comments
                         </span>
                       </div>
-                      <div className="c-duplicate-search__result-title">{post.title}</div>
+                      <div className="font-medium text-foreground whitespace-nowrap overflow-hidden text-ellipsis">{post.title}</div>
                       {postTags.length > 0 && (
-                        <HStack spacing={1} className="c-duplicate-search__result-tags">
+                        <HStack spacing={1} className="mt-1">
                           {postTags.slice(0, 3).map((tag) => (
                             <ShowTag key={tag.id} tag={tag} />
                           ))}
@@ -236,13 +234,15 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
                       )}
                     </div>
                     <HStack spacing={2}>
-                      <Button
-                        variant="primary"
-                        size="small"
-                        onClick={() => onSelect(post.number)}
-                      >
-                        Select
-                      </Button>
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="primary"
+                          size="small"
+                          onClick={() => onSelect(post.number)}
+                        >
+                          Select
+                        </Button>
+                      </span>
                       <Icon
                         sprite={isExpanded ? IconChevronUp : IconChevronDown}
                         className="h-5 text-muted"
@@ -251,14 +251,14 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
                   </div>
 
                   {isExpanded && (
-                    <div className="c-duplicate-search__result-expanded">
+                    <div className="p-3 px-4 bg-tertiary border-t border-surface-alt">
                       {isLoadingExpanded ? (
                         <div className="py-4 text-center">
                           <Loader />
                         </div>
                       ) : expandedData ? (
                         <>
-                          <div className="c-duplicate-search__content">
+                          <div className="bg-elevated border border-surface-alt rounded-card p-3 mb-3">
                             <span className="text-xs text-muted uppercase mb-2 block">Description</span>
                             {expandedData.post.description ? (
                               <Markdown text={expandedData.post.description} style="full" />
@@ -273,9 +273,9 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
                           </div>
 
                           {expandedData.comments.length > 0 && (
-                            <div className="c-duplicate-search__comments">
+                            <div className="bg-elevated border border-surface-alt rounded-card p-3">
                               <button
-                                className="c-duplicate-search__comments-toggle"
+                                className="flex items-center justify-between w-full border-none bg-transparent cursor-pointer p-0"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   setShowComments(!showComments)
@@ -292,7 +292,7 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
                               {showComments && (
                                 <VStack spacing={2} className="mt-2">
                                   {expandedData.comments.slice(0, 5).map((comment) => (
-                                    <div key={comment.id} className="c-duplicate-search__comment">
+                                    <div key={comment.id} className="p-2 bg-tertiary rounded-card [&_.c-avatar]:w-5 [&_.c-avatar]:h-5">
                                       <HStack spacing={2} className="mb-1">
                                         <Avatar user={comment.user} clickable={false} />
                                         <span className="text-sm font-medium">
@@ -328,4 +328,3 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
     </div>
   )
 }
-

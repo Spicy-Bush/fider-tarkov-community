@@ -1,4 +1,5 @@
-import "@fider/assets/styles/index.scss"
+import "@fider/assets/styles/tailwind.css"
+// import "@fider/assets/styles/index.scss"
 
 import React from "react"
 import { createRoot } from "react-dom/client"

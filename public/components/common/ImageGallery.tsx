@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from "react"
-import { uploadedImageURL } from "@fider/services"
-import { Modal, Button, Loader } from "@fider/components"
-import "./ImageGallery.scss"
-import { Trans } from "@lingui/react/macro"
+import React, { useState, useEffect, useCallback } from "react"
+import { uploadedImageURL, classSet } from "@fider/services"
+import { Icon } from "@fider/components"
+import { heroiconsChevronUp as IconChevron, heroiconsX as IconClose } from "@fider/icons.generated"
 
 interface ImageGalleryProps {
   bkeys: string[]
@@ -11,321 +10,141 @@ interface ImageGalleryProps {
 export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
   const [showModal, setShowModal] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [loadedPreview, setLoadedPreview] = useState(false)
-  const [touchStart, setTouchStart] = useState<number | null>(null)
-  const [touchEnd, setTouchEnd] = useState<number | null>(null)
-  const [touchStartY, setTouchStartY] = useState<number | null>(null)
-  const [touchEndY, setTouchEndY] = useState<number | null>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [scale, setScale] = useState(1)
-  const [isPinching, setIsPinching] = useState(false)
-  const [lastDistance, setLastDistance] = useState(0)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [loaded, setLoaded] = useState(false)
 
   const openModal = (index: number) => {
     setCurrentIndex(index)
-    setLoadedPreview(false)
+    setLoaded(false)
     setShowModal(true)
-    setScale(1)
+    document.body.style.overflow = "hidden"
   }
 
   const closeModal = () => {
-    if (isFullscreen) {
-      exitFullscreen()
-    }
     setShowModal(false)
-    setScale(1)
+    document.body.style.overflow = ""
   }
 
   const goToNext = useCallback(() => {
-    setLoadedPreview(false)
-    setScale(1)
+    setLoaded(false)
     setCurrentIndex((prev) => (prev + 1) % bkeys.length)
   }, [bkeys.length])
 
   const goToPrevious = useCallback(() => {
-    setLoadedPreview(false)
-    setScale(1)
+    setLoaded(false)
     setCurrentIndex((prev) => (prev - 1 + bkeys.length) % bkeys.length)
   }, [bkeys.length])
-
-  const onPreviewLoad = () => {
-    setLoadedPreview(true)
-  }
-
-  const toggleFullscreen = () => {
-    if (isFullscreen) {
-      exitFullscreen()
-    } else {
-      enterFullscreen()
-    }
-  }
-
-  const enterFullscreen = () => {
-    const element = containerRef.current
-    if (element) {
-      if (element.requestFullscreen) {
-        element.requestFullscreen()
-      } else if ((element as any).webkitRequestFullscreen) {
-        (element as any).webkitRequestFullscreen()
-      } else if ((element as any).mozRequestFullScreen) {
-        (element as any).mozRequestFullScreen()
-      } else if ((element as any).msRequestFullscreen) {
-        (element as any).msRequestFullscreen()
-      }
-      setIsFullscreen(true)
-    }
-  }
-
-  const exitFullscreen = () => {
-    if (document.exitFullscreen) {
-      document.exitFullscreen()
-    } else if ((document as any).webkitExitFullscreen) {
-      (document as any).webkitExitFullscreen()
-    } else if ((document as any).mozCancelFullScreen) {
-      (document as any).mozCancelFullScreen()
-    } else if ((document as any).msExitFullscreen) {
-      (document as any).msExitFullscreen()
-    }
-    setIsFullscreen(false)
-  }
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement)
-    }
-
-    document.addEventListener("fullscreenchange", handleFullscreenChange)
-    document.addEventListener("webkitfullscreenchange", handleFullscreenChange)
-    document.addEventListener("mozfullscreenchange", handleFullscreenChange)
-    document.addEventListener("MSFullscreenChange", handleFullscreenChange)
-
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange)
-      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange)
-      document.removeEventListener("mozfullscreenchange", handleFullscreenChange)
-      document.removeEventListener("MSFullscreenChange", handleFullscreenChange)
-    }
-  }, [])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!showModal) return
-
-      switch (e.key) {
-        case "ArrowLeft":
-          goToPrevious()
-          break
-        case "ArrowRight":
-          goToNext()
-          break
-        case "Escape":
-          closeModal()
-          break
-        case "f":
-          toggleFullscreen()
-          break
-      }
+      if (e.key === "ArrowLeft") goToPrevious()
+      if (e.key === "ArrowRight") goToNext()
+      if (e.key === "Escape") closeModal()
     }
 
     window.addEventListener("keydown", handleKeyDown)
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [showModal, goToNext, goToPrevious, toggleFullscreen])
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      setIsPinching(true)
-      const dist = getDistanceBetweenTouches(e)
-      setLastDistance(dist)
-      return
-    }
-
-    setTouchEnd(null)
-    setTouchStart(e.targetTouches[0].clientX)
-    setTouchEndY(null)
-    setTouchStartY(e.targetTouches[0].clientY)
-  }
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (isPinching && e.touches.length === 2) {
-      e.preventDefault()
-      const newDistance = getDistanceBetweenTouches(e)
-      const scaleFactor = 0.01
-      const newScale = scale + ((newDistance - lastDistance) * scaleFactor)
-      
-      if (newScale >= 0.5 && newScale <= 3) {
-        setScale(newScale)
-      }
-      setLastDistance(newDistance)
-      return
-    }
-
-    if (e.touches.length === 1) {
-      setTouchEnd(e.targetTouches[0].clientX)
-      setTouchEndY(e.targetTouches[0].clientY)
-    }
-  }
-
-  const getDistanceBetweenTouches = (e: React.TouchEvent) => {
-    if (e.touches.length < 2) return 0
-    
-    const dx = e.touches[0].clientX - e.touches[1].clientX
-    const dy = e.touches[0].clientY - e.touches[1].clientY
-    return Math.sqrt(dx * dx + dy * dy)
-  }
-
-  const handleTouchEnd = () => {
-    setIsPinching(false)
-
-    if (!touchStart || !touchEnd || !touchStartY || !touchEndY) return
-    
-    const horizontalDistance = touchStart - touchEnd
-    const verticalDistance = touchStartY - touchEndY
-    
-    if (Math.abs(horizontalDistance) > Math.abs(verticalDistance)) {
-      const isLeftSwipe = horizontalDistance > 50
-      const isRightSwipe = horizontalDistance < -50
-      
-      if (isLeftSwipe) {
-        goToNext()
-      }
-      
-      if (isRightSwipe) {
-        goToPrevious()
-      }
-    } else {
-      const isUpSwipe = verticalDistance > 70
-      
-      if (isUpSwipe) {
-        closeModal()
-      }
-    }
-  }
-
-  const resetZoom = () => {
-    setScale(1)
-  }
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [showModal, goToNext, goToPrevious])
 
   const isSingleImage = bkeys.length === 1
-  const gridColumns = bkeys.length === 2 ? 2 : bkeys.length === 3 ? 3 : 2
-  const gridRows = bkeys.length <= 3 ? 1 : 2
 
   return (
-    <div className={`c-image-gallery ${isSingleImage ? 'c-image-gallery--single' : ''}`}>
-      {isSingleImage ? (
-        <div className="c-image-gallery__single" onClick={() => openModal(0)}>
-          <img src={uploadedImageURL(bkeys[0], 200)} alt="" loading="lazy" />
-        </div>
-      ) : (
+    <>
+      <div className={classSet({ "mt-2 w-full": true, "max-w-[280px]": isSingleImage })}>
+        {isSingleImage ? (
+          <div 
+            className="relative cursor-pointer overflow-hidden rounded-card"
+            onClick={() => openModal(0)}
+          >
+            <img 
+              src={uploadedImageURL(bkeys[0], 200)} 
+              alt="" 
+              loading="lazy"
+              className="w-full h-auto max-h-[180px] object-cover transition-transform duration-75 hover:scale-[1.02]"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {bkeys.slice(0, 4).map((bkey, index) => (
+              <div 
+                key={`${bkey}-${index}`} 
+                className="relative cursor-pointer overflow-hidden rounded-card w-[80px] h-[80px]"
+                onClick={() => openModal(index)}
+              >
+                <img 
+                  src={uploadedImageURL(bkey, 100)} 
+                  alt="" 
+                  loading="lazy"
+                  className="w-full h-full object-cover transition-transform duration-75 hover:scale-105"
+                />
+                {bkeys.length > 4 && index === 3 && (
+                  <div className="absolute inset-0 bg-black/60 text-white flex items-center justify-center text-lg font-bold">
+                    +{bkeys.length - 4}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showModal && (
         <div 
-          className="c-image-gallery__grid"
-          style={{
-            gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
-            gridTemplateRows: `repeat(${gridRows}, 1fr)`
-          }}
+          className="fixed inset-0 z-10000 bg-black/90 flex items-center justify-center"
+          onClick={closeModal}
         >
-          {bkeys.slice(0, 4).map((bkey, index) => (
-            <div 
-              key={`${bkey}-${index}`} 
-              className={`c-image-gallery__item ${bkeys.length === 3 && index === 2 ? 'c-image-gallery__item--wide' : ''}`}
-              onClick={() => openModal(index)}
-            >
-              <img 
-                src={uploadedImageURL(bkey, 200)} 
-                alt="" 
-                loading="lazy" 
-              />
-              {bkeys.length > 4 && index === 3 && (
-                <div className="c-image-gallery__more">
-                  +{bkeys.length - 4}
-                </div>
-              )}
+          <button
+            className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer border-0 transition-colors"
+            onClick={closeModal}
+          >
+            <Icon sprite={IconClose} className="w-6 h-6" />
+          </button>
+
+          {bkeys.length > 1 && (
+            <>
+              <button
+                className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer border-0 transition-colors"
+                onClick={(e) => { e.stopPropagation(); goToPrevious(); }}
+              >
+                <Icon sprite={IconChevron} className="w-6 h-6 -rotate-90" />
+              </button>
+              <button
+                className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer border-0 transition-colors"
+                onClick={(e) => { e.stopPropagation(); goToNext(); }}
+              >
+                <Icon sprite={IconChevron} className="w-6 h-6 rotate-90" />
+              </button>
+            </>
+          )}
+
+          <div 
+            className="flex items-center justify-center max-w-[90vw] max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {!loaded && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              </div>
+            )}
+            <img 
+              src={uploadedImageURL(bkeys[currentIndex], 1500)}
+              alt=""
+              onLoad={() => setLoaded(true)}
+              className={classSet({
+                "max-w-full max-h-[85vh] object-contain rounded-panel transition-opacity duration-75": true,
+                "opacity-0": !loaded,
+                "opacity-100": loaded,
+              })}
+            />
+          </div>
+
+          {bkeys.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/80 text-sm font-medium">
+              {currentIndex + 1} / {bkeys.length}
             </div>
-          ))}
+          )}
         </div>
       )}
-
-      <Modal.Window 
-        className="c-image-gallery-modal" 
-        isOpen={showModal} 
-        onClose={closeModal} 
-        center={false} 
-        size="fluid"
-        manageHistory={false}
-      >
-        <Modal.Content>
-          <div 
-            ref={containerRef}
-            className={`c-image-gallery-modal__container ${scale !== 1 ? 'c-image-gallery-modal__container--zoomed' : ''}`}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
-            {!loadedPreview && <Loader />}
-            <img 
-              alt="" 
-              onLoad={onPreviewLoad} 
-              src={uploadedImageURL(bkeys[currentIndex], 1500)}
-              style={{ transform: `scale(${scale})`, transformOrigin: 'center center', transition: isPinching ? 'none' : 'transform 0.2s ease' }}
-            />
-            
-            <div className="c-image-gallery-modal__navigation">
-              {bkeys.length > 1 && (
-                <>
-                  <Button 
-                    variant="secondary" 
-                    onClick={goToPrevious}
-                    className="c-image-gallery-modal__nav-button c-image-gallery-modal__nav-button--prev"
-                  >
-                    <Trans id="action.previous">Previous</Trans>
-                  </Button>
-                  
-                  <div className="c-image-gallery-modal__counter">
-                    {currentIndex + 1} / {bkeys.length}
-                  </div>
-                  
-                  <Button 
-                    variant="secondary" 
-                    onClick={goToNext}
-                    className="c-image-gallery-modal__nav-button c-image-gallery-modal__nav-button--next"
-                  >
-                    <Trans id="action.next">Next</Trans>
-                  </Button>
-                </>
-              )}
-
-              <Button
-                variant="secondary"
-                onClick={toggleFullscreen}
-                className="c-image-gallery-modal__nav-button c-image-gallery-modal__nav-button--fullscreen"
-              >
-                <Trans id={isFullscreen ? "action.exitfullscreen" : "action.fullscreen"}>
-                  {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                </Trans>
-              </Button>
-
-              {scale !== 1 && (
-                <Button
-                  variant="secondary"
-                  onClick={resetZoom}
-                  className="c-image-gallery-modal__nav-button c-image-gallery-modal__nav-button--reset-zoom"
-                >
-                  <Trans id="action.resetzoom">Reset Zoom</Trans>
-                </Button>
-              )}
-            </div>
-          </div>
-        </Modal.Content>
-
-        <Modal.Footer>
-          <Button variant="tertiary" onClick={closeModal}>
-            <Trans id="action.close">Close</Trans>
-          </Button>
-        </Modal.Footer>
-      </Modal.Window>
-    </div>
+    </>
   )
 }
-

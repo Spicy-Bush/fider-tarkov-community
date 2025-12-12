@@ -98,7 +98,7 @@ export const ModerationModal: React.FC<ModerationModalProps> = ({ isOpen, onClos
                 <Loader />
               </div>
             ) : loadError ? (
-              <div className="py-2 text-red-500">{loadError}</div>
+              <div className="py-2 text-danger">{loadError}</div>
             ) : (
               <div className="grid grid-cols-2 gap-2 mt-2">
                 {cannedResponses && cannedResponses.length > 0 ? (

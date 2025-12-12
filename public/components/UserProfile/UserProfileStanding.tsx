@@ -1,6 +1,7 @@
+// UserProfileStanding converted to Tailwind
+
 import React from "react"
 import { Icon, Button } from "@fider/components"
-import { VStack } from "@fider/components/layout"
 import { useUserProfile } from "./context"
 import { Trans } from "@lingui/react/macro"
 import { actions, notify } from "@fider/services"
@@ -46,10 +47,10 @@ const UserProfileStandingComponent: React.FC = () => {
 
   if (standing.warnings.length === 0 && standing.mutes.length === 0) {
     return (
-      <div className="c-user-profile__standing">
-        <div className="c-user-profile__good-standing">
-          <Icon sprite={IconThumbsUp} className="h-8" />
-          <h4 className="c-user-profile__good-standing-title">
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center text-success rounded-card min-h-[300px]">
+          <Icon sprite={IconThumbsUp} className="h-16 w-16 mb-6" />
+          <h4 className="text-2xl font-bold mb-3 tracking-wide">
             {isViewingOwnProfile ? (
               <Trans id="profile.standing.good.self">YOU ARE IN GOOD STANDING</Trans>
             ) : (
@@ -58,7 +59,7 @@ const UserProfileStandingComponent: React.FC = () => {
               </Trans>
             )}
           </h4>
-          <p className="c-user-profile__good-standing-subtitle">
+          <p className="text-lg text-muted">
             <Trans id="profile.standing.good.description">No warnings or mutes.</Trans>
           </p>
         </div>
@@ -67,31 +68,31 @@ const UserProfileStandingComponent: React.FC = () => {
   }
 
   return (
-    <div className="c-user-profile__standing">
-      <div className="c-user-profile__standing-section">
-        <h3>
-          <Icon sprite={IconWarning} className="h-4" />
+    <div className="flex flex-col gap-6">
+      <div className="bg-elevated rounded-card shadow-sm overflow-hidden">
+        <h3 className="m-0 p-4 font-semibold flex items-center gap-2">
+          <Icon sprite={IconWarning} className="h-5 w-5 text-warning" />
           <Trans id="profile.standing.warnings">Warnings</Trans>
         </h3>
         {standing.warnings.length === 0 ? (
-          <p className="text-muted"><Trans id="profile.standing.nowarnings">No warnings</Trans></p>
+          <p className="p-4 text-muted"><Trans id="profile.standing.nowarnings">No warnings</Trans></p>
         ) : (
-          <VStack spacing={4} divide>
+          <div className="divide-y divide-surface-alt">
             {standing.warnings.map(warning => {
               const isExpired = warning.expiresAt && new Date(warning.expiresAt) < new Date()
               const isActive = warning.expiresAt && new Date(warning.expiresAt) > new Date()
               return (
-                <div key={warning.id} className="c-user-profile__standing-item">
-                  <div className="c-user-profile__standing-content">
-                    <p>{warning.reason}</p>
-                    <div className="c-user-profile__standing-meta">
-                      <span className="meta-item">
-                        <Icon sprite={IconCalendar} className="h-4" />
+                <div key={warning.id} className="flex items-start justify-between gap-4 p-4 transition-all hover:bg-tertiary max-md:flex-col">
+                  <div className="flex-1 min-w-0">
+                    <p className="m-0 mb-2 text-foreground text-[0.95em] leading-relaxed">{warning.reason}</p>
+                    <div className="flex flex-wrap gap-3 mt-2">
+                      <span className="flex items-center gap-1 text-muted text-[0.85em]">
+                        <Icon sprite={IconCalendar} className="h-4 w-4 text-subtle" />
                         {new Date(warning.createdAt).toLocaleDateString()}
                       </span>
                       {warning.expiresAt && (
-                        <span className="meta-item">
-                          <Icon sprite={IconWarning} className="h-4" />
+                        <span className="flex items-center gap-1 text-muted text-[0.85em]">
+                          <Icon sprite={IconWarning} className="h-4 w-4 text-subtle" />
                           <Trans id="profile.standing.expires">
                             Expires: {new Date(warning.expiresAt).toLocaleDateString()}
                           </Trans>
@@ -99,9 +100,9 @@ const UserProfileStandingComponent: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div className="c-user-profile__standing-actions">
+                  <div className="flex flex-col items-end gap-2 shrink-0 max-md:flex-row max-md:items-center max-md:w-full max-md:mt-2">
                     {(isExpired || isActive) && (
-                      <span className={`c-user-profile__standing-status ${isExpired ? "expired" : "active"}`}>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${isExpired ? "bg-surface-alt text-muted" : "bg-warning-light text-warning"}`}>
                         {isExpired ? "Expired" : "Active"}
                       </span>
                     )}
@@ -119,34 +120,34 @@ const UserProfileStandingComponent: React.FC = () => {
                 </div>
               )
             })}
-          </VStack>
+          </div>
         )}
       </div>
 
-      <div className="c-user-profile__standing-section">
-        <h3>
-          <Icon sprite={IconVolumeOff} className="h-4" />
+      <div className="bg-elevated rounded-card shadow-sm overflow-hidden">
+        <h3 className="m-0 p-4 font-semibold flex items-center gap-2">
+          <Icon sprite={IconVolumeOff} className="h-5 w-5 text-warning" />
           <Trans id="profile.standing.mutes">Mutes</Trans>
         </h3>
         {standing.mutes.length === 0 ? (
-          <p className="text-muted"><Trans id="profile.standing.nomutes">No mutes</Trans></p>
+          <p className="p-4 text-muted"><Trans id="profile.standing.nomutes">No mutes</Trans></p>
         ) : (
-          <VStack spacing={4} divide>
+          <div className="divide-y divide-surface-alt">
             {standing.mutes.map(mute => {
               const isExpired = mute.expiresAt && new Date(mute.expiresAt) < new Date()
               const isActive = mute.expiresAt && new Date(mute.expiresAt) > new Date()
               return (
-                <div key={mute.id} className="c-user-profile__standing-item">
-                  <div className="c-user-profile__standing-content">
-                    <p>{mute.reason}</p>
-                    <div className="c-user-profile__standing-meta">
-                      <span className="meta-item">
-                        <Icon sprite={IconCalendar} className="h-4" />
+                <div key={mute.id} className="flex items-start justify-between gap-4 p-4 transition-all hover:bg-tertiary max-md:flex-col">
+                  <div className="flex-1 min-w-0">
+                    <p className="m-0 mb-2 text-foreground text-[0.95em] leading-relaxed">{mute.reason}</p>
+                    <div className="flex flex-wrap gap-3 mt-2">
+                      <span className="flex items-center gap-1 text-muted text-[0.85em]">
+                        <Icon sprite={IconCalendar} className="h-4 w-4 text-subtle" />
                         {new Date(mute.createdAt).toLocaleDateString()}
                       </span>
                       {mute.expiresAt && (
-                        <span className="meta-item">
-                          <Icon sprite={IconVolumeOff} className="h-4" />
+                        <span className="flex items-center gap-1 text-muted text-[0.85em]">
+                          <Icon sprite={IconVolumeOff} className="h-4 w-4 text-subtle" />
                           <Trans id="profile.standing.expires">
                             Expires: {new Date(mute.expiresAt).toLocaleDateString()}
                           </Trans>
@@ -154,9 +155,9 @@ const UserProfileStandingComponent: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div className="c-user-profile__standing-actions">
+                  <div className="flex flex-col items-end gap-2 shrink-0 max-md:flex-row max-md:items-center max-md:w-full max-md:mt-2">
                     {(isExpired || isActive) && (
-                      <span className={`c-user-profile__standing-status ${isExpired ? "expired" : "active"}`}>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${isExpired ? "bg-surface-alt text-muted" : "bg-warning-light text-warning"}`}>
                         {isExpired ? "Expired" : "Active"}
                       </span>
                     )}
@@ -174,7 +175,7 @@ const UserProfileStandingComponent: React.FC = () => {
                 </div>
               )
             })}
-          </VStack>
+          </div>
         )}
       </div>
     </div>
@@ -184,4 +185,3 @@ const UserProfileStandingComponent: React.FC = () => {
 UserProfileStandingComponent.displayName = "UserProfileStanding"
 
 export const UserProfileStanding = UserProfileStandingComponent
-

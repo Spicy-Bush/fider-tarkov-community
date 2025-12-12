@@ -1,13 +1,11 @@
 import React, { useState, useRef, useEffect } from "react"
 import { Tag, PostStatus } from "@fider/models"
 import { Input, Icon, ShowTag, Button } from "@fider/components"
-import { HStack } from "@fider/components/layout"
 import { useFider } from "@fider/hooks"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
 import { FilterState } from "@fider/hooks/usePostFilters"
 import { heroiconsFilter as HeroIconFilter, heroiconsSearch as IconSearch, heroiconsX as IconX, heroiconsCheck as IconCheck } from "@fider/icons.generated"
-import "./FilterPanel.scss"
 
 type FilterTab = "tags" | "status" | "user" | "date"
 
@@ -123,70 +121,72 @@ export const FilterPanel = (props: FilterPanelProps) => {
     (localFilter.myPosts ? 1 : 0) + 
     (fider.session.isAuthenticated && localFilter.notMyVotes ? 1 : 0) + 
     (localFilter.date ? 1 : 0)
+
+  const tabClass = (tab: FilterTab) => 
+    `flex-1 py-2 px-1 text-center text-sm cursor-pointer border-b-2 relative transition-colors hover:bg-tertiary ${
+      activeTab === tab ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted'
+    }`
+
+  const itemClass = (selected: boolean) =>
+    `p-2 rounded-badge cursor-pointer transition-colors hover:bg-tertiary ${
+      selected ? 'bg-accent-light border border-primary' : ''
+    }`
   
   return (
-    <div className="c-filter-panel" ref={panelRef}>
+    <div className="relative inline-block" ref={panelRef}>
       <div 
-        className="c-filter-panel__button h-10 text-medium text-xs rounded-md uppercase border border-gray-400 text-gray-800 p-2 px-3 cursor-pointer"
+        className="flex items-center h-10 text-xs font-medium uppercase rounded-button border border-border text-foreground px-3 py-2 cursor-pointer transition-colors hover:bg-tertiary hover:border-border-strong"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <HStack>
-          <Icon sprite={HeroIconFilter} className="h-5 pr-1" />
-          <Trans id="home.filter.label">Filter</Trans>
-          {activeFilterCount > 0 && (
-            <div id="c-dropdown-buttoncount" className="bg-gray-200 inline-block rounded-full px-2 py-1 w-min-4 text-2xs text-center">
-              {activeFilterCount}
-            </div>
-          )}
-        </HStack>
+        <Icon sprite={HeroIconFilter} className="h-5 pr-1" />
+        <Trans id="home.filter.label">Filter</Trans>
+        {activeFilterCount > 0 && (
+          <div className="bg-primary text-white inline-block rounded-full px-2 py-0.5 min-w-[20px] text-[10px] text-center ml-2">
+            {activeFilterCount}
+          </div>
+        )}
       </div>
       
       {isExpanded && (
-        <div className="c-filter-panel__content">
-          <div className="c-filter-panel__tabs">
-            <div 
-              className={`c-filter-panel__tab ${activeTab === 'tags' ? 'c-filter-panel__tab--active' : ''}`}
-              onClick={() => setActiveTab('tags')}
-            >
+        <div className="absolute top-[calc(100%+8px)] left-0 w-80 sm:w-[360px] max-h-[500px] bg-elevated border border-border rounded-card shadow-lg z-dropdown overflow-hidden">
+          <div className="flex border-b border-border">
+            <div className={tabClass('tags')} onClick={() => setActiveTab('tags')}>
               <Trans id="filter.tab.tags">Tags</Trans>
               {localFilter.tags.length > 0 && (
-                <span className="c-filter-panel__tab-count">{localFilter.tags.length}</span>
+                <span className="absolute top-0.5 right-1 text-xs bg-primary text-white rounded-full w-4 h-4 flex items-center justify-center">
+                  {localFilter.tags.length}
+                </span>
               )}
             </div>
-            <div 
-              className={`c-filter-panel__tab ${activeTab === 'status' ? 'c-filter-panel__tab--active' : ''}`}
-              onClick={() => setActiveTab('status')}
-            >
+            <div className={tabClass('status')} onClick={() => setActiveTab('status')}>
               <Trans id="filter.tab.status">Status</Trans>
               {localFilter.statuses.length > 0 && (
-                <span className="c-filter-panel__tab-count">{localFilter.statuses.length}</span>
+                <span className="absolute top-0.5 right-1 text-xs bg-primary text-white rounded-full w-4 h-4 flex items-center justify-center">
+                  {localFilter.statuses.length}
+                </span>
               )}
             </div>
             {fider.session.isAuthenticated && (
-              <div 
-                className={`c-filter-panel__tab ${activeTab === 'user' ? 'c-filter-panel__tab--active' : ''}`}
-                onClick={() => setActiveTab('user')}
-              >
+              <div className={tabClass('user')} onClick={() => setActiveTab('user')}>
                 <Trans id="filter.tab.user">User</Trans>
                 {(localFilter.myVotes || localFilter.myPosts || localFilter.notMyVotes) && (
-                  <span className="c-filter-panel__tab-count">
+                  <span className="absolute top-0.5 right-1 text-xs bg-primary text-white rounded-full w-4 h-4 flex items-center justify-center">
                     {(localFilter.myVotes ? 1 : 0) + (localFilter.myPosts ? 1 : 0) + (localFilter.notMyVotes ? 1 : 0)}
                   </span>
                 )}
               </div>
             )}
-            <div 
-              className={`c-filter-panel__tab ${activeTab === 'date' ? 'c-filter-panel__tab--active' : ''}`}
-              onClick={() => setActiveTab('date')}
-            >
+            <div className={tabClass('date')} onClick={() => setActiveTab('date')}>
               <Trans id="filter.tab.date">Date</Trans>
-              {localFilter.date && <span className="c-filter-panel__tab-count">1</span>}
+              {localFilter.date && (
+                <span className="absolute top-0.5 right-1 text-xs bg-primary text-white rounded-full w-4 h-4 flex items-center justify-center">1</span>
+              )}
             </div>
           </div>
           
-          <div className="c-filter-panel__tab-content">
+          <div className="p-3 max-h-[350px] overflow-y-auto">
             {activeTab === 'tags' && (
-              <div className="c-filter-panel__tags">
+              <div>
                 <Input
                   field="tagSearch"
                   placeholder={i18n._("home.filter.tags.search", { message: "Search tags..." })}
@@ -196,17 +196,17 @@ export const FilterPanel = (props: FilterPanelProps) => {
                   onIconClick={tagSearchQuery ? () => setTagSearchQuery("") : undefined}
                 />
                 
-                <div className="c-filter-panel__tag-logic my-3">
-                  <HStack spacing={2} justify="between">
-                    <span className="text-sm">
+                <div className="my-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm text-foreground">
                       <Trans id="filter.tags.logic">Tag Logic:</Trans>
                     </span>
-                    <HStack spacing={1}>
+                    <div className="flex gap-1">
                       <Button 
                         type="button"
                         variant={localFilter.tagLogic === "OR" ? "primary" : "secondary"}
                         onClick={() => setLocalFilter({...localFilter, tagLogic: "OR"})}
-                        className="px-3 py-1 text-xs"
+                        size="small"
                       >
                         OR
                       </Button>
@@ -214,13 +214,13 @@ export const FilterPanel = (props: FilterPanelProps) => {
                         type="button"
                         variant={localFilter.tagLogic === "AND" ? "primary" : "secondary"}
                         onClick={() => setLocalFilter({...localFilter, tagLogic: "AND"})}
-                        className="px-3 py-1 text-xs"
+                        size="small"
                       >
                         AND
                       </Button>
-                    </HStack>
-                  </HStack>
-                  <div className="text-xs text-gray-500 mt-1">
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted mt-1">
                     {localFilter.tagLogic === "OR" ? (
                       <Trans id="filter.tags.logic.or.description">Posts with ANY of the selected tags will be shown</Trans>
                     ) : (
@@ -229,25 +229,20 @@ export const FilterPanel = (props: FilterPanelProps) => {
                   </div>
                 </div>
                 
-                <div className="c-filter-panel__tag-list">
+                <div>
                   {filteredTags.length === 0 ? (
-                    <div className="c-filter-panel__no-results">
+                    <div className="text-center p-3 text-muted text-sm">
                       <Trans id="filter.tags.noresults">No tags match your search</Trans>
                     </div>
                   ) : (
-                    <div className="c-filter-panel__tag-grid">
+                    <div className="flex flex-wrap gap-1.5">
                       {filteredTags.map(tag => (
                         <div 
                           key={tag.id} 
-                          className={`c-filter-panel__tag-item ${localFilter.tags.includes(tag.slug) ? 'c-filter-panel__tag-item--selected' : ''}`}
+                          className="cursor-pointer"
                           onClick={() => toggleTag(tag.slug)}
                         >
-                          <HStack spacing={2} align="center">
-                            <ShowTag tag={tag} />
-                            {localFilter.tags.includes(tag.slug) && (
-                              <Icon sprite={IconCheck} className="c-filter-panel__tag-check h-4 text-green-600" />
-                            )}
-                          </HStack>
+                          <ShowTag tag={tag} selectable selected={localFilter.tags.includes(tag.slug)} />
                         </div>
                       ))}
                     </div>
@@ -257,7 +252,7 @@ export const FilterPanel = (props: FilterPanelProps) => {
             )}
             
             {activeTab === 'status' && (
-              <div className="c-filter-panel__statuses">
+              <div>
                 {PostStatus.All
                   .filter(s => s.filterable && props.countPerStatus[s.value])
                   .map(status => {
@@ -265,19 +260,19 @@ export const FilterPanel = (props: FilterPanelProps) => {
                     return (
                       <div 
                         key={status.value} 
-                        className={`c-filter-panel__status-item ${localFilter.statuses.includes(status.value) ? 'c-filter-panel__status-item--selected' : ''}`}
+                        className={itemClass(localFilter.statuses.includes(status.value))}
                         onClick={() => toggleStatus(status.value)}
                       >
-                        <HStack spacing={2} justify="between">
-                          <span className={localFilter.statuses.includes(status.value) ? "text-semibold" : ""}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={localFilter.statuses.includes(status.value) ? "font-semibold text-foreground" : "text-foreground"}>
                             {i18n._(id, { message: status.title })}
                           </span>
                           {props.countPerStatus[status.value] > 0 && (
-                            <span className="bg-gray-200 inline-block rounded-full px-2 py-1 text-2xs text-center min-w-[20px]">
+                            <span className="bg-surface-alt inline-block rounded-full px-2 py-0.5 text-[10px] text-muted text-center min-w-[20px]">
                               {props.countPerStatus[status.value]}
                             </span>
                           )}
-                        </HStack>
+                        </div>
                       </div>
                     )
                   })
@@ -286,45 +281,45 @@ export const FilterPanel = (props: FilterPanelProps) => {
             )}
             
             {activeTab === 'user' && fider.session.isAuthenticated && (
-              <div className="c-filter-panel__user-prefs">
+              <div>
                 <div 
-                  className={`c-filter-panel__user-item ${localFilter.myVotes ? 'c-filter-panel__user-item--selected' : ''}`}
+                  className={itemClass(localFilter.myVotes)}
                   onClick={() => toggleUserPreference('myVotes')}
                 >
-                  <HStack spacing={2} justify="between">
-                    <span className={localFilter.myVotes ? "text-semibold" : ""}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={localFilter.myVotes ? "font-semibold text-foreground" : "text-foreground"}>
                       <Trans id="filter.user.myvotes">My Votes</Trans>
                     </span>
-                    {localFilter.myVotes && <Icon sprite={IconCheck} className="h-4 text-green-600" />}
-                  </HStack>
+                    {localFilter.myVotes && <Icon sprite={IconCheck} className="h-4 text-success" />}
+                  </div>
                 </div>
                 <div 
-                  className={`c-filter-panel__user-item ${localFilter.myPosts ? 'c-filter-panel__user-item--selected' : ''}`}
+                  className={itemClass(localFilter.myPosts)}
                   onClick={() => toggleUserPreference('myPosts')}
                 >
-                  <HStack spacing={2} justify="between">
-                    <span className={localFilter.myPosts ? "text-semibold" : ""}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={localFilter.myPosts ? "font-semibold text-foreground" : "text-foreground"}>
                       <Trans id="filter.user.myposts">My Posts</Trans>
                     </span>
-                    {localFilter.myPosts && <Icon sprite={IconCheck} className="h-4 text-green-600" />}
-                  </HStack>
+                    {localFilter.myPosts && <Icon sprite={IconCheck} className="h-4 text-success" />}
+                  </div>
                 </div>
                 <div 
-                  className={`c-filter-panel__user-item ${localFilter.notMyVotes ? 'c-filter-panel__user-item--selected' : ''}`}
+                  className={itemClass(localFilter.notMyVotes)}
                   onClick={() => toggleUserPreference('notMyVotes')}
                 >
-                  <HStack spacing={2} justify="between">
-                    <span className={localFilter.notMyVotes ? "text-semibold" : ""}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={localFilter.notMyVotes ? "font-semibold text-foreground" : "text-foreground"}>
                       <Trans id="filter.user.notmyvotes">Hide My Votes</Trans>
                     </span>
-                    {localFilter.notMyVotes && <Icon sprite={IconCheck} className="h-4 text-green-600" />}
-                  </HStack>
+                    {localFilter.notMyVotes && <Icon sprite={IconCheck} className="h-4 text-success" />}
+                  </div>
                 </div>
               </div>
             )}
             
             {activeTab === 'date' && (
-              <div className="c-filter-panel__dates">
+              <div>
                 {[
                   { id: "1d", label: i18n._("home.datefilter.option.1d", { message: "Last 24 hours" }) },
                   { id: "7d", label: i18n._("home.datefilter.option.7d", { message: "Last 7 days" }) },
@@ -334,26 +329,26 @@ export const FilterPanel = (props: FilterPanelProps) => {
                 ].map(option => (
                   <div 
                     key={option.id} 
-                    className={`c-filter-panel__date-item ${localFilter.date === option.id ? 'c-filter-panel__date-item--selected' : ''}`}
+                    className={itemClass(localFilter.date === option.id)}
                     onClick={() => setDateFilter(localFilter.date === option.id ? undefined : option.id)}
                   >
-                    <HStack spacing={2} justify="between">
-                      <span className={localFilter.date === option.id ? "text-semibold" : ""}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={localFilter.date === option.id ? "font-semibold text-foreground" : "text-foreground"}>
                         {option.label}
                       </span>
-                      {localFilter.date === option.id && <Icon sprite={IconCheck} className="h-4 text-green-600" />}
-                    </HStack>
+                      {localFilter.date === option.id && <Icon sprite={IconCheck} className="h-4 text-success" />}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
           
-          <div className="c-filter-panel__actions">
-            <Button variant="primary" onClick={applyFilters} className="text-sm">
+          <div className="flex justify-between p-3 border-t border-border bg-tertiary">
+            <Button variant="primary" onClick={applyFilters} size="small">
               <Trans id="filter.action.apply">Apply Filters</Trans>
             </Button>
-            <Button variant="tertiary" onClick={clearAllFilters} className="text-sm">
+            <Button variant="tertiary" onClick={clearAllFilters} size="small">
               <Trans id="filter.action.clear">Clear All</Trans>
             </Button>
           </div>

@@ -7,11 +7,10 @@ import { TagsPanel } from "@fider/pages/ShowPost/components/TagsPanel"
 import { DiscussionPanel } from "@fider/pages/ShowPost/components/DiscussionPanel"
 import { heroiconsExternalLink as IconOpen } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
-import { Fider, formatDate } from "@fider/services"
+import { Fider, formatDate, classSet } from "@fider/services"
 import { Moment } from "@fider/components"
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
-import "./SwipeCard.scss"
 
 interface SwipeCardProps {
   post: Post
@@ -51,8 +50,10 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
   const [flyDirection, setFlyDirection] = useState<"left" | "right" | null>(null)
   const [isScrolling, setIsScrolling] = useState(false)
 
-  const handleStart = useCallback((clientX: number, clientY: number) => {
+  const handleStart = useCallback((clientX: number, clientY: number, target: EventTarget | null) => {
     if (!isActive || isFlying || controlMode === "buttons") return
+    const el = target as HTMLElement
+    if (el?.closest("input, textarea, [contenteditable], button, a")) return
     setIsDragging(true)
     setStartX(clientX)
     setStartY(clientY)
@@ -105,7 +106,7 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
   }, [isDragging, offsetX, onSwipe, isScrolling, controlMode])
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    handleStart(e.touches[0].clientX, e.touches[0].clientY)
+    handleStart(e.touches[0].clientX, e.touches[0].clientY, e.target)
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -118,7 +119,7 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (controlMode === "buttons") return
-    handleStart(e.clientX, e.clientY)
+    handleStart(e.clientX, e.clientY, e.target)
   }
 
   useEffect(() => {
@@ -166,15 +167,18 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
 
   return (
     <div
-      className={`c-swipe-card ${isActive ? "c-swipe-card--active" : ""}`}
+      className={classSet({
+        "absolute inset-0 bg-elevated overflow-hidden select-none": true,
+        "z-2": isActive,
+      })}
       style={cardStyle}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onMouseDown={handleMouseDown}
     >
-      <div className="c-swipe-card__content">
-        <div className="c-swipe-card__header">
+      <div className="h-full p-4 overflow-y-auto [-webkit-overflow-scrolling:touch]">
+        <div className="flex justify-between items-start mb-4">
           <HStack spacing={2} align="center">
             <Avatar user={post.user} />
             <VStack spacing={1}>
@@ -185,35 +189,46 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
               </span>
             </VStack>
           </HStack>
-          <button className="c-swipe-card__open-btn" onClick={(e) => { e.stopPropagation(); onOpenPost?.(); }}>
+          <button 
+            className="flex items-center justify-center w-9 h-9 rounded-button border border-border bg-elevated text-muted cursor-pointer shrink-0 hover:bg-surface-alt"
+            onClick={(e) => { e.stopPropagation(); onOpenPost?.(); }}
+          >
             <Icon sprite={IconOpen} className="h-4 w-4" />
           </button>
         </div>
 
-        <h1 className="c-swipe-card__title">{post.title}</h1>
+        <h1 className="text-xl font-semibold leading-[1.3] text-foreground m-0 mb-4 wrap-anywhere">{post.title}</h1>
 
-        {post.description && (
-          <Markdown className="c-swipe-card__description" text={post.description} style="full" />
-        )}
-        {!post.description && (
-          <em className="text-muted">
-            <Trans id="showpost.message.nodescription">No description provided.</Trans>
-          </em>
-        )}
+        <div className="mb-4">
+          {post.description && (
+            <Markdown className="text-sm leading-relaxed text-muted [&_img]:max-w-full [&_img]:rounded-card" text={post.description} style="full" />
+          )}
+          {!post.description && (
+            <em className="text-muted">
+              <Trans id="showpost.message.nodescription">No description provided.</Trans>
+            </em>
+          )}
+        </div>
 
         {attachments && attachments.length > 0 && (
-          <ImageGallery bkeys={attachments} />
+          <div className="mb-4">
+            <ImageGallery bkeys={attachments} />
+          </div>
         )}
 
         {postTags.length > 0 && (
-          <div className="c-swipe-card__tags">
+          <div className="mb-4">
             <TagsPanel post={post} tags={tags} />
           </div>
         )}
 
-        <VoteSectionCompact post={post} />
+        <div className="mb-4">
+          <VoteSectionCompact post={post} />
+        </div>
 
-        <ResponseDetails status={post.status} response={post.response} />
+        <div className="mb-4">
+          <ResponseDetails status={post.status} response={post.response} />
+        </div>
 
         {comments && (
           <DiscussionPanel

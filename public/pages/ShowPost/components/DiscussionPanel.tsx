@@ -15,6 +15,7 @@ interface DiscussionPanelProps {
   reportedCommentIds: number[]
   dailyLimitReached: boolean
   reportReasons?: ReportReason[]
+  onCommentAdded?: () => void
 }
 
 export const DiscussionPanel = (props: DiscussionPanelProps) => {
@@ -22,6 +23,9 @@ export const DiscussionPanel = (props: DiscussionPanelProps) => {
 
   const handleCommentAdded = (newComment: Comment) => {
     setComments(prev => [...prev, newComment])
+    if (props.onCommentAdded) {
+      props.onCommentAdded()
+    }
   }
 
   return (

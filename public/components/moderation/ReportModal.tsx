@@ -1,10 +1,11 @@
+// ReportModal converted to Tailwind
+
 import React, { useState, useEffect } from "react"
 import { Modal, Form, TextArea, Button, Loader } from "@fider/components"
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
 import { actions, Failure, classSet } from "@fider/services"
 import { ReportType, ReportReason } from "@fider/models"
-import "./ReportModal.scss"
 
 interface ReportModalProps {
   isOpen: boolean
@@ -95,12 +96,12 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     return (
       <Modal.Window isOpen={isOpen} onClose={onClose} center={true} size="small">
         <Modal.Content>
-          <div className="c-report-modal__success">
-            <div className="c-report-modal__success-icon">&#10003;</div>
-            <p className="c-report-modal__success-title">
+          <div className="text-center py-6">
+            <div className="text-success text-4xl mb-4">&#10003;</div>
+            <p className="text-lg font-medium">
               <Trans id="report.success">Report submitted successfully</Trans>
             </p>
-            <p className="c-report-modal__success-message">
+            <p className="text-muted mt-2">
               <Trans id="report.success.message">
                 Thank you for helping keep our community safe.
               </Trans>
@@ -124,25 +125,26 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           ) : (
             <>
               <div className="mb-4">
-                <label className="text-medium mb-2 block">
+                <label className="font-medium mb-2 block">
                   <Trans id="report.reason.label">Why are you reporting this?</Trans>
                 </label>
-                <div className="c-report-modal__reasons">
+                <div className="flex flex-col gap-2">
                   {reasons.map((reason) => {
-                    const buttonClass = classSet({
-                      "c-report-modal__reason-button": true,
-                      "c-report-modal__reason-button--selected": selectedReason === reason.title,
-                    })
+                    const isSelected = selectedReason === reason.title
                     return (
                       <button
                         key={reason.id}
                         type="button"
-                        className={buttonClass}
+                        className={classSet({
+                          "w-full text-left p-3 rounded-card border cursor-pointer transition-all duration-50": true,
+                          "border-border bg-transparent hover:border-border-strong": !isSelected,
+                          "border-primary bg-accent-light": isSelected,
+                        })}
                         onClick={() => setSelectedReason(reason.title)}
                       >
-                        <div className="c-report-modal__reason-title">{reason.title}</div>
+                        <div className="font-medium">{reason.title}</div>
                         {reason.description && (
-                          <div className="c-report-modal__reason-description">{reason.description}</div>
+                          <div className="text-xs text-muted mt-1">{reason.description}</div>
                         )}
                       </button>
                     )
@@ -153,7 +155,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               {!showDetails && selectedReason && (
                 <button
                   type="button"
-                  className="text-sm text-link hover:underline mb-4"
+                  className="text-sm text-primary hover:underline mb-4"
                   onClick={() => setShowDetails(true)}
                 >
                   <Trans id="report.addDetails">+ Add more details (optional)</Trans>

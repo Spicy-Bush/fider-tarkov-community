@@ -56,8 +56,8 @@ export const QueueList: React.FC<QueueListProps> = ({
   const selectedSort = sortOptions.find((o) => o.value === sortOption) || sortOptions[0]
 
   return (
-    <div className="c-queue-split-view__list">
-      <div className="c-queue-split-view__filters">
+    <div className="flex-[0_0_100%] lg:flex-[0_0_400px] lg:min-w-[400px] lg:h-full flex flex-col bg-elevated rounded-panel border border-surface-alt overflow-hidden">
+      <div className="flex items-center justify-between p-3 border-b border-surface-alt bg-tertiary shrink-0">
         <HStack spacing={2}>
           <span className="text-medium">
             <Trans id="queue.title">Untagged Posts</Trans>
@@ -67,15 +67,15 @@ export const QueueList: React.FC<QueueListProps> = ({
         <HStack spacing={2}>
           <Dropdown
             renderHandle={
-              <span className="c-queue-sort-btn">
-                <Icon sprite={IconSort} className="h-4" />
+              <span className="flex items-center gap-1 px-2 py-1 border border-border rounded-badge bg-elevated text-xs text-foreground cursor-pointer hover:border-border-strong hover:bg-surface-alt transition-colors">
+                <Icon sprite={IconSort} className="h-4 text-muted" />
                 <span>{selectedSort.label}</span>
               </span>
             }
           >
             {sortOptions.map((o) => (
               <Dropdown.ListItem key={o.value} onClick={() => onSortChange(o.value)}>
-                <span className={sortOption === o.value ? "text-semibold" : ""}>{o.label}</span>
+                <span className={sortOption === o.value ? "font-semibold" : ""}>{o.label}</span>
               </Dropdown.ListItem>
             ))}
           </Dropdown>
@@ -83,16 +83,19 @@ export const QueueList: React.FC<QueueListProps> = ({
             variant="secondary"
             size="small"
             onClick={onRefresh}
-            className="c-queue-split-view__refresh-btn"
+            className="w-9 h-9 p-0 shrink-0 flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4"
           >
             <Icon sprite={IconRefresh} />
           </Button>
         </HStack>
       </div>
 
-      <div className="c-queue-split-view__list-content">
+      <div className="flex-1 overflow-y-auto min-h-0">
         {newPostIds.size > 0 && (
-          <button className="c-queue-new-banner" onClick={onRefresh}>
+          <button 
+            className="flex items-center justify-center gap-2 w-full py-2 px-3 bg-success-light border-none border-b border-success-light text-success font-medium text-sm cursor-pointer hover:bg-success-medium transition-colors [&_svg]:text-success"
+            onClick={onRefresh}
+          >
             <Icon sprite={IconRefresh} className="h-4" />
             <span>
               {newPostIds.size} new post{newPostIds.size > 1 ? "s" : ""} available
@@ -124,7 +127,7 @@ export const QueueList: React.FC<QueueListProps> = ({
       </div>
 
       {total > posts.length && (
-        <div className="c-queue-split-view__pagination">
+        <div className="flex items-center justify-between py-2 px-3 border-t border-surface-alt bg-tertiary shrink-0">
           <Button
             size="small"
             variant="tertiary"
@@ -147,4 +150,3 @@ export const QueueList: React.FC<QueueListProps> = ({
     </div>
   )
 }
-

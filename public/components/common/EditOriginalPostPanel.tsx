@@ -16,8 +16,6 @@ import {
 } from "@fider/icons.generated"
 import { Post, ImageUpload } from "@fider/models"
 
-import "./EditOriginalPostPanel.scss"
-
 export type EditOriginalPostPanelVariant = "overlay" | "sidebar"
 
 export interface EditOriginalPostPanelProps {
@@ -101,13 +99,13 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
   }
 
   const panelContent = (
-    <div className="c-edit-original-panel">
-      <div className="c-edit-original-panel__header">
+    <div className="p-4 px-5">
+      <div className="flex items-center gap-3 mb-3 pb-3 border-b border-surface-alt">
         <Button variant="tertiary" size="small" onClick={onCancel}>
           <Icon sprite={IconArrowLeft} className="h-4" />
           <span>Back</span>
         </Button>
-        <h4>Edit Original Post #{post.number}</h4>
+        <h4 className="m-0 text-lg font-semibold">Edit Original Post #{post.number}</h4>
       </div>
       <p className="text-muted mb-4">
         You copied content from the duplicate post. Edit the original post below to merge
@@ -135,12 +133,12 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
           onChange={setNewAttachments}
         />
         {imagesToTransfer.length > 0 && (
-          <div className="c-edit-original-panel__images-to-add">
+          <div className="mt-4 p-3 bg-tertiary rounded-card border border-surface-alt">
             <span className="text-xs text-muted uppercase mb-2 block">
               Images from duplicate post ({selectedToAdd.size} selected,{" "}
               {maxImages - currentImageCount - selectedToAdd.size} slots remaining)
             </span>
-            <div className="c-edit-original-panel__image-grid">
+            <div className="flex flex-wrap gap-2">
               {imagesToTransfer.map((bkey) => {
                 const isSelected = selectedToAdd.has(bkey)
                 const canSelect = isSelected || canAddMore
@@ -148,15 +146,15 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
                   <div
                     key={bkey}
                     className={classSet({
-                      "c-edit-original-panel__image-item": true,
-                      "c-edit-original-panel__image-item--selected": isSelected,
-                      "c-edit-original-panel__image-item--disabled": !canSelect,
+                      "relative w-20 h-20 rounded-card overflow-hidden cursor-pointer border-2 border-transparent transition-all duration-50 hover:scale-105 [&_img]:w-full [&_img]:h-full [&_img]:object-cover": true,
+                      "border-success": isSelected,
+                      "opacity-40 cursor-not-allowed hover:scale-100": !canSelect,
                     })}
                     onClick={() => canSelect && handleToggleImageToAdd(bkey)}
                   >
                     <img src={uploadedImageURL(bkey, 100)} alt="" />
                     {isSelected && (
-                      <div className="c-edit-original-panel__image-check">
+                      <div className="absolute top-1 right-1 w-5 h-5 bg-success rounded-full flex items-center justify-center text-white">
                         <Icon sprite={IconCheck} className="h-4" />
                       </div>
                     )}
@@ -181,7 +179,7 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
 
   if (isLoading) {
     const loadingContent = (
-      <div className="c-edit-original-panel c-edit-original-panel--loading">
+      <div className="p-4 px-5 flex items-center justify-center min-h-[300px] h-full">
         <Loader />
       </div>
     )
@@ -189,14 +187,22 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
     if (variant === "sidebar") {
       return (
         <>
-          <div className="c-edit-original-backdrop" onClick={onCancel} />
-          <div className="c-edit-original-sidebar">{loadingContent}</div>
+          <div 
+            className="fixed inset-0 bg-black/50 z-1099 animate-[fadeIn_0.2s_ease]" 
+            onClick={onCancel} 
+          />
+          <div className="fixed top-0 right-0 bottom-0 w-full max-w-[600px] z-1100 bg-elevated shadow-xl animate-[slideInFromRight_0.2s_ease] overflow-y-auto max-sm:max-w-full max-sm:left-0">
+            {loadingContent}
+          </div>
         </>
       )
     }
 
     return (
-      <div className="c-edit-original-overlay" onClick={handleBackdropClick}>
+      <div 
+        className="absolute inset-0 z-base bg-elevated overflow-y-auto rounded-panel animate-[slideIn_0.2s_ease] max-lg:fixed max-lg:rounded-none" 
+        onClick={handleBackdropClick}
+      >
         {loadingContent}
       </div>
     )
@@ -205,16 +211,23 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
   if (variant === "sidebar") {
     return (
       <>
-        <div className="c-edit-original-backdrop" onClick={onCancel} />
-        <div className="c-edit-original-sidebar">{panelContent}</div>
+        <div 
+          className="fixed inset-0 bg-black/50 z-1099 animate-[fadeIn_0.2s_ease]" 
+          onClick={onCancel} 
+        />
+        <div className="fixed top-0 right-0 bottom-0 w-full max-w-[600px] z-1100 bg-elevated shadow-xl animate-[slideInFromRight_0.2s_ease] overflow-y-auto max-sm:max-w-full max-sm:left-0">
+          {panelContent}
+        </div>
       </>
     )
   }
 
   return (
-    <div className="c-edit-original-overlay" onClick={handleBackdropClick}>
+    <div 
+      className="absolute inset-0 z-base bg-elevated overflow-y-auto rounded-panel animate-[slideIn_0.2s_ease] max-lg:fixed max-lg:rounded-none" 
+      onClick={handleBackdropClick}
+    >
       {panelContent}
     </div>
   )
 }
-

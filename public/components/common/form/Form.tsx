@@ -1,4 +1,4 @@
-import "./Form.scss"
+// import "./Form.scss"
 
 import React from "react"
 import { Failure, classSet } from "@fider/services"
@@ -18,7 +18,7 @@ export const ValidationContext = React.createContext<ValidationContext>({})
 
 export const Form: React.FunctionComponent<FormProps> = (props) => {
   const className = classSet({
-    "c-form": true,
+    "[&>*:last-child]:mb-0": true,
     [props.className || ""]: props.className,
   })
 

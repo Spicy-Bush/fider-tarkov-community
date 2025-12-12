@@ -79,8 +79,8 @@ const ManageAuthenticationPage: React.FC<ManageAuthenticationPageProps> = (props
     return <OAuthForm cantDisable={cantDisable} config={editing} onCancel={cancel} />
   }
 
-  const enabled = <span className="text-green-700">Enabled</span>
-  const disabled = <span className="text-red-700">Disabled</span>
+  const enabled = <span className="text-success">Enabled</span>
+  const disabled = <span className="text-danger">Disabled</span>
 
   return (
     <VStack spacing={8}>
@@ -126,12 +126,12 @@ const ManageAuthenticationPage: React.FC<ManageAuthenticationPageProps> = (props
                 {o.isCustomProvider && (
                   <HStack>
                     {Fider.session.user.isAdministrator && (
-                      <Button onClick={() => edit(o.provider)} size="small">
+                      <Button variant="secondary" onClick={() => edit(o.provider)} size="small">
                         <Icon sprite={IconPencilAlt} />
                         <span>Edit</span>
                       </Button>
                     )}
-                    <Button onClick={() => startTest(o.provider)} size="small">
+                    <Button variant="secondary" onClick={() => startTest(o.provider)} size="small">
                       <Icon sprite={IconPlay} />
                       <span>Test</span>
                     </Button>
@@ -149,7 +149,7 @@ const ManageAuthenticationPage: React.FC<ManageAuthenticationPageProps> = (props
           ))}
           <div className="c-admin-actions">
             {Fider.session.user.isAdministrator && (
-              <Button variant="secondary" onClick={addNew}>
+              <Button variant="primary" onClick={addNew}>
                 Add new
               </Button>
             )}

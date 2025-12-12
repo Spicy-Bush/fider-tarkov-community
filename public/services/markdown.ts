@@ -132,7 +132,7 @@ fullMarked.use({
         try {
           const json = match.substring(1).replace(/&quot;/g, '"')
           const mention = JSON.parse(json)
-          return `<span class="text-blue-600">@${mention.name}</span>`
+          return `<span class="mention">@${mention.name}</span>`
         } catch {
           return match
         }

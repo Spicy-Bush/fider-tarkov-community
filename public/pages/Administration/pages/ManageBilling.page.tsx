@@ -64,7 +64,7 @@ const SubscribePanel = (props: { monthlyPrice: string; subscribeMonthly: () => v
         </VStack>
         <VStack spacing={4} className="py-2 px-4 shadow rounded text-center">
           <div>
-            <span className="block text-xs bg-yellow-100 p-1 rounded mb-2">
+            <span className="block text-xs bg-warning-light p-1 rounded mb-2">
               <strong>2 months free!</strong>
             </span>
             <span className="text-category">Yearly Subscription</span>

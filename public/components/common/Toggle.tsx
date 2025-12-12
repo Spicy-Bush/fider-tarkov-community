@@ -1,4 +1,4 @@
-import "./Toggle.scss"
+// Toggle converted to Tailwind
 
 import React, { useState, useEffect } from "react"
 import { classSet } from "@fider/services"
@@ -32,10 +32,17 @@ export const Toggle: React.FC<ToggleProps> = (props) => {
     }
   }
 
-  const className = classSet({
-    "c-toggle": true,
-    "c-toggle--enabled": active,
-    "c-toggle--disabled": !!props.disabled,
+  const buttonClasses = classSet({
+    "relative inline-flex h-4 w-8 border-2 border-transparent rounded-full cursor-pointer transition-colors duration-75 ease-in-out": true,
+    "bg-surface-alt": !active,
+    "bg-success": active,
+    "opacity-45 cursor-not-allowed pointer-events-none": !!props.disabled,
+  })
+
+  const knobClasses = classSet({
+    "pointer-events-none inline-block h-3 w-3 rounded-full bg-elevated transition-transform duration-75 ease-in-out": true,
+    "translate-x-0": !active,
+    "translate-x-4": active,
   })
 
   return (
@@ -43,8 +50,8 @@ export const Toggle: React.FC<ToggleProps> = (props) => {
       {(ctx) => (
         <>
           <HStack spacing={2}>
-            <button onClick={toggle} type="button" className={className} role="switch">
-              <span aria-hidden="true" className="shadow"></span>
+            <button onClick={toggle} type="button" className={buttonClasses} role="switch" aria-checked={active}>
+              <span aria-hidden="true" className={knobClasses}></span>
             </button>
             {props.label && <span className="text-sm">{props.label}</span>}
           </HStack>

@@ -1,4 +1,4 @@
-import "./Modal.scss"
+// import "./Modal.scss"
 
 import React, { useEffect, useRef } from "react"
 import ReactDOM from "react-dom"
@@ -25,10 +25,6 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
   const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
   const pushedHistory = useRef(false);
-  // use refs for onClose and canClose so the popstate handler always has current values.
-  // without refs, the handler would capture stale values from when it was created,
-  // and react's effect cleanup/setup cycle during re renders could cause the handler
-  // to miss events or use outdated callbacks
   const onCloseRef = useRef(props.onClose);
   const canCloseRef = useRef(canClose);
   onCloseRef.current = props.onClose;
@@ -68,7 +64,7 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
   }, [manageHistory])
 
   const handleDimmerMouseDown = (e: React.MouseEvent) => {
-    const modalWindow = e.currentTarget.querySelector('.c-modal-window');
+    const modalWindow = e.currentTarget.querySelector('[data-modal-window]');
     if (modalWindow && !modalWindow.contains(e.target as Node)) {
       startX.current = e.clientX;
       startY.current = e.clientY;
@@ -79,7 +75,7 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
   };
 
   const handleDimmerMouseUp = (e: React.MouseEvent) => {
-    const modalWindow = e.currentTarget.querySelector('.c-modal-window');
+    const modalWindow = e.currentTarget.querySelector('[data-modal-window]');
     if (
       modalWindow && 
       !modalWindow.contains(e.target as Node) &&
@@ -116,24 +112,31 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
     return null
   }
 
+  const sizeClasses = {
+    small: "w-full md:w-[500px]",
+    large: "w-full md:w-[750px]",
+    fluid: "w-full",
+  }
+
   const className = classSet({
-    "c-modal-window": true,
+    "z-401 text-left bg-overlay border-none rounded-modal animate-[windowFadeIn_0.5s] max-sm:w-full max-sm:h-full max-sm:rounded-none max-sm:flex max-sm:flex-col": true,
     [`${props.className}`]: !!props.className,
-    "c-modal-window--center": center,
-    [`c-modal-window--${size}`]: true,
+    "text-center": center,
+    [sizeClasses[size]]: true,
   })
 
   return ReactDOM.createPortal(
     <div 
       aria-disabled={true} 
-      className="c-modal-dimmer" 
+      className="fixed inset-0 w-full h-full text-center align-middle p-4 z-overlay flex justify-center items-start overflow-y-auto animate-[dimmerFadeIn_0.5s] bg-black/80 max-sm:p-0 max-sm:items-stretch"
       onMouseDown={handleDimmerMouseDown}
       onMouseUp={handleDimmerMouseUp}
     >
-      <div className="c-modal-scroller">
+      <div className="min-h-[calc(100vh-2rem)] flex items-center max-sm:min-h-full max-sm:w-full">
         <div 
           className={className} 
           data-testid="modal"
+          data-modal-window
         >
           {props.children}
         </div>
@@ -142,15 +145,27 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
     root.current
   )
 }
-const Header = (props: { children: React.ReactNode }) => <div className="c-modal-header">{props.children}</div>
-const Content = (props: { children: React.ReactNode }) => <div className="c-modal-content">{props.children}</div>
+
+const Header = (props: { children: React.ReactNode }) => (
+  <div className="text-lg font-semibold px-5 py-4 border-b border-border">{props.children}</div>
+)
+
+const Content = (props: { children: React.ReactNode }) => (
+  <div className="px-5 py-4 max-sm:flex-1 max-sm:overflow-y-auto">{props.children}</div>
+)
+
 const Footer = (props: ModalFooterProps) => {
   const align = props.align || "right"
-  const className = classSet({
-    "c-modal-footer": true,
-    [`c-modal-footer--${align}`]: true,
-  })
-  return <div className={className}>{props.children}</div>
+  const alignClass = {
+    left: "text-left",
+    center: "text-center",
+    right: "text-right",
+  }
+  return (
+    <div className={`bg-surface p-2.5 rounded-b border-t border-border-strong ${alignClass[align]}`}>
+      {props.children}
+    </div>
+  )
 }
 
 export const Modal = {

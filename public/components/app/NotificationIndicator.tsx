@@ -1,7 +1,8 @@
-import "./NotificationIndicator.scss"
+// NotificationIndicator converted to Tailwind
+
 import React, { useEffect, useState, useRef, useCallback } from "react"
 import { heroiconsTrash as IconTrash, undrawEmpty as NoDataIllustration, heroiconsBell as IconBell } from "@fider/icons.generated"
-import { actions, Fider } from "@fider/services"
+import { actions, Fider, classSet } from "@fider/services"
 import { Avatar, Icon, Markdown, Moment, Button, ButtonClickEvent } from "../common"
 import { Tabs } from "../common/Tabs"
 import { Dropdown } from "../common/Dropdown"
@@ -29,10 +30,10 @@ export const NotificationItem = ({ notification }: { notification: Notification 
   }
 
   return (
-    <HStack spacing={4} className="px-3 pr-5 clickable hover py-4" onClick={openNotification}>
+    <HStack spacing={4} className="px-3 pr-5 cursor-pointer py-4 transition-colors hover:bg-surface-alt" onClick={openNotification}>
       <Avatar user={{ name: notification.authorName, avatarURL: notification.avatarURL }} />
-      <div className="c-notification-item-content">
-        <Markdown className="c-notification-indicator-text" text={notification.title} style="full" />
+      <div className="flex-1 min-w-0 max-w-full">
+        <Markdown className="wrap-break-word [word-break:break-word] [&_p]:wrap-break-word [&_p]:[word-break:break-word]" text={notification.title} style="full" />
         <span className="text-muted">
           <Moment locale={Fider.currentLocale} date={notification.createdAt} />
         </span>
@@ -46,10 +47,14 @@ const NotificationIcon = ({ unreadNotifications }: { unreadNotifications: number
   const displayCount = isOverMaxCount ? "99+" : unreadNotifications.toString()
   
   return (
-    <span className="c-notification-indicator">
-      <Icon sprite={IconBell} className="h-6 text-gray-500" />
+    <span className="relative inline-flex items-center cursor-pointer group">
+      <Icon sprite={IconBell} className="h-6 text-muted group-hover:text-foreground" />
       {unreadNotifications > 0 && (
-        <div className={`c-notification-indicator-unread-counter ${isOverMaxCount ? "is-max-count" : ""}`}>
+        <div className={classSet({
+          "absolute -top-1.5 flex justify-center items-center bg-danger text-white text-[10px] font-bold min-w-4 h-4 px-1 rounded-badge": true,
+          "-right-2": !isOverMaxCount,
+          "-right-4": isOverMaxCount,
+        })}>
           {displayCount}
         </div>
       )}
@@ -195,14 +200,13 @@ export const NotificationIndicator = () => {
 
   return (
     <Dropdown
-      className="c-notification-dropdown"
       wide={true}
       position="left"
       fullscreenSm={true}
       onToggled={(isOpen: boolean) => setShowingNotifications(isOpen)}
       renderHandle={<NotificationIcon unreadNotifications={unreadNotifications} />}
     >
-      <div className="c-notifications-container">
+      <div className="max-h-[80vh] flex flex-col lg:min-w-[400px] lg:max-w-[500px]">
         {showingNotifications && (
           <>
             <Tabs
@@ -218,7 +222,7 @@ export const NotificationIndicator = () => {
             {activeTab === "unread" && (
               <div 
                 ref={unreadContainerRef} 
-                className="c-notifications-scroll-container"
+                className="overflow-y-auto max-h-[400px] pb-2 scroll-smooth overscroll-contain"
               >
                 {(loading && initialLoad) ? (
                   <VStack spacing={0} className="py-2" divide={false}>
@@ -256,7 +260,7 @@ export const NotificationIndicator = () => {
                     )}
                   </>
                 ) : (
-                  <div className="text-center py-6">
+                  <div className="flex flex-col items-center py-6">
                     <p className="text-display text-center mt-6 px-4">
                       <Trans id="modal.notifications.nonew">No new notifications</Trans>
                     </p>
@@ -269,7 +273,7 @@ export const NotificationIndicator = () => {
             {activeTab === "read" && (
               <div 
                 ref={readContainerRef} 
-                className="c-notifications-scroll-container"
+                className="overflow-y-auto max-h-[400px] pb-2 scroll-smooth overscroll-contain"
               >
                 {(loading && initialLoad) ? (
                   <VStack spacing={0} className="py-2" divide={false}>
@@ -307,7 +311,7 @@ export const NotificationIndicator = () => {
                     )}
                   </>
                 ) : (
-                  <div className="text-center py-6">
+                  <div className="flex flex-col items-center py-6">
                     <p className="text-display text-center mt-6 px-4">
                       <Trans id="modal.notifications.noread">No read notifications</Trans>
                     </p>

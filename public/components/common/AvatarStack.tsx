@@ -1,4 +1,4 @@
-import "./AvatarStack.scss"
+// AvatarStack converted to Tailwind
 
 import React from "react"
 import { UserRole } from "@fider/models"
@@ -15,15 +15,20 @@ interface AvatarStackProps {
 }
 
 export const AvatarStack = (props: AvatarStackProps) => {
-  const classes = classSet({
-    "c-avatar-stack": true,
-    "c-avatar-stack--overlap": props.overlap ?? true,
-  })
+  const shouldOverlap = props.overlap ?? true
 
   return (
-    <div className={classes}>
+    <div className="flex">
       {props.users.map((x, i) => (
-        <Avatar key={i} user={x} />
+        <div 
+          key={i} 
+          className={classSet({
+            "border-2 border-white rounded-full": true,
+            "-ml-3": shouldOverlap && i > 0,
+          })}
+        >
+          <Avatar user={x} />
+        </div>
       ))}
     </div>
   )

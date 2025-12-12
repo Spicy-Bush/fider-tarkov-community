@@ -1,10 +1,12 @@
-import "./ModIndicator.scss"
+// ModIndicator converted to Tailwind
+
 import React from "react"
 import { heroiconsShieldcheck as IconShield } from "@fider/icons.generated"
 import { useFider } from "@fider/hooks"
 import { Icon } from "../common"
 import { UserRole } from "@fider/models"
 import { useUnreadCounts } from "@fider/contexts/UnreadCountsContext"
+import { classSet } from "@fider/services"
 
 export const ModIndicator = () => {
   const fider = useFider()
@@ -23,13 +25,17 @@ export const ModIndicator = () => {
   const displayCount = isOverMaxCount ? "99+" : pendingCount.toString()
 
   return (
-    <a href="/admin/reports" className="c-mod-indicator">
-      <Icon sprite={IconShield} className="h-6 text-gray-500" />
+    <a href="/admin/reports" className="relative inline-flex items-center cursor-pointer group">
+      <Icon sprite={IconShield} className="h-6 text-muted group-hover:text-foreground" />
       {pendingCount > 0 && (
-        <div className={`c-mod-indicator-counter ${isOverMaxCount ? "is-max-count" : ""}`}>
+        <div className={classSet({
+          "absolute -top-1.5 flex justify-center items-center bg-primary text-white text-[10px] font-bold min-w-4 h-4 px-1 rounded-badge": true,
+          "-right-2": !isOverMaxCount,
+          "-right-4": isOverMaxCount,
+        })}>
           {displayCount}
-                </div>
-              )}
+        </div>
+      )}
     </a>
   )
 }

@@ -7,7 +7,7 @@ export const UserMenu = () => {
   const fider = useFider()
 
   return (
-    <div className="c-menu-user">
+    <div className="c-menu-user shrink-0">
       <Dropdown position="left" renderHandle={<Avatar user={fider.session.user} clickable={false} />}>
         <div className="p-2 text-medium uppercase">{fider.session.user.name}</div>
         <Dropdown.ListItem href="/profile#settings">

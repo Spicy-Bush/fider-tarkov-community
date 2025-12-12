@@ -1,9 +1,10 @@
+// ReportButton converted to Tailwind
+
 import React from "react"
 import { Icon } from "@fider/components"
 import { classSet } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { heroiconsFlag as IconFlag } from "@fider/icons.generated"
-import "./ReportButton.scss"
 
 interface ReportButtonProps {
   reportedUserId: number
@@ -41,8 +42,9 @@ export const ReportButton: React.FC<ReportButtonProps> = ({
   }
 
   const className = classSet({
-    "c-report-flag": true,
-    "c-report-flag--disabled": dailyLimitReached,
+    "inline-flex items-center justify-center p-1 border-none bg-transparent cursor-pointer text-border-strong rounded transition-colors duration-50": true,
+    "hover:text-danger hover:bg-danger-light": !dailyLimitReached,
+    "cursor-not-allowed opacity-50": dailyLimitReached,
   })
 
   const button = (

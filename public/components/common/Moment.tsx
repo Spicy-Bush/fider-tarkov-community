@@ -67,7 +67,7 @@ export const Moment = (props: MomentText) => {
     return undefined
   }, [props.date, props.format, props.locale])
 
-  const tooltip = props.format === "short" ? formatDate(props.locale, props.date, "full") : undefined
+  const tooltip = formatDate(props.locale, props.date, "full")
 
   const className = classSet({
     ...(props.className ? { [props.className]: true } : {}),

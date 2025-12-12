@@ -38,11 +38,11 @@ export const TagsFilter = (props: TagsFilterProps) => {
       <span>
         <Trans id="home.tagsfilter.label.with">with</Trans>
       </span>
-      <Dropdown renderHandle={<div className="text-medium text-xs uppercase rounded-md uppercase bg-gray-100 px-2 py-1">{label}</div>}>
+      <Dropdown renderHandle={<div className="text-medium text-xs uppercase rounded-badge uppercase bg-surface-alt px-2 py-1">{label}</div>}>
         {props.tags.map((t) => (
           <Dropdown.ListItem onClick={toggle(t)} key={t.id}>
             <HStack spacing={2}>
-              <Icon sprite={IconCheck} className={`h-4 text-green-600 ${!selected.includes(t.slug) && "invisible"}`} />
+              <Icon sprite={IconCheck} className={`h-4 text-success ${!selected.includes(t.slug) && "invisible"}`} />
               <ShowTag tag={t} circular />
               <span>{t.name}</span>
             </HStack>

@@ -26,6 +26,14 @@ import { TagsPanel } from "@fider/pages/ShowPost/components/TagsPanel"
 import { DiscussionPanel } from "@fider/pages/ShowPost/components/DiscussionPanel"
 import { PostQueueActions } from "./PostQueueActions"
 
+interface ClickableUser {
+  id: number
+  name: string
+  avatarURL: string
+  role?: string
+  status?: string
+}
+
 export interface PostViewerProps {
   post: Post | null
   tags: Tag[]
@@ -43,6 +51,7 @@ export interface PostViewerProps {
   onContentCopied: () => void
   onTagsChanged?: (postNumber: number) => void
   onNextPost?: () => void
+  onUserClick?: (user: ClickableUser) => void
 }
 
 export const PostViewer: React.FC<PostViewerProps> = ({
@@ -62,6 +71,7 @@ export const PostViewer: React.FC<PostViewerProps> = ({
   onContentCopied,
   onTagsChanged,
   onNextPost,
+  onUserClick,
 }) => {
   const [editMode, setEditMode] = useState(false)
   const [editTitle, setEditTitle] = useState("")
@@ -147,8 +157,8 @@ export const PostViewer: React.FC<PostViewerProps> = ({
 
   if (!post) {
     return (
-      <div className="c-queue-detail c-queue-detail--empty">
-        <div className="c-queue-detail__empty-state">
+      <div className="bg-elevated rounded-panel min-h-[400px] flex items-center justify-center">
+        <div className="text-center p-8">
           <p className="text-muted">Select a post to view details</p>
         </div>
       </div>
@@ -157,29 +167,40 @@ export const PostViewer: React.FC<PostViewerProps> = ({
 
   if (isLoading) {
     return (
-      <div className="c-queue-detail c-queue-detail--loading">
+      <div className="bg-elevated rounded-panel min-h-[400px] flex items-center justify-center">
         <Loader />
       </div>
     )
   }
 
   return (
-    <div className="c-queue-detail">
-      <div className="c-queue-detail__section">
-        <div className="c-queue-detail__section-header">
-          <h4 className="c-queue-detail__section-title">Post #{post.number}</h4>
+    <div className="bg-elevated rounded-panel min-h-[400px]">
+      <div className="p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt last:border-b-0">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-base font-semibold text-foreground m-0">Post #{post.number}</h4>
           <a
             href={`/posts/${post.number}/${post.slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="c-queue-detail__external-link"
+            className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover"
           >
             <Icon sprite={IconExternalLink} className="h-4" />
             <span>View on site</span>
           </a>
         </div>
 
-        <div className="c-queue-detail__author">
+        <div 
+          className="mb-4 p-3 bg-tertiary rounded-card cursor-pointer hover:bg-surface-alt transition-colors group relative"
+          onClick={() => onUserClick?.({
+            id: post.user.id,
+            name: post.user.name,
+            avatarURL: post.user.avatarURL,
+            role: post.user.role,
+            status: post.user.status,
+          })}
+          role="button"
+          tabIndex={0}
+        >
           <HStack spacing={2}>
             <Avatar user={post.user} clickable={false} />
             <div>
@@ -189,9 +210,10 @@ export const PostViewer: React.FC<PostViewerProps> = ({
               </div>
             </div>
           </HStack>
+          <span className="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity absolute right-3 top-1/2 -translate-y-1/2">View profile</span>
         </div>
 
-        <div className="c-queue-detail__content">
+        <div className="bg-elevated border border-surface-alt rounded-card p-4">
           {editMode ? (
             <Form error={editError}>
               <Input
@@ -239,13 +261,13 @@ export const PostViewer: React.FC<PostViewerProps> = ({
             </Form>
           ) : (
             <div ref={contentRef}>
-              <h5 className="c-queue-detail__post-title">{post.title}</h5>
+              <h5 className="text-lg font-semibold text-foreground m-0 mb-3 break-words">{post.title}</h5>
               {post.description ? (
-                <div className="c-queue-detail__post-body">
+                <div className="text-muted leading-relaxed [&_.c-markdown]:text-sm">
                   <Button
                     variant="tertiary"
                     size="small"
-                    className="c-queue-detail__post-body-copy"
+                    className="float-right ml-2 mb-1"
                     onClick={() =>
                       handleCopyContent(post.description || "", "description")
                     }
@@ -273,13 +295,13 @@ export const PostViewer: React.FC<PostViewerProps> = ({
         </div>
       </div>
 
-      <div className="c-queue-detail__section">
-        <h4 className="c-queue-detail__section-title">Tags</h4>
+      <div className="p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt last:border-b-0">
+        <h4 className="text-base font-semibold text-foreground m-0 mb-3">Tags</h4>
         <TagsPanel post={post} tags={tags} onTagsChanged={onTagsChanged} onNextPost={onNextPost} />
       </div>
 
-      <div className="c-queue-detail__section">
-        <h4 className="c-queue-detail__section-title">Voting</h4>
+      <div className="p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt last:border-b-0">
+        <h4 className="text-base font-semibold text-foreground m-0 mb-3">Voting</h4>
         <VoteSection post={post} />
       </div>
 
@@ -296,7 +318,7 @@ export const PostViewer: React.FC<PostViewerProps> = ({
         isEditMode={editMode}
       />
 
-      <div className="c-queue-detail__section">
+      <div className="p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt last:border-b-0">
         <DiscussionPanel
           post={post}
           comments={comments}
@@ -308,4 +330,3 @@ export const PostViewer: React.FC<PostViewerProps> = ({
     </div>
   )
 }
-

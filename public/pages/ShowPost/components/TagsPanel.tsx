@@ -8,8 +8,6 @@ import { useFider } from "@fider/hooks"
 import { HStack, VStack } from "@fider/components/layout"
 import { Trans } from "@lingui/react/macro"
 
-import "./TagsPanel.scss"
-
 export interface TagsPanelProps {
   post: Post
   tags: Tag[]
@@ -169,17 +167,15 @@ export const TagsPanel = (props: TagsPanelProps) => {
   }
 
   const tagsList = (
-    <HStack spacing={2} align="center" className="c-tags__list">
+    <div className="flex flex-wrap gap-2 items-center">
       {assignedTags.length > 0 &&
         assignedTags.map((tag) => <ShowTag key={tag.id} tag={tag} link />)}
       {(canEdit && !isHelper) || (isHelper && helperCanEditTags) ? (
-        <HStack spacing={1} align="center" className="clickable" onClick={onSubtitleClick}>
-          <span>
-            <Trans id="label.edittags">Edit tags</Trans>
-          </span>
-        </HStack>
+        <span className="text-link cursor-pointer whitespace-nowrap" onClick={onSubtitleClick}>
+          <Trans id="label.edittags">Edit tags</Trans>
+        </span>
       ) : null}
-    </HStack>
+    </div>
   )
 
   const renderTagsGrid = () => {
@@ -187,11 +183,11 @@ export const TagsPanel = (props: TagsPanelProps) => {
     const showRecent = !searchQuery.trim() && recentlyUsedTags.length > 0
 
     return (
-      <div className="c-tags-selector">
+      <div>
         {showRecent && (
-          <div className="c-tags-selector__section">
-            <span className="c-tags-selector__label">Recent</span>
-            <div className="c-tags-selector__tags">
+          <div className="mb-2 last:mb-0">
+            <span className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1">Recent</span>
+            <div className="flex flex-wrap gap-1.5">
               {recentlyUsedTags.map(tag => (
                 <TagListItem 
                   key={`recent-${tag.id}`} 
@@ -205,9 +201,9 @@ export const TagsPanel = (props: TagsPanelProps) => {
         )}
         
         {tagsToShow.length > 0 && (
-          <div className="c-tags-selector__section">
-            {showRecent && <span className="c-tags-selector__label">All Tags</span>}
-            <div className="c-tags-selector__tags">
+          <div className="mb-2 last:mb-0">
+            {showRecent && <span className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1">All Tags</span>}
+            <div className="flex flex-wrap gap-1.5">
               {tagsToShow.map(tag => (
                 <TagListItem 
                   key={tag.id} 
@@ -224,60 +220,53 @@ export const TagsPanel = (props: TagsPanelProps) => {
   }
 
   const editTagsList = props.tags.length > 0 && (
-    <VStack spacing={2} className="w-full">
-      <div className="w-full">
-        <HStack spacing={2} justify="between" className="w-full">
-          <div className="relative flex-grow">
-            <Input
-              field="search"
-              className="w-full pr-9 pl-3"
-              placeholder="Search tags..."
-              value={searchQuery}
-              onChange={setSearchQuery}
-            />
-          </div>
-          
-          <div className="text-sm text-gray-500">
-            <span className="font-medium">{assignedTags.length}</span> / {props.tags.length}
-          </div>
-        </HStack>
+    <div className="flex flex-col gap-3 w-full">
+      <div className="flex items-center gap-2">
+        <Input
+          field="search"
+          className="flex-1"
+          placeholder="Search tags..."
+          value={searchQuery}
+          onChange={setSearchQuery}
+        />
+        <span className="text-xs text-muted whitespace-nowrap">
+          <span className="font-medium">{assignedTags.length}</span>/{props.tags.length}
+        </span>
       </div>
       
       {filteredTags.length > 0 ? (
-        <div className="w-full max-h-64 overflow-y-auto pr-1">
+        <div className="w-full max-h-48 overflow-y-auto">
           {renderTagsGrid()}
         </div>
       ) : (
-        <div className="text-center text-gray-500 py-4">
+        <div className="text-center text-muted py-3 text-sm">
           <Trans id="label.notags">No tags found</Trans>
         </div>
       )}
       
-      <HStack justify="between" className="w-full">
-        <div>
-          {assignedTags.length > 0 && (
-            <Button variant="danger" size="small" onClick={clearAllTags}>
-              <Trans id="action.cleartags">Clear All Tags</Trans>
+      <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
+        {assignedTags.length > 0 ? (
+          <Button variant="tertiary" size="small" onClick={clearAllTags}>
+            <Trans id="action.cleartags">Clear</Trans>
+          </Button>
+        ) : <div />}
+        <div className="flex gap-2">
+          <Button variant="secondary" size="small" onClick={onSubtitleClick}>
+            <Trans id="action.close">Done</Trans>
+          </Button>
+          {props.onNextPost && (
+            <Button variant="primary" size="small" onClick={props.onNextPost} className="hidden max-lg:inline-flex">
+              <Trans id="action.nextPost">Next</Trans>
             </Button>
           )}
         </div>
-        <HStack spacing={2}>
-        <Button variant="secondary" size="small" onClick={onSubtitleClick}>
-          <Trans id="action.close">Close</Trans>
-        </Button>
-          {props.onNextPost && (
-            <Button variant="primary" size="small" onClick={props.onNextPost} className="c-tags__next-post-btn">
-              <Trans id="action.nextPost">Next Post</Trans>
-            </Button>
-          )}
-        </HStack>
-      </HStack>
-    </VStack>
+      </div>
+    </div>
   )
 
   if (fider.isReadOnly) {
     return (
-      <VStack className="c-tags__container">
+      <VStack>
         <HStack spacing={2} className="text-category">
           <Trans id="label.tags">Tags</Trans>
         </HStack>
@@ -287,13 +276,13 @@ export const TagsPanel = (props: TagsPanelProps) => {
   }
 
   return (
-    <VStack className="c-tags__container">
+    <VStack>
       {!isEditing ? (
-        <HStack spacing={2} align="center" className="text-primary-base text-xs">
+        <HStack spacing={2} align="center" className="text-primary text-xs">
           {tagsList}
         </HStack>
       ) : (
-        <div className="p-3 border rounded-md shadow-sm w-full">
+        <div className="p-3 border border-border rounded-card shadow-sm w-full">
           {editTagsList}
         </div>
       )}

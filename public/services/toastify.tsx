@@ -16,7 +16,18 @@ const setup = () => {
       const root = ReactDOM.createRoot(rootElement)
       root.render(
         <I18nProvider i18n={i18n}>
-          <ToastContainer position="top-right" />
+          <ToastContainer 
+            position="top-right" 
+            theme="dark"
+            autoClose={5000}
+            hideProgressBar={false}
+            newestOnTop={true}
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+          />
         </I18nProvider>
       )
     }

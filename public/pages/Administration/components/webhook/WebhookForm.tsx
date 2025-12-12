@@ -1,4 +1,3 @@
-import "./WebhookForm.scss"
 
 import React, { useEffect, useState } from "react"
 import { Button, Field, Form, Input, Loader, Message, Select, SelectOption, TextArea, Toggle } from "@fider/components"
@@ -156,31 +155,33 @@ export const WebhookForm = (props: WebhookFormProps) => {
           This webhook has failed
         </Message>
       )}
-      <HStack justify="between" className="mb-4">
-        <h2 className="text-title">{title}</h2>
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-surface-alt">
+        <h2 className="text-xl font-semibold text-foreground m-0">{title}</h2>
         <Button variant="secondary" size="small" onClick={showDocs}>
           Docs
         </Button>
-      </HStack>
-      <Form className="c-webhook-form" error={error}>
-        <Input field="name" label="Name" value={name} onChange={setName} placeholder="My awesome webhook" />
-        <Select
-          label="Type"
-          field="type"
-          defaultValue={type}
-          options={[
-            { label: "New Post", value: WebhookType.NEW_POST },
-            { label: "New Comment", value: WebhookType.NEW_COMMENT },
-            { label: "Change Status", value: WebhookType.CHANGE_STATUS },
-            { label: "Delete Post", value: WebhookType.DELETE_POST },
-            { label: "New Report", value: WebhookType.NEW_REPORT },
-            { label: "Report Resolved", value: WebhookType.REPORT_RESOLVED },
-          ]}
-          onChange={setType}
-        />
+      </div>
+      <Form error={error}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <Input field="name" label="Name" value={name} onChange={setName} placeholder="My awesome webhook" />
+          <Select
+            label="Type"
+            field="type"
+            defaultValue={type}
+            options={[
+              { label: "New Post", value: WebhookType.NEW_POST },
+              { label: "New Comment", value: WebhookType.NEW_COMMENT },
+              { label: "Change Status", value: WebhookType.CHANGE_STATUS },
+              { label: "Delete Post", value: WebhookType.DELETE_POST },
+              { label: "New Report", value: WebhookType.NEW_REPORT },
+              { label: "Report Resolved", value: WebhookType.REPORT_RESOLVED },
+            ]}
+            onChange={setType}
+          />
+        </div>
         <Field label="Enabled">
           <Toggle active={status === WebhookStatus.ENABLED} onToggle={setStatus} />
-          {status === WebhookStatus.FAILED && <p className="text-muted mt-1">This webhook was disabled due to a trigger failure</p>}
+          {status === WebhookStatus.FAILED && <p className="text-sm text-danger mt-1">This webhook was disabled due to a trigger failure</p>}
         </Field>
         <Input
           field="url"
@@ -191,57 +192,69 @@ export const WebhookForm = (props: WebhookFormProps) => {
           placeholder="https://webhook.site/..."
         />
         <TextArea
-          className="c-webhook-form__content"
           field="content"
           label="Content"
           afterLabel={<HoverInfo text="You can use Go template formatting with many properties here" onClick={showModal} />}
           value={content}
           onChange={setContent}
           placeholder="Request body"
+          minRows={6}
         />
-        <Input field="http_method" label="HTTP Method" value={httpMethod} onChange={setHttpMethod} placeholder="POST" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input field="http_method" label="HTTP Method" value={httpMethod} onChange={setHttpMethod} placeholder="POST" />
+        </div>
         <Field label="HTTP Headers" afterLabel={<HoverInfo text="Those headers are sent in the request when the webhook is triggered" />}>
-          <VStack spacing={0}>
-            {Object.entries(httpHeaders).map(([header, value]) => (
-              <HttpHeader key={header} header={header} value={value} onEdit={setHttpHeader} onRemove={removeHttpHeader} />
-            ))}
-            <HttpHeader onEdit={setHttpHeader} allHeaders={allHeaders} />
-          </VStack>
+          <div className="bg-tertiary rounded-card p-3 border border-surface-alt">
+            <VStack spacing={2}>
+              {Object.entries(httpHeaders).map(([header, value]) => (
+                <HttpHeader key={header} header={header} value={value} onEdit={setHttpHeader} onRemove={removeHttpHeader} />
+              ))}
+              <HttpHeader onEdit={setHttpHeader} allHeaders={allHeaders} />
+            </VStack>
+          </div>
         </Field>
         {(url || content) && (
-          <Field label="Preview" className="c-webhook-form__preview">
+          <Field label="Preview">
             {preview === null ? (
-              <p className="text-muted">Failed to load preview</p>
+              <div className="p-4 bg-danger-light border border-danger-light rounded-card text-danger">
+                Failed to load preview
+              </div>
             ) : preview === undefined ? (
-              <Loader className="text-center" text="Loading preview" />
+              <div className="p-4 bg-tertiary rounded-card border border-surface-alt">
+                <Loader className="text-center" text="Loading preview" />
+              </div>
             ) : (
-              <VStack className="bg-gray-50 rounded-md p-2" spacing={2}>
+              <div className="bg-tertiary rounded-card border border-surface-alt overflow-hidden">
                 {url && (
-                  <div>
-                    <h3 className="text-bold mb-1">URL</h3>
-                    <pre>{preview.url.value ? preview.url.value : preview.url.error}</pre>
-                    {preview.url.message && <p className="text-muted">{preview.url.message}</p>}
+                  <div className="p-4 border-b border-surface-alt last:border-b-0">
+                    <h3 className="text-sm font-semibold text-foreground mb-2">URL</h3>
+                    <pre className={`text-sm font-mono p-3 rounded-input overflow-x-auto whitespace-pre-wrap break-all m-0 ${preview.url.error ? "bg-danger-light text-danger" : "bg-elevated"}`}>
+                      {preview.url.value || preview.url.error}
+                    </pre>
+                    {preview.url.message && <p className="text-sm text-muted mt-2">{preview.url.message}</p>}
                   </div>
                 )}
                 {content && (
-                  <div>
-                    <h3 className="text-bold mb-1">Content</h3>
-                    <pre>{preview.content.value ? preview.content.value : preview.content.error}</pre>
-                    {preview.content.message && <p className="text-muted">{preview.content.message}</p>}
+                  <div className="p-4">
+                    <h3 className="text-sm font-semibold text-foreground mb-2">Content</h3>
+                    <pre className={`text-sm font-mono p-3 rounded-input overflow-x-auto whitespace-pre-wrap break-all m-0 ${preview.content.error ? "bg-danger-light text-danger" : "bg-elevated"}`}>
+                      {preview.content.value || preview.content.error}
+                    </pre>
+                    {preview.content.message && <p className="text-sm text-muted mt-2">{preview.content.message}</p>}
                   </div>
                 )}
-              </VStack>
+              </div>
             )}
           </Field>
         )}
-        <HStack>
+        <div className="flex gap-2 pt-4 border-t border-surface-alt mt-6">
           <Button variant="primary" onClick={handleSave}>
             Save
           </Button>
           <Button onClick={handleCancel} variant="tertiary">
             Cancel
           </Button>
-        </HStack>
+        </div>
       </Form>
       <WebhookTemplateInfoModal type={type} isModalOpen={isModalOpen} onModalClose={hideModal} />
       <WebhookDocsPanel isOpen={isDocsOpen} onClose={hideDocs} />

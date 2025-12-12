@@ -14,9 +14,9 @@ interface OAuthEchoPageProps {
   }
 }
 
-const ok = <Icon sprite={IconCheckCircle} className="h-4 text-green-500" />
-const error = <Icon sprite={IconXCircle} className="h-4 text-red-500" />
-const warn = <Icon sprite={IconExclamation} className="h-4 text-yellow-500" />
+const ok = <Icon sprite={IconCheckCircle} className="h-4 text-success" />
+const error = <Icon sprite={IconXCircle} className="h-4 text-danger" />
+const warn = <Icon sprite={IconExclamation} className="h-4 text-warning" />
 
 const OAuthEchoPage: React.FC<OAuthEchoPageProps> = (props) => {
   useEffect(() => {

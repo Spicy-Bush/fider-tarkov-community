@@ -1,3 +1,5 @@
+// UserProfileDetails converted to Tailwind
+
 import React, { useState } from "react"
 import { Icon, Select, SelectOption } from "@fider/components"
 import { useUserProfile } from "./context"
@@ -76,7 +78,6 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
   }
 
   const handleVisualRoleChange = async (option?: SelectOption) => {
-    if (!onVisualRoleChange) return
     setIsChangingVisualRole(true)
     try {
       const visualRoleToNumber: Record<string, number> = {
@@ -89,7 +90,7 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
         body: JSON.stringify({ userID: user.id }),
       })
       if (response.ok) {
-        onVisualRoleChange((option?.value || "") as VisualRole)
+        onVisualRoleChange?.((option?.value || "") as VisualRole)
       }
     } finally {
       setIsChangingVisualRole(false)
@@ -97,9 +98,9 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
   }
 
   return (
-    <div className="c-user-profile__details">
+    <div className="bg-elevated border-b border-surface-alt">
       <button 
-        className="c-user-profile__details-toggle"
+        className="w-full flex items-center justify-between p-3 bg-transparent border-none cursor-pointer text-sm font-medium text-muted transition-colors hover:bg-tertiary"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <span>User Details</span>
@@ -107,38 +108,38 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
       </button>
 
       {isExpanded && (
-        <div className="c-user-profile__details-content">
+        <div className="px-3 pb-3 flex flex-col gap-2">
           {email && (
-            <div className="c-user-profile__details-row">
+            <div className="flex items-center gap-2 text-sm">
               <Icon sprite={IconMail} className="h-4" />
-              <span className="c-user-profile__details-label">Email:</span>
-              <span className="c-user-profile__details-value">{email}</span>
+              <span className="text-border-strong font-medium min-w-[80px]">Email:</span>
+              <span className="text-foreground">{email}</span>
             </div>
           )}
 
           {providers && providers.length > 0 && (
-            <div className="c-user-profile__details-section">
-              <div className="c-user-profile__details-row">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-sm">
                 <Icon sprite={IconIdentification} className="h-4" />
-                <span className="c-user-profile__details-label">Provider IDs:</span>
+                <span className="text-border-strong font-medium min-w-[80px]">Provider IDs:</span>
               </div>
               {providers.map((provider, idx) => (
-                <div key={idx} className="c-user-profile__details-provider">
-                  <span className="c-user-profile__details-provider-name">{provider.name}:</span>
-                  <span className="c-user-profile__details-provider-id">{provider.uid}</span>
+                <div key={idx} className="flex items-center gap-2 pl-6 text-xs">
+                  <span className="text-muted capitalize">{provider.name}:</span>
+                  <span className="font-mono text-muted bg-surface px-1 py-0.5 rounded">{provider.uid}</span>
                 </div>
               ))}
             </div>
           )}
 
-          <div className="c-user-profile__details-row">
-            <span className="c-user-profile__details-label">User ID:</span>
-            <span className="c-user-profile__details-value c-user-profile__details-value--mono">{user.id}</span>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-border-strong font-medium min-w-[80px]">User ID:</span>
+            <span className="font-mono text-xs text-muted bg-surface px-1 py-0.5 rounded">{user.id}</span>
           </div>
 
           {canChangeRole && (
-            <div className="c-user-profile__details-row c-user-profile__details-row--control">
-              <span className="c-user-profile__details-label">Role:</span>
+            <div className="flex items-center gap-2 text-sm flex-wrap">
+              <span className="text-border-strong font-medium min-w-[80px]">Role:</span>
               <Select
                 field="role"
                 defaultValue={user.role as string}
@@ -150,18 +151,18 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
           )}
 
           {!canChangeRole && (
-            <div className="c-user-profile__details-row">
-              <span className="c-user-profile__details-label">Role:</span>
-              <span className="c-user-profile__details-value">{getRoleName(user.role)}</span>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-border-strong font-medium min-w-[80px]">Role:</span>
+              <span className="text-foreground">{getRoleName(user.role)}</span>
             </div>
           )}
 
           {canChangeVisualRole && (
-            <div className="c-user-profile__details-row c-user-profile__details-row--control">
-              <span className="c-user-profile__details-label">Visual Role:</span>
+            <div className="flex items-center gap-2 text-sm flex-wrap">
+              <span className="text-border-strong font-medium min-w-[80px]">Visual Role:</span>
               <Select
                 field="visualRole"
-                defaultValue={(user as any).visualRole || ""}
+                value={user.visualRole || ""}
                 options={visualRoleOptions}
                 onChange={handleVisualRoleChange}
                 disabled={isChangingVisualRole}

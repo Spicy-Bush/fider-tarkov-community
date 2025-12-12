@@ -1,4 +1,4 @@
-import "./Home.page.scss"
+// import "./Home.page.scss"
 import { undrawNoData as NoDataIllustration, heroiconsX as IconX } from "@fider/icons.generated"
 
 import React, { useState, useEffect } from "react"
@@ -97,16 +97,16 @@ What can we do better? This is the place for you to vote, discuss and share idea
         fider.session.tenant.messageBanner !== undefined && 
         showMessageBanner) {
       return (
-        <div className="p-home__message-banner">
-          <div className="p-home__message-banner-content">
+        <div className="flex items-start gap-2 p-3 mb-4 bg-accent-light border border-accent rounded-card">
+          <div className="flex-1">
             <Markdown text={fider.session.tenant.messageBanner} style="full" />
           </div>
           <button 
-            className="p-home__message-banner-dismiss" 
+            className="shrink-0 flex items-center justify-center w-6 h-6 p-0 bg-transparent border-none rounded cursor-pointer text-muted hover:text-foreground hover:bg-accent-light transition-colors" 
             onClick={handleDismissMessage}
             aria-label="Dismiss message"
           >
-            <Icon sprite={IconX} />
+            <Icon sprite={IconX} className="w-4 h-4" />
           </button>
         </div>
       )
@@ -115,32 +115,39 @@ What can we do better? This is the place for you to vote, discuss and share idea
   }
 
   return (
-    <div id="p-home" className="page container">
-        <div className="p-home__welcome-col">
-          <VStack spacing={2} className="p-4">
-            <Markdown text={fider.session.tenant.welcomeMessage || defaultWelcomeMessage} style="full" />
-            <PostInput placeholder={fider.session.tenant.invitation || defaultInvitation} onTitleChanged={setTitle} />
-            <div style={{ textAlign: "center", marginTop: "1rem" }}>
-              <a href="https://ko-fi.com/tarkovcommunity" target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", textDecoration: "none", color: "inherit" }}>
-                <img src="/misc/Ko-fi_HEART.gif" alt="" style={{ height: "1.5rem", width: "auto" }} />
-                <span>Support us on Ko-fi</span>
-              </a>
-            </div>
-          </VStack>
-        </div>
-        <div className="p-home__posts-col p-4">
-          {isLonely() ? (
-            <Lonely />
-          ) : title ? (
-            <SimilarPosts title={title} tags={props.tags} />
-          ) : (
-            <>
-              {renderMessageBanner()}
-              <PostsContainer posts={props.posts} tags={props.tags} countPerStatus={props.countPerStatus} />
-            </>
-          )}
-        </div>
+    <div id="p-home" className="page container grid grid-cols-1 gap-y-6 lg:grid-cols-3 lg:gap-x-6 lg:gap-y-0 grow">
+      {/* Welcome column - 1 column on lg */}
+      <div className="p-home__welcome-col bg-border tag-clipped p-px self-start">
+        <VStack spacing={2} className="p-4 bg-elevated tag-clipped-inner">
+          <Markdown text={fider.session.tenant.welcomeMessage || defaultWelcomeMessage} style="full" />
+          <PostInput placeholder={fider.session.tenant.invitation || defaultInvitation} onTitleChanged={setTitle} />
+          <div className="text-center mt-4">
+            <a 
+              href="https://ko-fi.com/tarkovcommunity" 
+              target="_blank" 
+              rel="noreferrer" 
+              className="kofi-button inline-flex items-center gap-2.5 px-4 py-2 rounded-button bg-[#ff5e5b]/10 border border-[#ff5e5b]/30 text-foreground no-underline transition-all duration-200 hover:bg-[#ff5e5b]/20 hover:border-[#ff5e5b]/50 hover:scale-[1.02]"
+            >
+              <img src="/misc/Ko-fi_HEART.gif" alt="" className="h-7 w-7" />
+              <span className="font-medium text-sm">Support us on Ko-fi</span>
+            </a>
+          </div>
+        </VStack>
       </div>
+      {/* Posts column - 2 columns on lg */}
+      <div className="p-home__posts-col col-span-1 lg:col-span-2 bg-elevated rounded-panel border border-border p-4 self-start">
+        {isLonely() ? (
+          <Lonely />
+        ) : title ? (
+          <SimilarPosts title={title} tags={props.tags} />
+        ) : (
+          <>
+            {renderMessageBanner()}
+            <PostsContainer posts={props.posts} tags={props.tags} countPerStatus={props.countPerStatus} />
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 

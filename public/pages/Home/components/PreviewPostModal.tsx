@@ -35,7 +35,7 @@ export const PreviewPostModal: React.FC<PreviewPostModalProps> = (props) => {
       <Modal.Content>
         <VStack spacing={8}>
           <HStack>
-            {isAuthenticated ? ( <Avatar user={fider.session.user} />) : ( <div className="c-avatar" style={{ width: '24px', height: '24px', backgroundColor: '#e9ecef' }}></div> )}
+            {isAuthenticated ? ( <Avatar user={fider.session.user} />) : ( <div className="c-avatar" style={{ width: '24px', height: '24px', backgroundColor: 'var(--color-surface-alt)' }}></div> )}
             <VStack spacing={1}> {isAuthenticated ? ( <UserName user={fider.session.user} /> ) : ( <span>Anonymous User</span> )}
               <Moment className="text-muted" locale={fider.currentLocale} date={currentDate} />
             </VStack>

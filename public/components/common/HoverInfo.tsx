@@ -1,4 +1,4 @@
-import "./HoverInfo.scss"
+// HoverInfo converted to Tailwind
 
 import React from "react"
 import { Icon } from "./Icon"
@@ -16,12 +16,12 @@ interface InfoProps {
 export const HoverInfo = (props: InfoProps) => {
   const Elem = props.href ? "a" : "span"
   const classList = classSet({
-    "c-hoverinfo": true,
-    clickable: props.onClick !== undefined,
+    "ml-1": true,
+    "cursor-pointer": props.onClick !== undefined,
   })
   return (
     <Elem className={classList} data-tooltip={props.text} onClick={props.onClick} href={props.href} target={props.target}>
-      <Icon width="15" height="15" className="c-hoverinfo__icon" sprite={IconInformationCircle} />
+      <Icon width="15" height="15" className="align-middle" sprite={IconInformationCircle} />
     </Elem>
   )
 }

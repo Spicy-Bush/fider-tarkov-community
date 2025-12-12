@@ -189,96 +189,96 @@ export const ShowComment = (props: ShowCommentProps) => {
   const comment = props.comment
 
   const editedMetadata = !!comment.editedAt && !!comment.editedBy && (
-    <span data-tooltip={`This comment has been edited by ${comment.editedBy.name} on ${formatDate(fider.currentLocale, comment.editedAt)}`}>· edited</span>
+    <span 
+      className="text-muted whitespace-nowrap"
+      data-tooltip={`Edited by ${comment.editedBy.name} on ${formatDate(fider.currentLocale, comment.editedAt)}`}
+    >
+      · edited
+    </span>
   )
 
   const classList = classSet({
-    "flex-grow rounded-md p-2": true,
-    "bg-gray-100": !props.highlighted,
+    "rounded-card p-3": true,
+    "bg-tertiary": !props.highlighted,
     "highlighted-comment": props.highlighted,
   })
 
   return (
-    <div id={`comment-${comment.id}`}>
-      <HStack spacing={2} className="c-comment flex-items-baseline">
-        {modal()}
-        <ReportModal
-          isOpen={showReportModal}
-          onClose={() => setShowReportModal(false)}
-          postNumber={props.post.number}
-          commentId={comment.id}
-          reasons={props.reportReasons}
-        />
-        <div className="pt-4">
-          <Avatar user={comment.user} />
-        </div>
-        <div ref={node} className={classList}>
-          <div className="mb-1">
-            <HStack justify="between">
-              <HStack>
-                <UserName user={comment.user} />{" "}
-                <div className="text-xs">
-                  · <Moment locale={fider.currentLocale} date={comment.createdAt} /> {editedMetadata}
-                </div>
-              </HStack>
-              {!isEditing && (
-                <HStack spacing={1} className="items-center">
-                  <ReportButton
-                    reportedUserId={comment.user.id}
-                    size="small"
-                    hasReported={props.hasReported}
-                    dailyLimitReached={props.dailyLimitReached}
-                    onReport={() => setShowReportModal(true)}
-                  />
-                  <Dropdown position="left" renderHandle={<Icon sprite={IconDotsHorizontal} width="16" height="16" />}>
-                    <Dropdown.ListItem onClick={onActionSelected("copylink")}>
-                      <Trans id="action.copylink">Copy link</Trans>
+    <div id={`comment-${comment.id}`} className="mt-3">
+      {modal()}
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        postNumber={props.post.number}
+        commentId={comment.id}
+        reasons={props.reportReasons}
+      />
+      <div ref={node} className={classList}>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            <Avatar user={comment.user} size="small" />
+            <UserName user={comment.user} />
+            <span className="text-xs text-muted flex items-center gap-1 flex-wrap">
+              <Moment locale={fider.currentLocale} date={comment.createdAt} />
+              {editedMetadata}
+            </span>
+          </div>
+          {!isEditing && (
+            <div className="flex items-center gap-1 shrink-0">
+              <ReportButton
+                reportedUserId={comment.user.id}
+                size="small"
+                hasReported={props.hasReported}
+                dailyLimitReached={props.dailyLimitReached}
+                onReport={() => setShowReportModal(true)}
+              />
+              <Dropdown position="left" renderHandle={<Icon sprite={IconDotsHorizontal} width="16" height="16" className="cursor-pointer" />}>
+                <Dropdown.ListItem onClick={onActionSelected("copylink")}>
+                  <Trans id="action.copylink">Copy link</Trans>
+                </Dropdown.ListItem>
+                {canEditComment() && (
+                  <>
+                    <Dropdown.Divider />
+                    <Dropdown.ListItem onClick={onActionSelected("edit")}>
+                      <Trans id="action.edit">Edit</Trans>
                     </Dropdown.ListItem>
-                    {canEditComment() && (
-                      <>
-                        <Dropdown.Divider />
-                        <Dropdown.ListItem onClick={onActionSelected("edit")}>
-                          <Trans id="action.edit">Edit</Trans>
-                        </Dropdown.ListItem>
-                      </>
-                    )}
-                    {canDeleteComment() && (
-                      <>
-                        <Dropdown.Divider />
-                        <Dropdown.ListItem onClick={onActionSelected("delete")} className="text-red-700">
-                          <Trans id="action.delete">Delete</Trans>
-                        </Dropdown.ListItem>
-                      </>
-                    )}
-                  </Dropdown>
-                </HStack>
-              )}
-            </HStack>
-          </div>
-          <div>
-            {isEditing ? (
-              <Form error={error}>
-                <CommentEditor initialValue={newContent} onChange={setNewContent} placeholder={comment.content} />
-                <MultiImageUploader field="attachments" bkeys={comment.attachments} maxUploads={2} onChange={setAttachments} />
-                <Button size="small" onClick={saveEdit} variant="primary">
-                  <Trans id="action.save">Save</Trans>
-                </Button>
-                <Button variant="tertiary" size="small" onClick={cancelEdit}>
-                  <Trans id="action.cancel">Cancel</Trans>
-                </Button>
-              </Form>
-            ) : (
-              <>
-                <Markdown text={comment.content} style="full" />
-                {comment.attachments && comment.attachments.length > 0 && <ImageGallery bkeys={comment.attachments} />}
-                {!isPostLocked(props.post) && !isMuted && (
-                  <Reactions reactions={localReactionCounts} emojiSelectorRef={emojiSelectorRef} toggleReaction={toggleReaction} />
+                  </>
                 )}
-              </>
-            )}
-          </div>
+                {canDeleteComment() && (
+                  <>
+                    <Dropdown.Divider />
+                    <Dropdown.ListItem onClick={onActionSelected("delete")} className="text-danger">
+                      <Trans id="action.delete">Delete</Trans>
+                    </Dropdown.ListItem>
+                  </>
+                )}
+              </Dropdown>
+            </div>
+          )}
         </div>
-      </HStack>
+        <div>
+          {isEditing ? (
+            <Form error={error}>
+              <CommentEditor initialValue={newContent} onChange={setNewContent} placeholder={comment.content} />
+              <MultiImageUploader field="attachments" bkeys={comment.attachments} maxUploads={2} onChange={setAttachments} />
+              <Button size="small" onClick={saveEdit} variant="primary">
+                <Trans id="action.save">Save</Trans>
+              </Button>
+              <Button variant="tertiary" size="small" onClick={cancelEdit}>
+                <Trans id="action.cancel">Cancel</Trans>
+              </Button>
+            </Form>
+          ) : (
+            <>
+              <Markdown text={comment.content} style="full" />
+              {comment.attachments && comment.attachments.length > 0 && <ImageGallery bkeys={comment.attachments} />}
+              {!isPostLocked(props.post) && !isMuted && (
+                <Reactions reactions={localReactionCounts} emojiSelectorRef={emojiSelectorRef} toggleReaction={toggleReaction} />
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

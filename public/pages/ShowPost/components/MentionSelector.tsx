@@ -1,18 +1,16 @@
 import React from "react"
 
-import "./MentionSelector.scss"
-
 const MentionSelector: React.FC<{ names: string[]; cursorPosition: { top: number; left: number } }> = ({ names, cursorPosition }) => {
   return (
     <div
-      className="c-mention-selector"
+      className="absolute z-1000 w-[200px] rounded bg-elevated border border-surface-alt p-2"
       style={{
         top: cursorPosition.top,
         left: cursorPosition.left,
       }}
     >
       {names.map((name, index) => (
-        <div key={index} className="c-mention-selector--item clickable hover p-2">
+        <div key={index} className="cursor-pointer hover:bg-surface-alt p-2 rounded text-foreground transition-colors">
           {name}
         </div>
       ))}

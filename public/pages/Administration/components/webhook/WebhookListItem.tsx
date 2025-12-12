@@ -1,12 +1,11 @@
-import "./WebhookListItem.scss"
 
 import React, { useState } from "react"
 import { Webhook, WebhookStatus, WebhookTriggerResult, WebhookType } from "@fider/models"
 import { Button, Icon, Toggle } from "@fider/components"
-import { actions, notify } from "@fider/services"
+import { actions, notify, classSet } from "@fider/services"
 
 import { heroiconsX as IconX, heroiconsPencilAlt as IconPencilAlt, heroiconsPlay as IconPlay, heroiconsCheckCircle as IconCheckCircle, heroiconsXCircle as IconXCircle, heroiconsExclamation as IconExclamation } from "@fider/icons.generated"
-import { HStack, VStack } from "@fider/components/layout"
+import { HStack } from "@fider/components/layout"
 import { WebhookFailInfo } from "./WebhookFailInfo"
 
 interface WebhookListItemProps {
@@ -17,30 +16,17 @@ interface WebhookListItemProps {
   onWebhookStatusChanged: (webhook: Webhook) => void
 }
 
-interface WebhookIconProps {
-  status: WebhookStatus
-}
-
-const WebhookIcon = (props: WebhookIconProps) => {
-  let text, icon
-  switch (props.status) {
+const getStatusIcon = (status: WebhookStatus) => {
+  switch (status) {
     case WebhookStatus.ENABLED:
-      text = "Enabled"
-      icon = IconCheckCircle
-      break
+      return { icon: IconCheckCircle, colorClass: "text-success", tooltip: "Enabled" }
     case WebhookStatus.DISABLED:
-      text = "Disabled"
-      icon = IconXCircle
-      break
+      return { icon: IconXCircle, colorClass: "text-muted", tooltip: "Disabled" }
     case WebhookStatus.FAILED:
-      text = "Failed"
-      icon = IconExclamation
+      return { icon: IconExclamation, colorClass: "text-danger", tooltip: "Failed" }
+    default:
+      return { icon: IconXCircle, colorClass: "text-muted", tooltip: "Unknown" }
   }
-  return (
-    <div data-tooltip={text}>
-      <Icon width="23" height="23" className={`c-webhook-listitem__icon c-webhook-listitem__icon--${text.toLowerCase()}`} sprite={icon} />
-    </div>
-  )
 }
 
 export const WebhookListItem = (props: WebhookListItemProps) => {
@@ -104,58 +90,77 @@ export const WebhookListItem = (props: WebhookListItemProps) => {
 
   const renderDeleteMode = () => {
     return (
-      <VStack spacing={2}>
-        <div>
-          <b>Are you sure?</b>{" "}
-          <span>
-            The webhook #{props.webhook.id} &quot;{props.webhook.name}&quot; will be deleted forever. Alternatively, you may want to <b>disable</b> it instead.
+      <div className="p-4 bg-danger-light border border-danger-light rounded-card">
+        <div className="mb-3">
+          <span className="font-semibold text-danger">Are you sure?</span>{" "}
+          <span className="text-foreground">
+            The webhook #{props.webhook.id} &quot;{props.webhook.name}&quot; will be deleted forever. Alternatively, you may want to <span className="font-medium">disable</span> it instead.
           </span>
         </div>
-        <div>
-          <Button variant="danger" onClick={deleteWebhook}>
-            Delete webhook
+        <HStack spacing={2}>
+          <Button variant="danger" size="small" onClick={deleteWebhook}>
+            Delete
           </Button>
-          <Button onClick={() => setDeleting(false)} variant="tertiary">
+          <Button onClick={() => setDeleting(false)} variant="tertiary" size="small">
             Cancel
           </Button>
-        </div>
-      </VStack>
+        </HStack>
+      </div>
     )
   }
 
   const renderViewMode = () => {
+    const statusIcon = getStatusIcon(props.webhook.status)
+    
     return (
-      <HStack justify="between">
-        <HStack>
-          <WebhookIcon status={props.webhook.status} />
-          <h3 className="text-body nowrap">
-            <span className="text-muted">#{props.webhook.id}</span>
-            <span className="text-bold px-2">{getWebhookType(props.webhook.type)}</span> - {props.webhook.name}
-          </h3>
-          {triggerResult?.success === false && (
-            <WebhookFailInfo result={triggerResult} isModalOpen={isFailInfoModalOpen} onModalOpen={showFailInfoModal} onModalClose={hideFailInfoModal} />
-          )}
-        </HStack>
-        <HStack>
+      <div className="flex items-center justify-between gap-4 py-4 px-5 bg-elevated border border-surface-alt rounded-card hover:border-border-strong transition-colors">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="shrink-0 w-7 h-7 flex items-center justify-center" data-tooltip={statusIcon.tooltip}>
+            <Icon sprite={statusIcon.icon} className={`w-7 h-7 ${statusIcon.colorClass}`} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-sm text-muted">#{props.webhook.id}</span>
+              <span className={classSet({
+                "text-xs px-2 py-0.5 rounded font-medium": true,
+                "bg-info-light text-primary": props.webhook.type === WebhookType.NEW_POST,
+                "bg-success-light text-success": props.webhook.type === WebhookType.NEW_COMMENT,
+                "bg-warning-light text-warning": props.webhook.type === WebhookType.CHANGE_STATUS,
+                "bg-danger-light text-danger": props.webhook.type === WebhookType.DELETE_POST,
+                "bg-surface-alt text-muted": props.webhook.type === WebhookType.NEW_REPORT || props.webhook.type === WebhookType.REPORT_RESOLVED,
+              })}>
+                {getWebhookType(props.webhook.type)}
+              </span>
+              {triggerResult?.success === false && (
+                <WebhookFailInfo result={triggerResult} isModalOpen={isFailInfoModalOpen} onModalOpen={showFailInfoModal} onModalClose={hideFailInfoModal} />
+              )}
+            </div>
+            <h3 className="text-foreground font-medium truncate">{props.webhook.name}</h3>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
           <Toggle
             active={props.webhook.status === WebhookStatus.ENABLED}
             onToggle={toggleWebhookStatus}
             disabled={props.webhook.status === WebhookStatus.FAILED}
           />
-          <Button size="small" onClick={testWebhook}>
-            <Icon sprite={IconPlay} />
+          <Button size="small" variant="secondary" onClick={testWebhook}>
+            <Icon sprite={IconPlay} className="w-4 h-4" />
             <span>Test</span>
           </Button>
-          <Button size="small" onClick={() => props.editWebhook(props.webhook)}>
-            <Icon sprite={IconPencilAlt} />
+          <Button size="small" variant="secondary" onClick={() => props.editWebhook(props.webhook)}>
+            <Icon sprite={IconPencilAlt} className="w-4 h-4" />
             <span>Edit</span>
           </Button>
-          <Button size="small" onClick={() => setDeleting(true)}>
-            <Icon sprite={IconX} />
-            <span>Delete</span>
-          </Button>
-        </HStack>
-      </HStack>
+          <button 
+            type="button"
+            onClick={() => setDeleting(true)}
+            className="p-2 rounded-badge text-muted hover:text-danger hover:bg-danger-light transition-colors cursor-pointer border-none bg-transparent"
+          >
+            <Icon sprite={IconX} className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
     )
   }
 

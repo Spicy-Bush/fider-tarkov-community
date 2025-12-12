@@ -44,8 +44,9 @@ export const ReportsPreview: React.FC<ReportsPreviewProps> = ({
   return (
     <div
       className={classSet({
-        "c-reports-split-view__preview": true,
-        "c-reports-split-view__preview--mobile-open": selectedReport !== null || viewingUser !== null,
+        "flex-1 min-w-0 h-full min-h-full overflow-y-auto bg-tertiary rounded-panel border border-surface-alt relative lg:max-h-[90vh]": true,
+        "max-lg:hidden": selectedReport === null && viewingUser === null,
+        "max-lg:fixed max-lg:inset-0 max-lg:z-modal max-lg:overflow-y-auto max-lg:p-4": selectedReport !== null || viewingUser !== null,
       })}
     >
       {viewingUser ? (
@@ -53,7 +54,7 @@ export const ReportsPreview: React.FC<ReportsPreviewProps> = ({
           <Button
             variant="tertiary"
             size="small"
-            className="c-reports-split-view__back-btn"
+            className="flex mb-3"
             onClick={onCloseUserProfile}
           >
             <Icon sprite={IconArrowLeft} className="h-4" />
@@ -82,10 +83,10 @@ export const ReportsPreview: React.FC<ReportsPreviewProps> = ({
             <Button
               variant="tertiary"
               size="small"
-              className="c-reports-split-view__mobile-back"
+              className="hidden max-lg:flex mb-3"
               onClick={onDeselectReport}
             >
-              <Icon sprite={IconChevronUp} className="c-reports-split-view__mobile-back-icon" />
+              <Icon sprite={IconChevronUp} className="-rotate-90 w-4 h-4" />
               <span>Back to list</span>
             </Button>
           )}
@@ -105,4 +106,3 @@ export const ReportsPreview: React.FC<ReportsPreviewProps> = ({
     </div>
   )
 }
-

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react"
-import { UserStatus, UserAvatarType, UserRole } from "@fider/models"
+import { UserStatus, UserAvatarType, UserRole, VisualRole } from "@fider/models"
 import { actions, Fider, userPermissions } from "@fider/services"
 import { useUserStanding } from "@fider/contexts/UserStandingContext"
 
@@ -9,6 +9,7 @@ export interface UserData {
   id: number
   name: string
   role: UserRole | number
+  visualRole?: VisualRole | string
   avatarURL: string
   status: UserStatus | number
   avatarType?: UserAvatarType
@@ -57,6 +58,7 @@ interface UserProfileContextType extends UserProfileState {
   refreshUser: () => void
   updateUserName: (name: string) => void
   updateUserAvatar: (avatarURL: string) => void
+  updateUserVisualRole: (visualRole: VisualRole | string) => void
   isViewingOwnProfile: boolean
   canModerate: boolean
   canBlock: boolean
@@ -90,6 +92,12 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
   const [isLoading, setIsLoading] = useState(!initialUser)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTabState] = useState<ProfileTab>("search")
+
+  useEffect(() => {
+    if (initialUser && initialUser.visualRole !== user?.visualRole) {
+      setUser(prev => prev ? { ...prev, visualRole: initialUser.visualRole } : initialUser)
+    }
+  }, [initialUser?.visualRole])
 
   const isViewingOwnProfile = Fider.session.isAuthenticated && Fider.session.user.id === userId
   const globalStanding = useUserStanding()
@@ -134,6 +142,11 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
   const updateUserAvatar = useCallback((avatarURL: string) => {
     setUser(prev => prev ? { ...prev, avatarURL } : null)
     onUserUpdate?.({ avatarURL })
+  }, [onUserUpdate])
+
+  const updateUserVisualRole = useCallback((visualRole: VisualRole | string) => {
+    setUser(prev => prev ? { ...prev, visualRole } : null)
+    onUserUpdate?.({ visualRole } as Partial<UserData>)
   }, [onUserUpdate])
 
   const setActiveTab = useCallback((tab: ProfileTab) => {
@@ -195,6 +208,7 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
     refreshUser,
     updateUserName,
     updateUserAvatar,
+    updateUserVisualRole,
     isViewingOwnProfile,
     canModerate: user ? userPermissions.canModerate(user) : false,
     canBlock: user ? userPermissions.canBlock(user) : false,

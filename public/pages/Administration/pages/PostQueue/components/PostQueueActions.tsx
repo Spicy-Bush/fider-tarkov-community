@@ -46,6 +46,10 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
   const canChangeStatus = fider.session.user.isCollaborator || fider.session.user.isModerator || fider.session.user.isAdministrator
   const canLock = fider.session.user.isCollaborator || fider.session.user.isAdministrator
   const canDelete = fider.session.user.isCollaborator || fider.session.user.isAdministrator || fider.session.user.isModerator
+  
+  const isHelper = fider.session.user.isHelper && !fider.session.user.isModerator && !fider.session.user.isCollaborator && !fider.session.user.isAdministrator
+  const hasAnyAction = canChangeStatus || canLock || canDelete
+  if (!hasAnyAction || isHelper) return null
 
   const handleStatusChange = (opt?: SelectOption) => {
     if (opt) {
@@ -123,48 +127,44 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
   }
 
   return (
-    <div className="c-queue-detail__section c-queue-detail__section--actions">
-      <h4 className="c-queue-detail__section-title">Actions</h4>
-      <HStack justify="between" className="flex-wrap">
-        <HStack spacing={2}>
-          {canChangeStatus && (
-            <Button size="small" variant="secondary" onClick={handleDuplicate}>
-              <Trans id="action.duplicate">Duplicate</Trans>
-            </Button>
-          )}
-          {canChangeStatus && (
+    <div className="p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt bg-surface-alt last:border-b-0">
+      <h4 className="text-base font-semibold text-foreground m-0 mb-3">Actions</h4>
+      <div className="flex flex-wrap gap-2">
+        {canChangeStatus && (
+          <Button size="small" variant="secondary" onClick={handleDuplicate}>
+            <Trans id="action.duplicate">Duplicate</Trans>
+          </Button>
+        )}
+        {canChangeStatus && (
           <Button size="small" variant="secondary" onClick={onEditPost} disabled={isEditMode}>
             <Trans id="action.edit">Edit</Trans>
           </Button>
-          )}
-          {canChangeStatus && (
-            <Button size="small" variant="secondary" onClick={() => setShowStatusModal(true)}>
-              <Trans id="action.changestatus">Change Status</Trans>
-            </Button>
-          )}
-          {canChangeStatus && (
-            <Button size="small" variant="secondary" onClick={handleDecline}>
-              <Trans id="action.decline">Decline</Trans>
-            </Button>
-          )}
-        </HStack>
-        <HStack spacing={2}>
-          {canLock && (
-            <Button size="small" variant="secondary" onClick={() => setShowLockModal(true)}>
-              {post.lockedAt ? (
-                <Trans id="action.unlock">Unlock</Trans>
-              ) : (
-                <Trans id="action.lock">Lock</Trans>
-              )}
-            </Button>
-          )}
-          {canDelete && (
-            <Button size="small" variant="danger" onClick={() => setShowDeleteModal(true)}>
-              <Trans id="action.delete">Delete</Trans>
-            </Button>
-          )}
-        </HStack>
-      </HStack>
+        )}
+        {canChangeStatus && (
+          <Button size="small" variant="secondary" onClick={() => setShowStatusModal(true)}>
+            <Trans id="action.changestatus">Status</Trans>
+          </Button>
+        )}
+        {canChangeStatus && (
+          <Button size="small" variant="secondary" onClick={handleDecline}>
+            <Trans id="action.decline">Decline</Trans>
+          </Button>
+        )}
+        {canLock && (
+          <Button size="small" variant="secondary" onClick={() => setShowLockModal(true)}>
+            {post.lockedAt ? (
+              <Trans id="action.unlock">Unlock</Trans>
+            ) : (
+              <Trans id="action.lock">Lock</Trans>
+            )}
+          </Button>
+        )}
+        {canDelete && (
+          <Button size="small" variant="danger" onClick={() => setShowDeleteModal(true)}>
+            <Trans id="action.delete">Delete</Trans>
+          </Button>
+        )}
+      </div>
 
       <Modal.Window isOpen={showStatusModal} onClose={() => { setShowStatusModal(false); onDuplicateReset(); }} center={false} size="large">
         <Modal.Header>
@@ -182,7 +182,7 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
             {status === PostStatus.Duplicate.value ? (
               <>
                 {duplicateOriginalNumber > 0 ? (
-                  <div className="p-3 bg-gray-100 rounded mb-2">
+                  <div className="p-3 bg-surface-alt rounded mb-2">
                     <span className="font-medium">Original Post: </span>
                     <span>#{duplicateOriginalNumber}</span>
                     <Button

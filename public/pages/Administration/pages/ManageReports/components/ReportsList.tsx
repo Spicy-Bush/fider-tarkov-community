@@ -60,8 +60,8 @@ export const ReportsList: React.FC<ReportsListProps> = ({
   }
 
   return (
-    <div className="c-reports-split-view__list">
-      <div className="c-reports-split-view__filters">
+    <div className="flex-[0_0_100%] lg:flex-[0_0_500px] lg:min-w-[500px] lg:h-full flex flex-col bg-elevated rounded-panel border border-surface-alt overflow-hidden">
+      <div className="flex items-center gap-2 p-3 border-b border-surface-alt bg-tertiary shrink-0 flex-wrap [&_.c-form-field]:mb-0 [&_.c-select]:flex-[0_0_auto] [&_.c-select]:min-w-[120px] [&_.c-select]:max-w-[150px] [&_.c-select_select]:h-9">
         <Select
           field="status"
           defaultValue={selectedStatus}
@@ -80,19 +80,21 @@ export const ReportsList: React.FC<ReportsListProps> = ({
           options={reasonOptions}
           onChange={onReasonChange}
         />
-        <Button
-          variant="secondary"
-          size="small"
+        <button
+          type="button"
           onClick={onRefresh}
-          className="c-reports-split-view__refresh-btn"
+          className="w-9 h-9 p-0 shrink-0 flex items-center justify-center rounded-input border border-border bg-elevated text-muted hover:bg-surface-alt hover:text-foreground transition-colors cursor-pointer"
         >
-          <Icon sprite={IconRefresh} />
-        </Button>
+          <Icon sprite={IconRefresh} className="w-4 h-4" />
+        </button>
       </div>
 
-      <div className="c-reports-split-view__list-content">
+      <div className="flex-1 overflow-y-auto min-h-0">
         {newReportIds.size > 0 && (
-          <button className="c-reports-new-banner" onClick={onRefreshNewReports}>
+          <button 
+            className="flex items-center justify-center gap-2 w-full py-2 px-3 bg-success-light border-none border-b border-success-light text-success font-medium text-sm cursor-pointer hover:bg-success-medium transition-colors [&_svg]:text-success"
+            onClick={onRefreshNewReports}
+          >
             <Icon sprite={IconRefresh} className="h-4" />
             <span>
               {newReportIds.size} new report{newReportIds.size > 1 ? "s" : ""} available
@@ -123,7 +125,7 @@ export const ReportsList: React.FC<ReportsListProps> = ({
       </div>
 
       {total > reports.length && (
-        <div className="c-reports-split-view__pagination">
+        <div className="flex items-center justify-between py-2 px-3 border-t border-surface-alt bg-tertiary shrink-0">
           <Button size="small" variant="tertiary" disabled={page === 1} onClick={onPrevPage}>
             Prev
           </Button>
@@ -136,4 +138,3 @@ export const ReportsList: React.FC<ReportsListProps> = ({
     </div>
   )
 }
-

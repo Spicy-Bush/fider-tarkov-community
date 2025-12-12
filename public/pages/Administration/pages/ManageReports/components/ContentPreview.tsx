@@ -1,7 +1,7 @@
 import React from "react"
 import { Button, Loader, Icon, Avatar, Moment, Markdown } from "@fider/components"
 import { HStack } from "@fider/components/layout"
-import { Fider } from "@fider/services"
+import { Fider, classSet } from "@fider/services"
 import {
   heroiconsCheck as IconCheck,
   heroiconsX as IconX,
@@ -40,8 +40,8 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
 }) => {
   if (!report) {
     return (
-      <div className="c-report-detail c-report-detail--empty">
-        <div className="c-report-detail__empty-state">
+      <div className="bg-elevated rounded-panel min-h-[400px] flex items-center justify-center">
+        <div className="text-center p-8">
           <p className="text-muted">Select a report to view details</p>
         </div>
       </div>
@@ -50,7 +50,7 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
 
   if (isLoading) {
     return (
-      <div className="c-report-detail c-report-detail--loading">
+      <div className="bg-elevated rounded-panel min-h-[400px] flex items-center justify-center">
         <Loader />
       </div>
     )
@@ -73,8 +73,8 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
   const reportedUser = report.reportedType === "post" ? post?.user : comment?.user
 
   return (
-    <div className="c-report-detail">
-      <div className="c-report-detail__actions">
+    <div className="bg-elevated rounded-panel min-h-[400px]">
+      <div className="p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt bg-tertiary">
         {canAction && (
           <HStack spacing={2}>
             {report.status === "pending" && (
@@ -125,24 +125,28 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
         )}
         {!canAction && (
           <span
-            className={`c-report-detail__status-badge c-report-detail__status-badge--${report.status}`}
+            className={classSet({
+              "px-3 py-1 rounded-full text-sm font-medium": true,
+              "bg-success-medium text-success": report.status === "resolved",
+              "bg-surface-alt text-muted": report.status === "dismissed",
+            })}
           >
             {report.status === "resolved" ? "Resolved" : "Dismissed"}
           </span>
         )}
       </div>
 
-      <div className="c-report-detail__section">
-        <h4 className="c-report-detail__section-title">Report Information</h4>
-        <div className="c-report-detail__grid">
-          <div className="c-report-detail__field">
-            <label>Reason</label>
-            <span className="c-report-detail__reason-badge">{report.reason}</span>
+      <div className="p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt">
+        <h4 className="text-base font-semibold text-foreground m-0 mb-3">Report Information</h4>
+        <div className="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted uppercase tracking-wide">Reason</label>
+            <span className="inline-block px-2 py-1 rounded bg-warning/10 text-warning text-sm font-medium w-fit">{report.reason}</span>
           </div>
-          <div className="c-report-detail__field">
-            <label>Reported by</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted uppercase tracking-wide">Reported by</label>
             <div
-              className="c-report-detail__author c-report-detail__author--clickable"
+              className="p-3 bg-tertiary rounded-card cursor-pointer hover:bg-surface-alt transition-colors group relative"
               onClick={() =>
                 onUserClick?.({
                   id: report.reporter.id,
@@ -164,28 +168,28 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
                   </div>
                 </div>
               </HStack>
-              <span className="c-report-detail__author-hint">View profile</span>
+              <span className="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity absolute right-3 top-1/2 -translate-y-1/2">View profile</span>
             </div>
           </div>
         </div>
         {report.details && (
-          <div className="c-report-detail__details">
-            <label>Additional Details</label>
-            <div className="c-report-detail__details-content">{report.details}</div>
+          <div className="mt-4">
+            <label className="text-xs text-muted uppercase tracking-wide block mb-1">Additional Details</label>
+            <div className="p-3 bg-tertiary rounded-card text-sm">{report.details}</div>
           </div>
         )}
       </div>
 
-      <div className="c-report-detail__section">
-        <div className="c-report-detail__section-header">
-          <h4 className="c-report-detail__section-title">
+      <div className="p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-base font-semibold text-foreground m-0">
             Reported {report.reportedType === "post" ? "Post" : "Comment"}
           </h4>
           <a
             href={getTargetLink()}
             target="_blank"
             rel="noopener noreferrer"
-            className="c-report-detail__external-link"
+            className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary-hover"
           >
             <Icon sprite={IconExternalLink} className="h-4" />
             <span>View original</span>
@@ -194,7 +198,7 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
 
         {reportedUser && (
           <div
-            className="c-report-detail__author c-report-detail__author--clickable"
+            className="p-3 mb-4 bg-tertiary rounded-card cursor-pointer hover:bg-surface-alt transition-colors group relative"
             onClick={() =>
               onUserClick?.({
                 id: reportedUser.id,
@@ -221,16 +225,16 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
                 </div>
               </div>
             </HStack>
-            <span className="c-report-detail__author-hint">View profile</span>
+            <span className="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity absolute right-3 top-1/2 -translate-y-1/2">View profile</span>
           </div>
         )}
 
-        <div className="c-report-detail__content">
+        <div className="bg-elevated border border-surface-alt rounded-card p-4">
           {report.reportedType === "post" && post && (
             <>
-              <h5 className="c-report-detail__post-title">{post.title}</h5>
+              <h5 className="text-lg font-semibold text-foreground m-0 mb-3 break-words">{post.title}</h5>
               {post.description && (
-                <div className="c-report-detail__post-body">
+                <div className="text-muted leading-relaxed [&_.c-markdown]:text-sm">
                   <Markdown text={post.description} style="full" />
                 </div>
               )}
@@ -239,16 +243,17 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
 
           {report.reportedType === "comment" && comment && (
             <>
-              <div className="c-report-detail__comment-body">
+              <div className="text-muted leading-relaxed [&_.c-markdown]:text-sm">
                 <Markdown text={comment.content} style="full" />
               </div>
               {post && (
-                <div className="c-report-detail__comment-context">
+                <div className="mt-3 pt-3 border-t border-surface-alt text-sm text-muted wrap-anywhere">
                   On post:{" "}
                   <a
                     href={`/posts/${post.number}/${post.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
+                    className="text-primary hover:text-primary-hover"
                   >
                     {post.title}
                   </a>
@@ -264,10 +269,10 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
       </div>
 
       {report.assignedTo && (
-        <div className="c-report-detail__section c-report-detail__section--assignment">
-          <h4 className="c-report-detail__section-title">Assignment</h4>
-          <div className="c-report-detail__field">
-            <label>Assigned to</label>
+        <div className="p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt bg-info-light">
+          <h4 className="text-base font-semibold text-foreground m-0 mb-3">Assignment</h4>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted uppercase tracking-wide">Assigned to</label>
             <HStack spacing={2}>
               <Avatar user={report.assignedTo} clickable={false} />
               <span className="font-medium">{report.assignedTo?.name}</span>
@@ -277,14 +282,18 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
       )}
 
       {(report.status === "resolved" || report.status === "dismissed") && (
-        <div className={`c-report-detail__section c-report-detail__section--resolution c-report-detail__section--resolution-${report.status}`}>
-          <h4 className="c-report-detail__section-title">
+        <div className={classSet({
+          "p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt last:border-b-0": true,
+          "bg-success-light": report.status === "resolved",
+          "bg-surface-alt": report.status === "dismissed",
+        })}>
+          <h4 className="text-base font-semibold text-foreground m-0 mb-3">
             {report.status === "resolved" ? "Resolution Details" : "Dismissal Details"}
           </h4>
-          <div className="c-report-detail__grid">
+          <div className="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
             {report.resolvedBy && (
-              <div className="c-report-detail__field">
-                <label>{report.status === "resolved" ? "Resolved by" : "Dismissed by"}</label>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-muted uppercase tracking-wide">{report.status === "resolved" ? "Resolved by" : "Dismissed by"}</label>
                 <HStack spacing={2}>
                   <Avatar user={report.resolvedBy} clickable={false} />
                   <span className="font-medium">{report.resolvedBy.name}</span>
@@ -292,24 +301,24 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
               </div>
             )}
             {report.resolvedAt && (
-              <div className="c-report-detail__field">
-                <label>{report.status === "resolved" ? "Resolved at" : "Dismissed at"}</label>
-                <span className="c-report-detail__timestamp">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-muted uppercase tracking-wide">{report.status === "resolved" ? "Resolved at" : "Dismissed at"}</label>
+                <span className="text-sm">
                   <Moment locale={Fider.currentLocale} date={report.resolvedAt} />
                 </span>
               </div>
             )}
           </div>
           {report.resolutionNote && (
-            <div className="c-report-detail__resolution-note">
-              <label>Notes</label>
-              <div className="c-report-detail__resolution-note-content">
+            <div className="mt-4">
+              <label className="text-xs text-muted uppercase tracking-wide block mb-1">Notes</label>
+              <div className="p-3 bg-elevated rounded-card text-sm">
                 {report.resolutionNote}
               </div>
             </div>
           )}
           {!report.resolutionNote && (
-            <div className="c-report-detail__no-note">
+            <div className="mt-4 text-sm text-muted italic">
               No notes provided
             </div>
           )}
@@ -318,4 +327,3 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
     </div>
   )
 }
-

@@ -1,15 +1,16 @@
+// CommentEditor converted to Tailwind
+
 import React, { useMemo, useCallback, useRef, useEffect, useState, Fragment, ReactNode } from "react"
 import { Element, Editor, Transforms, Range, createEditor, Descendant, BaseEditor, BaseRange, Node } from "slate"
 import { HistoryEditor, withHistory } from "slate-history"
 import { Slate, Editable, ReactEditor, withReact, useSelected, useFocused, RenderPlaceholderProps } from "slate-react"
+import { classSet } from "@fider/services"
 
 export const IS_MAC = typeof navigator !== "undefined" && /Mac OS X/.test(navigator.userAgent)
 
 import ReactDOM from "react-dom"
 import { UserNames } from "@fider/models"
 import { actions } from "@fider/services"
-
-import "./CommentEditor.scss"
 
 export type TextType = { text: string }
 
@@ -73,13 +74,7 @@ const Placeholder = ({ attributes, children }: RenderPlaceholderProps) => {
   return (
     <span
       {...attributes}
-      className="slate-editor--placeholder"
-      style={{
-        position: "absolute",
-        opacity: 0.3,
-        userSelect: "none",
-        pointerEvents: "none",
-      }}
+      className="absolute opacity-30 select-none pointer-events-none"
     >
       {children}
     </span>
@@ -142,7 +137,6 @@ export const CommentEditor: React.FunctionComponent<CommentEditorProps> = (props
     [filteredUsers, editor, index, target]
   )
 
-  // Where to show the mentions portal
   useEffect(() => {
     if (target && filteredUsers.length > 0 && ref.current) {
       const el = ref.current
@@ -197,7 +191,10 @@ export const CommentEditor: React.FunctionComponent<CommentEditorProps> = (props
     >
       <Editable
         readOnly={props.readOnly || false}
-        className={`slate-editor ${props.readOnly ? 'slate-editor--disabled' : ''}`}
+        className={classSet({
+          "bg-elevated w-full min-w-0 leading-6 p-2 resize-none border border-border rounded-input appearance-none my-3 break-all wrap-anywhere [&_p]:mb-0": true,
+          "cursor-not-allowed opacity-45 pointer-events-none": props.readOnly,
+        })}
         renderElement={renderElement}
         onKeyDown={onKeyDown}
         onFocus={props.onFocus}
@@ -206,7 +203,12 @@ export const CommentEditor: React.FunctionComponent<CommentEditorProps> = (props
       />
       {target && filteredUsers.length > 0 && !props.readOnly && (
         <Portal>
-          <div ref={ref} className="slate-editor--mentions" data-cy="mentions-portal">
+          <div 
+            ref={ref} 
+            className="absolute z-10 p-1 bg-elevated rounded shadow-md"
+            style={{ top: '-9999px', left: '-9999px' }}
+            data-cy="mentions-portal"
+          >
             {filteredUsers.map((user, i) => (
               <div
                 key={user.id}
@@ -215,12 +217,10 @@ export const CommentEditor: React.FunctionComponent<CommentEditorProps> = (props
                   insertMention(editor, user)
                   setTarget(undefined)
                 }}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "3px",
-                  cursor: "pointer",
-                  background: i === index ? "#B4D5FF" : "transparent",
-                }}
+                className={classSet({
+                  "px-3 py-1.5 rounded cursor-pointer": true,
+                  "bg-accent-light": i === index,
+                })}
               >
                 {user.name}
               </div>
@@ -282,22 +282,21 @@ const Mention = ({
 }) => {
   const selected = useSelected()
   const focused = useFocused()
-  const style: React.CSSProperties = {
-    boxShadow: selected && focused ? "0 0 0 2px #B4D5FF" : "none",
-  }
-  // See if our empty text child has any styling marks applied and apply those
+  
   return (
-    <span {...attributes} className="slate-editor--mention" contentEditable={false} data-cy={`mention-${element.character.replace(" ", "-")}`} style={style}>
-      {/* Prevent Chromium from interrupting IME when moving the cursor */}
-      {/* 1. span + inline-block 2. div + contenteditable=false */}
+    <span 
+      {...attributes} 
+      className="mx-px align-baseline inline-block rounded bg-surface-alt text-sm"
+      contentEditable={false} 
+      data-cy={`mention-${element.character.replace(" ", "-")}`} 
+      style={{ boxShadow: selected && focused ? "0 0 0 2px var(--color-primary)" : "none" }}
+    >
       <div contentEditable={false}>
         {IS_MAC ? (
-          // Mac OS IME https://github.com/ianstormtaylor/slate/issues/3490
           <Fragment>
             {children}@{element.character}
           </Fragment>
         ) : (
-          // Others like Android https://github.com/ianstormtaylor/slate/pull/5360
           <Fragment>
             @{element.character}
             {children}
@@ -320,12 +319,10 @@ const deserialize = (markdown: string): Descendant[] => {
 
     let match
     while ((match = regex.exec(line)) !== null) {
-      // Add text before the mention
       if (match.index > lastIndex) {
         children.push({ text: line.slice(lastIndex, match.index) })
       }
 
-      // Handle mention
       try {
         const jsonStr = match[0].replace(/\\/g, "").slice(1)
         const mentionData = JSON.parse(jsonStr)
@@ -336,14 +333,12 @@ const deserialize = (markdown: string): Descendant[] => {
         })
       } catch (err) {
         console.error("Error parsing mention:", err)
-        // Just add the text as a normal paragraph
         children.push({ text: line })
       }
 
       lastIndex = match.index + match[0].length
     }
 
-    // Add remaining text after last mention
     if (lastIndex <= line.length) {
       children.push({ text: line.slice(lastIndex) })
     }

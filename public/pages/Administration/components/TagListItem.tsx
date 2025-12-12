@@ -71,11 +71,11 @@ export const TagListItem = (props: TagListItemProps) => {
 
   const renderViewMode = () => {
     const buttons = canEdit && [
-      <Button size="small" key={0} onClick={startEdit}>
+      <Button size="small" key={0} variant="secondary" onClick={startEdit}>
         <Icon sprite={IconPencilAlt} />
         <span>Edit</span>
       </Button>,
-      <Button size="small" key={1} onClick={startDelete}>
+      <Button size="small" key={1} variant="danger" onClick={startDelete}>
         <Icon sprite={IconX} />
         <span>Delete</span>
       </Button>,

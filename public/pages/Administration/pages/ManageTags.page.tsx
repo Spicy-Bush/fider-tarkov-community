@@ -70,7 +70,7 @@ const ManageTagsPage: React.FC<ManageTagsPageProps> = (props) => {
     (isAdding ? (
       <TagForm onSave={saveNewTag} onCancel={cancelAdd} />
     ) : (
-      <Button variant="secondary" onClick={addNew}>
+      <Button variant="primary" onClick={addNew}>
         Add new
       </Button>
     ))

@@ -7,7 +7,7 @@ import { ImageUpload } from "@fider/models"
 import { useFider } from "@fider/hooks"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
-import "./PostInput.scss"
+// import "./PostInput.scss"
 import { useUserStanding } from "@fider/contexts/UserStandingContext"
 
 interface PostInputProps {
@@ -17,7 +17,6 @@ interface PostInputProps {
 
 const CACHE_TITLE_KEY = "PostInput-Title"
 const CACHE_DESCRIPTION_KEY = "PostInput-Description"
-
 
 export const PostInput = (props: PostInputProps) => {
   const fider = useFider()
@@ -178,7 +177,7 @@ export const PostInput = (props: PostInputProps) => {
       <SignInModal isOpen={isSignInModalOpen} onClose={() => setIsSignInModalOpen(false)} />
       <Form error={error}>
         {isPostingDisabled && fider.session.isAuthenticated && (
-          <div className="c-message c-message--warning">
+          <div className="p-3 bg-warning/10 border border-warning rounded text-warning">
             {isMuted ? (
               <Trans id="home.postinput.muted">
                 You are currently muted. Reason: {muteReason}
@@ -205,12 +204,12 @@ export const PostInput = (props: PostInputProps) => {
                 placeholder={props.placeholder}
               />
               {titleValidation.showMinCounter && (
-                <div className="c-input-counter c-input-counter--min">
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
                   {titleLengthMin - title.length}
                 </div>
               )}
               {titleValidation.showMaxCounter && (
-                <div className={`c-input-counter c-input-counter--max ${titleValidation.isOverMax ? 'c-input-counter--error' : ''}`}>
+                <div className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs ${titleValidation.isOverMax ? 'text-danger' : 'text-muted'}`}>
                   {titleLengthMax - title.length}
                 </div>
               )}
@@ -227,12 +226,12 @@ export const PostInput = (props: PostInputProps) => {
                     placeholder={i18n._("home.postinput.description.placeholder", { message: "Describe your suggestion..." })}
                   />
                   {descValidation.showMinCounter && (
-                    <div className="c-input-counter c-input-counter--min">
+                    <div className="absolute right-2 bottom-2 text-xs text-muted">
                       {descriptionLengthMin - description.length}
                     </div>
                   )}
                   {descValidation.showMaxCounter && (
-                    <div className={`c-input-counter c-input-counter--max ${descValidation.isOverMax ? 'c-input-counter--error' : ''}`}>
+                    <div className={`absolute right-2 bottom-2 text-xs ${descValidation.isOverMax ? 'text-danger' : 'text-muted'}`}>
                       {descriptionLengthMax - description.length}
                     </div>
                   )}
@@ -240,65 +239,39 @@ export const PostInput = (props: PostInputProps) => {
                 <MultiImageUploader field="attachments" maxUploads={maxImagesPerPost} onChange={setAttachments} />
                 
                 {isPendingSubmission ? (
-                  <div className="c-pending-submission">
-                    <div className="send-now-button-wrapper">
-                      <Button 
-                        type="button"
-                        variant="secondary"
-                        onClick={submitNow}
-                      >
+                  <div className="flex justify-between items-center">
+                    <div className="flex gap-2">
+                      <Button type="button" variant="secondary" onClick={submitNow}>
                         <Trans id="action.sendnow">Send Now</Trans>
                       </Button>
-                      
-                      <Button 
-                        type="button"
-                        variant="danger"
-                        onClick={cancelSubmission}
-                      >
+                      <Button type="button" variant="danger" onClick={cancelSubmission}>
                         <Trans id="action.cancel">Cancel</Trans>
                       </Button>
                     </div>
                     
-                    <div className="countdown-button-wrapper">
-                      <div className="countdown-display">
-                        <div className="countdown-spinner">
-                          <svg width="12" height="12" viewBox="0 0 24 24">
-                            <circle 
-                              cx="12" 
-                              cy="12" 
-                              r="10" 
-                              fill="none" 
-                              stroke="currentColor" 
-                              strokeWidth="4" 
-                              strokeDasharray={Math.PI * 2 * 10}
-                              strokeDashoffset={(Math.PI * 2 * 10) * (1 - progressPercentage / 100)}
-                              transform="rotate(-90 12 12)"
-                            />
-                          </svg>
-                        </div>
-                        
-                        <span className="countdown-text">
-                          <Trans id="action.submitting">Submitting in {remainingSeconds}s...</Trans>
-                        </span>
+                    <div className="flex items-center">
+                      <div className="mr-2 inline-block">
+                        <svg width="12" height="12" viewBox="0 0 24 24">
+                          <circle 
+                            cx="12" cy="12" r="10" 
+                            fill="none" stroke="currentColor" strokeWidth="4" 
+                            strokeDasharray={Math.PI * 2 * 10}
+                            strokeDashoffset={(Math.PI * 2 * 10) * (1 - progressPercentage / 100)}
+                            transform="rotate(-90 12 12)"
+                          />
+                        </svg>
                       </div>
+                      <span className="text-sm text-muted">
+                        <Trans id="action.submitting">Submitting in {remainingSeconds}s...</Trans>
+                      </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="c-post-actions">
-                    <Button 
-                      type="submit" 
-                      variant="primary" 
-                      disabled={isSubmitDisabled} 
-                      onClick={submit}
-                    >
+                  <div className="flex justify-between items-center">
+                    <Button type="submit" variant="primary" disabled={isSubmitDisabled} onClick={submit}>
                       <Trans id="action.submit">Submit</Trans>
                     </Button>
-                    <Button 
-                      type="button"
-                      variant="secondary"
-                      disabled={isSubmitDisabled} 
-                      onClick={showPreview}
-                    >
+                    <Button type="button" variant="secondary" disabled={isSubmitDisabled} onClick={showPreview}>
                       <Trans id="action.preview">Preview</Trans>
                     </Button>
                   </div>

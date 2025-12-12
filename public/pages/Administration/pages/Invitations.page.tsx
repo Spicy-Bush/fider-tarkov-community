@@ -96,7 +96,7 @@ ${Fider.session.user.name} (${Fider.session.tenant.name})`)
       <Field label="Sample Invite">
         <div className="c-admin-actions">
           {Fider.session.user.email ? (
-            <Button onClick={sendSample}>Send a sample email to {Fider.session.user.email}</Button>
+            <Button variant="secondary" onClick={sendSample}>Send a sample email to {Fider.session.user.email}</Button>
           ) : (
             <Button disabled={true}>Your profile doesn&apos;t have an email</Button>
           )}

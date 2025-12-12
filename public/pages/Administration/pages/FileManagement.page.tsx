@@ -1,12 +1,11 @@
-import "./FileManagement.scss"
 import React, { useState, useEffect, useRef, useCallback } from "react"
-import { Button, Form, Icon, Input, ImageUploader, ImageGallery } from "@fider/components"
+import { Button, Form, Icon, Input, ImageUploader } from "@fider/components"
 import { HStack } from "@fider/components/layout"
-import { Failure, actions, notify } from "@fider/services"
+import { Failure, actions, notify, classSet, copyToClipboard } from "@fider/services"
 import { ImageUpload } from "@fider/models"
 import { PageConfig } from "@fider/components/layouts"
 
-import { heroiconsTrash as IconTrash, heroiconsPencilAlt as IconPencilAlt, heroiconsDownload as IconDownload, heroiconsUpload as IconUpload, heroiconsEye as IconEye, heroiconsX as IconX } from "@fider/icons.generated"
+import { heroiconsTrash as IconTrash, heroiconsPencilAlt as IconPencilAlt, heroiconsDownload as IconDownload, heroiconsUpload as IconUpload, heroiconsEye as IconEye, heroiconsX as IconX, heroiconsSearch as IconSearch, heroiconsDuplicate as IconCopy, heroiconsCheck as IconCheck, heroiconsExternalLink as IconExternalLink } from "@fider/icons.generated"
 
 export const pageConfig: PageConfig = {
   title: "Media Library",
@@ -35,8 +34,8 @@ interface MediaAsset {
 
 const Loader: React.FC = () => {
   return (
-    <div className="c-loader">
-      <div className="c-loader__spinner"></div>
+    <div className="p-8 flex justify-center">
+      <div className="h-8 w-8 rounded-full border-2 border-surface-alt border-b-primary animate-spin"></div>
     </div>
   );
 };
@@ -59,26 +58,13 @@ const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPage
     startPage = Math.max(1, endPage - maxVisiblePages + 1);
   }
 
-  const handlePrevious = () => {
-    if (currentPage > 1) {
-      onPageChange(currentPage - 1);
-    }
-  };
-
-  const handleNext = () => {
-    if (currentPage < totalPages) {
-      onPageChange(currentPage + 1);
-    }
-  };
-
   return (
-    <div className="c-media-library__pagination">
+    <div className="flex justify-center mt-6 gap-1">
       <Button
         variant="tertiary"
         size="small"
-        onClick={handlePrevious}
+        onClick={() => { if (currentPage > 1) onPageChange(currentPage - 1); }}
         disabled={currentPage === 1}
-        className="c-media-library__pagination-btn"
       >
         &lt;
       </Button>
@@ -91,7 +77,7 @@ const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPage
             variant={page === currentPage ? "primary" : "tertiary"}
             size="small"
             onClick={() => onPageChange(page)}
-            className="c-media-library__pagination-btn c-media-library__pagination-btn--page"
+            className="min-w-8 h-8 p-0 flex items-center justify-center"
           >
             {page}
           </Button>
@@ -101,9 +87,8 @@ const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPage
       <Button
         variant="tertiary"
         size="small"
-        onClick={handleNext}
+        onClick={() => { if (currentPage < totalPages) onPageChange(currentPage + 1); }}
         disabled={currentPage === totalPages}
-        className="c-media-library__pagination-btn"
       >
         &gt;
       </Button>
@@ -151,13 +136,13 @@ const getMediaTypeLabel = (mediaType: MediaType): string => {
   }
 }
 
-const getMediaTypeBadgeClass = (mediaType: MediaType): string => {
+const getBadgeClasses = (mediaType: MediaType): string => {
   switch(mediaType) {
-    case MediaType.ADMIN: return "c-media-library__badge--admin";
-    case MediaType.ATTACHMENT: return "c-media-library__badge--attachment";
-    case MediaType.AVATAR: return "c-media-library__badge--avatar";
-    case MediaType.LOGO: return "c-media-library__badge--logo";
-    default: return "";
+    case MediaType.ADMIN: return "bg-info-medium text-primary";
+    case MediaType.ATTACHMENT: return "bg-success-medium text-success";
+    case MediaType.AVATAR: return "bg-info-medium text-primary";
+    case MediaType.LOGO: return "bg-warning-medium text-warning";
+    default: return "bg-surface-alt text-muted";
   }
 }
 
@@ -184,6 +169,9 @@ const FileManagementPage: React.FC = () => {
   const [sortDir, setSortDir] = useState("desc")
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [assetToDelete, setAssetToDelete] = useState<MediaAsset | undefined>()
+  const [copiedAssetKey, setCopiedAssetKey] = useState<string | null>(null)
+  const [showImageGallery, setShowImageGallery] = useState(false)
+  const [galleryImageUrl, setGalleryImageUrl] = useState<string>("")
   
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -302,11 +290,11 @@ const FileManagementPage: React.FC = () => {
 
   const deleteAsset = async (forceDelete: boolean = false) => {
     if (!assetToDelete) return;
-  
+
     closeDeleteConfirmation();
-  
+
     const endpoint = `/api/v1/admin/files/${assetToDelete.blobKey}${forceDelete ? '?force=true' : ''}`;
-  
+
     const result = await fetch(endpoint, {
       method: 'DELETE',
       credentials: 'same-origin',
@@ -314,7 +302,7 @@ const FileManagementPage: React.FC = () => {
         'Content-Type': 'application/json',
       }
     });
-  
+
     if (result.ok) {
       notify.success(`Image ${forceDelete ? 'forcefully ' : ''}deleted successfully`);
       await loadAssets();
@@ -367,6 +355,41 @@ const FileManagementPage: React.FC = () => {
     window.open(url, "_blank");
   }
 
+  const copyImageLocation = async (asset: MediaAsset) => {
+    const url = getAssetURL(asset);
+    const fullUrl = `${window.location.origin}${url}`;
+    try {
+      await copyToClipboard(fullUrl);
+      setCopiedAssetKey(asset.blobKey);
+      notify.success("Image location copied to clipboard");
+      setTimeout(() => setCopiedAssetKey(null), 2000);
+    } catch {
+      notify.error("Failed to copy to clipboard");
+    }
+  }
+
+  const openImageGallery = (asset: MediaAsset) => {
+    const url = getAssetURL(asset);
+    setGalleryImageUrl(url);
+    setShowImageGallery(true);
+    document.body.style.overflow = "hidden";
+  }
+
+  const closeImageGallery = () => {
+    setShowImageGallery(false);
+    document.body.style.overflow = "";
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (showImageGallery && e.key === "Escape") {
+        closeImageGallery();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showImageGallery]);
+
   const showAssetUsage = (asset: MediaAsset) => {
     setSelectedAsset(asset)
     setShowUsageModal(true)
@@ -382,36 +405,38 @@ const FileManagementPage: React.FC = () => {
           value={newAssetName}
           onChange={(value) => setNewAssetName(value)}
         />
-  
-        <div className="c-media-library__upload-type">
-          <label className="c-media-library__upload-type-label">Upload Type</label>
-          <div className="c-media-library__upload-type-options">
-            <label className="c-media-library__upload-type-option">
+
+        <div className="mb-4">
+          <label className="block mb-2 font-medium text-muted">Upload Type</label>
+          <div className="flex gap-4">
+            <label className="flex items-center cursor-pointer">
               <input
                 type="radio"
                 name="uploadType"
                 checked={uploadType === "file"}
                 onChange={() => setUploadType("file")}
+                className="mr-2"
               />
               <span>Admin Upload (files/)</span>
             </label>
-            <label className="c-media-library__upload-type-option">
+            <label className="flex items-center cursor-pointer">
               <input
                 type="radio"
                 name="uploadType"
                 checked={uploadType === "attachment"}
                 onChange={() => setUploadType("attachment")}
+                className="mr-2"
               />
               <span>Public Attachment (attachments/)</span>
             </label>
           </div>
-          <p className="c-media-library__upload-type-description">
+          <p className="text-sm text-muted mt-2">
             {uploadType === "file" 
               ? "Use this option for images managed by administrators."
               : "Use this option for images attached to posts/comments."}
           </p>
         </div>
-  
+
         <ImageUploader
           field="imageUpload"
           label="Upload Image"
@@ -420,7 +445,7 @@ const FileManagementPage: React.FC = () => {
         >
           <p className="text-muted">Select an image to upload. JPG, PNG, GIF, and SVG formats are supported.</p>
         </ImageUploader>
-  
+
         <div className="mt-4">
           <HStack>
             <Button variant="primary" onClick={handleImageUpload}>
@@ -439,11 +464,11 @@ const FileManagementPage: React.FC = () => {
     if (!assetToEdit) return null;
 
     return (
-      <div className="c-media-library__modal">
-        <div className="c-media-library__modal-backdrop" 
+      <div className="fixed inset-0 z-modal flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/50" 
              onClick={() => { setAssetToEdit(undefined); setNewAssetName(""); }}></div>
-        <div className="c-media-library__modal-content">
-          <h2 className="c-media-library__modal-header-title">Rename Image</h2>
+        <div className="bg-elevated rounded-modal shadow-xl p-6 relative max-w-[400px] w-[90%] z-modal-content">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Rename Image</h2>
           <Form error={error}>
             <Input
               field="newAssetName"
@@ -453,7 +478,7 @@ const FileManagementPage: React.FC = () => {
               onChange={(value) => setNewAssetName(value)}
             />
 
-            <div className="c-media-library__modal-actions">
+            <div className="flex justify-end gap-2 mt-4">
               <Button 
                 variant="tertiary" 
                 onClick={() => { setAssetToEdit(undefined); setNewAssetName(""); }}
@@ -476,23 +501,23 @@ const FileManagementPage: React.FC = () => {
     const isInUse = assetToDelete.isInUse;
 
     return (
-      <div className="c-media-library__modal">
-        <div className="c-media-library__modal-backdrop" onClick={closeDeleteConfirmation}></div>
-        <div className="c-media-library__modal-content">
-          <h2 className="c-media-library__modal-header-title">Delete Image</h2>
+      <div className="fixed inset-0 z-modal flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/50" onClick={closeDeleteConfirmation}></div>
+        <div className="bg-elevated rounded-modal shadow-xl p-6 relative max-w-[400px] w-[90%] z-modal-content">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Delete Image</h2>
           
-          <div className="c-media-library__modal-section">
+          <div className="mb-4">
             <p className="mb-2">Are you sure you want to delete <strong>{assetToDelete.name}</strong>?</p>
             
             {isInUse && (
-              <div className="c-media-library__modal-warning">
-                <p className="c-media-library__modal-warning-title">Warning: This image is in use</p>
-                <p className="c-media-library__modal-warning-desc">Forcing deletion will remove all references to this image from posts, comments, avatars, or logos.</p>
+              <div className="bg-warning-medium border-l-4 border-warning text-warning p-3 rounded-r mb-3">
+                <p className="font-semibold mb-1">Warning: This image is in use</p>
+                <p className="text-sm">Forcing deletion will remove all references to this image from posts, comments, avatars, or logos.</p>
               </div>
             )}
           </div>
           
-          <div className="c-media-library__modal-actions">
+          <div className="flex justify-end gap-2 mt-4">
             <Button 
               variant="tertiary" 
               onClick={closeDeleteConfirmation}
@@ -522,51 +547,101 @@ const FileManagementPage: React.FC = () => {
     );
   }
 
+  const parseUsageLink = (usage: string): { text: string; href?: string } => {
+    const postMatch = usage.match(/Post #(\d+)/i)
+    if (postMatch) {
+      return { text: usage, href: `/posts/${postMatch[1]}` }
+    }
+    const commentMatch = usage.match(/Comment #(\d+) on Post #(\d+)/i)
+    if (commentMatch) {
+      return { text: usage, href: `/posts/${commentMatch[2]}#comment-${commentMatch[1]}` }
+    }
+    const userMatch = usage.match(/User: (.+)/i)
+    if (userMatch) {
+      return { text: usage, href: undefined }
+    }
+    return { text: usage, href: undefined }
+  }
+
   const renderUsageModal = () => {
     if (!selectedAsset || !showUsageModal) return null;
 
     return (
-      <div className="c-media-library__modal">
-        <div className="c-media-library__modal-backdrop"
+      <div className="fixed inset-0 z-modal flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/50"
              onClick={() => setShowUsageModal(false)}></div>
-        <div className="c-media-library__modal-content">
-          <div className="c-media-library__modal-header">
-            <h2 className="c-media-library__modal-header-title">Image Usage</h2>
-            <Button 
-              variant="tertiary" 
-              size="small" 
+        <div className="bg-elevated rounded-modal shadow-xl p-6 relative max-w-[500px] w-[90%] z-modal-content">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-foreground">Image Usage</h2>
+            <button 
+              type="button"
+              className="p-1.5 rounded-badge text-muted hover:text-foreground hover:bg-surface-alt transition-colors cursor-pointer border-none bg-transparent"
               onClick={() => setShowUsageModal(false)}
             >
-              <Icon sprite={IconX} />
-            </Button>
+              <Icon sprite={IconX} className="w-5 h-5" />
+            </button>
           </div>
           
-          <div className="c-media-library__modal-section">
-            <div className="c-media-library__modal-section-label">Image:</div>
-            <div className="c-media-library__modal-section-value">{selectedAsset.name}</div>
-            <span className={`c-media-library__badge ${getMediaTypeBadgeClass(selectedAsset.mediaType)}`}>
-              {getMediaTypeLabel(selectedAsset.mediaType)}
-            </span>
+          <div className="flex items-center gap-4 mb-4 p-3 bg-tertiary rounded-card">
+            <div className="w-16 h-16 rounded-card overflow-hidden bg-surface-alt shrink-0">
+              <img 
+                src={getAssetURL(selectedAsset)} 
+                alt={selectedAsset.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-foreground truncate">{selectedAsset.name}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`text-2xs px-2 py-0.5 rounded-full font-medium ${getBadgeClasses(selectedAsset.mediaType)}`}>
+                  {getMediaTypeLabel(selectedAsset.mediaType)}
+                </span>
+                <span className="text-xs text-muted">{formatFileSize(selectedAsset.size)}</span>
+              </div>
+            </div>
           </div>
           
-          <div className="c-media-library__modal-section">
-            <div className="c-media-library__modal-section-label">Used in:</div>
-            <div className="c-media-library__modal-usage">
+          <div className="mb-4">
+            <div className="text-sm font-medium text-foreground mb-2">Used in:</div>
+            <div className="bg-tertiary rounded-card overflow-hidden">
               {selectedAsset.usedIn && selectedAsset.usedIn.length > 0 ? (
-                <ul className="c-media-library__modal-usage-list">
-                  {selectedAsset.usedIn.map((usage: string, index: number) => (
-                    <li key={index} className="c-media-library__modal-usage-list-item">{usage}</li>
-                  ))}
-                </ul>
+                <div className="max-h-[250px] overflow-y-auto divide-y divide-surface-alt">
+                  {selectedAsset.usedIn.map((usage: string, index: number) => {
+                    const { text, href } = parseUsageLink(usage)
+                    return href ? (
+                      <div 
+                        key={index}
+                        className="flex items-center justify-between px-3 py-2.5 text-sm text-foreground hover:bg-surface-alt transition-colors"
+                      >
+                        <span>{text}</span>
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-primary text-xs hover:text-primary-hover transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <span>Go to post</span>
+                          <Icon sprite={IconExternalLink} className="w-3 h-3" />
+                        </a>
+                      </div>
+                    ) : (
+                      <div key={index} className="px-3 py-2.5 text-sm text-muted">{text}</div>
+                    )
+                  })}
+                </div>
               ) : (
-                <p className="c-media-library__modal-usage-empty">This image is not currently used anywhere.</p>
+                <div className="px-3 py-6 text-center text-muted italic">
+                  This image is not currently used anywhere.
+                </div>
               )}
             </div>
           </div>
           
-          <div className="c-media-library__modal-actions">
+          <div className="flex justify-end gap-2">
             <Button 
               variant="tertiary" 
+              size="small"
               onClick={() => setShowUsageModal(false)}
             >
               Close
@@ -578,81 +653,93 @@ const FileManagementPage: React.FC = () => {
   }
 
   const renderMediaCard = (asset: MediaAsset) => {
-    const badgeClass = getMediaTypeBadgeClass(asset.mediaType);
-    const typeLabel = getMediaTypeLabel(asset.mediaType);
-    
     return (
-      <div key={asset.blobKey} className="c-media-library__card">
-        <div className="c-media-library__card-preview">
-          <div className="c-media-library__card-preview-image">
-            <ImageGallery bkeys={[asset.blobKey]} />
-          </div>
+      <div key={asset.blobKey} className="bg-elevated rounded-card overflow-hidden border border-surface-alt transition-all hover:shadow-lg hover:border-border-strong group">
+        <div 
+          className="relative aspect-square bg-surface-alt flex items-center justify-center overflow-hidden cursor-pointer"
+          onClick={() => openImageGallery(asset)}
+        >
+          <img 
+            src={getAssetURL(asset)} 
+            alt={asset.name}
+            className="w-full h-full object-cover transition-transform duration-75 group-hover:scale-105"
+            loading="lazy"
+          />
           
-          <div className="c-media-library__card-preview-badges">
-            <span className={`c-media-library__badge ${badgeClass}`}>
-              {typeLabel}
+          <div className="absolute top-2 left-2 flex flex-col gap-1">
+            <span className={`text-2xs px-2 py-0.5 rounded-full font-medium ${getBadgeClasses(asset.mediaType)}`}>
+              {getMediaTypeLabel(asset.mediaType)}
             </span>
             
             {asset.isInUse && (
-              <span className="c-media-library__badge c-media-library__badge--in-use">
+              <span className="text-2xs px-2 py-0.5 rounded-full font-medium bg-success-light text-success">
                 In Use
               </span>
             )}
           </div>
           
-          <div className="c-media-library__card-preview-size">
+          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-2xs px-2 py-0.5 rounded-full backdrop-blur-sm">
             {formatFileSize(asset.size)}
           </div>
         </div>
         
-        <div className="c-media-library__card-info">
-          <div className="c-media-library__card-info-meta">
-            <span className="c-media-library__card-info-meta-name" title={asset.name}>
+        <div className="p-3">
+          <div className="mb-2">
+            <span className="font-medium text-sm overflow-hidden text-ellipsis whitespace-nowrap text-foreground block" title={asset.name}>
               {asset.name}
             </span>
-            <span className="c-media-library__card-info-meta-date">
+            <span className="text-2xs text-muted">
               {new Date(asset.createdAt).toLocaleDateString()}
             </span>
           </div>
           
-          <div className="c-media-library__card-info-actions">
-            <Button 
-              size="small" 
-              variant="tertiary" 
+          <div className="flex gap-1">
+            <button 
+              type="button"
               onClick={() => downloadAsset(asset)} 
-              className="c-media-library__card-info-actions-btn"
+              className="flex-1 p-2 min-w-0 rounded-badge border-none bg-transparent text-muted hover:bg-surface-alt hover:text-foreground transition-colors cursor-pointer flex items-center justify-center"
+              title="Download"
             >
-              <Icon sprite={IconDownload} />
-            </Button>
+              <Icon sprite={IconDownload} className="w-4 h-4" />
+            </button>
+            
+            <button 
+              type="button"
+              onClick={() => copyImageLocation(asset)} 
+              className="flex-1 p-2 min-w-0 rounded-badge border-none bg-transparent text-muted hover:bg-surface-alt hover:text-foreground transition-colors cursor-pointer flex items-center justify-center"
+              title="Copy image location"
+            >
+              <Icon sprite={copiedAssetKey === asset.blobKey ? IconCheck : IconCopy} className="w-4 h-4" />
+            </button>
             
             {asset.isInUse && (
-              <Button 
-                size="small" 
-                variant="tertiary" 
+              <button 
+                type="button"
                 onClick={() => showAssetUsage(asset)} 
-                className="c-media-library__card-info-actions-btn"
+                className="flex-1 p-2 min-w-0 rounded-badge border-none bg-transparent text-muted hover:bg-accent-light hover:text-primary transition-colors cursor-pointer flex items-center justify-center"
+                title="View usage"
               >
-                <Icon sprite={IconEye} />
-              </Button>
+                <Icon sprite={IconEye} className="w-4 h-4" />
+              </button>
             )}
             
-            <Button 
-              size="small" 
-              variant="tertiary" 
+            <button 
+              type="button"
               onClick={() => startEdit(asset)} 
-              className="c-media-library__card-info-actions-btn"
+              className="flex-1 p-2 min-w-0 rounded-badge border-none bg-transparent text-muted hover:bg-surface-alt hover:text-foreground transition-colors cursor-pointer flex items-center justify-center"
+              title="Rename"
             >
-              <Icon sprite={IconPencilAlt} />
-            </Button>
+              <Icon sprite={IconPencilAlt} className="w-4 h-4" />
+            </button>
             
-            <Button 
-              size="small" 
-              variant="tertiary" 
+            <button 
+              type="button"
               onClick={() => openDeleteConfirmation(asset)} 
-              className="c-media-library__card-info-actions-btn c-media-library__card-info-actions-btn--delete"
+              className="flex-1 p-2 min-w-0 rounded-badge border-none bg-transparent text-muted hover:bg-danger-light hover:text-danger transition-colors cursor-pointer flex items-center justify-center"
+              title="Delete"
             >
-              <Icon sprite={IconTrash} />
-            </Button>
+              <Icon sprite={IconTrash} className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -666,12 +753,12 @@ const FileManagementPage: React.FC = () => {
 
     if (assets.length === 0) {
       return (
-        <div className="c-media-library__empty">
-          <div className="c-media-library__empty-icon">
+        <div className="flex flex-col items-center justify-center p-12 px-4 text-center">
+          <div className="text-border mb-4 [&_svg]:w-12 [&_svg]:h-12">
             <Icon sprite={IconEye} />
           </div>
-          <p className="c-media-library__empty-title">No images found</p>
-          <p className="c-media-library__empty-subtitle">
+          <p className="text-muted text-lg font-medium mb-2">No images found</p>
+          <p className="text-muted text-sm mb-4">
             {searchQuery || mediaTypeFilter !== MediaType.ALL
               ? "Try different search or filter settings"
               : ""}
@@ -693,7 +780,7 @@ const FileManagementPage: React.FC = () => {
     }
 
     return (
-      <div className="c-media-library__grid">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
         {assets.map(asset => renderMediaCard(asset))}
       </div>
     );
@@ -709,13 +796,12 @@ const FileManagementPage: React.FC = () => {
         {renderUsageModal()}
         {renderDeleteConfirmation()}
         
-        <div className="c-media-library__header">
-          <div className="c-media-library__header-search">
-            <div className="c-media-library__header-search-icon">
-              <Icon sprite={IconEye} />
-            </div>
+        <div className="flex flex-col sm:flex-row justify-between mb-4 gap-3">
+          <div className="relative flex-1 max-w-[350px] [&_.c-form-field]:mb-0">
             <Input
               field="search"
+              icon={searchQuery ? IconX : IconSearch}
+              onIconClick={searchQuery ? () => handleSearchChange("") : undefined}
               placeholder="Search images..."
               value={searchQuery}
               onChange={handleSearchChange}
@@ -723,112 +809,67 @@ const FileManagementPage: React.FC = () => {
           </div>
           
           <Button variant="primary" onClick={() => setView("upload")}>
-            <Icon sprite={IconUpload} />
-            <span>Upload New Image</span>
+            <Icon sprite={IconUpload} className="w-4 h-4" />
+            <span>Upload</span>
           </Button>
         </div>
         
-        <div className="c-media-library__filters">
-          <div className="c-media-library__filters-section">
-            <span className="c-media-library__filters-section-label">Type:</span>
-            <Button 
-              variant={mediaTypeFilter === MediaType.ALL ? "primary" : "tertiary"} 
-              size="small"
-              onClick={() => handleMediaTypeFilter(MediaType.ALL)}
-              className="c-media-library__filters-btn"
-            >
-              All
-            </Button>
-            
-            <Button 
-              variant={mediaTypeFilter === MediaType.ADMIN ? "primary" : "tertiary"} 
-              size="small"
-              onClick={() => handleMediaTypeFilter(MediaType.ADMIN)}
-              className="c-media-library__filters-btn"
-            >
-              Admin Uploads
-            </Button>
-            
-            <Button 
-              variant={mediaTypeFilter === MediaType.ATTACHMENT ? "primary" : "tertiary"} 
-              size="small"
-              onClick={() => handleMediaTypeFilter(MediaType.ATTACHMENT)}
-              className="c-media-library__filters-btn"
-            >
-              Attachments
-            </Button>
-            
-            <Button 
-              variant={mediaTypeFilter === MediaType.AVATAR ? "primary" : "tertiary"} 
-              size="small"
-              onClick={() => handleMediaTypeFilter(MediaType.AVATAR)}
-              className="c-media-library__filters-btn"
-            >
-              Avatars
-            </Button>
-            
-            <Button 
-              variant={mediaTypeFilter === MediaType.LOGO ? "primary" : "tertiary"} 
-              size="small"
-              onClick={() => handleMediaTypeFilter(MediaType.LOGO)}
-              className="c-media-library__filters-btn"
-            >
-              Logos
-            </Button>
+        <div className="bg-elevated border border-surface-alt rounded-card p-4 mb-5">
+          <div className="flex flex-wrap items-center gap-2 mb-3 pb-3 border-b border-surface-alt">
+            <span className="text-sm font-medium text-muted shrink-0">Type:</span>
+            {[
+              { value: MediaType.ALL, label: "All" },
+              { value: MediaType.ADMIN, label: "Admin" },
+              { value: MediaType.ATTACHMENT, label: "Attachments" },
+              { value: MediaType.AVATAR, label: "Avatars" },
+              { value: MediaType.LOGO, label: "Logos" },
+            ].map(({ value, label }) => (
+              <button 
+                key={value}
+                type="button"
+                onClick={() => handleMediaTypeFilter(value)}
+                className={classSet({
+                  "px-3 py-1.5 text-sm rounded-button border-none cursor-pointer transition-colors": true,
+                  "bg-primary text-white": mediaTypeFilter === value,
+                  "bg-transparent text-muted hover:bg-surface-alt hover:text-foreground": mediaTypeFilter !== value,
+                })}
+              >
+                {label}
+              </button>
+            ))}
           </div>
           
-          <div className="c-media-library__filters-section">
-            <span className="c-media-library__filters-section-label">Sort by:</span>
-            <Button 
-              variant={sortBy === "name" ? "primary" : "tertiary"} 
-              size="small"
-              onClick={() => handleSortChange("name")}
-              className="c-media-library__filters-btn"
-            >
-              Name 
-              {sortBy === "name" && (
-                <span className="c-media-library__filters-btn-sort-icon">
-                  {sortDir === "asc" ? "^" : "v"}
-                </span>
-              )}
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-muted shrink-0">Sort:</span>
+            {[
+              { value: "name", label: "Name" },
+              { value: "size", label: "Size" },
+              { value: "createdAt", label: "Date" },
+            ].map(({ value, label }) => (
+              <button 
+                key={value}
+                type="button"
+                onClick={() => handleSortChange(value)}
+                className={classSet({
+                  "px-3 py-1.5 text-sm rounded-button border-none cursor-pointer transition-colors inline-flex items-center gap-1": true,
+                  "bg-accent-light text-primary font-medium": sortBy === value,
+                  "bg-transparent text-muted hover:bg-surface-alt hover:text-foreground": sortBy !== value,
+                })}
+              >
+                {label}
+                {sortBy === value && (
+                  <span className="text-xs">{sortDir === "asc" ? "\u2191" : "\u2193"}</span>
+                )}
+              </button>
+            ))}
             
-            <Button 
-              variant={sortBy === "size" ? "primary" : "tertiary"} 
-              size="small"
-              onClick={() => handleSortChange("size")}
-              className="c-media-library__filters-btn"
-            >
-              Size 
-              {sortBy === "size" && (
-                <span className="c-media-library__filters-btn-sort-icon">
-                  {sortDir === "asc" ? "^" : "v"}
-                </span>
-              )}
-            </Button>
-            
-            <Button 
-              variant={sortBy === "createdAt" ? "primary" : "tertiary"} 
-              size="small"
-              onClick={() => handleSortChange("createdAt")}
-              className="c-media-library__filters-btn"
-            >
-              Date 
-              {sortBy === "createdAt" && (
-                <span className="c-media-library__filters-btn-sort-icon">
-                  {sortDir === "asc" ? "^" : "v"}
-                </span>
-              )}
-            </Button>
-            
-            <Button 
-              variant="secondary" 
-              size="small"
+            <button 
+              type="button"
               onClick={loadAssets}
-              className="c-media-library__filters-section-auto"
+              className="ml-auto px-3 py-1.5 text-sm rounded-input border border-border bg-elevated text-muted hover:bg-surface-alt hover:text-foreground transition-colors cursor-pointer"
             >
               Refresh
-            </Button>
+            </button>
           </div>
         </div>
         
@@ -843,7 +884,7 @@ const FileManagementPage: React.FC = () => {
         )}
 
         {pagination.total > 0 && (
-          <div className="c-media-library__counter">
+          <div className="mt-4 text-sm text-muted text-center">
             Showing {Math.min((pagination.page - 1) * pagination.pageSize + 1, pagination.total)} 
             -{Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total} image
             {pagination.total !== 1 ? 's' : ''}
@@ -853,8 +894,37 @@ const FileManagementPage: React.FC = () => {
     );
   }
 
+  const renderImageGallery = () => {
+    if (!showImageGallery || !galleryImageUrl) return null;
+
+    return (
+      <div 
+        className="fixed inset-0 z-modal bg-black/90 flex items-center justify-center"
+        onClick={closeImageGallery}
+      >
+        <button
+          className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer border-0 transition-colors"
+          onClick={closeImageGallery}
+        >
+          <Icon sprite={IconX} className="w-6 h-6" />
+        </button>
+        <div 
+          className="flex items-center justify-center max-w-[90vw] max-h-[90vh]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <img 
+            src={galleryImageUrl}
+            alt=""
+            className="max-w-full max-h-[85vh] object-contain rounded-panel"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="c-media-library">
+    <div>
+      {renderImageGallery()}
       {view === "upload" ? renderUploadView() : renderBrowseView()}
     </div>
   );

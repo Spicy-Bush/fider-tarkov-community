@@ -1,4 +1,4 @@
-import "./AdminLayout.scss"
+// AdminLayout converted to Tailwind
 
 import React, { ReactNode, useEffect, useState } from "react"
 import { useLayout, LayoutVariant } from "@fider/contexts/LayoutContext"
@@ -37,7 +37,7 @@ const AdminLayoutRoot: React.FC<AdminLayoutProps> = ({
   }, [layoutVariant, setLayoutVariant])
 
   useEffect(() => {
-    const isMobile = window.matchMedia("(max-width: 640px)").matches
+    const isMobile = window.matchMedia("(max-width: 768px)").matches
     if (!isMobile) return
 
     const handleTouchStart = (e: TouchEvent) => {
@@ -85,28 +85,29 @@ const AdminLayoutRoot: React.FC<AdminLayoutProps> = ({
     }
   }, [touchStart, sidebarOpen, setSidebarOpen])
 
-  const className = classSet({
-    "c-admin-layout": true,
-  })
-
   const handleOverlayClick = () => {
     setSidebarOpen(false)
   }
 
   return (
     <AdminLayoutContext.Provider value={{ title, subtitle, sidebarItem, layoutVariant }}>
-      <div
-        className={className}
-        data-sidebar-open={sidebarOpen}
-        data-layout-variant={layoutVariant}
-      >
+      <div className="flex min-h-screen">
+        {/* Overlay for mobile only */}
         <div
-          className="c-admin-layout__overlay"
+          className={classSet({
+            "hidden max-md:block fixed inset-0 bg-black/40 z-toolbar transition-opacity duration-75": true,
+            "opacity-100 pointer-events-auto": sidebarOpen,
+            "opacity-0 pointer-events-none": !sidebarOpen,
+          })}
           onClick={handleOverlayClick}
           aria-hidden="true"
         />
         <AdminSidebar />
-        <div className="c-admin-layout__main">
+        <div className={classSet({
+          "flex-1 flex flex-col w-full transition-[margin-left] duration-75 max-md:ml-0": true,
+          "ml-[200px]": sidebarOpen,
+          "ml-[58px]": !sidebarOpen,
+        })}>
           <AdminHeader />
           <AdminContent>{children}</AdminContent>
         </div>
@@ -119,4 +120,3 @@ export const AdminLayout = AdminLayoutRoot as AdminLayoutComponent
 AdminLayout.Sidebar = AdminSidebar
 AdminLayout.Header = AdminHeader
 AdminLayout.Content = AdminContent
-

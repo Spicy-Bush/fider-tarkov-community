@@ -58,12 +58,11 @@ export const MentionPortal: React.FC<MentionPortalProps> = ({
     <Portal>
       <div
         ref={ref}
-        className="mention-portal"
+        className="mention-portal bg-elevated"
         style={{
           position: "absolute",
           zIndex: 1000,
           padding: "3px",
-          background: "white",
           borderRadius: "4px",
           boxShadow: "0 1px 5px rgba(0,0,0,.2)",
           maxHeight: "200px",
@@ -78,7 +77,7 @@ export const MentionPortal: React.FC<MentionPortalProps> = ({
               padding: "4px 8px",
               borderRadius: "3px",
               cursor: "pointer",
-              background: i === selectedIndex ? "#e0e0e0" : "transparent",
+              background: i === selectedIndex ? "var(--color-surface-alt)" : "transparent",
             }}
           >
             @{user.name}

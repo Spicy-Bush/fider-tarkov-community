@@ -28,6 +28,7 @@
         "@lingui/macro": "^5.1.2",
         "@lingui/vite-plugin": "^5.6.1",
         "@playwright/test": "^1.57.0",
+        "@tailwindcss/postcss": "^4.1.18",
         "@testing-library/jest-dom": "^6.9.1",
         "@testing-library/react": "^16.0.1",
         "@types/debug": "^4.1.12",
@@ -51,8 +52,10 @@
         "eslint-plugin-react-hooks": "^7.0.1",
         "jest": "28.1.0",
         "jest-environment-jsdom": "28.1.0",
+        "postcss": "^8.5.6",
         "prettier": "^3.7.4",
         "sass": "^1.95.1",
+        "tailwindcss": "^4.1.18",
         "typescript": "^5.9.3",
         "vite": "^7.2.7"
     },

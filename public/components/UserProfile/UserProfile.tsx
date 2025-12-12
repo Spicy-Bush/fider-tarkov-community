@@ -1,4 +1,4 @@
-import "./UserProfile.scss"
+// UserProfile converted to Tailwind
 
 import React, { ReactNode } from "react"
 import { UserProfileProvider, UserData } from "./context"
@@ -40,15 +40,12 @@ const UserProfileRoot: React.FC<UserProfileProps> = ({
   onUserUpdate,
   children,
 }) => {
-  const className = classSet({
-    "c-user-profile": true,
-    "c-user-profile--embedded": embedded,
-    "c-user-profile--compact": compact,
-  })
-
   return (
     <UserProfileProvider userId={userId} user={user} embedded={embedded} compact={compact} onUserUpdate={onUserUpdate}>
-      <div className={className}>
+      <div className={classSet({
+        "max-w-[1200px] mx-auto p-5 pb-[calc(20px+100px)] grid grid-cols-1 gap-3 relative max-md:p-3 max-md:pb-[calc(12px+100px)]": true,
+        "max-w-none p-0 m-0 bg-tertiary": embedded,
+      })}>
         {children}
       </div>
     </UserProfileProvider>
@@ -64,4 +61,3 @@ UserProfile.Search = UserProfileSearch
 UserProfile.Standing = UserProfileStanding
 UserProfile.Settings = UserProfileSettings
 UserProfile.Details = UserProfileDetails
-

@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from "react"
 import { ReactionCount } from "@fider/models"
 import { Icon } from "@fider/components"
-import { reactionAdd as ReactionAdd } from "@fider/icons.generated"
-import { HStack } from "@fider/components/layout"
+import { heroiconsSmile as IconSmile } from "@fider/icons.generated"
 import { classSet } from "@fider/services"
 import { useFider } from "@fider/hooks"
-import "./Reactions.scss"
 
 interface ReactionsProps {
   emojiSelectorRef: React.RefObject<HTMLDivElement>
@@ -33,54 +31,66 @@ export const Reactions: React.FC<ReactionsProps> = ({ emojiSelectorRef, toggleRe
   }, [])
 
   return (
-    <div ref={emojiSelectorRef}>
-      <HStack spacing={2} align="center" className="mt-2 c-reactions relative">
+    <div ref={emojiSelectorRef} className="relative">
+      <div className="flex flex-wrap items-center gap-1.5 mt-3">
         {fider.session.isAuthenticated && (
-          <>
-            <span
-              onClick={() => setIsEmojiSelectorOpen(!isEmojiSelectorOpen)}
-              className="c-reactions-add-reaction relative text-gray-600 clickable inline-flex items-center px-1 py-1 rounded-full text-xs bg-blue-100 hover:bg-blue-200"
+          <button
+            type="button"
+            onClick={() => setIsEmojiSelectorOpen(!isEmojiSelectorOpen)}
+            className={classSet({
+              "inline-flex items-center justify-center w-7 h-7 rounded-button border transition-all duration-50 cursor-pointer": true,
+              "bg-transparent border-border text-muted hover:text-foreground hover:border-border-strong": !isEmojiSelectorOpen,
+              "bg-primary/20 border-primary text-primary": isEmojiSelectorOpen,
+            })}
+          >
+            <Icon width="16" height="16" sprite={IconSmile} />
+          </button>
+        )}
+        
+        {reactions !== undefined && reactions.map((reaction) => (
+          <button
+            type="button"
+            key={reaction.emoji}
+            onClick={fider.session.isAuthenticated ? () => toggleReaction(reaction.emoji) : undefined}
+            disabled={!fider.session.isAuthenticated}
+            className={classSet({
+              "inline-flex items-center gap-1 px-1.5 py-0.5 text-sm transition-all duration-100 rounded-badge": true,
+              "cursor-pointer hover:scale-105": fider.session.isAuthenticated,
+              "cursor-default": !fider.session.isAuthenticated,
+              "reaction-active": reaction.includesMe,
+            })}
+          >
+            <span className={classSet({
+              "text-base": true,
+              "emoji-shadow": !reaction.includesMe,
+              "emoji-glow": reaction.includesMe,
+            })}>{reaction.emoji}</span>
+            <span className={classSet({
+              "font-semibold text-xs": true,
+              "text-primary": reaction.includesMe,
+              "text-muted": !reaction.includesMe,
+            })}>{reaction.count}</span>
+          </button>
+        ))}
+      </div>
+      
+      {isEmojiSelectorOpen && (
+        <div className="absolute left-0 bottom-full mb-2 flex gap-1 p-2 bg-elevated border border-border rounded-card shadow-lg z-50">
+          {availableEmojis.map((emoji) => (
+            <button
+              type="button"
+              key={emoji}
+              className="w-8 h-8 flex items-center justify-center text-lg rounded-button hover:bg-tertiary transition-colors duration-100 cursor-pointer"
+              onClick={() => {
+                toggleReaction(emoji)
+                setIsEmojiSelectorOpen(false)
+              }}
             >
-              <Icon width="18" height="18" sprite={ReactionAdd} className="" />
-            </span>
-            {isEmojiSelectorOpen && (
-              <div className="c-reactions-emojis p-2 absolute bg-white border rounded shadow-lg">
-                {availableEmojis.map((emoji) => (
-                  <a
-                    key={emoji}
-                    className="clickable p-2 hover:bg-gray-100"
-                    onClick={() => {
-                      toggleReaction(emoji)
-                      setIsEmojiSelectorOpen(false)
-                    }}
-                  >
-                    {emoji}
-                  </a>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-        {reactions !== undefined && (
-          <>
-            {reactions.map((reaction) => (
-              <span
-                key={reaction.emoji}
-                {...(fider.session.isAuthenticated && { onClick: () => toggleReaction(reaction.emoji) })}
-                className={classSet({
-                  "inline-flex items-center px-2 py-1 rounded-full text-xs": true,
-                  "bg-blue-100": reaction.includesMe,
-                  "bg-gray-100": !reaction.includesMe,
-                  "clickable hover:bg-blue-200": fider.session.isAuthenticated && reaction.includesMe,
-                  "clickable hover:bg-gray-200": fider.session.isAuthenticated && !reaction.includesMe,
-                })}
-              >
-                {reaction.emoji} <span className="ml-1 font-semibold">{reaction.count}</span>
-              </span>
-            ))}
-          </>
-        )}
-      </HStack>
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

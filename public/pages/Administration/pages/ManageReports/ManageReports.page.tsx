@@ -4,7 +4,6 @@ import { useStackNavigation, useRealtimePresence } from "@fider/hooks"
 import { useReportsState, useReportsEvents, useReportsActions, ViewingUserType } from "./hooks"
 import { ReportsList, ReportsPreview, ResolveModal } from "./components"
 
-import "../ManageReports.page.scss"
 
 export const pageConfig: PageConfig = {
   title: "Reports",
@@ -109,7 +108,7 @@ const ManageReportsPage: React.FC = () => {
   }, [state.setViewingUser])
 
   return (
-    <div className="c-reports-split-view">
+    <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-130px)] min-h-[500px]">
       <ReportsList
         reports={state.reports}
         total={state.total}

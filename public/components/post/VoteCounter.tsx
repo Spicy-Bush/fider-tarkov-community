@@ -1,5 +1,3 @@
-import "./VoteCounter.scss"
-
 import React, { useState, useEffect } from "react"
 import { Post, PostStatus, isPostLocked } from "@fider/models"
 import { actions, classSet } from "@fider/services"
@@ -89,29 +87,30 @@ export const VoteCounter = (props: VoteCounterProps) => {
   const isDisabled = status.closed || fider.isReadOnly || isPostLocked(props.post)
 
   const upvoteClassName = classSet({
-    "c-vote-counter__button": true,
-    "c-vote-counter__button--voted": !status.closed && voteType === 'up',
-    "c-vote-counter__button--disabled": isDisabled,
+    "text-lg w-11 font-bold cursor-pointer text-center mx-auto py-0.5 pb-2 text-muted flex flex-col items-center [&_svg]:text-border-strong [&_svg]:-mb-0.5": true,
+    "hover:text-primary hover:[&_svg]:text-primary": !isDisabled,
+    "text-primary [&_svg]:text-primary": !status.closed && voteType === 'up',
+    "opacity-50 cursor-not-allowed pointer-events-none": isDisabled,
   })
 
   const downvoteClassName = classSet({
-    "c-vote-counter__button": true, 
-    "c-vote-counter__button--down": true,
-    "c-vote-counter__button--voted": !status.closed && voteType === 'down',
-    "c-vote-counter__button--disabled": isDisabled,
+    "text-lg w-11 font-bold cursor-pointer text-center mx-auto py-0.5 pb-2 text-muted flex flex-col items-center [&_svg]:text-border-strong [&_svg]:-mb-0.5": true,
+    "hover:text-danger hover:[&_svg]:text-danger": !isDisabled,
+    "text-danger [&_svg]:text-danger": !status.closed && voteType === 'down',
+    "opacity-50 cursor-not-allowed pointer-events-none": isDisabled,
   })
 
   const countClassName = classSet({
-    "c-vote-counter__count": true,
-    "c-vote-counter__count--positive": votesDifference > 0,
-    "c-vote-counter__count--negative": votesDifference < 0,
-    "c-vote-counter__count--neutral": votesDifference === 0,
+    "font-bold": true,
+    "text-foreground": votesDifference > 0,
+    "text-danger": votesDifference < 0,
+    "text-muted": votesDifference === 0,
   })
 
   return (
     <>
       <SignInModal isOpen={isSignInModalOpen} onClose={hideModal} />
-      <div className="c-vote-counter">
+      <div className="flex flex-col items-center">
         <button 
           className={upvoteClassName} 
           onClick={() => handleVote('up')}
@@ -135,4 +134,3 @@ export const VoteCounter = (props: VoteCounterProps) => {
     </>
   )
 }
-

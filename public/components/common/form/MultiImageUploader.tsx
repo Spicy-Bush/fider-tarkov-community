@@ -1,10 +1,10 @@
+// MultiImageUploader converted to Tailwind
+
 import React from "react"
 import { ImageUploader } from "./ImageUploader"
 import { ImageUpload } from "@fider/models"
 import { ValidationContext, hasError, DisplayError } from "@fider/components"
 import { classSet } from "@fider/services"
-
-import "./MultiImageUploader.scss"
 
 interface MultiImageUploaderProps {
   field: string
@@ -112,12 +112,11 @@ export class MultiImageUploader extends React.Component<MultiImageUploaderProps,
         {(ctx) => (
           <div
             className={classSet({
-              "c-form-field": true,
-              "c-multi-image-uploader": true,
-              "m-error": hasError(this.props.field, ctx.error),
+              "mb-4": true,
+              "has-error": hasError(this.props.field, ctx.error),
             })}
           >
-            <div className="c-multi-image-uploader-instances">{elements}</div>
+            <div className="flex flex-wrap gap-2.5">{elements}</div>
             <DisplayError fields={[this.props.field]} error={ctx.error} />
           </div>
         )}

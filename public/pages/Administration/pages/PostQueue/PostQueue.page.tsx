@@ -5,7 +5,6 @@ import { useStackNavigation, useRealtimePresence } from "@fider/hooks"
 import { useQueueState, useQueueEvents, useQueueActions, QueueSortOption } from "./hooks"
 import { QueueList, QueuePreview } from "./components"
 
-import "../PostQueue.page.scss"
 
 export const pageConfig: PageConfig = {
   title: "Post Queue",
@@ -120,27 +119,30 @@ const PostQueuePage: React.FC<PostQueuePageProps> = (props) => {
     : []
 
   const handleNextPost = useCallback(() => {
-    if (!state.selectedPost || state.posts.length === 0) return
+    if (!state.selectedPost) return
     
     const currentIndex = state.posts.findIndex((p) => p.id === state.selectedPost?.id)
-    const nextIndex = currentIndex + 1
     
-    if (nextIndex < state.posts.length) {
-      actions.handleSelectPost(state.posts[nextIndex])
-    } else if (state.posts.length > 0) {
-      actions.handleSelectPost(state.posts[0])
+    if (currentIndex === -1 || currentIndex >= state.posts.length - 1) {
+      actions.handleDeselectPost()
+      return
     }
     
-    const previewEl = document.querySelector(".c-queue-split-view__preview--mobile-open")
-    if (previewEl) {
-      previewEl.scrollTo({ top: 0, behavior: "smooth" })
-    } else {
+    const nextPost = state.posts[currentIndex + 1]
+    if (nextPost) {
+      actions.handleSelectPost(nextPost)
+      const previewEl = document.getElementById("queue-preview-container")
+      if (previewEl) {
+        previewEl.scrollTo({ top: 0, behavior: "smooth" })
+      }
       window.scrollTo({ top: 0, behavior: "smooth" })
+    } else {
+      actions.handleDeselectPost()
     }
-  }, [state.selectedPost, state.posts, actions.handleSelectPost])
+  }, [state.selectedPost, state.posts, actions.handleSelectPost, actions.handleDeselectPost])
 
   return (
-    <div className="c-queue-split-view">
+    <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-130px)] min-h-[500px]">
       <QueueList
         posts={state.posts}
         total={state.total}

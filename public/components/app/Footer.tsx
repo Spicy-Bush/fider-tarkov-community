@@ -1,4 +1,3 @@
-import "./Footer.scss"
 import React, { useEffect, useRef, useState } from "react"
 import { Icon } from "@fider/components/common"
 import { heroiconsChevronUp, heroiconsChevronDown } from "@fider/icons.generated"
@@ -92,57 +91,60 @@ const Footer: React.FC = () => {
   }, [])
 
   return (
-    <footer ref={ref} className={`site-footer ${expanded ? "site-footer--expanded" : ""}`} style={{ transform: "translateY(100%)" }}>
+    <footer 
+      ref={ref} 
+      className="fixed bottom-0 left-0 right-0 py-4 md:py-4 max-md:p-0 bg-elevated border-t border-border z-dropdown will-change-transform" 
+      style={{ transform: "translateY(100%)" }}
+    >
       <button 
-        className="site-footer__bar"
+        className="hidden max-md:flex w-full items-center justify-between px-3 py-2 bg-transparent border-none cursor-pointer"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
         aria-label={expanded ? "Collapse footer links" : "Expand footer links"}
       >
-        <span>© {currentYear} Spicy Bush Team</span>
-        <Icon className="site-footer__toggle" sprite={expanded ? heroiconsChevronDown : heroiconsChevronUp} height="20" width="20" />
+        <span className="m-0 p-0 text-xs text-muted">© {currentYear} Spicy Bush Team</span>
+        <Icon className="hidden max-md:flex text-muted" sprite={expanded ? heroiconsChevronDown : heroiconsChevronUp} height="20" width="20" />
       </button>
-      <nav className="site-footer__nav">
-        <ul>
-          <li>
-            <a href="/terms">
-              <span className="site-footer__text--short">Terms</span>
-              <span className="site-footer__text--full">Terms & Conditions</span>
+      <nav className={`max-md:max-h-0 max-md:overflow-hidden max-md:transition-[max-height] max-md:duration-300 ${expanded ? 'max-md:max-h-[60px] max-md:border-t max-md:border-border/50' : ''}`}>
+        <ul className="flex flex-wrap justify-center list-none p-0 m-0 mb-4 max-md:flex-row max-md:flex-nowrap max-md:gap-4 max-md:mb-0 max-md:px-3 max-md:py-2 max-md:overflow-x-auto max-md:scrollbar-none">
+          <li className="mx-2 max-md:mx-0 max-md:shrink-0">
+            <a href="/terms" className="no-underline hover:underline text-foreground max-md:text-sm max-md:whitespace-nowrap">
+              <span className="hidden max-md:inline">Terms</span>
+              <span className="inline max-md:hidden">Terms & Conditions</span>
             </a>
           </li>
-          <li>
-            <a href="/privacy">
-              <span className="site-footer__text--short">Privacy</span>
-              <span className="site-footer__text--full">Privacy Policy</span>
+          <li className="mx-2 max-md:mx-0 max-md:shrink-0">
+            <a href="/privacy" className="no-underline hover:underline text-foreground max-md:text-sm max-md:whitespace-nowrap">
+              <span className="hidden max-md:inline">Privacy</span>
+              <span className="inline max-md:hidden">Privacy Policy</span>
             </a>
           </li>
-          <li>
-            <a href="mailto:contact@tarkov.community">Contact</a>
+          <li className="mx-2 max-md:mx-0 max-md:shrink-0">
+            <a href="mailto:contact@tarkov.community" className="no-underline hover:underline text-foreground max-md:text-sm max-md:whitespace-nowrap">Contact</a>
           </li>
-          <li>
-            <a href="https://discord.gg/escapefromtarkovofficial" target="_blank" rel="noreferrer">
-              <span className="site-footer__text--short">Discord</span>
-              <span className="site-footer__text--full">Official Tarkov Discord</span>
+          <li className="mx-2 max-md:mx-0 max-md:shrink-0">
+            <a href="https://discord.gg/escapefromtarkovofficial" target="_blank" rel="noreferrer" className="no-underline hover:underline text-foreground max-md:text-sm max-md:whitespace-nowrap">
+              <span className="hidden max-md:inline">Discord</span>
+              <span className="inline max-md:hidden">Official Tarkov Discord</span>
             </a>
           </li>
-          <li>
-            <a href="https://www.escapefromtarkov.com/support" target="_blank" rel="noreferrer">
-              <span className="site-footer__text--short">Support</span>
-              <span className="site-footer__text--full">Official Tarkov Support</span>
+          <li className="mx-2 max-md:mx-0 max-md:shrink-0">
+            <a href="https://www.escapefromtarkov.com/support" target="_blank" rel="noreferrer" className="no-underline hover:underline text-foreground max-md:text-sm max-md:whitespace-nowrap">
+              <span className="hidden max-md:inline">Support</span>
+              <span className="inline max-md:hidden">Official Tarkov Support</span>
             </a>
           </li>
-          <li>
-            <a href="https://ko-fi.com/tarkovcommunity" target="_blank" rel="noreferrer">
-              <span className="site-footer__text--short">Ko-fi</span>
-              <span className="site-footer__text--full">Support us on Ko-fi</span>
+          <li className="mx-2 max-md:mx-0 max-md:shrink-0">
+            <a href="https://ko-fi.com/tarkovcommunity" target="_blank" rel="noreferrer" className="no-underline hover:underline text-foreground max-md:text-sm max-md:whitespace-nowrap">
+              <span className="hidden max-md:inline">Ko-fi</span>
+              <span className="inline max-md:hidden">Support us on Ko-fi</span>
             </a>
           </li>
         </ul>
       </nav>
-      <p className="site-footer__copyright">© {currentYear} - This website is proudly made by the Spicy Bush Team.</p>
+      <p className="text-center m-0 px-4 text-sm max-md:hidden">© {currentYear} - This website is proudly made by the Spicy Bush Team.</p>
     </footer>
   )
 }
 
 export default Footer
-

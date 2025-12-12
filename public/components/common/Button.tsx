@@ -1,4 +1,4 @@
-import "./Button.scss"
+// import "./Button.scss"
 
 import React, { useEffect, useRef, useState } from "react"
 import { classSet } from "@fider/services"
@@ -28,6 +28,19 @@ export class ButtonClickEvent {
   }
 }
 
+const sizeClasses = {
+  small: "px-2.5 py-1.5 text-xs [&_svg]:h-3 [&_img]:h-3",
+  default: "px-3 py-2 text-sm [&_svg]:h-4 [&_img]:h-4",
+  large: "px-3.5 py-2.5 text-lg [&_svg]:h-5 [&_img]:h-5",
+}
+
+const variantClasses = {
+  primary: "text-white bg-primary border border-primary hover:bg-primary-hover shadow-sm",
+  secondary: "text-foreground bg-secondary border border-border hover:bg-secondary-hover shadow-sm",
+  tertiary: "text-foreground bg-transparent border-none hover:underline",
+  danger: "text-danger bg-elevated border border-border hover:text-white hover:border-danger hover:bg-danger",
+}
+
 export const Button: React.FC<ButtonProps> = ({ size = "default", variant = "secondary", type = "button", loading, ...props }) => {
   const [clicked, setClicked] = useState(false)
   const unmountedContainer = useRef(false)
@@ -43,13 +56,12 @@ export const Button: React.FC<ButtonProps> = ({ size = "default", variant = "sec
   }, [])
 
   const className = classSet({
-    "c-button": true,
-    [`c-button--${size}`]: size,
-    [`c-button--${variant}`]: variant,
-    "c-button--loading": isLoading,
-    "c-button--disabled": isLoading || props.disabled,
+    "inline-flex items-center cursor-pointer rounded-button font-medium whitespace-nowrap leading-tight active:scale-[0.99] [&_svg+*]:ml-1 [&_img+*]:ml-1": true,
+    [sizeClasses[size]]: true,
+    [variantClasses[variant]]: true,
+    "relative cursor-default text-transparent opacity-100 pointer-events-auto before:absolute before:content-[''] before:top-1/2 before:left-1/2 before:-mt-2.5 before:-ml-2.5 before:w-5 before:h-5 before:rounded-full before:border-2 before:border-muted after:absolute after:content-[''] after:top-1/2 after:left-1/2 after:-mt-2.5 after:-ml-2.5 after:w-5 after:h-5 after:animate-spin after:rounded-full after:border-2 after:border-t-white after:border-r-transparent after:border-b-transparent after:border-l-transparent": isLoading,
+    "opacity-50 cursor-not-allowed pointer-events-none": isLoading || props.disabled,
     [props.className || ""]: props.className,
-    "shadow-sm": variant == "primary" || variant == "secondary",
   })
 
   let buttonContent: JSX.Element

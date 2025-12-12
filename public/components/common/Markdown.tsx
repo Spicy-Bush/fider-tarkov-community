@@ -1,7 +1,7 @@
 import React, { useMemo } from "react"
 import { markdown, truncate } from "@fider/services"
 
-import "./Markdown.scss"
+// import "./Markdown.scss"
 
 interface MarkdownProps {
   className?: string
@@ -19,7 +19,7 @@ export const Markdown = React.memo((props: MarkdownProps) => {
 
   if (!html) return null
 
-  const className = `c-markdown ${props.className || ""}`
+  const className = `c-markdown wrap-break-word ${props.className || ""}`
   const tagName = props.style === "plainText" ? "p" : "div"
 
   return React.createElement(tagName, {

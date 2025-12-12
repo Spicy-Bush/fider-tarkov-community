@@ -1,9 +1,9 @@
+// SplitViewLayout converted to Tailwind
+
 import React from "react"
 import { classSet } from "@fider/services"
 import { Button, Icon, Loader } from "@fider/components"
 import { heroiconsChevronUp as IconChevron } from "@fider/icons.generated"
-
-import "./SplitViewLayout.scss"
 
 export interface SplitViewLayoutProps {
   listWidth?: number
@@ -16,7 +16,7 @@ export const SplitViewLayout: React.FC<SplitViewLayoutProps> = ({
 }) => {
   return (
     <div
-      className="c-split-view"
+      className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-130px)] min-h-[500px]"
       style={{ "--split-view-list-width": `${listWidth}px` } as React.CSSProperties}
     >
       {children}
@@ -42,22 +42,30 @@ export const SplitViewListPane: React.FC<SplitViewListPaneProps> = ({
   const hasContent = React.Children.count(children) > 0
 
   return (
-    <div className="c-split-view__list">
-      {header && <div className="c-split-view__list-header">{header}</div>}
-      <div className="c-split-view__list-content">
+    <div className="flex-[0_0_100%] lg:flex-[0_0_var(--split-view-list-width)] lg:min-w-[var(--split-view-list-width)] lg:h-full flex flex-col bg-elevated rounded-panel border border-surface-alt overflow-hidden">
+      {header && (
+        <div className="flex items-center justify-between p-3 border-b border-surface-alt bg-tertiary shrink-0">
+          {header}
+        </div>
+      )}
+      <div className="flex-1 overflow-y-auto min-h-0">
         {isLoading ? (
-          <div className="c-split-view__list-loading">
+          <div className="flex items-center justify-center p-8 text-border-strong">
             <Loader />
           </div>
         ) : hasContent ? (
           children
         ) : (
           emptyState && (
-            <div className="c-split-view__list-empty">{emptyState}</div>
+            <div className="flex items-center justify-center p-8 text-border-strong">{emptyState}</div>
           )
         )}
       </div>
-      {footer && <div className="c-split-view__list-footer">{footer}</div>}
+      {footer && (
+        <div className="flex items-center justify-between py-2 px-3 border-t border-surface-alt bg-tertiary shrink-0">
+          {footer}
+        </div>
+      )}
     </div>
   )
 }
@@ -85,41 +93,40 @@ export const SplitViewPreviewPane: React.FC<SplitViewPreviewPaneProps> = ({
   overlays = [],
   children,
 }) => {
-  const className = classSet({
-    "c-split-view__preview": true,
-    "c-split-view__preview--mobile-open": hasSelection,
-  })
-
   return (
-    <div className={className}>
+    <div className={classSet({
+      "flex-1 min-w-0 h-full overflow-y-auto bg-elevated rounded-panel border border-surface-alt relative lg:max-h-[90vh]": true,
+      "max-lg:fixed max-lg:inset-0 max-lg:z-modal max-lg:bg-tertiary max-lg:p-4": hasSelection,
+    })}>
       {hasSelection && onMobileBack && (
         <Button
           variant="tertiary"
           size="small"
-          className="c-split-view__mobile-back"
+          className="hidden max-lg:flex mb-3"
           onClick={onMobileBack}
         >
-          <Icon sprite={IconChevron} className="c-split-view__mobile-back-icon" />
+          <Icon sprite={IconChevron} className="-rotate-90 w-4 h-4" />
           <span>Back to list</span>
         </Button>
       )}
       {isLoading ? (
-        <div className="c-split-view__preview-loading">
+        <div className="flex items-center justify-center min-h-[400px] text-border-strong">
           <Loader />
         </div>
       ) : hasSelection ? (
         children
       ) : (
         emptyState && (
-          <div className="c-split-view__preview-empty">{emptyState}</div>
+          <div className="flex items-center justify-center min-h-[400px] text-border-strong">{emptyState}</div>
         )
       )}
       {overlays.map((overlay) => (
         <div
           key={overlay.key}
           className={classSet({
-            "c-split-view__overlay": true,
-            "c-split-view__overlay--open": overlay.isOpen,
+            "absolute inset-0 z-50 bg-elevated overflow-y-auto rounded-panel transition-all duration-75": true,
+            "opacity-100 visible translate-x-0": overlay.isOpen,
+            "opacity-0 invisible translate-x-5": !overlay.isOpen,
           })}
         >
           {overlay.content}
@@ -128,4 +135,3 @@ export const SplitViewPreviewPane: React.FC<SplitViewPreviewPaneProps> = ({
     </div>
   )
 }
-
