@@ -308,7 +308,6 @@
   }
 
   &__post-body {
-    position: relative;
     color: get("colors.gray.700");
     line-height: 1.6;
 
@@ -317,10 +316,9 @@
     }
 
     &-copy {
-      position: absolute;
-      top: 0;
-      right: 0;
-      z-index: 1;
+      float: right;
+      margin-left: spacing(2);
+      margin-bottom: spacing(1);
     }
   }
 
