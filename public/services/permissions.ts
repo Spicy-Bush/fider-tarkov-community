@@ -94,6 +94,12 @@ export const postPermissions = {
     return currentUser.isCollaborator || currentUser.isAdministrator
   },
 
+  canArchive: (user?: CurrentUser): boolean => {
+    const currentUser = user ?? getCurrentUser()
+    if (!currentUser) return false
+    return currentUser.isCollaborator || currentUser.isAdministrator
+  },
+
   canTag: (user?: CurrentUser): boolean => {
     const currentUser = user ?? getCurrentUser()
     if (!currentUser) return false

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -22,32 +23,34 @@ import (
 )
 
 type dbPost struct {
-	ID             int            `db:"id"`
-	Number         int            `db:"number"`
-	Title          string         `db:"title"`
-	Slug           string         `db:"slug"`
-	Description    string         `db:"description"`
-	CreatedAt      time.Time      `db:"created_at"`
-	LastActivityAt time.Time      `db:"last_activity_at"`
-	User           *dbUser        `db:"user"`
-	VoteType       sql.NullInt32  `db:"vote_type"`
-	VotesCount     int            `db:"votes_count"`
-	CommentsCount  int            `db:"comments_count"`
-	RecentVotes    int            `db:"recent_votes_count"`
-	RecentComments int            `db:"recent_comments_count"`
-	Upvotes        int            `db:"upvotes"`
-	Downvotes      int            `db:"downvotes"`
-	Status         int            `db:"status"`
-	Response       sql.NullString `db:"response"`
-	RespondedAt    dbx.NullTime   `db:"response_date"`
-	ResponseUser   *dbUser        `db:"response_user"`
-	OriginalNumber sql.NullInt64  `db:"original_number"`
-	OriginalTitle  sql.NullString `db:"original_title"`
-	OriginalSlug   sql.NullString `db:"original_slug"`
-	OriginalStatus sql.NullInt64  `db:"original_status"`
-	Tags           []string       `db:"tags"`
-	LockedSettings sql.NullString `db:"locked_settings"`
-	TagDates       sql.NullString `db:"tag_dates"`
+	ID                 int            `db:"id"`
+	Number             int            `db:"number"`
+	Title              string         `db:"title"`
+	Slug               string         `db:"slug"`
+	Description        string         `db:"description"`
+	CreatedAt          time.Time      `db:"created_at"`
+	LastActivityAt     time.Time      `db:"last_activity_at"`
+	User               *dbUser        `db:"user"`
+	VoteType           sql.NullInt32  `db:"vote_type"`
+	VotesCount         int            `db:"votes_count"`
+	CommentsCount      int            `db:"comments_count"`
+	RecentVotes        int            `db:"recent_votes_count"`
+	RecentComments     int            `db:"recent_comments_count"`
+	Upvotes            int            `db:"upvotes"`
+	Downvotes          int            `db:"downvotes"`
+	Status             int            `db:"status"`
+	Response           sql.NullString `db:"response"`
+	RespondedAt        dbx.NullTime   `db:"response_date"`
+	ResponseUser       *dbUser        `db:"response_user"`
+	OriginalNumber     sql.NullInt64  `db:"original_number"`
+	OriginalTitle      sql.NullString `db:"original_title"`
+	OriginalSlug       sql.NullString `db:"original_slug"`
+	OriginalStatus     sql.NullInt64  `db:"original_status"`
+	Tags               []string       `db:"tags"`
+	LockedSettings     sql.NullString `db:"locked_settings"`
+	TagDates           sql.NullString `db:"tag_dates"`
+	ArchivedAt         dbx.NullTime   `db:"archived_at"`
+	ArchivedFromStatus sql.NullInt64  `db:"archived_from_status"`
 }
 
 func (i *dbPost) toModel(ctx context.Context) *entity.Post {
@@ -106,6 +109,13 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 				}
 			}
 			post.LockedSettings = &lockedSettings
+		}
+	}
+
+	if post.Status == enum.PostArchived && i.ArchivedAt.Valid {
+		post.ArchivedSettings = &entity.PostArchivedSettings{
+			ArchivedAt:     i.ArchivedAt.Time,
+			PreviousStatus: enum.PostStatus(i.ArchivedFromStatus.Int64),
 		}
 	}
 
@@ -170,6 +180,8 @@ var (
 										d.status AS original_status,
 										COALESCE(agg_t.tags, ARRAY[]::text[]) AS tags,
 										p.locked_settings,
+										p.archived_at,
+										p.archived_from_status,
 										%s AS tag_dates,
 										%s AS vote_type
 							FROM posts p
@@ -402,13 +414,12 @@ func getUserPostCount(ctx context.Context, q *query.GetUserPostCount) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, currentUser *entity.User) error {
 		var count int
 
-		// Example, ignoring deleted posts, i.e. status != PostDeleted (which is 5 in your enum)
 		sqlQuery := `
             SELECT COUNT(*) 
             FROM posts
             WHERE tenant_id = $1
               AND user_id = $2
-              AND status != 6
+              AND status NOT IN (6, 7)
               AND created_at >= $3
         `
 
@@ -719,20 +730,185 @@ func refreshPostStats(ctx context.Context, c *cmd.RefreshPostStats) error {
 					AND c.deleted_at IS NULL 
 					AND c.created_at > CURRENT_DATE - INTERVAL '30 days'
 				), 0)
-			WHERE p.status != $1`
+			WHERE p.status NOT IN ($1, $2)`
 
 		var rowsUpdated int64
 		var err error
 		if c.Since != nil {
-			rowsUpdated, err = trx.Execute(baseQuery+" AND p.last_activity_at >= $2", int(enum.PostDeleted), *c.Since)
+			rowsUpdated, err = trx.Execute(baseQuery+" AND p.last_activity_at >= $3", int(enum.PostDeleted), int(enum.PostArchived), *c.Since)
 		} else {
-			rowsUpdated, err = trx.Execute(baseQuery, int(enum.PostDeleted))
+			rowsUpdated, err = trx.Execute(baseQuery, int(enum.PostDeleted), int(enum.PostArchived))
 		}
 		if err != nil {
 			return errors.Wrap(err, "failed to refresh post stats")
 		}
 
 		c.RowsUpdated = rowsUpdated
+		return nil
+	})
+}
+
+func archivePost(ctx context.Context, c *cmd.ArchivePost) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		_, err := trx.Execute(`
+			UPDATE posts 
+			SET status = $3, archived_at = NOW(), archived_from_status = status
+			WHERE id = $1 AND tenant_id = $2
+		`, c.Post.ID, tenant.ID, int(enum.PostArchived))
+		if err != nil {
+			return errors.Wrap(err, "failed to archive post")
+		}
+
+		c.Post.ArchivedSettings = &entity.PostArchivedSettings{
+			ArchivedAt:     time.Now(),
+			ArchivedBy:     user,
+			PreviousStatus: c.Post.Status,
+		}
+		c.Post.Status = enum.PostArchived
+		return nil
+	})
+}
+
+func unarchivePost(ctx context.Context, c *cmd.UnarchivePost) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		var previousStatus int
+		err := trx.Get(&previousStatus, `
+			SELECT COALESCE(archived_from_status, 0) FROM posts WHERE id = $1 AND tenant_id = $2
+		`, c.Post.ID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get previous status")
+		}
+
+		_, err = trx.Execute(`
+			UPDATE posts 
+			SET status = $3, archived_at = NULL, archived_from_status = NULL
+			WHERE id = $1 AND tenant_id = $2
+		`, c.Post.ID, tenant.ID, previousStatus)
+		if err != nil {
+			return errors.Wrap(err, "failed to unarchive post")
+		}
+
+		c.Post.Status = enum.PostStatus(previousStatus)
+		c.Post.ArchivedSettings = nil
+		return nil
+	})
+}
+
+func bulkArchivePosts(ctx context.Context, c *cmd.BulkArchivePosts) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if len(c.PostIDs) == 0 {
+			return nil
+		}
+
+		_, err := trx.Execute(`
+			UPDATE posts 
+			SET status = $2, archived_at = NOW(), archived_from_status = status
+			WHERE tenant_id = $1 AND id = ANY($3) AND status NOT IN ($4, $5)
+		`, tenant.ID, int(enum.PostArchived), pq.Array(c.PostIDs), int(enum.PostDeleted), int(enum.PostArchived))
+		if err != nil {
+			return errors.Wrap(err, "failed to bulk archive posts")
+		}
+
+		return nil
+	})
+}
+
+func getArchivablePosts(ctx context.Context, q *query.GetArchivablePosts) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		conditions := []string{"p.tenant_id = $1", "p.status NOT IN ($2, $3)"}
+		args := []interface{}{tenant.ID, int(enum.PostDeleted), int(enum.PostArchived)}
+		argNum := 4
+
+		if q.CreatedBefore != nil {
+			conditions = append(conditions, fmt.Sprintf("p.created_at < $%d", argNum))
+			args = append(args, *q.CreatedBefore)
+			argNum++
+		}
+
+		if q.InactiveSince != nil {
+			conditions = append(conditions, fmt.Sprintf("p.last_activity_at < $%d", argNum))
+			args = append(args, *q.InactiveSince)
+			argNum++
+		}
+
+		if q.MaxVotes != nil {
+			conditions = append(conditions, fmt.Sprintf("(p.upvotes - p.downvotes) < $%d", argNum))
+			args = append(args, *q.MaxVotes)
+			argNum++
+		}
+
+		if q.MaxComments != nil {
+			conditions = append(conditions, fmt.Sprintf("p.comments_count < $%d", argNum))
+			args = append(args, *q.MaxComments)
+			argNum++
+		}
+
+		if len(q.Statuses) > 0 {
+			statusInts := make([]int, len(q.Statuses))
+			for i, s := range q.Statuses {
+				statusInts[i] = int(s)
+			}
+			conditions = append(conditions, fmt.Sprintf("p.status = ANY($%d)", argNum))
+			args = append(args, pq.Array(statusInts))
+			argNum++
+		}
+
+		if len(q.Tags) > 0 {
+			conditions = append(conditions, fmt.Sprintf(`
+				EXISTS (
+					SELECT 1 FROM post_tags pt 
+					INNER JOIN tags t ON t.id = pt.tag_id AND t.tenant_id = pt.tenant_id
+					WHERE pt.post_id = p.id AND t.slug = ANY($%d)
+				)
+			`, argNum))
+			args = append(args, pq.Array(q.Tags))
+			argNum++
+		}
+
+		whereClause := strings.Join(conditions, " AND ")
+
+		countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM posts p WHERE %s`, whereClause)
+		err := trx.Get(&q.Total, countQuery, args...)
+		if err != nil {
+			return errors.Wrap(err, "failed to count archivable posts")
+		}
+
+		if q.PerPage <= 0 {
+			q.PerPage = 50
+		}
+		if q.Page <= 0 {
+			q.Page = 1
+		}
+		offset := (q.Page - 1) * q.PerPage
+
+		selectQuery := buildPostQuery(user, whereClause) + fmt.Sprintf(" ORDER BY p.last_activity_at ASC LIMIT $%d OFFSET $%d", argNum, argNum+1)
+		args = append(args, q.PerPage, offset)
+
+		var posts []*dbPost
+		err = trx.Select(&posts, selectQuery, args...)
+		if err != nil {
+			return errors.Wrap(err, "failed to get archivable posts")
+		}
+
+		q.Result = make([]*entity.Post, len(posts))
+		for i, p := range posts {
+			q.Result[i] = p.toModel(ctx)
+		}
+
+		return nil
+	})
+}
+
+func countVotesSinceArchive(ctx context.Context, q *query.CountVotesSinceArchive) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		err := trx.Get(&q.Result, `
+			SELECT COALESCE(SUM(vote_type), 0) 
+			FROM post_votes 
+			WHERE post_id = $1 AND tenant_id = $2 AND created_at > $3
+		`, q.PostID, tenant.ID, q.ArchivedAt)
+		if err != nil {
+			return errors.Wrap(err, "failed to count votes since archive")
+		}
 		return nil
 	})
 }

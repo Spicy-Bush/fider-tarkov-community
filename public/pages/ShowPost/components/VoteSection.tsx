@@ -1,7 +1,7 @@
 import "./VoteSection.scss"
 
 import React, { useState, useEffect } from "react"
-import { Post, PostStatus, isPostLocked } from "@fider/models"
+import { Post, PostStatus, isPostLocked, isPostArchived } from "@fider/models"
 import { actions, classSet } from "@fider/services"
 import { Button, Icon, SignInModal } from "@fider/components"
 import { useFider } from "@fider/hooks"
@@ -86,6 +86,10 @@ export const VoteSection = (props: VoteSectionProps) => {
     }
 
     if (response.ok) {
+      if (isPostArchived(props.post)) {
+        location.reload() // change this later to be like, idk a replace in place or something
+        return
+      }
       setVoteType(newVoteType);
       setUpvotes(upvotes + upvoteChange);
       setDownvotes(downvotes + downvoteChange);

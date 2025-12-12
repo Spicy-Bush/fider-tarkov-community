@@ -1,5 +1,74 @@
 @use "~@fider/assets/styles/variables" as *;
 
+.c-locked-post,
+.c-archived-post {
+  padding: spacing(3);
+  border-radius: get("border.radius.medium");
+  font-size: get("font.size.sm");
+  
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: spacing(2);
+    margin-bottom: spacing(2);
+  }
+  
+  &__icon {
+    display: flex;
+    align-items: center;
+  }
+  
+  &__title {
+    font-weight: 600;
+  }
+  
+  &__reason,
+  &__message {
+    margin-bottom: spacing(2);
+    color: get("colors.gray.600");
+  }
+  
+  &__footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: get("font.size.xs");
+    color: get("colors.gray.500");
+  }
+  
+  &__by {
+    display: flex;
+    gap: spacing(1);
+  }
+}
+
+.c-locked-post {
+  background-color: get("colors.red.50");
+  border: 1px solid get("colors.red.200");
+  color: get("colors.red.800");
+  
+  &__icon svg {
+    color: get("colors.red.500");
+  }
+}
+
+.c-archived-post {
+  background-color: get("colors.yellow.50");
+  border: 1px solid get("colors.yellow.300");
+  color: get("colors.yellow.900");
+  
+  &__icon svg {
+    color: get("colors.yellow.600");
+  }
+  
+  &__message {
+    color: get("colors.yellow.700");
+  }
+  
+  &__footer {
+    color: get("colors.yellow.600");
+  }
+}
+
 .c-report-flag {
   background: none;
   border: none;

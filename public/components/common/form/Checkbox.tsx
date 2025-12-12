@@ -10,6 +10,7 @@ interface CheckboxProps {
   field: string
   checked?: boolean
   onChange?: (checked: boolean) => void
+  expandedHitbox?: boolean
 }
 
 export const Checkbox: React.FC<CheckboxProps> = (props) => {
@@ -24,6 +25,14 @@ export const Checkbox: React.FC<CheckboxProps> = (props) => {
     }
   }
 
+  const handleHitboxClick = () => {
+    const newChecked = !checked
+    setChecked(newChecked)
+    if (props.onChange) {
+      props.onChange(newChecked)
+    }
+  }
+
   return (
     <ValidationContext.Consumer>
       {(ctx) => (
@@ -33,7 +42,13 @@ export const Checkbox: React.FC<CheckboxProps> = (props) => {
             "m-error": hasError(props.field, ctx.error),
           })}
         >
-          <div className="c-checkbox">
+          <div className={classSet({
+            "c-checkbox": true,
+            "c-checkbox--expanded-hitbox": props.expandedHitbox,
+          })}>
+            {props.expandedHitbox && (
+              <div className="c-checkbox__hitbox" onClick={handleHitboxClick} />
+            )}
             <HStack>
               <input id={`input-${props.field}`} type="checkbox" checked={checked} onChange={onChange} />
               <label htmlFor={`input-${props.field}`} className="text-sm">

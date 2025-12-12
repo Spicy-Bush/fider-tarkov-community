@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 
-import { Post, ImageUpload, isPostLocked, Comment } from "@fider/models"
+import { Post, ImageUpload, isPostLocked, isPostArchived, Comment } from "@fider/models"
 import { Avatar, UserName, Button, Form, MultiImageUploader } from "@fider/components"
 import { SignInModal } from "@fider/components"
 
@@ -53,10 +53,16 @@ export const CommentInput = (props: CommentInputProps) => {
 
   const submit = async () => {
     clearError()
+    const wasArchived = isPostArchived(props.post)
 
     const result = await actions.createComment(props.post.number, content, attachments)
     if (result.ok) {
       cache.session.remove(getCacheKey())
+      
+      if (wasArchived) {
+        location.reload()
+        return
+      }
       
       if (props.onCommentAdded && fider.session.user) {
         const newComment: Comment = {

@@ -26,8 +26,7 @@ export const TagListItem = (props: TagListItemProps) => {
       className={className}
       onClick={onClick}
     >
-      <ShowTag tag={props.tag} />
-      {props.assigned && <span className="c-tag-item__check">✓</span>}
+      <ShowTag tag={props.tag} selectable selected={props.assigned} />
     </button>
   )
 }

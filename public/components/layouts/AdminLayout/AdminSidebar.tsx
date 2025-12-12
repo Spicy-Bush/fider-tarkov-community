@@ -23,6 +23,7 @@ import {
   heroiconsCreditCard as IconCreditCard,
   heroiconsPhotograph as IconPhoto,
   heroiconsDownload as IconDownload,
+  heroiconsArchive as IconArchive,
 } from "@fider/icons.generated"
 
 interface SidebarItemProps {
@@ -81,6 +82,7 @@ export const AdminSidebar: React.FC = () => {
               <SidebarItem title="Content" href="/admin/content-settings" isActive={activeItem === "content"} icon={IconDocumentText} />
               <SidebarItem title="Responses" href="/admin/responses" isActive={activeItem === "responses"} icon={IconChat} />
               <SidebarItem title="Tags" href="/admin/tags" isActive={activeItem === "tags"} icon={IconTag} />
+              <SidebarItem title="Archive" href="/admin/archive" isActive={activeItem === "archive"} icon={IconArchive} />
               <SidebarItem title="Webhooks" href="/admin/webhooks" isActive={activeItem === "webhooks"} icon={IconLink} />
             </>
           )}

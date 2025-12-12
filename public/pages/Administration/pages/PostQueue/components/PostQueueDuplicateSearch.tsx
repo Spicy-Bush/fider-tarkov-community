@@ -19,7 +19,6 @@ import {
   heroiconsChevronDown as IconChevronDown,
   heroiconsChevronUp as IconChevronUp,
   heroiconsArrowLeft as IconArrowLeft,
-  heroiconsCheck as IconCheck,
 } from "@fider/icons.generated"
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
@@ -161,16 +160,10 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
             {tags.map((tag) => (
               <div
                 key={tag.id}
-                className={classSet({
-                  "c-duplicate-search__tag-item": true,
-                  "c-duplicate-search__tag-item--selected": selectedTags.includes(tag.slug),
-                })}
+                className="c-duplicate-search__tag-item"
                 onClick={() => toggleTag(tag.slug)}
               >
-                <ShowTag tag={tag} />
-                {selectedTags.includes(tag.slug) && (
-                  <Icon sprite={IconCheck} className="h-3 text-green-600" />
-                )}
+                <ShowTag tag={tag} selectable selected={selectedTags.includes(tag.slug)} />
               </div>
             ))}
           </div>

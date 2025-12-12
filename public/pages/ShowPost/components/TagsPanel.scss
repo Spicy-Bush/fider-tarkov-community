@@ -28,33 +28,13 @@
 
 .c-tag-item {
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border: 1px solid transparent;
-  border-radius: get("border.radius.medium");
   background: transparent;
+  border: none;
+  padding: 0;
   cursor: pointer;
-  transition: all 0.15s ease;
-
-  &:hover {
-    background: get("colors.gray.100");
-  }
-
-  &--assigned {
-    background: get("colors.blue.50");
-    border-color: get("colors.blue.300");
-  }
 
   .c-tag {
     pointer-events: none;
-  }
-
-  &__check {
-    font-size: 11px;
-    color: get("colors.blue.600");
-    margin-left: 2px;
-    font-weight: 600;
   }
 }
 

@@ -41,3 +41,16 @@ type RefreshPostStats struct {
 	Since       *time.Time
 	RowsUpdated int64
 }
+
+type ArchivePost struct {
+	Post *entity.Post
+}
+
+type UnarchivePost struct {
+	Post   *entity.Post
+	Reason string
+}
+
+type BulkArchivePosts struct {
+	PostIDs []int
+}

@@ -18,6 +18,7 @@ export const ccVisa: SpriteSymbol = { id: "cc-visa", viewBox: "0 0 780 500" }
 export const faCaretdown: SpriteSymbol = { id: "fa-caretdown", viewBox: "0 0 320 512" }
 export const faCaretup: SpriteSymbol = { id: "fa-caretup", viewBox: "0 0 320 512" }
 export const heroiconsAdjustments: SpriteSymbol = { id: "heroicons-adjustments", viewBox: "0 0 24 24" }
+export const heroiconsArchive: SpriteSymbol = { id: "heroicons-archive", viewBox: "0 0 24 24" }
 export const heroiconsArrowLeft: SpriteSymbol = { id: "heroicons-arrow-left", viewBox: "0 0 24 24" }
 export const heroiconsArrowUpDown: SpriteSymbol = { id: "heroicons-arrow-up-down", viewBox: "0 0 24 24" }
 export const heroiconsBell: SpriteSymbol = { id: "heroicons-bell", viewBox: "0 0 24 24" }
@@ -95,6 +96,7 @@ export const icons: Record<string, SpriteSymbol> = {
   "fa-caretdown": faCaretdown,
   "fa-caretup": faCaretup,
   "heroicons-adjustments": heroiconsAdjustments,
+  "heroicons-archive": heroiconsArchive,
   "heroicons-arrow-left": heroiconsArrowLeft,
   "heroicons-arrow-up-down": heroiconsArrowUpDown,
   "heroicons-bell": heroiconsBell,

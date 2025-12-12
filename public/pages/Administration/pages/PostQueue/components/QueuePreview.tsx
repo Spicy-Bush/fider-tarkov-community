@@ -80,15 +80,15 @@ export const QueuePreview: React.FC<QueuePreviewProps> = ({
     >
       {selectedPost && (
         <div className="c-queue-split-view__mobile-header">
-          <Button
-            variant="tertiary"
-            size="small"
-            className="c-queue-split-view__mobile-back"
-            onClick={onDeselectPost}
-          >
-            <Icon sprite={IconChevronUp} className="c-queue-split-view__mobile-back-icon" />
-            <span>Back to list</span>
-          </Button>
+        <Button
+          variant="tertiary"
+          size="small"
+          className="c-queue-split-view__mobile-back"
+          onClick={onDeselectPost}
+        >
+          <Icon sprite={IconChevronUp} className="c-queue-split-view__mobile-back-icon" />
+          <span>Back to list</span>
+        </Button>
           {otherViewers.length > 0 && (
             <span
               className="c-queue-split-view__mobile-viewers"

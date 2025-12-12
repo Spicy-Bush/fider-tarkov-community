@@ -98,3 +98,23 @@ func (q *CountUntaggedPosts) SetStatusesFromStrings(statuses []string) {
 		}
 	}
 }
+
+type GetArchivablePosts struct {
+	CreatedBefore *time.Time
+	InactiveSince *time.Time
+	MaxVotes      *int
+	MaxComments   *int
+	Statuses      []enum.PostStatus
+	Tags          []string
+	ExcludeTags   []string
+	Page          int
+	PerPage       int
+	Result        []*entity.Post
+	Total         int
+}
+
+type CountVotesSinceArchive struct {
+	PostID     int
+	ArchivedAt time.Time
+	Result     int
+}

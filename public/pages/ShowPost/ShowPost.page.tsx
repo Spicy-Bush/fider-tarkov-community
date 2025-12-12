@@ -3,8 +3,9 @@ import "./ShowPost.page.scss"
 import React, { useEffect, useCallback } from "react"
 
 import { LockStatus } from "./components/LockStatus"
+import { ArchiveStatus } from "./components/ArchiveStatus"
 import { PostLockingModal } from "./components/PostLockingModal"
-import { Comment, Post, Tag, Vote, PostStatus, isPostLocked, ReportReason } from "@fider/models"
+import { Comment, Post, Tag, Vote, PostStatus, isPostLocked, isPostArchived, ReportReason } from "@fider/models"
 import { actions, clearUrlHash, Fider, notify, formatDate, postPermissions } from "@fider/services"
 import { heroiconsDotsHorizontal as IconDotsHorizontal, heroiconsChevronUp as IconChevronUp } from "@fider/icons.generated"
 
@@ -151,7 +152,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
   }, [props.post.status, props.post.user.role])
 
   const onActionSelected = useCallback(
-    (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report") => () => {
+    (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report" | "archive" | "unarchive") => async () => {
       if (action === "copy") {
         navigator.clipboard.writeText(window.location.href)
         notify.success(<Trans id="showpost.copylink.success">Link copied to clipboard</Trans>)
@@ -167,9 +168,21 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
         state.openModal("unlock")
       } else if (action === "report") {
         state.openModal("report")
+      } else if (action === "archive") {
+        const result = await actions.archivePost(props.post.number)
+        if (result.ok) {
+          notify.success(<Trans id="showpost.archive.success">Post has been archived</Trans>)
+          location.reload()
+        }
+      } else if (action === "unarchive") {
+        const result = await actions.unarchivePost(props.post.number)
+        if (result.ok) {
+          notify.success(<Trans id="showpost.unarchive.success">Post has been unarchived</Trans>)
+          location.reload()
+        }
       }
     },
-    [state.startEdit, state.openModal]
+    [state.startEdit, state.openModal, props.post.number]
   )
 
   return (
@@ -237,6 +250,19 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                                 )}
                               </>
                             )}
+                            {postPermissions.canArchive() && (
+                              <>
+                                {!isPostArchived(props.post) ? (
+                                  <Dropdown.ListItem onClick={onActionSelected("archive")}>
+                                    <Trans id="action.archive">Archive</Trans>
+                                  </Dropdown.ListItem>
+                                ) : (
+                                  <Dropdown.ListItem onClick={onActionSelected("unarchive")}>
+                                    <Trans id="action.unarchive">Unarchive</Trans>
+                                  </Dropdown.ListItem>
+                                )}
+                              </>
+                            )}
                           </>
                         )}
                         {canDeletePost() && (
@@ -258,6 +284,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                     <>
                       <h1 className="text-large">{props.post.title}</h1>
                       {isPostLocked(props.post) && <LockStatus post={props.post} />}
+                      {isPostArchived(props.post) && <ArchiveStatus post={props.post} />}
                     </>
                   )}
                 </div>

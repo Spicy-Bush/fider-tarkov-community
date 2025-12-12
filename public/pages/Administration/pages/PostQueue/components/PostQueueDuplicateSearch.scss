@@ -55,26 +55,12 @@
   &__tag-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: spacing(2);
+    gap: spacing(1);
     margin-bottom: spacing(2);
   }
 
   &__tag-item {
-    display: flex;
-    align-items: center;
-    gap: spacing(1);
-    padding: spacing(1) spacing(2);
-    border-radius: get("border.radius.medium");
     cursor: pointer;
-    transition: background 0.15s ease;
-
-    &:hover {
-      background: get("colors.gray.100");
-    }
-
-    &--selected {
-      background: get("colors.blue.50");
-    }
   }
 
   &__results {

@@ -9,7 +9,6 @@
   background-color: get("colors.gray.200");
   font-weight: 500;
   border-radius: 5px;
-  // line-height: 18px;
   padding: 6px 10px;
   border: 0;
 
@@ -22,12 +21,29 @@
     }
   }
 
-  span {
+  &__color {
     margin-right: 7px;
     width: 12px;
     height: 12px;
     border-radius: 50%;
     display: inline-block;
+    flex-shrink: 0;
+  }
+
+  &__check {
+    width: 14px;
+    height: 14px;
+    margin-left: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  &__check-icon {
+    width: 14px;
+    height: 14px;
+    color: get("colors.green.600");
   }
 
   &--circular {
@@ -36,5 +52,49 @@
     overflow: hidden;
     border-radius: 50%;
     padding: 6px;
+
+    .c-tag__color {
+      margin-right: 0;
+    }
+  }
+
+  &--mini {
+    font-size: 11px;
+    padding: 3px 6px;
+    border-radius: 3px;
+
+    .c-tag__color {
+      width: 8px;
+      height: 8px;
+      margin-right: 4px;
+    }
+
+    .c-tag__check {
+      width: 12px;
+      height: 12px;
+      margin-left: 4px;
+    }
+
+    .c-tag__check-icon {
+      width: 12px;
+      height: 12px;
+    }
+  }
+
+  &--selectable {
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+      background-color: get("colors.gray.300");
+    }
+  }
+
+  &--selected {
+    background-color: get("colors.green.100");
+
+    &:hover {
+      background-color: get("colors.green.200");
+    }
   }
 }

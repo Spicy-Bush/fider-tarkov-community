@@ -81,6 +81,11 @@ func (s Service) Init() {
 	bus.AddHandler(lockPost)
 	bus.AddHandler(unlockPost)
 	bus.AddHandler(refreshPostStats)
+	bus.AddHandler(archivePost)
+	bus.AddHandler(unarchivePost)
+	bus.AddHandler(bulkArchivePosts)
+	bus.AddHandler(getArchivablePosts)
+	bus.AddHandler(countVotesSinceArchive)
 
 	bus.AddHandler(setAttachments)
 	bus.AddHandler(getAttachments)

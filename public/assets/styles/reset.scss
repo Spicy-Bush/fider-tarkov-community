@@ -12,6 +12,10 @@ body {
 *::after {
   box-sizing: inherit;
   -webkit-tap-highlight-color: transparent;
+
+  @include media("md") {
+    overscroll-behavior: contain;
+  }
 }
 
 body {

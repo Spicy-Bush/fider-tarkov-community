@@ -20,7 +20,8 @@ interface UseShowPostActionsResult {
   canDelete: boolean
   canRespond: boolean
   canLock: boolean
-  onActionSelected: (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report") => () => void
+  canArchive: boolean
+  onActionSelected: (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report" | "archive" | "unarchive") => () => Promise<void>
 }
 
 export const useShowPostActions = (config: UseShowPostActionsConfig): UseShowPostActionsResult => {
@@ -43,9 +44,10 @@ export const useShowPostActions = (config: UseShowPostActionsConfig): UseShowPos
   })()
   const canRespond = postPermissions.canRespond()
   const canLock = postPermissions.canLock()
+  const canArchive = postPermissions.canArchive()
 
   const onActionSelected = useCallback(
-    (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report") => () => {
+    (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report" | "archive" | "unarchive") => async () => {
       if (action === "copy") {
         navigator.clipboard.writeText(window.location.href)
         notify.success(<Trans id="showpost.copylink.success">Link copied to clipboard</Trans>)
@@ -61,9 +63,21 @@ export const useShowPostActions = (config: UseShowPostActionsConfig): UseShowPos
         openModal("unlock")
       } else if (action === "report") {
         openModal("report")
+      } else if (action === "archive") {
+        const result = await actions.archivePost(post.number)
+        if (result.ok) {
+          notify.success(<Trans id="showpost.archive.success">Post has been archived</Trans>)
+          location.reload()
+        }
+      } else if (action === "unarchive") {
+        const result = await actions.unarchivePost(post.number)
+        if (result.ok) {
+          notify.success(<Trans id="showpost.unarchive.success">Post has been unarchived</Trans>)
+          location.reload()
+        }
       }
     },
-    [startEdit, openModal]
+    [startEdit, openModal, post.number]
   )
 
   return {
@@ -72,6 +86,7 @@ export const useShowPostActions = (config: UseShowPostActionsConfig): UseShowPos
     canDelete,
     canRespond,
     canLock,
+    canArchive,
     onActionSelected,
   }
 }

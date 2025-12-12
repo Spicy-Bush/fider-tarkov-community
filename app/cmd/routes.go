@@ -257,6 +257,12 @@ func routes(r *web.Engine) *web.Engine {
 
 		collabAdmin.Get("/api/v1/report-reasons/all", handlers.ListAllReportReasons())
 		collabAdmin.Post("/api/v1/report-reasons", handlers.CreateReportReason())
+
+		collabAdmin.Get("/admin/archive", handlers.ArchivePostsPage())
+		collabAdmin.Get("/api/v1/archive/posts", handlers.ListArchivablePosts())
+		collabAdmin.Post("/api/v1/posts/:number/archive", handlers.ArchivePost())
+		collabAdmin.Post("/api/v1/posts/:number/unarchive", handlers.UnarchivePost())
+		collabAdmin.Post("/api/v1/archive/bulk", handlers.BulkArchive())
 		collabAdmin.Put("/api/v1/report-reasons/:id", handlers.UpdateReportReason())
 		collabAdmin.Delete("/api/v1/report-reasons/:id", handlers.DeleteReportReason())
 		collabAdmin.Put("/api/v1/admin/report-reasons-order", handlers.ReorderReportReasons())

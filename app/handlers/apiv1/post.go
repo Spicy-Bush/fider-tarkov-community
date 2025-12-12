@@ -541,6 +541,14 @@ func PostComment() web.HandlerFunc {
 
 			c.Enqueue(tasks.NotifyAboutNewComment(addNewComment.Result, getPost.Result))
 
+			if getPost.Result.Status == enum.PostArchived {
+				unarchiveCmd := &cmd.UnarchivePost{Post: getPost.Result, Reason: "New comment"}
+				if err := bus.Dispatch(c, unarchiveCmd); err != nil {
+					return c.Failure(err)
+				}
+				postcache.InvalidateCountPerStatus(c.Tenant().ID)
+			}
+
 			postcache.InvalidateTenantRankings(c.Tenant().ID)
 
 			metrics.TotalComments.Inc()
@@ -661,15 +669,50 @@ func AddDownVote() web.HandlerFunc {
 // AddVote adds current user to given post list of votes
 func AddVote() web.HandlerFunc {
 	return func(c *web.Context) error {
-		err := addOrRemove(c, func(post *entity.Post, user *entity.User) bus.Msg {
-			return &cmd.AddVote{Post: post, User: user, VoteType: enum.VoteTypeUp}
-		})
-
-		if err == nil {
-			metrics.TotalVotes.Inc()
+		number, err := c.ParamAsInt("number")
+		if err != nil {
+			return c.NotFound()
 		}
 
-		return err
+		getPost := &query.GetPostByNumber{Number: number}
+		if err := bus.Dispatch(c, getPost); err != nil {
+			return c.Failure(err)
+		}
+
+		if getPost.Result.IsLocked() && !(c.IsAuthenticated() &&
+			(c.User().IsCollaborator() || c.User().IsAdministrator())) {
+			return c.BadRequest(web.Map{})
+		}
+
+		return c.WithTransaction(func() error {
+			voteCmd := &cmd.AddVote{Post: getPost.Result, User: c.User(), VoteType: enum.VoteTypeUp}
+			if err := bus.Dispatch(c, voteCmd); err != nil {
+				return c.Failure(err)
+			}
+
+			if getPost.Result.Status == enum.PostArchived && getPost.Result.ArchivedSettings != nil {
+				countVotes := &query.CountVotesSinceArchive{
+					PostID:     getPost.Result.ID,
+					ArchivedAt: getPost.Result.ArchivedSettings.ArchivedAt,
+				}
+				if err := bus.Dispatch(c, countVotes); err != nil {
+					return c.Failure(err)
+				}
+
+				if countVotes.Result > 10 {
+					unarchiveCmd := &cmd.UnarchivePost{Post: getPost.Result, Reason: "Vote threshold exceeded"}
+					if err := bus.Dispatch(c, unarchiveCmd); err != nil {
+						return c.Failure(err)
+					}
+					postcache.InvalidateCountPerStatus(c.Tenant().ID)
+				}
+			}
+
+			postcache.InvalidateTenantRankings(c.Tenant().ID)
+			metrics.TotalVotes.Inc()
+
+			return c.Ok(web.Map{})
+		})
 	}
 }
 

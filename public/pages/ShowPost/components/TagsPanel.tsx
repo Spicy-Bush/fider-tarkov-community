@@ -262,9 +262,9 @@ export const TagsPanel = (props: TagsPanelProps) => {
           )}
         </div>
         <HStack spacing={2}>
-          <Button variant="secondary" size="small" onClick={onSubtitleClick}>
-            <Trans id="action.close">Close</Trans>
-          </Button>
+        <Button variant="secondary" size="small" onClick={onSubtitleClick}>
+          <Trans id="action.close">Close</Trans>
+        </Button>
           {props.onNextPost && (
             <Button variant="primary" size="small" onClick={props.onNextPost} className="c-tags__next-post-btn">
               <Trans id="action.nextPost">Next Post</Trans>

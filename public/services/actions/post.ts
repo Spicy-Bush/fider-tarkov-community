@@ -156,3 +156,45 @@ export const createPost = async (title: string, description: string, attachments
 export const updatePost = async (postNumber: number, title: string, description: string, attachments: ImageUpload[]): Promise<Result> => {
   return http.put(`/api/v1/posts/${postNumber}`, { title, description, attachments }).then(http.event("post", "update"))
 }
+
+export const archivePost = async (postNumber: number): Promise<Result> => {
+  return http.post(`/api/v1/posts/${postNumber}/archive`).then(http.event("post", "archive"))
+}
+
+export const unarchivePost = async (postNumber: number): Promise<Result> => {
+  return http.post(`/api/v1/posts/${postNumber}/unarchive`).then(http.event("post", "unarchive"))
+}
+
+export interface GetArchivablePostsParams {
+  page?: number
+  perPage?: number
+  createdBefore?: string
+  inactiveSince?: string
+  maxVotes?: number
+  maxComments?: number
+  statuses?: string[]
+  tags?: string[]
+}
+
+export interface GetArchivablePostsResponse {
+  posts: Post[]
+  total: number
+}
+
+export const getArchivablePosts = async (params: GetArchivablePostsParams): Promise<Result<GetArchivablePostsResponse>> => {
+  const qs = querystring.stringify({
+    page: params.page,
+    perPage: params.perPage,
+    createdBefore: params.createdBefore,
+    inactiveSince: params.inactiveSince,
+    maxVotes: params.maxVotes,
+    maxComments: params.maxComments,
+    statuses: params.statuses,
+    tags: params.tags,
+  })
+  return http.get<GetArchivablePostsResponse>(`/api/v1/archive/posts${qs}`)
+}
+
+export const bulkArchivePosts = async (postIds: number[]): Promise<Result<{ archived: number }>> => {
+  return http.post<{ archived: number }>(`/api/v1/archive/bulk`, { postIds })
+}

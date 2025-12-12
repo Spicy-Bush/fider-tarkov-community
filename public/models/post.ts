@@ -17,12 +17,17 @@ export interface Post {
   tags: string[]
   tagDates?: string
   lockedSettings?: PostLockedSettings
+  archivedSettings?: PostArchivedSettings
   upvotes?: number
   downvotes?: number
 }
 
 export function isPostLocked(post: Post): boolean {
   return !!post.lockedSettings && post.lockedSettings.locked;
+}
+
+export function isPostArchived(post: Post): boolean {
+  return post.status === "archived";
 }
 
 export class PostStatus {
@@ -35,6 +40,7 @@ export class PostStatus {
   public static Declined = new PostStatus("Declined", "declined", true, true, true)
   public static Duplicate = new PostStatus("Duplicate", "duplicate", true, true, true)
   public static Deleted = new PostStatus("Deleted", "deleted", false, true, true)
+  public static Archived = new PostStatus("Archived", "archived", true, false, true)
 
   public static Get(value: string): PostStatus {
     for (const status of PostStatus.All) {
@@ -45,7 +51,7 @@ export class PostStatus {
     throw new Error(`PostStatus not found for value ${value}.`)
   }
 
-  public static All = [PostStatus.Open, PostStatus.Planned, PostStatus.Started, PostStatus.Completed, PostStatus.Duplicate, PostStatus.Declined]
+  public static All = [PostStatus.Open, PostStatus.Planned, PostStatus.Started, PostStatus.Completed, PostStatus.Duplicate, PostStatus.Declined, PostStatus.Archived]
 }
 
 export interface PostLockedSettings {
@@ -53,6 +59,12 @@ export interface PostLockedSettings {
   lockedAt: string;
   lockedBy: User;
   lockMessage?: string;
+}
+
+export interface PostArchivedSettings {
+  archivedAt: string;
+  archivedBy: User;
+  previousStatus: string;
 }
 
 export interface PostResponse {

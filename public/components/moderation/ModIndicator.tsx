@@ -28,8 +28,8 @@ export const ModIndicator = () => {
       {pendingCount > 0 && (
         <div className={`c-mod-indicator-counter ${isOverMaxCount ? "is-max-count" : ""}`}>
           {displayCount}
-        </div>
-      )}
+                </div>
+              )}
     </a>
   )
 }

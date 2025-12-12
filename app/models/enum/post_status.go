@@ -1,6 +1,6 @@
 package enum
 
-//PostStatus is the status of a given post
+// PostStatus is the status of a given post
 type PostStatus int
 
 var (
@@ -18,6 +18,8 @@ var (
 	PostDuplicate PostStatus = 5
 	//PostDeleted is used when the post is completely removed from the site and should never be shown again
 	PostDeleted PostStatus = 6
+	//PostArchived is used when the post is archived due to inactivity or not relevant anymore
+	PostArchived PostStatus = 7
 )
 var postStatusIDs = map[PostStatus]string{
 	PostOpen:      "open",
@@ -27,6 +29,7 @@ var postStatusIDs = map[PostStatus]string{
 	PostPlanned:   "planned",
 	PostDuplicate: "duplicate",
 	PostDeleted:   "deleted",
+	PostArchived:  "archived",
 }
 
 var postStatusNames = map[string]PostStatus{
@@ -37,6 +40,7 @@ var postStatusNames = map[string]PostStatus{
 	"planned":   PostPlanned,
 	"duplicate": PostDuplicate,
 	"deleted":   PostDeleted,
+	"archived":  PostArchived,
 }
 
 // MarshalText returns the Text version of the post status
