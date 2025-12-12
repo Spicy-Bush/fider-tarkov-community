@@ -33,6 +33,11 @@ interface SidebarItemProps {
   icon: typeof IconChevron
 }
 
+interface SidebarSectionProps {
+  label: string
+  children: React.ReactNode
+}
+
 const SidebarItem: React.FC<SidebarItemProps> = ({ title, href, isActive, icon }) => {
   const { toggleSidebar } = useLayout()
   const className = classSet({
@@ -54,11 +59,24 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ title, href, isActive, icon }
   )
 }
 
+const SidebarSection: React.FC<SidebarSectionProps> = ({ label, children }) => {
+  return (
+    <div className="c-admin-sidebar__section">
+      <span className="c-admin-sidebar__section-label">{label}</span>
+      {children}
+    </div>
+  )
+}
+
 export const AdminSidebar: React.FC = () => {
   const fider = useFider()
   const { sidebarOpen, toggleSidebar } = useLayout()
   const { sidebarItem } = useAdminLayout()
   const activeItem = sidebarItem || "general"
+
+  const isModerator = fider.session.user.isModerator
+  const isCollaborator = fider.session.user.isCollaborator
+  const isAdministrator = fider.session.user.isAdministrator
 
   const className = classSet({
     "c-admin-sidebar": true,
@@ -69,25 +87,29 @@ export const AdminSidebar: React.FC = () => {
     <aside className={className}>
       <nav className="c-admin-sidebar__nav">
         <VStack spacing={0}>
-          <SidebarItem title="Post Queue" href="/admin/queue" isActive={activeItem === "queue"} icon={IconInbox} />
-          {(fider.session.user.isModerator || fider.session.user.isCollaborator || fider.session.user.isAdministrator) && (
-            <>
-              <SidebarItem title="Members" href="/admin/members" isActive={activeItem === "members"} icon={IconUsers} />
-              <SidebarItem title="Reports" href="/admin/reports" isActive={activeItem === "reports"} icon={IconFlag} />
-            </>
-          )}
-          {fider.session.user.isCollaborator && (
-            <>
+          <SidebarSection label="Moderation">
+            <SidebarItem title="Post Queue" href="/admin/queue" isActive={activeItem === "queue"} icon={IconInbox} />
+            {(isModerator || isCollaborator || isAdministrator) && (
+              <>
+                <SidebarItem title="Members" href="/admin/members" isActive={activeItem === "members"} icon={IconUsers} />
+                <SidebarItem title="Reports" href="/admin/reports" isActive={activeItem === "reports"} icon={IconFlag} />
+                <SidebarItem title="Archive" href="/admin/archive" isActive={activeItem === "archive"} icon={IconArchive} />
+              </>
+            )}
+          </SidebarSection>
+
+          {(isCollaborator || isAdministrator) && (
+            <SidebarSection label="Site">
               <SidebarItem title="General" href="/admin" isActive={activeItem === "general"} icon={IconCog} />
               <SidebarItem title="Content" href="/admin/content-settings" isActive={activeItem === "content"} icon={IconDocumentText} />
               <SidebarItem title="Responses" href="/admin/responses" isActive={activeItem === "responses"} icon={IconChat} />
               <SidebarItem title="Tags" href="/admin/tags" isActive={activeItem === "tags"} icon={IconTag} />
-              <SidebarItem title="Archive" href="/admin/archive" isActive={activeItem === "archive"} icon={IconArchive} />
               <SidebarItem title="Webhooks" href="/admin/webhooks" isActive={activeItem === "webhooks"} icon={IconLink} />
-            </>
+            </SidebarSection>
           )}
-          {fider.session.user.isAdministrator && (
-            <>
+
+          {isAdministrator && (
+            <SidebarSection label="System">
               <SidebarItem title="Advanced" href="/admin/advanced" isActive={activeItem === "advanced"} icon={IconAdjustments} />
               <SidebarItem title="Privacy" href="/admin/privacy" isActive={activeItem === "privacy"} icon={IconLock} />
               <SidebarItem title="Invitations" href="/admin/invitations" isActive={activeItem === "invitations"} icon={IconEnvelope} />
@@ -97,7 +119,7 @@ export const AdminSidebar: React.FC = () => {
               )}
               <SidebarItem title="Files" href="/admin/files" isActive={activeItem === "files"} icon={IconPhoto} />
               <SidebarItem title="Export" href="/admin/export" isActive={activeItem === "export"} icon={IconDownload} />
-            </>
+            </SidebarSection>
           )}
         </VStack>
       </nav>

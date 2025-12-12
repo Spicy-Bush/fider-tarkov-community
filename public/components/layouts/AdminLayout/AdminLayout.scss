@@ -2,7 +2,7 @@
 
 :root {
   --admin-sidebar-width: 200px;
-  --admin-sidebar-collapsed-width: 56px;
+  --admin-sidebar-collapsed-width: 58px;
   --admin-sidebar-transition: 200ms ease;
   --admin-content-padding: #{spacing(6)};
 }
@@ -90,54 +90,24 @@
   &--collapsed {
     width: var(--admin-sidebar-collapsed-width);
 
-    .c-admin-sidebar__nav {
-      padding: spacing(4) spacing(1);
-    }
-
-    .c-admin-sidebar__item {
-      justify-content: center;
-      padding: spacing(2);
-      gap: 0;
-    }
-
-    .c-admin-sidebar__item-icon {
-      width: 20px;
-      height: 20px;
-    }
-
-    .c-admin-sidebar__item-text {
-      display: none;
-    }
-
     @include media("sm") {
       transform: translateX(-100%);
       width: var(--admin-sidebar-width);
-
-      .c-admin-sidebar__nav {
-        padding: spacing(4) spacing(2);
-      }
-
-      .c-admin-sidebar__item {
-        justify-content: flex-start;
-        padding: spacing(2) spacing(3);
-        gap: spacing(2);
-      }
-
-      .c-admin-sidebar__item-icon {
-        width: 18px;
-        height: 18px;
-      }
-
-      .c-admin-sidebar__item-text {
-        display: inline;
-      }
     }
   }
 }
 
 .c-admin-sidebar__item-text {
-  @include media("sm") {
-    display: inline !important;
+  white-space: nowrap;
+
+  .c-admin-sidebar--collapsed & {
+    visibility: hidden;
+    position: absolute;
+
+    @include media("sm") {
+      visibility: visible;
+      position: static;
+    }
   }
 }
 
@@ -146,6 +116,33 @@
   overflow-y: auto;
   padding: spacing(4) spacing(2);
   transition: padding var(--admin-sidebar-transition);
+}
+
+.c-admin-sidebar__section {
+  margin-bottom: spacing(4);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.c-admin-sidebar__section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: get("colors.gray.500");
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: spacing(1) spacing(3);
+  margin-bottom: spacing(1);
+  white-space: nowrap;
+
+  .c-admin-sidebar--collapsed & {
+    visibility: hidden;
+
+    @include media("sm") {
+      visibility: visible;
+    }
+  }
 }
 
 .c-admin-sidebar__item {
@@ -183,10 +180,6 @@
   flex-shrink: 0;
 }
 
-.c-admin-sidebar__item-text {
-  white-space: nowrap;
-  overflow: hidden;
-}
 
 .c-admin-sidebar__toggle {
   display: flex;
