@@ -12,7 +12,9 @@
   {{ if .private.canonicalURL }}
     <link rel="canonical" href="{{ .private.canonicalURL }}" />
   {{ end }}
-  {{ if .public.tenant }}{{ if .public.tenant.CustomCSS }}<style>{{ .public.tenant.CustomCSS | safeCSS }}</style>{{ end }}{{ end }}
+  <!-- Preload images from custom CSS for faster LCP -->
+  {{ if .public.tenant }}{{ if .public.tenant.CustomCSS }}{{ range extractCSSImages .public.tenant.CustomCSS }}<link rel="preload" href="{{ . }}" as="image" fetchpriority="high">
+  {{ end }}<style>{{ $.public.tenant.CustomCSS | safeCSS }}</style>{{ end }}{{ end }}
   {{ if .private.assets }}
     {{range .private.assets.CSS}}
       <link rel="stylesheet" href="{{ $.public.settings.assetsURL }}{{ . }}" />

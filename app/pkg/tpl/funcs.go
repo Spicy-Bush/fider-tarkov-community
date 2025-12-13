@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/crypto"
@@ -15,6 +17,51 @@ import (
 )
 
 var strictHtmlPolicy = bluemonday.NewPolicy()
+
+var cssURLRegex = regexp.MustCompile(`url\s*\(\s*['"]?([^'")\s]+)['"]?\s*\)`)
+
+var (
+	cssImageCache     = make(map[string][]string)
+	cssImageCacheLock sync.RWMutex
+)
+
+func extractCSSImages(css string) []string {
+	if css == "" {
+		return nil
+	}
+
+	cacheKey := crypto.MD5(css)
+
+	cssImageCacheLock.RLock()
+	if cached, ok := cssImageCache[cacheKey]; ok {
+		cssImageCacheLock.RUnlock()
+		return cached
+	}
+	cssImageCacheLock.RUnlock()
+
+	matches := cssURLRegex.FindAllStringSubmatch(css, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	urls := make([]string, 0, len(matches))
+	seen := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		if len(match) > 1 {
+			url := match[1]
+			if _, exists := seen[url]; !exists && isImageURL(url) {
+				seen[url] = struct{}{}
+				urls = append(urls, url)
+			}
+		}
+	}
+
+	cssImageCacheLock.Lock()
+	cssImageCache[cacheKey] = urls
+	cssImageCacheLock.Unlock()
+
+	return urls
+}
 
 var templateFunctions = map[string]any{
 	"stripHtml": func(input string) string {
@@ -26,6 +73,7 @@ var templateFunctions = map[string]any{
 	"safeCSS": func(input string) template.CSS {
 		return template.CSS(minifyCSS(input))
 	},
+	"extractCSSImages": extractCSSImages,
 	"md5": func(input string) string {
 		return crypto.MD5(input)
 	},
@@ -79,6 +127,35 @@ var templateFunctions = map[string]any{
 
 func quote(text any) string {
 	return strconv.Quote(fmt.Sprintf("%v", text))
+}
+
+var imageExtensions = []string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".avif", ".ico"}
+var imagePaths = []string{"/images/", "/image/", "/attachments/", "/misc/"}
+
+func isImageURL(url string) bool {
+	if strings.HasPrefix(url, "data:") {
+		return false
+	}
+
+	lowerURL := strings.ToLower(url)
+
+	cleanURL := lowerURL
+	if idx := strings.IndexByte(lowerURL, '?'); idx != -1 {
+		cleanURL = lowerURL[:idx]
+	}
+
+	for _, ext := range imageExtensions {
+		if strings.HasSuffix(cleanURL, ext) {
+			return true
+		}
+	}
+
+	for _, path := range imagePaths {
+		if strings.Contains(lowerURL, path) {
+			return true
+		}
+	}
+	return false
 }
 
 func minifyCSS(css string) string {
