@@ -21,7 +21,7 @@ export const Header = () => {
   return (
     <div id="c-header" className="bg-elevated">
       <SignInModal isOpen={isSignInModalOpen} onClose={hideModal} />
-      <HStack className="p-4 w-full">
+      <HStack className="p-6 w-full">
         <div className="container">
           <HStack justify="between">
             <HStack spacing={2} className="min-w-0">
