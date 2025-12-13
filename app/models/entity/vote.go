@@ -16,7 +16,7 @@ type VoteUser struct {
 
 // Vote represents a vote given by a user on a post
 type Vote struct {
-	User      *VoteUser `json:"user"`
-	CreatedAt time.Time `json:"createdAt"`
-	VoteType  enum.VoteType
+	User      *VoteUser     `json:"user"`
+	CreatedAt time.Time     `json:"createdAt"`
+	VoteType  enum.VoteType `json:"voteType,omitempty"`
 }
