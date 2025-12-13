@@ -80,11 +80,11 @@ func triggerWebhook(ctx context.Context, webhook *entity.Webhook, props webhook.
 	fullName := fmt.Sprintf("%d-%s", webhook.ID, webhook.Name)
 	result.Url, err = executeTemplate(fmt.Sprintf("%s-url", fullName), webhook.Url, props)
 	if err != nil {
-		return resultWithError(ctx, "Could not parse webhook URL template", err.Error(), result)
+		return resultWithError(ctx, "Could not parse webhook URL template", err.Error(), result, true)
 	}
 	result.Content, err = executeTemplate(fmt.Sprintf("%s-content", fullName), webhook.Content, props)
 	if err != nil {
-		return resultWithError(ctx, "Could not parse webhook content template", err.Error(), result)
+		return resultWithError(ctx, "Could not parse webhook content template", err.Error(), result, true)
 	}
 
 	httpRequest := &cmd.HTTPRequest{
@@ -96,12 +96,13 @@ func triggerWebhook(ctx context.Context, webhook *entity.Webhook, props webhook.
 	}
 	err = bus.Dispatch(ctx, httpRequest)
 	if err != nil {
-		return resultWithError(ctx, "Could not execute webhook HTTP request", err.Error(), result)
+		return resultWithError(ctx, "Could not execute webhook HTTP request", err.Error(), result, false)
 	}
 	result.StatusCode = httpRequest.ResponseStatusCode
 	if result.StatusCode >= http.StatusBadRequest {
 		fullResponse := fmt.Sprintf("%d %s:\n%s", result.StatusCode, http.StatusText(result.StatusCode), httpRequest.ResponseBody)
-		return resultWithError(ctx, "Webhook HTTP request returned an error response code", fullResponse, result)
+		shouldDisable := isDisablingStatusCode(result.StatusCode)
+		return resultWithError(ctx, "Webhook HTTP request returned an error response code", fullResponse, result, shouldDisable)
 	}
 
 	result.Success = true
@@ -111,6 +112,25 @@ func triggerWebhook(ctx context.Context, webhook *entity.Webhook, props webhook.
 		"Code": result.StatusCode,
 	})
 	return result, nil
+}
+
+func isDisablingStatusCode(statusCode int) bool {
+	switch statusCode {
+	case http.StatusBadRequest:
+		return true
+	case http.StatusUnauthorized:
+		return true
+	case http.StatusForbidden:
+		return true
+	case http.StatusNotFound:
+		return true
+	case http.StatusMethodNotAllowed:
+		return true
+	case http.StatusGone:
+		return true
+	default:
+		return false
+	}
 }
 
 func previewWebhook(ctx context.Context, c *cmd.PreviewWebhook) error {
@@ -148,22 +168,31 @@ func executeTemplate(name, text string, props webhook.Props) (string, error) {
 	return replacedText, nil
 }
 
-func resultWithError(ctx context.Context, message, error string, result *dto.WebhookTriggerResult) (*dto.WebhookTriggerResult, error) {
+func resultWithError(ctx context.Context, message, error string, result *dto.WebhookTriggerResult, shouldDisable bool) (*dto.WebhookTriggerResult, error) {
 	result.Success = false
 	result.Message = message
 	result.Error = error
 
-	log.Warnf(ctx, "@{Message} (ID: @{ID:yellow}, Name: @{Name:blue}): @{Error:red}", dto.Props{
-		"Message": message,
-		"ID":      result.Webhook.ID,
-		"Name":    result.Webhook.Name,
-		"Error":   error,
-	})
+	if shouldDisable {
+		log.Warnf(ctx, "@{Message} (ID: @{ID:yellow}, Name: @{Name:blue}) - DISABLING WEBHOOK: @{Error:red}", dto.Props{
+			"Message": message,
+			"ID":      result.Webhook.ID,
+			"Name":    result.Webhook.Name,
+			"Error":   error,
+		})
 
-	webhooks := &query.MarkWebhookAsFailed{ID: result.Webhook.ID}
-	err := bus.Dispatch(ctx, webhooks)
-	if err != nil {
-		return nil, err
+		webhooks := &query.MarkWebhookAsFailed{ID: result.Webhook.ID}
+		err := bus.Dispatch(ctx, webhooks)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		log.Warnf(ctx, "@{Message} (ID: @{ID:yellow}, Name: @{Name:blue}) - transient error, webhook remains enabled: @{Error:red}", dto.Props{
+			"Message": message,
+			"ID":      result.Webhook.ID,
+			"Name":    result.Webhook.Name,
+			"Error":   error,
+		})
 	}
 
 	return result, nil

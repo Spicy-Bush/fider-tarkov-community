@@ -20,11 +20,6 @@ type CreateUser struct {
 	Reference string `json:"reference"`
 }
 
-type ChangeUserVisualRole struct {
-	VisualRole enum.VisualRole `route:"visualRole"`
-	UserID     int             `json:"userID"`
-}
-
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *CreateUser) IsAuthorized(ctx context.Context, user *entity.User) bool {
 	return user != nil && user.IsAdministrator()
@@ -58,36 +53,36 @@ func (action *CreateUser) Validate(ctx context.Context, user *entity.User) *vali
 	return result
 }
 
+// ChangeUserVisualRole is the input model change visual role of an user
+type ChangeUserVisualRole struct {
+	VisualRole enum.VisualRole `route:"visualRole"`
+	UserID     int             `json:"userID"`
+}
+
+func (action *ChangeUserVisualRole) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+}
+
 // ChangeUserRole is the input model change role of an user
 type ChangeUserRole struct {
 	Role   enum.Role `route:"role"`
 	UserID int       `json:"userID"`
 }
 
-func (action *ChangeUserVisualRole) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil {
-		return false
-	}
-	return user.IsAdministrator()
-}
-
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *ChangeUserRole) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil {
-		return false
-	}
-	return user.IsAdministrator() && user.ID != action.UserID
+	return user != nil && (user.IsAdministrator()) && user.ID != action.UserID
 }
 
 // Validate if current model is valid
 func (action *ChangeUserRole) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	result := validate.Success()
-	if action.Role < enum.RoleVisitor || action.Role > enum.RoleModerator {
+	if action.Role < enum.RoleVisitor || action.Role > enum.RoleHelper {
 		return validate.Error(app.ErrNotFound)
 	}
 
 	if user.ID == action.UserID {
-		result.AddFieldFailure("userID", "It is not allowed to change your own Role.")
+		result.AddFieldFailure("userID", "You are not allowed to change your own Role.")
 	}
 
 	userByID := &query.GetUserByID{UserID: action.UserID}
@@ -123,6 +118,11 @@ func (action *ChangeUserVisualRole) Validate(ctx context.Context, user *entity.U
 	} else if userByID.Result.Tenant.ID != user.Tenant.ID {
 		result.AddFieldFailure("userID", "User not found.")
 	}
+
+	if user.IsCollaborator() && !user.IsAdministrator() && userByID.Result.Role == enum.RoleAdministrator {
+		result.AddFieldFailure("visualRole", "You are not authorized to change the visual role of an administrator.")
+	}
+
 	return result
 }
 

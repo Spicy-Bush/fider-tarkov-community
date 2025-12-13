@@ -13,8 +13,11 @@ func FilterContext() web.MiddlewareFunc {
 				return next(c)
 			}
 
+			// TODO: move this to a route instead of a middleware
+			// Will also need to migrate to a new table in the database instead of using the tenant
+
 			user := c.User()
-			if user == nil || !user.IsAdministrator() {
+			if user == nil || (!user.IsAdministrator() && !user.IsCollaborator()) {
 				tenantCopy := *tenant
 				tenantCopy.ProfanityWords = ""
 				c.Set(app.TenantCtxKey, &tenantCopy)

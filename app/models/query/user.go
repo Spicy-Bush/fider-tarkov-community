@@ -1,6 +1,8 @@
 package query
 
 import (
+	"time"
+
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 )
@@ -56,4 +58,69 @@ type GetAllUsersNames struct {
 	Query  string
 	Limit  int
 	Result []*dto.UserNames
+}
+
+// GetUserProfileStats returns the user's activity stats
+type GetUserProfileStats struct {
+	UserID int
+	Result struct {
+		Posts    int `json:"posts"`
+		Comments int `json:"comments"`
+		Votes    int `json:"votes"`
+	}
+}
+
+// GetUserProfileStanding returns the user's standing (warnings, mutes)
+type GetUserProfileStanding struct {
+	UserID int
+	Result struct {
+		Warnings []struct {
+			ID        int        `json:"id"`
+			Reason    string     `json:"reason"`
+			CreatedAt time.Time  `json:"createdAt"`
+			ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+		} `json:"warnings"`
+		Mutes []struct {
+			ID        int        `json:"id"`
+			Reason    string     `json:"reason"`
+			CreatedAt time.Time  `json:"createdAt"`
+			ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+		} `json:"mutes"`
+	}
+}
+
+// UserPostResult represents a post in the search result
+type UserPostResult struct {
+	ID        int       `json:"id"`
+	Title     string    `json:"title"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// UserCommentResult represents a comment in the search result
+type UserCommentResult struct {
+	ID         int       `json:"id"`
+	Content    string    `json:"content"`
+	PostNumber int       `json:"postNumber"`
+	PostTitle  string    `json:"postTitle"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
+// SearchUserContent searches through the user's content
+type SearchUserContent struct {
+	UserID      int
+	Query       string
+	ContentType string
+	VoteType    int
+	Limit       int
+	Offset      int
+	SortBy      string
+	SortOrder   string
+	Result      struct {
+		Posts    []UserPostResult    `json:"posts"`
+		Comments []UserCommentResult `json:"comments"`
+	}
+}
+
+type UpdateUser struct {
+	User *entity.User
 }

@@ -28,11 +28,11 @@ func SanitizeString(input string) string {
 	return strings.ToValidUTF8(input, "")
 }
 
-func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus, string, []interface{}) {
+func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus, string, string, []interface{}) {
 	var sort string
+	sortDir := "DESC"
 	statusFilters := query.Statuses
 	if len(statusFilters) == 0 {
-		// Use a sensible default list of status filters
 		statusFilters = []enum.PostStatus{
 			enum.PostOpen,
 			enum.PostStarted,
@@ -66,7 +66,6 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 				paramIndex++
 			}
 		} else {
-			// by default, we use OR logic
 			conditions = append(conditions, fmt.Sprintf("tags && $%d", paramIndex))
 			extraParams = append(extraParams, pq.Array(query.Tags))
 			paramIndex++
@@ -101,27 +100,28 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 	switch query.View {
 	case "newest":
 		sort = "id"
+	case "oldest":
+		sort = "id"
+		sortDir = "ASC"
 	case "recently-updated":
-		// oh god dear please help me what the fuck im going insane
 		sort = "CASE WHEN status = " + fmt.Sprintf("%d", int(enum.PostOpen)) + " THEN -999999999 ELSE extract(epoch from COALESCE(response_date, created_at)) END"
 	case "most-wanted":
 		sort = "votes_count"
+	case "least-wanted":
+		sort = "votes_count"
+		sortDir = "ASC"
 	case "most-discussed":
 		sort = "comments_count"
 	case "planned":
-		// Depracated: Use status filters instead
 		sort = "response_date"
 		statusFilters = []enum.PostStatus{enum.PostPlanned}
 	case "started":
-		// Depracated: Use status filters instead
 		sort = "response_date"
 		statusFilters = []enum.PostStatus{enum.PostStarted}
 	case "completed":
-		// Depracated: Use status filters instead
 		sort = "response_date"
 		statusFilters = []enum.PostStatus{enum.PostCompleted}
 	case "declined":
-		// Depracated: Use status filters instead
 		sort = "response_date"
 		statusFilters = []enum.PostStatus{enum.PostDeclined}
 	case "all":
@@ -152,9 +152,9 @@ func getViewData(query query.SearchPosts, userID int) (string, []enum.PostStatus
 			"END + " +
 			"CASE WHEN (upvotes > 20) THEN upvotes/2 ELSE 0 END" +
 			") / " +
-			"pow((EXTRACT(EPOCH FROM current_timestamp - created_at)/86400) + 2, 0.8)"
+			"pow((EXTRACT(EPOCH FROM current_timestamp - last_activity_at)/86400) + 2, 0.8)"
 	}
-	return condition, statusFilters, sort, extraParams
+	return condition, statusFilters, sort, sortDir, extraParams
 }
 
 func buildAvatarURL(ctx context.Context, avatarType enum.AvatarType, id int, name, avatarBlobKey string) string {
@@ -164,7 +164,9 @@ func buildAvatarURL(ctx context.Context, avatarType enum.AvatarType, id int, nam
 
 	if avatarType == enum.AvatarTypeCustom {
 		return web.AssetsURL(ctx, "/static/images/%s", avatarBlobKey)
+	} else if avatarType == enum.AvatarTypeGravatar {
+		return web.AssetsURL(ctx, "/static/avatars/gravatar/%d/%s", id, url.PathEscape(name))
 	} else {
-		return web.AssetsURL(ctx, "/static/avatars/%s/%d/%s", avatarType.String(), id, url.PathEscape(name))
+		return web.AssetsURL(ctx, "/static/avatars/letter/%d/%s", id, url.PathEscape(name))
 	}
 }

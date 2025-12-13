@@ -1,12 +1,18 @@
 import React, { useState } from "react"
 import { Button } from "@fider/components"
-
 import { Webhook, WebhookData, WebhookStatus } from "@fider/models"
 import { actions, Failure } from "@fider/services"
-import { AdminPageContainer } from "../components/AdminBasePage"
 import { WebhookForm } from "../components/webhook/WebhookForm"
 import { WebhookListItem } from "../components/webhook/WebhookListItem"
-import { VStack } from "@fider/components/layout"
+import { WebhookDocsPanel } from "../components/webhook/WebhookDocsPanel"
+import { VStack, HStack } from "@fider/components/layout"
+import { PageConfig } from "@fider/components/layouts"
+
+export const pageConfig: PageConfig = {
+  title: "Webhooks",
+  subtitle: "Manage your site webhooks",
+  sidebarItem: "webhooks",
+}
 
 interface ManageWebhooksPageProps {
   webhooks: Webhook[]
@@ -30,20 +36,25 @@ interface WebhooksListProps {
 const WebhooksList = (props: WebhooksListProps) => {
   return (
     <div>
-      <h2 className="text-display mb-4">My Webhooks</h2>
-      <VStack spacing={4} divide>
-        {props.list.length === 0 ? <p className="text-muted">There aren’t any webhooks yet.</p> : props.list}
+      <h2 className="text-lg font-semibold text-foreground mb-4">My Webhooks</h2>
+      <VStack spacing={3}>
+        {props.list.length === 0 ? (
+          <div className="p-8 text-center bg-tertiary rounded-card border border-surface-alt">
+            <p className="text-muted m-0">There aren&apos;t any webhooks yet.</p>
+          </div>
+        ) : props.list}
       </VStack>
     </div>
   )
 }
 
-const ManageWebhooksPage = (props: ManageWebhooksPageProps) => {
+const ManageWebhooksPage: React.FC<ManageWebhooksPageProps> = (props) => {
   const [isAdding, setIsAdding] = useState(false)
-  const [allWebhooks, setAllWebhooks] = useState(props.webhooks.sort(webhookSorter))
-  const [editing, setEditing] = useState<Webhook>()
+  const [allWebhooks, setAllWebhooks] = useState(() => [...props.webhooks].sort(webhookSorter))
+  const [editing, setEditing] = useState<Webhook | undefined>()
+  const [isDocsOpen, setIsDocsOpen] = useState(false)
 
-  const sortWebhooks = () => setAllWebhooks(allWebhooks.sort(webhookSorter))
+  const sortWebhooks = () => setAllWebhooks(prev => [...prev].sort(webhookSorter))
 
   const addNew = () => {
     setIsAdding(true)
@@ -55,7 +66,7 @@ const ManageWebhooksPage = (props: ManageWebhooksPageProps) => {
     const result = await actions.createWebhook(data)
     if (result.ok) {
       setIsAdding(false)
-      setAllWebhooks(allWebhooks.concat({ id: result.data.id, ...data }).sort(webhookSorter))
+      setAllWebhooks(prev => [...prev, { id: result.data.id, ...data }].sort(webhookSorter))
     } else {
       return result.error
     }
@@ -68,13 +79,12 @@ const ManageWebhooksPage = (props: ManageWebhooksPageProps) => {
   const cancelEdit = () => setEditing(undefined)
 
   const handleWebhookDeleted = (webhook: Webhook) => {
-    const idx = allWebhooks.indexOf(webhook)
-    setAllWebhooks(allWebhooks.filter((_, i) => i !== idx))
+    setAllWebhooks(prev => prev.filter(w => w.id !== webhook.id))
   }
 
   const handleWebhookEdited = async (data: WebhookData): Promise<Failure | undefined> => {
     const webhook = editing
-    if (webhook === undefined) return // impossible
+    if (webhook === undefined) return
     const result = await actions.updateWebhook(webhook.id, data)
     if (result.ok) {
       webhook.name = data.name
@@ -97,50 +107,54 @@ const ManageWebhooksPage = (props: ManageWebhooksPageProps) => {
     sortWebhooks()
   }
 
-  const getWebhookItems = () => {
-    return allWebhooks.map((w) => {
-      return (
-        <WebhookListItem
-          key={w.id}
-          webhook={w}
-          onWebhookDeleted={handleWebhookDeleted}
-          editWebhook={startWebhookEditing}
-          onWebhookFailed={handleWebhookFailed}
-        />
-      )
-    })
+  const handleWebhookStatusChanged = (webhook: Webhook) => {
+    sortWebhooks()
   }
 
-  const render = (content: JSX.Element) => (
-    <AdminPageContainer id="p-admin-webhooks" name="webhooks" title="Webhooks" subtitle="Manage your site webhooks">
-      {content}
-    </AdminPageContainer>
-  )
+  const getWebhookItems = () => {
+    return allWebhooks.map((w) => (
+      <WebhookListItem
+        key={w.id}
+        webhook={w}
+        onWebhookDeleted={handleWebhookDeleted}
+        editWebhook={startWebhookEditing}
+        onWebhookFailed={handleWebhookFailed}
+        onWebhookStatusChanged={handleWebhookStatusChanged}
+      />
+    ))
+  }
 
   if (isAdding) {
-    return render(<WebhookForm onSave={saveNewWebhook} onCancel={cancelAdd} />)
+    return <WebhookForm onSave={saveNewWebhook} onCancel={cancelAdd} />
   }
 
   if (editing) {
-    return render(<WebhookForm onSave={handleWebhookEdited} onCancel={cancelEdit} webhook={editing} />)
+    return <WebhookForm onSave={handleWebhookEdited} onCancel={cancelEdit} webhook={editing} />
   }
 
-  return render(
-    <VStack spacing={8}>
-      <p>
-        Use webhooks to integrate Fider with other applications like Slack, Discord, Zapier and many others.{" "}
-        <a className="text-link" href="https://fider.io/docs/using-webhooks" target="_blank" rel="noopener">
-          Learn more in our documentation
-        </a>
-        .
-      </p>
-      <WebhooksList title="New Post" description="a new post is created on this site" list={getWebhookItems()} />
-      <div>
-        <Button variant="secondary" onClick={addNew}>
-          Add new webhook
-        </Button>
-      </div>
-    </VStack>
+  return (
+    <>
+      <VStack spacing={6}>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 p-4 bg-tertiary rounded-card border border-surface-alt">
+          <p className="text-muted m-0">
+            Use webhooks to integrate Fider with other applications like Slack, Discord, Zapier and many others.{" "}
+            <a className="text-link" href="https://fider.io/docs/using-webhooks" target="_blank" rel="noopener">
+              Learn more
+            </a>
+          </p>
+          <Button variant="secondary" size="small" onClick={() => setIsDocsOpen(true)} className="shrink-0">
+            Docs
+          </Button>
+        </div>
+        <WebhooksList title="New Post" description="a new post is created on this site" list={getWebhookItems()} />
+        <div className="pt-4 border-t border-surface-alt">
+          <Button variant="primary" onClick={addNew}>
+            Add new webhook
+          </Button>
+        </div>
+      </VStack>
+      <WebhookDocsPanel isOpen={isDocsOpen} onClose={() => setIsDocsOpen(false)} />
+    </>
   )
 }
 

@@ -1,6 +1,6 @@
 import React from "react"
 
-import { Modal, Form, Button, PageTitle, Input, Select, SelectOption, ImageUploader, Header } from "@fider/components"
+import { Modal, Form, Button, PageTitle, Input, Select, SelectOption, ImageUploader } from "@fider/components"
 
 import { UserSettings, UserAvatarType, ImageUpload } from "@fider/models"
 import { Failure, actions, Fider } from "@fider/services"
@@ -39,17 +39,32 @@ export default class MySettingsPage extends React.Component<MySettingsPageProps,
   }
 
   private confirm = async () => {
-    const result = await actions.updateUserSettings({
+    const nameResult = await actions.updateUserName({
       name: this.state.name,
+    });
+    if (!nameResult.ok) {
+      this.setState({ error: nameResult.error });
+      return;
+    }
+
+    const avatarResult = await actions.updateUserAvatar({
       avatarType: this.state.avatarType,
       avatar: this.state.avatar,
-      settings: this.state.userSettings,
-    })
-    if (result.ok) {
-      location.reload()
-    } else if (result.error) {
-      this.setState({ error: result.error })
+    });
+    if (!avatarResult.ok) {
+      this.setState({ error: avatarResult.error });
+      return;
     }
+
+    const settingsResult = await actions.updateUserSettings({
+      settings: this.state.userSettings,
+    });
+    if (!settingsResult.ok) {
+      this.setState({ error: settingsResult.error });
+      return;
+    }
+
+    location.reload();
   }
 
   private submitNewEmail = async () => {
@@ -111,9 +126,7 @@ export default class MySettingsPage extends React.Component<MySettingsPageProps,
     )
 
     return (
-      <>
-        <Header />
-        <div id="p-my-settings" className="page container">
+      <div id="p-my-settings" className="page container">
           <Modal.Window isOpen={this.state.showModal} onClose={this.closeModal}>
             <Modal.Header>
               <Trans id="modal.changeemail.header">Confirm your new email</Trans>
@@ -217,12 +230,11 @@ export default class MySettingsPage extends React.Component<MySettingsPageProps,
             </Form>
 
             <div className="mt-8">{Fider.session.user.isCollaborator && <APIKeyForm />}</div>
-            <div className="mt-8">
-              <DangerZone />
-            </div>
+          <div className="mt-8">
+            <DangerZone />
           </div>
         </div>
-      </>
+      </div>
     )
   }
 }

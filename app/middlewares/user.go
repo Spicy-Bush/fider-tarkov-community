@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
@@ -101,6 +102,65 @@ func User() web.MiddlewareFunc {
 					c.RemoveCookie(web.CookieAuthName)
 					return c.Unauthorized()
 				}
+
+			var cachedStanding *query.GetUserProfileStanding
+			var standingFetched bool
+
+			fetchStanding := func(userID int) *query.GetUserProfileStanding {
+				if standingFetched {
+					return cachedStanding
+				}
+				standingFetched = true
+				cachedStanding = &query.GetUserProfileStanding{
+					UserID: userID,
+					Result: struct {
+						Warnings []struct {
+							ID        int        `json:"id"`
+							Reason    string     `json:"reason"`
+							CreatedAt time.Time  `json:"createdAt"`
+							ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+						} `json:"warnings"`
+						Mutes []struct {
+							ID        int        `json:"id"`
+							Reason    string     `json:"reason"`
+							CreatedAt time.Time  `json:"createdAt"`
+							ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+						} `json:"mutes"`
+					}{},
+				}
+				if err := bus.Dispatch(c, cachedStanding); err != nil {
+					return nil
+				}
+				return cachedStanding
+			}
+
+			user.SetWarningCheck(func(userID int) bool {
+				standing := fetchStanding(userID)
+				if standing == nil {
+					return false
+				}
+				now := time.Now()
+				for _, warning := range standing.Result.Warnings {
+					if warning.ExpiresAt == nil || warning.ExpiresAt.After(now) {
+						return true
+					}
+				}
+				return false
+			})
+
+			user.SetMuteCheck(func(userID int) bool {
+				standing := fetchStanding(userID)
+				if standing == nil {
+					return false
+				}
+				now := time.Now()
+				for _, mute := range standing.Result.Mutes {
+					if mute.ExpiresAt == nil || mute.ExpiresAt.After(now) {
+						return true
+					}
+				}
+				return false
+			})
 
 				c.SetUser(user)
 			}

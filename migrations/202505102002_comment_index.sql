@@ -1,0 +1,1 @@
+CREATE INDEX idx_comments_user_tenant ON comments USING btree (user_id, tenant_id, deleted_at);

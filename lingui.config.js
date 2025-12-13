@@ -7,6 +7,7 @@ export default {
       include: ["<rootDir>/public/**/*.{ts,tsx}"],
     },
   ],
+  compileNamespace: "es",
   orderBy: "messageId",
   fallbackLocales: {
     default: "en",

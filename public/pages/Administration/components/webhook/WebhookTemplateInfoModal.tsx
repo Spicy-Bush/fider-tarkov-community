@@ -1,11 +1,10 @@
-import "./WebhookTemplateInfoModal.scss"
 
 import { Button, Loader, Modal } from "@fider/components"
 import { WebhookProperties } from "@fider/pages/Administration/components/webhook/WebhookProperties"
 import React, { useEffect, useState } from "react"
 import { WebhookType } from "@fider/models"
 import { actions, StringObject } from "@fider/services"
-import { HStack, VStack } from "@fider/components/layout"
+import { VStack } from "@fider/components/layout"
 import { HoverInfo } from "@fider/components/common/HoverInfo"
 
 interface WebhookTemplateInfoProps {
@@ -107,71 +106,76 @@ export const WebhookTemplateInfoModal = (props: WebhookTemplateInfoProps) => {
   }, [props.type])
 
   return (
-    <Modal.Window className="c-webhook-templateinfo" isOpen={props.isModalOpen} onClose={props.onModalClose} size="large">
-      <Modal.Header>Webhook template formatting help</Modal.Header>
+    <Modal.Window isOpen={props.isModalOpen} onClose={props.onModalClose} size="large">
+      <Modal.Header>Template Formatting Help</Modal.Header>
       <Modal.Content>
-        <VStack spacing={4} divide>
-          <div>
-            <h3 className="text-title mb-1">What is a template?</h3>
-            <p>
-              The template engine used is the native Go <code>text/template</code> package. The simpliest way to create a template is to write your text, and
-              insert the property name, prefixed by a dot, enclosed in double braces with spaces within (wierd? complete!). Example:
+        <VStack spacing={4}>
+          <div className="p-4 bg-tertiary rounded-card border border-surface-alt">
+            <h3 className="text-base font-semibold text-foreground mb-2">What is a template?</h3>
+            <p className="text-sm text-muted mb-3">
+              The template engine used is Go&apos;s native <code className="bg-surface-alt px-1 rounded text-foreground">text/template</code> package. Insert property names prefixed by a dot, enclosed in double braces. Example:
             </p>
-            <pre className="text-left">{textExample}</pre>
-            <p>
-              When using a structured text format such as JSON, you may need to wrap those properties into quotes. But be careful: you must escape values by
-              yourself by calling the appropriate function depending of your situation. Example:
+            <pre className="text-sm font-mono bg-elevated p-3 rounded-input overflow-x-auto whitespace-pre-wrap break-all m-0 mb-3">{textExample}</pre>
+            <p className="text-sm text-muted mb-3">
+              When using JSON, you must escape values using the appropriate function:
             </p>
-            <pre className="text-left">{jsonExample}</pre>
-            <Button href="https://pkg.go.dev/text/template" target="_blank" variant="primary">
-              Official Go templates documentation
+            <pre className="text-sm font-mono bg-elevated p-3 rounded-input overflow-x-auto whitespace-pre-wrap break-all m-0 mb-3">{jsonExample}</pre>
+            <Button href="https://pkg.go.dev/text/template" target="_blank" variant="secondary" size="small">
+              Go templates docs
             </Button>
           </div>
           {properties === undefined ? (
-            <p className="text-muted">Failed to load help data</p>
+            <div className="p-4 bg-danger-light border border-danger-light rounded-card text-danger text-sm">
+              Failed to load help data
+            </div>
           ) : properties === null ? (
-            <Loader text="Loading help data" />
+            <div className="p-4 bg-tertiary rounded-card border border-surface-alt">
+              <Loader text="Loading help data" />
+            </div>
           ) : (
             <>
               <div>
-                <h3 className="text-title mb-1">Properties</h3>
+                <h3 className="text-base font-semibold text-foreground mb-3">Available Properties</h3>
                 <WebhookProperties properties={properties} propsName="Property name" valueName="Example value" />
               </div>
               <div>
-                <h3 className="text-title mb-1">Functions</h3>
-                <VStack spacing={2} divide>
-                  <HStack className="c-webhook-templateinfo__header flex-wrap" spacing={0}>
-                    <div className="c-webhook-templateinfo__header-func">Function</div>
-                    <div className="c-webhook-templateinfo__header-desc">Description</div>
-                    <VStack className="c-webhook-templateinfo__params">
-                      <div className="c-webhook-templateinfo__header-params">Parameters</div>
-                      <HStack>
-                        <div className="c-webhook-templateinfo__header-param">Type</div>
-                        <div className="c-webhook-templateinfo__header-param-desc">Description</div>
-                      </HStack>
-                    </VStack>
-                  </HStack>
+                <h3 className="text-base font-semibold text-foreground mb-3">Functions</h3>
+                <div className="bg-elevated rounded-card overflow-hidden border border-surface-alt">
+                  <div className="hidden md:grid md:grid-cols-[120px_1fr_1fr] bg-tertiary border-b border-surface-alt">
+                    <div className="px-3 py-2 text-xs font-semibold text-muted uppercase">Function</div>
+                    <div className="px-3 py-2 text-xs font-semibold text-muted uppercase border-l border-surface-alt">Description</div>
+                    <div className="px-3 py-2 text-xs font-semibold text-muted uppercase border-l border-surface-alt">Parameters</div>
+                  </div>
                   {Object.entries(functions).map(([func, spec]) => (
-                    <HStack key={func} className="flex-wrap" spacing={0}>
-                      <div className="c-webhook-templateinfo__func">{func}</div>
-                      <div className="c-webhook-templateinfo__desc">
-                        {spec.description}
-                        {spec.info && <HoverInfo text={spec.info} href={spec.link} target="_blank" />}
+                    <div key={func} className="border-b border-surface-alt last:border-b-0">
+                      <div className="md:grid md:grid-cols-[120px_1fr_1fr]">
+                        <div className="px-3 py-2 text-sm font-mono text-primary font-medium bg-tertiary md:bg-transparent">
+                          <span className="md:hidden text-xs text-muted mr-2">Function:</span>
+                          {func}
+                        </div>
+                        <div className="px-3 py-2 text-sm text-foreground md:border-l md:border-surface-alt">
+                          <span className="md:hidden text-xs text-muted block mb-1">Description:</span>
+                          {spec.description}
+                          {spec.info && <HoverInfo text={spec.info} href={spec.link} target="_blank" />}
+                        </div>
+                        <div className="px-3 py-2 text-sm md:border-l md:border-surface-alt bg-tertiary md:bg-transparent">
+                          <span className="md:hidden text-xs text-muted block mb-1">Parameters:</span>
+                          <VStack spacing={1}>
+                            {spec.params.map((param, j) => (
+                              <div key={j} className="flex gap-2 text-xs">
+                                <span className="text-primary font-mono shrink-0">{param.type}</span>
+                                <span className="text-muted">
+                                  {param.desc}
+                                  {param.info && <HoverInfo text={param.info} href={param.link} target="_blank" />}
+                                </span>
+                              </div>
+                            ))}
+                          </VStack>
+                        </div>
                       </div>
-                      <VStack className="c-webhook-templateinfo__params" spacing={2} divide>
-                        {spec.params.map((param, j) => (
-                          <HStack key={j} className="flex-wrap" spacing={0}>
-                            <div className="c-webhook-templateinfo__param">{param.type}</div>
-                            <div className="c-webhook-templateinfo__param-desc">
-                              {param.desc}
-                              {param.info && <HoverInfo text={param.info} href={param.link} target="_blank" />}
-                            </div>
-                          </HStack>
-                        ))}
-                      </VStack>
-                    </HStack>
+                    </div>
                   ))}
-                </VStack>
+                </div>
               </div>
             </>
           )}

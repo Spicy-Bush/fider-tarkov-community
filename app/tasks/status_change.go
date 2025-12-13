@@ -38,16 +38,14 @@ func NotifyAboutStatusChange(post *entity.Post, prevStatus enum.PostStatus) work
 		})
 		link := fmt.Sprintf("/posts/%d/%s", post.Number, post.Slug)
 		for _, user := range users {
-			if user.ID != author.ID {
-				err = bus.Dispatch(c, &cmd.AddNewNotification{
-					User:   user,
-					Title:  title,
-					Link:   link,
-					PostID: post.ID,
-				})
-				if err != nil {
-					return c.Failure(err)
-				}
+			err = bus.Dispatch(c, &cmd.AddNewNotification{
+				User:   user,
+				Title:  title,
+				Link:   link,
+				PostID: post.ID,
+			})
+			if err != nil {
+				return c.Failure(err)
 			}
 		}
 
@@ -69,9 +67,7 @@ func NotifyAboutStatusChange(post *entity.Post, prevStatus enum.PostStatus) work
 
 			to := make([]dto.Recipient, 0)
 			for _, user := range users {
-				if user.ID != author.ID {
-					to = append(to, dto.NewRecipient(user.Name, user.Email, dto.Props{}))
-				}
+				to = append(to, dto.NewRecipient(user.Name, user.Email, dto.Props{}))
 			}
 
 			props := dto.Props{
@@ -83,7 +79,7 @@ func NotifyAboutStatusChange(post *entity.Post, prevStatus enum.PostStatus) work
 				"duplicate":   duplicate,
 				"view":        linkWithText(i18n.T(c, "email.subscription.view"), baseURL, "/posts/%d/%s", post.Number, post.Slug),
 				"unsubscribe": linkWithText(i18n.T(c, "email.subscription.unsubscribe"), baseURL, "/posts/%d/%s", post.Number, post.Slug),
-				"change":      linkWithText(i18n.T(c, "email.subscription.change"), baseURL, "/settings"),
+				"change":      linkWithText(i18n.T(c, "email.subscription.change"), baseURL, "/profile#settings"),
 				"logo":        logoURL,
 			}
 
@@ -93,7 +89,6 @@ func NotifyAboutStatusChange(post *entity.Post, prevStatus enum.PostStatus) work
 				TemplateName: "change_status",
 				Props:        props,
 			})
-
 		}
 
 		webhookProps := webhook.Props{"post_old_status": prevStatus.Name()}

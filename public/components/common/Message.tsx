@@ -1,10 +1,8 @@
-import "./Message.scss"
+// import "./Message.scss"
 
 import React from "react"
 import { classSet } from "@fider/services"
-import IconCheckCircle from "@fider/assets/images/heroicons-check-circle.svg"
-import IconExclamationCircle from "@fider/assets/images/heroicons-exclamation-circle.svg"
-import IconExclamation from "@fider/assets/images/heroicons-exclamation.svg"
+import { heroiconsCheckCircle as IconCheckCircle, heroiconsExclamationCircle as IconExclamationCircle, heroiconsExclamation as IconExclamation } from "@fider/icons.generated"
 import { HStack } from "@fider/components/layout"
 import { Icon } from "./Icon"
 
@@ -16,11 +14,17 @@ interface MessageProps {
   showIcon?: boolean
 }
 
+const typeClasses = {
+  success: "text-success bg-success/10 border-success",
+  warning: "text-warning bg-warning/10 border-warning",
+  error: "text-danger bg-danger/10 border-danger",
+}
+
 export const Message: React.FunctionComponent<MessageProps> = (props) => {
   const className = classSet({
-    "c-message": true,
-    [`c-message--${props.type}`]: true,
-    [`c-message--icon`]: props.showIcon === true,
+    "p-4 mb-2 rounded": true,
+    "border-l-2": props.showIcon === true,
+    [typeClasses[props.type]]: true,
     [`${props.className}`]: props.className,
   })
 

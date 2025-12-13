@@ -52,6 +52,22 @@ func BeginTx(ctx context.Context) (*Trx, error) {
 	return &Trx{tx: tx, ctx: ctx}, nil
 }
 
+// returns existing transaction from context, or creates a new one
+// if transaction exists in context: returns it with owned = false
+// if no transaction exists: creates new one with owned = true
+// the caller should only commit/rollback if owned = true
+func GetOrBeginTx(ctx context.Context) (*Trx, bool, error) {
+	if trx, ok := ctx.Value(app.TransactionCtxKey).(*Trx); ok && trx != nil {
+		return trx, false, nil
+	}
+
+	trx, err := BeginTx(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	return trx, true, nil
+}
+
 func load(path string) {
 	content, err := os.ReadFile(env.Path(path))
 	if err != nil {

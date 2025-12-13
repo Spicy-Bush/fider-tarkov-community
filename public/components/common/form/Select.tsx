@@ -1,9 +1,9 @@
+// Select converted to Tailwind
+
 import React from "react"
 import { classSet } from "@fider/services"
 import { ValidationContext } from "./Form"
 import { DisplayError, hasError } from "./DisplayError"
-
-import "./Select.scss"
 
 export interface SelectOption {
   value: string
@@ -16,32 +16,43 @@ interface SelectProps {
   label?: string
   maxLength?: number
   defaultValue?: string
+  value?: string
   options: SelectOption[]
   onChange?: (option?: SelectOption) => void
+  disabled?: boolean
 }
 
 export const Select: React.FunctionComponent<SelectProps> = (props) => {
+  const Options = Array.isArray(props.options) ? props.options : [];
+  const isControlled = props.value !== undefined
+  
   const getOption = (value?: string) => {
-    if (value && props.options) {
-      const filtered = props.options.filter((x) => x.value === value)
+    if (value && Options.length > 0) {
+      const filtered = Options.filter((x) => x.value === value)
       if (filtered && filtered.length > 0) {
         return filtered[0]
       }
     }
+    return undefined;
   }
-  const [selected, setSelected] = React.useState<SelectOption | undefined>(getOption(props.defaultValue))
+  
+  const [internalSelected, setInternalSelected] = React.useState<SelectOption | undefined>(getOption(props.defaultValue))
+  const selected = isControlled ? getOption(props.value) : internalSelected
+  
   const onChange = (e: React.FormEvent<HTMLSelectElement>) => {
-    let selected: SelectOption | undefined
+    let newSelected: SelectOption | undefined
     if (e.currentTarget.value) {
-      const options = props.options.filter((o) => o.value === e.currentTarget.value)
+      const options = Options.filter((o) => o.value === e.currentTarget.value)
       if (options && options.length > 0) {
-        selected = options[0]
+        newSelected = options[0]
       }
     }
 
-    setSelected(selected)
+    if (!isControlled) {
+      setInternalSelected(newSelected)
+    }
     if (props.onChange) {
-      props.onChange(selected)
+      props.onChange(newSelected)
     }
   }
 
@@ -49,19 +60,25 @@ export const Select: React.FunctionComponent<SelectProps> = (props) => {
     <ValidationContext.Consumer>
       {(ctx) => (
         <>
-          <div className="c-form-field">
-            {!!props.label && <label htmlFor={`input-${props.field}`}>{props.label}</label>}
+          <div className="mb-4">
+            {!!props.label && <label htmlFor={`input-${props.field}`} className="block text-sm font-medium mb-1">{props.label}</label>}
             <select
               className={classSet({
-                "c-select": true,
-                "c-select--error": hasError(props.field, ctx.error),
+                "w-full bg-elevated p-2 border rounded-input appearance-none bg-no-repeat pr-10 disabled:opacity-45 disabled:cursor-not-allowed disabled:pointer-events-none": true,
+                "border-border": !hasError(props.field, ctx.error),
+                "border-danger": hasError(props.field, ctx.error),
               })}
-              value={selected?.value}
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                backgroundPosition: "right 0.5rem center",
+                backgroundSize: "1.5em 1.5em",
+              }}
+              value={selected?.value || ""}
               id={`input-${props.field}`}
-              defaultValue={props.defaultValue}
               onChange={onChange}
+              disabled={props.disabled}
             >
-              {props.options.map((option) => (
+              {Options.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>

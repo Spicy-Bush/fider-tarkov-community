@@ -4,7 +4,7 @@ import { ValidationContext } from "./Form"
 import { DisplayError, hasError } from "./DisplayError"
 import { Icon } from "@fider/components"
 
-import "./Input.scss"
+// import "./Input.scss"
 import { HStack } from "@fider/components/layout"
 
 interface InputProps {
@@ -38,21 +38,16 @@ export const Input: React.FunctionComponent<InputProps> = (props) => {
     }
   }
 
-  const suffix = typeof props.suffix === "string" ? <span className="c-input__suffix">{props.suffix}</span> : props.suffix
+  const suffix = typeof props.suffix === "string" ? <span className="flex items-center bg-surface-alt p-2 rounded-r-md">{props.suffix}</span> : props.suffix
 
-  const icon = props.icon ? <Icon sprite={props.icon} onClick={props.onIconClick} className={classSet({ clickable: !!props.onIconClick })} /> : undefined
+  const icon = props.icon ? <Icon sprite={props.icon} onClick={props.onIconClick} className={classSet({ "cursor-pointer": !!props.onIconClick })} /> : undefined
 
   return (
     <ValidationContext.Consumer>
       {(ctx) => (
-        <div
-          className={classSet({
-            "c-form-field": true,
-            [`${props.className}`]: props.className,
-          })}
-        >
+        <div className={classSet({ "mb-4": true, [`${props.className}`]: props.className })}>
           {!!props.label && (
-            <label htmlFor={`input-${props.field}`}>
+            <label htmlFor={`input-${props.field}`} className="block text-sm font-medium text-foreground mb-1">
               {props.label}
               {props.afterLabel}
             </label>
@@ -60,10 +55,11 @@ export const Input: React.FunctionComponent<InputProps> = (props) => {
           <HStack spacing={0} align={props.icon ? "center" : "start"} className="relative">
             <input
               className={classSet({
-                "c-input": true,
-                "c-input--icon": !!props.icon,
-                "c-input--error": hasError(props.field, ctx.error),
-                "c-input--suffixed": !!suffix,
+                "w-full p-2 text-base bg-elevated border border-border rounded-input appearance-none leading-relaxed text-foreground": true,
+                "pr-8": !!props.icon,
+                "border-danger": hasError(props.field, ctx.error),
+                "rounded-r-none": !!suffix,
+                "opacity-50 cursor-not-allowed": props.disabled,
               })}
               id={`input-${props.field}`}
               type="text"
@@ -78,7 +74,7 @@ export const Input: React.FunctionComponent<InputProps> = (props) => {
               placeholder={props.placeholder}
               onChange={onChange}
             />
-            {icon}
+            {icon && <div className="absolute right-0 w-9 p-2">{icon}</div>}
             {suffix}
           </HStack>
           <DisplayError fields={[props.field]} error={ctx.error} />

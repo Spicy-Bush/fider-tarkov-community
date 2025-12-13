@@ -51,6 +51,18 @@ type UpdateCurrentUser struct {
 	Avatar     *dto.ImageUpload
 }
 
+type UpdateUserAvatar struct {
+	UserID     int
+	Name       string
+	AvatarType enum.AvatarType
+	Avatar     *dto.ImageUpload
+}
+
+type UpdateUser struct {
+	UserID int
+	Name   string
+}
+
 type ChangeUserVisualRole struct {
 	UserID     int
 	VisualRole enum.VisualRole

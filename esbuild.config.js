@@ -2,6 +2,7 @@
 /* eslint-disable no-undef */
 
 const fs = require("fs")
+const path = require("path")
 const esbuild = require("esbuild")
 const babel = require("@babel/core")
 
@@ -67,11 +68,17 @@ esbuild
   .build({
     entryPoints: ["./public/ssr.tsx"],
     bundle: true,
+    platform: "node",
+    target: "node18",
+    format: "esm",
     define: {
       "process.env.NODE_ENV": `"${process.env.NODE_ENV || "development"}"`,
     },
     inject: ["./esbuild-shim.js"],
     outfile: "ssr.js",
-    plugins: [emptyCSS, emptySVG, babelPlugin()],
+    loader: {
+      ".json": "json",
+    },
+    plugins: [emptyCSS, emptySVG, babelPlugin({ filter: /\.(ts|tsx|js|jsx|mjs)$/ })],
   })
   .catch(() => process.exit(1))

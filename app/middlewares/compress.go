@@ -7,34 +7,49 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		gw, _ := gzip.NewWriterLevel(io.Discard, gzip.DefaultCompression)
+		return gw
+	},
+}
+
 type gzipResponseWriter struct {
 	io.Writer
 	http.ResponseWriter
+	gzipWriter *gzip.Writer
 }
 
-// Compress returns a middleware which compresses HTTP response using gzip compression
 func Compress() web.MiddlewareFunc {
 	return func(next web.HandlerFunc) web.HandlerFunc {
 		return func(c *web.Context) error {
+			if strings.Contains(c.Request.GetHeader("Accept"), "text/event-stream") {
+				return next(c)
+			}
+
 			if strings.Contains(c.Request.GetHeader("Accept-Encoding"), "gzip") {
 				res := c.Response
 				res.Header().Set("Content-Encoding", "gzip")
 				res.Header().Del("Accept-Encoding")
 				res.Header().Add("Vary", "Accept-Encoding")
 
-				gw, _ := gzip.NewWriterLevel(res.Writer, gzip.DefaultCompression)
+				gw := gzipWriterPool.Get().(*gzip.Writer)
+				gw.Reset(res.Writer)
 
 				c.Response.Writer = &gzipResponseWriter{
 					Writer:         gw,
 					ResponseWriter: c.Response.Writer,
+					gzipWriter:     gw,
 				}
 
 				err := next(c)
 				gw.Close()
+				gzipWriterPool.Put(gw)
 				return err
 			}
 			return next(c)
@@ -62,10 +77,13 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
-func (r gzipResponseWriter) Flush() {
-	r.Writer.(http.Flusher).Flush()
+func (w *gzipResponseWriter) Flush() {
+	w.gzipWriter.Flush()
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
-func (r gzipResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return r.Writer.(http.Hijacker).Hijack()
+func (w *gzipResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return w.ResponseWriter.(http.Hijacker).Hijack()
 }

@@ -1,10 +1,7 @@
-import React from "react"
+import React, { useEffect } from "react"
 import { navigator } from "@fider/services"
 import { Icon } from "@fider/components"
-
-import IconXCircle from "@fider/assets/images/heroicons-x-circle.svg"
-import IconCheckCircle from "@fider/assets/images/heroicons-check-circle.svg"
-import IconExclamation from "@fider/assets/images/heroicons-exclamation.svg"
+import { heroiconsXCircle as IconXCircle, heroiconsCheckCircle as IconCheckCircle, heroiconsExclamation as IconExclamation } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 
 interface OAuthEchoPageProps {
@@ -17,53 +14,53 @@ interface OAuthEchoPageProps {
   }
 }
 
-const ok = <Icon sprite={IconCheckCircle} className="h-4 text-green-500" />
-const error = <Icon sprite={IconXCircle} className="h-4 text-red-500" />
-const warn = <Icon sprite={IconExclamation} className="h-4 text-yellow-500" />
+const ok = <Icon sprite={IconCheckCircle} className="h-4 text-success" />
+const error = <Icon sprite={IconXCircle} className="h-4 text-danger" />
+const warn = <Icon sprite={IconExclamation} className="h-4 text-warning" />
 
-export default class OAuthEchoPage extends React.Component<OAuthEchoPageProps, any> {
-  public componentDidMount() {
+const OAuthEchoPage: React.FC<OAuthEchoPageProps> = (props) => {
+  useEffect(() => {
     navigator.replaceState("/")
-  }
+  }, [])
 
-  private renderError() {
+  const renderError = () => {
     return (
       <>
         <h5 className="text-display">Error</h5>
-        <pre>{this.props.err}</pre>
+        <pre>{props.err}</pre>
       </>
     )
   }
 
-  private renderParseResult() {
-    const idOk = this.props.profile && this.props.profile.id !== ""
-    const nameOk = this.props.profile && this.props.profile.name !== "Anonymous"
-    const emailOk = this.props.profile && this.props.profile.email !== ""
+  const renderParseResult = () => {
+    const idOk = props.profile && props.profile.id !== ""
+    const nameOk = props.profile && props.profile.name !== "Anonymous"
+    const emailOk = props.profile && props.profile.email !== ""
 
     let responseBody = ""
     try {
-      responseBody = JSON.stringify(JSON.parse(this.props.body), null, "  ")
+      responseBody = JSON.stringify(JSON.parse(props.body), null, "  ")
     } catch {
-      responseBody = this.props.body
+      responseBody = props.body
     }
 
     return (
       <>
         <h5 className="text-display mb-2">Raw Body</h5>
-        <pre>{responseBody}</pre>
+        <pre className="text-sm overflow-auto">{responseBody}</pre>
         <h5 className="text-display mb-2 mt-8">Parsed Profile</h5>
         <VStack divide={true} spacing={2}>
           <VStack>
             <HStack>
               {idOk ? ok : error}
-              <strong>ID:</strong> <span>{this.props.profile && this.props.profile.id}</span>
+              <strong>ID:</strong> <span>{props.profile && props.profile.id}</span>
             </HStack>
             {!idOk && <span className="text-muted">ID is required. If not found, users will see an error during sign in process.</span>}
           </VStack>
           <VStack>
             <HStack>
               {nameOk ? ok : warn}
-              <strong>Name:</strong> <span>{this.props.profile && this.props.profile.name}</span>
+              <strong>Name:</strong> <span>{props.profile && props.profile.name}</span>
             </HStack>
             {!nameOk && (
               <span className="text-muted">
@@ -74,7 +71,7 @@ export default class OAuthEchoPage extends React.Component<OAuthEchoPageProps, a
           <VStack>
             <HStack>
               {emailOk ? ok : warn}
-              <strong>Email:</strong> {this.props.profile && this.props.profile.email}
+              <strong>Email:</strong> {props.profile && props.profile.email}
             </HStack>
             {!emailOk && (
               <span className="text-muted">
@@ -87,11 +84,11 @@ export default class OAuthEchoPage extends React.Component<OAuthEchoPageProps, a
     )
   }
 
-  public render() {
-    return (
-      <div id="p-oauth-echo" className="page container">
-        {this.props.err ? this.renderError() : this.renderParseResult()}
-      </div>
-    )
-  }
+  return (
+    <div id="p-oauth-echo">
+      {props.err ? renderError() : renderParseResult()}
+    </div>
+  )
 }
+
+export default OAuthEchoPage

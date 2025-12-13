@@ -3,7 +3,7 @@ import React, { useState } from "react"
 import { UserSettings } from "@fider/models"
 import { Toggle, Field } from "@fider/components"
 import { useFider } from "@fider/hooks"
-import { HStack, VStack } from "@fider/components/layout"
+import { HStack } from "@fider/components/layout"
 import { i18n } from "@lingui/core"
 import { t, Trans } from "@lingui/macro"
 
@@ -53,7 +53,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
 
     if (!webEnabled && !emailEnabled) {
       return (
-        <p className="text-muted">
+        <p className="text-muted text-sm mt-1 mb-2">
           <Trans id="mysettings.notification.message.none">
             You&apos;ll <strong>NOT</strong> receive any notification about this event.
           </Trans>
@@ -61,7 +61,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
       )
     } else if (webEnabled && !emailEnabled) {
       return (
-        <p className="text-muted">
+        <p className="text-muted text-sm mt-1 mb-2">
           <Trans id="mysettings.notification.message.webonly">
             You&apos;ll receive <strong>web</strong> notifications about {about}.
           </Trans>
@@ -69,7 +69,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
       )
     } else if (!webEnabled && emailEnabled) {
       return (
-        <p className="text-muted">
+        <p className="text-muted text-sm mt-1 mb-2">
           <Trans id="mysettings.notification.message.emailonly">
             You&apos;ll receive <strong>email</strong> notifications about {about}.
           </Trans>
@@ -77,7 +77,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
       )
     } else if (webEnabled && emailEnabled) {
       return (
-        <p className="text-muted">
+        <p className="text-muted text-sm mt-1 mb-2">
           <Trans id="mysettings.notification.message.webandemail">
             You&apos;ll receive <strong>web</strong> and <strong>email</strong> notifications about {about}.
           </Trans>
@@ -88,61 +88,57 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
   }
 
   return (
-    <>
-      <Field label={i18n._("label.notifications", { message: "Notifications" })}>
-        <p className="text-muted mb-6">
-          <Trans id="mysettings.notification.title">
-            Choose the events to receive a notification for.
-          </Trans>
-        </p>
+    <Field label={i18n._("label.notifications", { message: "Notifications" })}>
+      <p className="text-muted text-sm mb-4">
+        <Trans id="mysettings.notification.title">
+          Choose the events to receive a notification for.
+        </Trans>
+      </p>
 
-        <div className="notifications-settings mt-4">
-          <VStack spacing={4} divide={true} className="rounded">
-            <div>
-              <div className="mb-1">
-                <Trans id="mysettings.notification.event.newpost">New Post</Trans>
-              </div>
-              {info(
-                "event_notification_new_post",
-                t({ id: "mysettings.notification.event.newpost.visitors", message: "new posts on this site" }),
-                t({ id: "mysettings.notification.event.newpost.staff", message: "new posts on this site" })
-              )}
-              <HStack spacing={6}>
-                {icon("event_notification_new_post", WebChannel)}
-                {(fider.session.user.isCollaborator || fider.session.user.isAdministrator) && icon("event_notification_new_post", EmailChannel)}
-              </HStack>
-            </div>
-            <div>
-              <div className="mb-1">
-                <Trans id="mysettings.notification.event.discussion">Discussion</Trans>
-              </div>
-              {info(
-                "event_notification_new_comment",
-                t({ id: "mysettings.notification.event.discussion.visitors", message: "comments on posts you've subscribed to" }),
-                t({ id: "mysettings.notification.event.discussion.staff", message: "comments on all posts unless individually unsubscribed" })
-              )}
-              <HStack spacing={6}>
-                {icon("event_notification_new_comment", WebChannel)}
-                {(fider.session.user.isCollaborator || fider.session.user.isAdministrator) && icon("event_notification_new_comment", EmailChannel)}
-              </HStack>
-            </div>
-            <div>
-              <div className="mb-1">
-                <Trans id="mysettings.notification.event.statuschanged">Status Changed</Trans>
-              </div>
-              {info(
-                "event_notification_change_status",
-                t({ id: "mysettings.notification.event.statuschanged.visitors", message: "status change on posts you've subscribed to" }),
-                t({ id: "mysettings.notification.event.statuschanged.staff", message: "status change on all posts unless individually unsubscribed" })
-              )}
-              <HStack spacing={6}>
-                {icon("event_notification_change_status", WebChannel)}
-                {(fider.session.user.isCollaborator || fider.session.user.isAdministrator) && icon("event_notification_change_status", EmailChannel)}
-              </HStack>
-            </div>
-          </VStack>
+      <div className="divide-y divide-surface-alt border border-surface-alt rounded-card overflow-hidden">
+        <div className="p-4 bg-elevated">
+          <div className="font-medium mb-1">
+            <Trans id="mysettings.notification.event.newpost">New Post</Trans>
+          </div>
+          {info(
+            "event_notification_new_post",
+            t({ id: "mysettings.notification.event.newpost.visitors", message: "new posts on this site" }),
+            t({ id: "mysettings.notification.event.newpost.staff", message: "new posts on this site" })
+          )}
+          <HStack spacing={6}>
+            {icon("event_notification_new_post", WebChannel)}
+            {(fider.session.user.isCollaborator || fider.session.user.isAdministrator) && icon("event_notification_new_post", EmailChannel)}
+          </HStack>
         </div>
-      </Field>
-    </>
+        <div className="p-4 bg-elevated">
+          <div className="font-medium mb-1">
+            <Trans id="mysettings.notification.event.discussion">Discussion</Trans>
+          </div>
+          {info(
+            "event_notification_new_comment",
+            t({ id: "mysettings.notification.event.discussion.visitors", message: "comments on posts you've subscribed to" }),
+            t({ id: "mysettings.notification.event.discussion.staff", message: "comments on all posts unless individually unsubscribed" })
+          )}
+          <HStack spacing={6}>
+            {icon("event_notification_new_comment", WebChannel)}
+            {(fider.session.user.isCollaborator || fider.session.user.isAdministrator) && icon("event_notification_new_comment", EmailChannel)}
+          </HStack>
+        </div>
+        <div className="p-4 bg-elevated">
+          <div className="font-medium mb-1">
+            <Trans id="mysettings.notification.event.statuschanged">Status Changed</Trans>
+          </div>
+          {info(
+            "event_notification_change_status",
+            t({ id: "mysettings.notification.event.statuschanged.visitors", message: "status change on posts you've subscribed to" }),
+            t({ id: "mysettings.notification.event.statuschanged.staff", message: "status change on all posts unless individually unsubscribed" })
+          )}
+          <HStack spacing={6}>
+            {icon("event_notification_change_status", WebChannel)}
+            {(fider.session.user.isCollaborator || fider.session.user.isAdministrator) && icon("event_notification_change_status", EmailChannel)}
+          </HStack>
+        </div>
+      </div>
+    </Field>
   )
 }

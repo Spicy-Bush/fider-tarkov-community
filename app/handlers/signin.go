@@ -54,18 +54,20 @@ func SignInByEmail() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.SaveVerificationKey{
-			Key:      action.VerificationKey,
-			Duration: 30 * time.Minute,
-			Request:  action,
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.SaveVerificationKey{
+				Key:      action.VerificationKey,
+				Duration: 30 * time.Minute,
+				Request:  action,
+			})
+			if err != nil {
+				return c.Failure(err)
+			}
+
+			c.Enqueue(tasks.SendSignInEmail(action.Email, action.VerificationKey))
+
+			return c.Ok(web.Map{})
 		})
-		if err != nil {
-			return c.Failure(err)
-		}
-
-		c.Enqueue(tasks.SendSignInEmail(action.Email, action.VerificationKey))
-
-		return c.Ok(web.Map{})
 	}
 }
 
@@ -98,9 +100,14 @@ func VerifySignInKey(kind enum.EmailVerificationKind) web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		err = bus.Dispatch(c, &cmd.SetKeyAsVerified{Key: key})
+		err = c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.SetKeyAsVerified{Key: key}); err != nil {
+				return c.Failure(err)
+			}
+			return nil
+		})
 		if err != nil {
-			return c.Failure(err)
+			return err
 		}
 
 		webutil.AddAuthUserCookie(c, userByEmail.Result)
@@ -134,14 +141,19 @@ func CompleteSignInProfile() web.HandlerFunc {
 			Tenant: c.Tenant(),
 			Role:   enum.RoleVisitor,
 		}
-		err = bus.Dispatch(c, &cmd.RegisterUser{User: user})
-		if err != nil {
-			return c.Failure(err)
-		}
 
-		err = bus.Dispatch(c, &cmd.SetKeyAsVerified{Key: action.Key})
+		err = c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.RegisterUser{User: user}); err != nil {
+				return c.Failure(err)
+			}
+
+			if err := bus.Dispatch(c, &cmd.SetKeyAsVerified{Key: action.Key}); err != nil {
+				return c.Failure(err)
+			}
+			return nil
+		})
 		if err != nil {
-			return c.Failure(err)
+			return err
 		}
 
 		webutil.AddAuthUserCookie(c, user)

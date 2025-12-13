@@ -1,14 +1,6 @@
 import React from "react"
 import { Icon } from "@fider/components"
-import IconVisa from "@fider/assets/images/cc-visa.svg"
-import IconAMEX from "@fider/assets/images/cc-amex.svg"
-import IconDiners from "@fider/assets/images/cc-diners.svg"
-import IconDiscover from "@fider/assets/images/cc-discover.svg"
-import IconJCB from "@fider/assets/images/cc-jcb.svg"
-import IconMaestro from "@fider/assets/images/cc-maestro.svg"
-import IconMasterCard from "@fider/assets/images/cc-mastercard.svg"
-import IconUnionPay from "@fider/assets/images/cc-unionpay.svg"
-import IconGeneric from "@fider/assets/images/cc-generic.svg"
+import { ccVisa as IconVisa, ccAmex as IconAMEX, ccDiners as IconDiners, ccDiscover as IconDiscover, ccJcb as IconJCB, ccMaestro as IconMaestro, ccMastercard as IconMasterCard, ccUnionpay as IconUnionPay, ccGeneric as IconGeneric } from "@fider/icons.generated"
 import { HStack } from "@fider/components/layout"
 
 interface CardDetailsProps {

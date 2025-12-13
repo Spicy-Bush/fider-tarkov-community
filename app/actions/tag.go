@@ -2,7 +2,10 @@ package actions
 
 import (
 	"context"
+
+	"encoding/json"
 	"regexp"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -28,7 +31,7 @@ type CreateEditTag struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *CreateEditTag) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
 }
 
 // Validate if current model is valid
@@ -78,7 +81,7 @@ type DeleteTag struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *DeleteTag) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
 }
 
 // Validate if current model is valid
@@ -104,7 +107,7 @@ type AssignUnassignTag struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *AssignUnassignTag) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsCollaborator() || user.IsModerator())
+	return user != nil && (user.IsCollaborator() || user.IsModerator() || user.IsHelper())
 }
 
 // Validate if current model is valid
@@ -117,5 +120,42 @@ func (action *AssignUnassignTag) Validate(ctx context.Context, user *entity.User
 
 	action.Post = getPost.Result
 	action.Tag = getSlug.Result
+
+	if user.IsHelper() {
+		// Not allowed to modify private tags
+		if !action.Tag.IsPublic {
+			return validate.Unauthorized()
+		}
+
+		// Helper users cannot modify tags on posts where tags
+		// have been applied for more than 7 days or since the post was created
+		if time.Since(action.Post.CreatedAt) > 7*24*time.Hour {
+			return validate.Unauthorized()
+		}
+
+		if action.Post.TagDates != "" {
+			var tagDates []struct {
+				Slug      string    `json:"slug"`
+				CreatedAt time.Time `json:"created_at"`
+			}
+
+			if err := json.Unmarshal([]byte(action.Post.TagDates), &tagDates); err != nil {
+				return validate.Error(errors.Wrap(err, "failed to parse tag dates"))
+			}
+
+			var oldestDate *time.Time
+			for _, tagDate := range tagDates {
+				createdAt := tagDate.CreatedAt
+				if oldestDate == nil || createdAt.Before(*oldestDate) {
+					oldestDate = &createdAt
+				}
+			}
+
+			if oldestDate != nil && time.Since(*oldestDate) > 24*time.Hour {
+				return validate.Unauthorized()
+			}
+		}
+	}
+
 	return validate.Success()
 }

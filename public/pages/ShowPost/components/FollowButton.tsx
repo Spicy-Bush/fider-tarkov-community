@@ -2,8 +2,7 @@ import React, { useState } from "react"
 import { Button, Icon } from "@fider/components"
 import { actions } from "@fider/services"
 import { useFider } from "@fider/hooks"
-import IconPlus from "@fider/assets/images/heroicons-plus.svg"
-import IconCheck from "@fider/assets/images/heroicons-check.svg"
+import { heroiconsPlus as IconPlus, heroiconsCheck as IconCheck } from "@fider/icons.generated"
 import { VStack } from "@fider/components/layout"
 import { Trans } from "@lingui/macro"
 import { Post, isPostLocked } from "@fider/models"
@@ -33,7 +32,8 @@ export const FollowButton = (props: NotificationsPanelProps) => {
 
   const button = subscribed ? (
     <Button 
-      className="w-full text-gray-800 bg-white border border-gray-800 no-focus" 
+      variant="primary"
+      className="w-full no-focus" 
       onClick={subscribeOrUnsubscribe} 
       disabled={isLocked}
     >
@@ -44,7 +44,8 @@ export const FollowButton = (props: NotificationsPanelProps) => {
     </Button>
   ) : (
     <Button 
-      className="w-full text-blue-500 bg-white border border-blue-500 no-focus" 
+      variant="secondary"
+      className="w-full no-focus" 
       onClick={subscribeOrUnsubscribe} 
       disabled={isLocked}
     >

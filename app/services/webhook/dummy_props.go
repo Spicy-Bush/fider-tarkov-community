@@ -63,6 +63,19 @@ func dummyTriggerProps(c context.Context, webhookType enum.WebhookType) webhook.
 		props.SetPost(dummyPost, "post", baseURL, true, true)
 		props["post_status"] = enum.PostDeleted.Name()
 		props["post_response_text"] = "The reason _why_ this post was deleted."
+	case enum.WebhookNewReport:
+		props["reportId"] = 42
+		props["reportedType"] = "post"
+		props["reportedId"] = 36
+		props["reason"] = "Spam"
+	case enum.WebhookReportResolved:
+		props["reportId"] = 42
+		props["status"] = "resolved"
+		props["resolutionNote"] = "This report was resolved after review."
+		props["reportedType"] = "post"
+		props["reportedId"] = 36
+		props["reason"] = "Spam"
+		props.SetUser(author, "resolver")
 	}
 	return props
 }

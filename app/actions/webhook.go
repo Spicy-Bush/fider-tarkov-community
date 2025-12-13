@@ -22,7 +22,7 @@ type CreateEditWebhook struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *CreateEditWebhook) IsAuthorized(_ context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
 }
 
 // Validate if current model is valid
@@ -40,7 +40,9 @@ func (action *CreateEditWebhook) Validate(ctx context.Context, _ *entity.User) *
 	} else if action.Type != enum.WebhookNewPost &&
 		action.Type != enum.WebhookNewComment &&
 		action.Type != enum.WebhookChangeStatus &&
-		action.Type != enum.WebhookDeletePost {
+		action.Type != enum.WebhookDeletePost &&
+		action.Type != enum.WebhookNewReport &&
+		action.Type != enum.WebhookReportResolved {
 		result.AddFieldFailure("type", "Type must be valid.")
 	}
 
@@ -118,7 +120,7 @@ type PreviewWebhook struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *PreviewWebhook) IsAuthorized(_ context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
 }
 
 // Validate if current model is valid
@@ -130,7 +132,9 @@ func (action *PreviewWebhook) Validate(context.Context, *entity.User) *validate.
 	} else if action.Type != enum.WebhookNewPost &&
 		action.Type != enum.WebhookNewComment &&
 		action.Type != enum.WebhookChangeStatus &&
-		action.Type != enum.WebhookDeletePost {
+		action.Type != enum.WebhookDeletePost &&
+		action.Type != enum.WebhookNewReport &&
+		action.Type != enum.WebhookReportResolved {
 		result.AddFieldFailure("type", "Type must be valid.")
 	}
 

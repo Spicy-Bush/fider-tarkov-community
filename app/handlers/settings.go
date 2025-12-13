@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
@@ -21,7 +22,7 @@ import (
 func ChangeUserEmail() web.HandlerFunc {
 	return func(c *web.Context) error {
 		if c.User().Role != enum.RoleAdministrator && c.User().Role != enum.RoleCollaborator {
-			return c.Redirect(c.BaseURL() + "/settings")
+			return c.Redirect(c.BaseURL() + "/profile#settings")
 		}
 
 		action := actions.NewChangeUserEmail()
@@ -29,18 +30,20 @@ func ChangeUserEmail() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.SaveVerificationKey{
-			Key:      action.VerificationKey,
-			Duration: 24 * time.Hour,
-			Request:  action,
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.SaveVerificationKey{
+				Key:      action.VerificationKey,
+				Duration: 24 * time.Hour,
+				Request:  action,
+			})
+			if err != nil {
+				return c.Failure(err)
+			}
+
+			c.Enqueue(tasks.SendChangeEmailConfirmation(action))
+
+			return c.Ok(web.Map{})
 		})
-		if err != nil {
-			return c.Failure(err)
-		}
-
-		c.Enqueue(tasks.SendChangeEmailConfirmation(action))
-
-		return c.Ok(web.Map{})
 	}
 }
 
@@ -48,7 +51,7 @@ func ChangeUserEmail() web.HandlerFunc {
 func VerifyChangeEmailKey() web.HandlerFunc {
 	return func(c *web.Context) error {
 		if c.User().Role != enum.RoleAdministrator && c.User().Role != enum.RoleCollaborator {
-			return c.Redirect(c.BaseURL() + "/settings")
+			return c.Redirect(c.BaseURL() + "/profile#settings")
 		}
 		key := c.QueryParam("k")
 		result, err := validateKey(enum.EmailVerificationKindChangeEmail, key, c)
@@ -60,46 +63,92 @@ func VerifyChangeEmailKey() web.HandlerFunc {
 			return c.Redirect(c.BaseURL())
 		}
 
-		changeEmail := &cmd.ChangeUserEmail{
-			UserID: result.UserID,
-			Email:  result.Email,
-		}
-		if err = bus.Dispatch(c, changeEmail); err != nil {
-			return c.Failure(err)
-		}
+		err = c.WithTransaction(func() error {
+			changeEmail := &cmd.ChangeUserEmail{
+				UserID: result.UserID,
+				Email:  result.Email,
+			}
+			if err := bus.Dispatch(c, changeEmail); err != nil {
+				return c.Failure(err)
+			}
 
-		err = bus.Dispatch(c, &cmd.SetKeyAsVerified{Key: key})
+			if err := bus.Dispatch(c, &cmd.SetKeyAsVerified{Key: key}); err != nil {
+				return c.Failure(err)
+			}
+
+			if env.Config.UserList.Enabled {
+				c.Enqueue(tasks.UserListUpdateUser(c.User().ID, "", result.Email))
+			}
+			return nil
+		})
 		if err != nil {
-			return c.Failure(err)
-		}
-
-		if env.Config.UserList.Enabled {
-			c.Enqueue(tasks.UserListUpdateUser(c.User().ID, "", result.Email))
-		}
-
-		return c.Redirect(c.BaseURL() + "/settings")
-	}
-}
-
-// UserSettings is the current user's profile settings page
-func UserSettings() web.HandlerFunc {
-	return func(c *web.Context) error {
-		settings := &query.GetCurrentUserSettings{}
-		if err := bus.Dispatch(c, settings); err != nil {
 			return err
 		}
 
-		return c.Page(http.StatusOK, web.Props{
-			Page:  "MySettings/MySettings.page",
-			Title: "Settings",
-			Data: web.Map{
-				"userSettings": settings.Result,
-			},
+		return c.Redirect(c.BaseURL() + "/profile#settings")
+	}
+}
+
+// UpdateUserName updates a user's name
+func UpdateUserName() web.HandlerFunc {
+	return func(c *web.Context) error {
+		action := actions.NewUpdateUserName()
+		if result := c.BindTo(action); !result.Ok {
+			return c.HandleValidation(result)
+		}
+
+		// Get userID from URL parameter, default to current user's ID if not provided
+		userID := c.User().ID
+		if c.Param("userID") != "" {
+			var err error
+			userID, err = strconv.Atoi(c.Param("userID"))
+			if err != nil {
+				return c.BadRequest(web.Map{
+					"error": "Invalid user ID",
+				})
+			}
+
+			// You can only update your own name, unless you are privileged
+			if userID != c.User().ID {
+				if c.User().Role != enum.RoleAdministrator &&
+					c.User().Role != enum.RoleCollaborator &&
+					c.User().Role != enum.RoleModerator {
+					return c.Forbidden()
+				}
+
+				// If user is a moderator, they can't update collaborators or admins
+				if c.User().Role == enum.RoleModerator {
+					getUser := &query.GetUserByID{UserID: userID}
+					if err := bus.Dispatch(c, getUser); err != nil {
+						return c.Failure(err)
+					}
+
+					if getUser.Result.Role == enum.RoleAdministrator ||
+						getUser.Result.Role == enum.RoleCollaborator {
+						return c.Forbidden()
+					}
+				}
+			}
+		}
+
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.UpdateUser{
+				UserID: userID,
+				Name:   action.Name,
+			}); err != nil {
+				return c.Failure(err)
+			}
+
+			if env.Config.UserList.Enabled {
+				c.Enqueue(tasks.UserListUpdateUser(userID, action.Name, ""))
+			}
+
+			return c.Ok(web.Map{})
 		})
 	}
 }
 
-// UpdateUserSettings updates current user settings
+// UpdateUserSettings handles the action of updating user settings
 func UpdateUserSettings() web.HandlerFunc {
 	return func(c *web.Context) error {
 		action := actions.NewUpdateUserSettings()
@@ -107,28 +156,90 @@ func UpdateUserSettings() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		if err := bus.Dispatch(c,
-			&cmd.UploadImage{
-				Image:  action.Avatar,
-				Folder: "avatars",
-			},
-			&cmd.UpdateCurrentUser{
-				Name:       action.Name,
-				Avatar:     action.Avatar,
-				AvatarType: action.AvatarType,
-			},
-			&cmd.UpdateCurrentUserSettings{
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.UpdateCurrentUserSettings{
 				Settings: action.Settings,
-			},
-		); err != nil {
-			return c.Failure(err)
+			}); err != nil {
+				return c.Failure(err)
+			}
+
+			return c.Ok(web.Map{})
+		})
+	}
+}
+
+// UpdateUserAvatar updates a user's avatar
+func UpdateUserAvatar() web.HandlerFunc {
+	return func(c *web.Context) error {
+		action := actions.NewUpdateUserAvatar()
+		if result := c.BindTo(action); !result.Ok {
+			return c.HandleValidation(result)
 		}
 
-		if env.Config.UserList.Enabled {
-			c.Enqueue(tasks.UserListUpdateUser(c.User().ID, action.Name, ""))
+		userID := c.User().ID
+		if c.Param("userID") != "" {
+			var err error
+			userID, err = strconv.Atoi(c.Param("userID"))
+			if err != nil {
+				return c.BadRequest(web.Map{
+					"error": "Invalid user ID",
+				})
+			}
+
+			// Check if user is trying to update someone else's avatar
+			if userID != c.User().ID {
+				// Only allow staff to update other users' avatars
+				if c.User().Role != enum.RoleAdministrator &&
+					c.User().Role != enum.RoleCollaborator &&
+					c.User().Role != enum.RoleModerator {
+					return c.Forbidden()
+				}
+
+				// If user is a moderator, they can't update collaborators or admins
+				if c.User().Role == enum.RoleModerator {
+					getUser := &query.GetUserByID{UserID: userID}
+					if err := bus.Dispatch(c, getUser); err != nil {
+						return c.Failure(err)
+					}
+
+					if getUser.Result.Role == enum.RoleAdministrator ||
+						getUser.Result.Role == enum.RoleCollaborator {
+						return c.Forbidden()
+					}
+				}
+			}
 		}
 
-		return c.Ok(web.Map{})
+		return c.WithTransaction(func() error {
+			if action.Avatar != nil && action.Avatar.Upload != nil {
+				if err := bus.Dispatch(c, &cmd.UploadImage{
+					Image:  action.Avatar,
+					Folder: "avatars",
+				}); err != nil {
+					return c.Failure(err)
+				}
+			}
+
+			// Different dispatch based on whether it's updating current user or another user
+			if userID == c.User().ID {
+				if err := bus.Dispatch(c, &cmd.UpdateCurrentUser{
+					Avatar:     action.Avatar,
+					AvatarType: action.AvatarType,
+				}); err != nil {
+					return c.Failure(err)
+				}
+			} else {
+				if err := bus.Dispatch(c, &cmd.UpdateUserAvatar{
+					UserID:     userID,
+					AvatarType: action.AvatarType,
+					Avatar:     action.Avatar,
+				}); err != nil {
+					return c.Failure(err)
+				}
+			}
+
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -140,21 +251,23 @@ func ChangeUserRole() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		changeRole := &cmd.ChangeUserRole{
-			UserID: action.UserID,
-			Role:   action.Role,
-		}
+		return c.WithTransaction(func() error {
+			changeRole := &cmd.ChangeUserRole{
+				UserID: action.UserID,
+				Role:   action.Role,
+			}
 
-		if err := bus.Dispatch(c, changeRole); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, changeRole); err != nil {
+				return c.Failure(err)
+			}
 
-		// Handle userlist
-		if env.Config.UserList.Enabled {
-			c.Enqueue(tasks.UserListAddOrRemoveUser(action.UserID, action.Role))
-		}
+			// Handle userlist
+			if env.Config.UserList.Enabled {
+				c.Enqueue(tasks.UserListAddOrRemoveUser(action.UserID, action.Role))
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -166,47 +279,79 @@ func ChangeUserVisualRole() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		changeVisualRole := &cmd.ChangeUserVisualRole{
-			UserID:     action.UserID,
-			VisualRole: action.VisualRole,
-		}
+		return c.WithTransaction(func() error {
+			changeVisualRole := &cmd.ChangeUserVisualRole{
+				UserID:     action.UserID,
+				VisualRole: action.VisualRole,
+			}
 
-		if err := bus.Dispatch(c, changeVisualRole); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, changeVisualRole); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
 // DeleteUser erases current user personal data and sign them out
 func DeleteUser() web.HandlerFunc {
 	return func(c *web.Context) error {
-		if err := bus.Dispatch(c, &cmd.DeleteCurrentUser{}); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.DeleteCurrentUser{}); err != nil {
+				return c.Failure(err)
+			}
 
-		c.RemoveCookie(web.CookieAuthName)
+			c.RemoveCookie(web.CookieAuthName)
 
-		// Handle userlist (easiest way is to demote them which will remove them from the userlist)
-		if env.Config.UserList.Enabled {
-			c.Enqueue(tasks.UserListAddOrRemoveUser(c.User().ID, enum.RoleVisitor))
-		}
+			// Handle userlist (easiest way is to demote them which will remove them from the userlist)
+			if env.Config.UserList.Enabled {
+				c.Enqueue(tasks.UserListAddOrRemoveUser(c.User().ID, enum.RoleVisitor))
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
 // RegenerateAPIKey regenerates current user's API Key
 func RegenerateAPIKey() web.HandlerFunc {
 	return func(c *web.Context) error {
-		regenerateAPIKey := &cmd.RegenerateAPIKey{}
-		if err := bus.Dispatch(c, regenerateAPIKey); err != nil {
-			return c.Failure(err)
+		return c.WithTransaction(func() error {
+			regenerateAPIKey := &cmd.RegenerateAPIKey{}
+			if err := bus.Dispatch(c, regenerateAPIKey); err != nil {
+				return c.Failure(err)
+			}
+
+			return c.Ok(web.Map{
+				"apiKey": regenerateAPIKey.Result,
+			})
+		})
+	}
+}
+
+// UserProfile is the current user's profile page
+func UserProfile() web.HandlerFunc {
+	return func(c *web.Context) error {
+		settings := &query.GetCurrentUserSettings{}
+		if err := bus.Dispatch(c, settings); err != nil {
+			return err
 		}
 
-		return c.Ok(web.Map{
-			"apiKey": regenerateAPIKey.Result,
+		return c.Page(http.StatusOK, web.Props{
+			Page:        "UserProfile/UserProfile.page",
+			Title:       "Profile",
+			Description: "View and manage your profile",
+			Data: web.Map{
+				"user": web.Map{
+					"id":        c.User().ID,
+					"name":      c.User().Name,
+					"role":      c.User().Role,
+					"avatarURL": c.User().AvatarURL,
+					"status":    c.User().Status,
+				},
+				"userSettings": settings.Result,
+			},
 		})
 	}
 }

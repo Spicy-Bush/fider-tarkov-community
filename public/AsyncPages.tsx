@@ -1,34 +1,101 @@
-import { lazy, ComponentType } from "react"
+import React, { useState, useEffect, ComponentType } from "react"
+import { Loader } from "@fider/components"
+import { PageConfig } from "@fider/components/layouts"
+import { createPageLoader, PageModule } from "@fider/services"
 
-type LazyImport = () => Promise<{ default: ComponentType<any> }>
+const pageModules = import.meta.glob<PageModule>("./pages/**/*.page.tsx")
 
-const MAX_RETRIES = 6
-const INTERVAL = 1000
+const pageLoader = createPageLoader(pageModules, { pathPrefix: "./pages/" })
 
-const retry = (fn: LazyImport, retriesLeft = MAX_RETRIES, waitMs = INTERVAL): Promise<{ default: ComponentType<any> }> => {
-  return new Promise((resolve, reject) => {
-    fn()
-      .then(resolve)
-      .catch((err) => {
-        setTimeout(() => {
-          if (retriesLeft === 1) {
-            reject(new Error(`${err} after ${MAX_RETRIES} retries`))
-            return
-          }
-          retry(fn, retriesLeft - 1, INTERVAL + INTERVAL).then(resolve, reject)
-        }, waitMs)
-      })
-  })
+interface PageLoaderResult {
+  Component: ComponentType<any> | null
+  pageConfig: PageConfig | undefined
+  isLoading: boolean
+  error: Error | null
 }
 
-const load = (fn: LazyImport) => lazy(() => retry(() => fn()))
+export const usePageLoader = (pageName: string): PageLoaderResult => {
+  const [result, setResult] = useState<PageLoaderResult>(() => {
+    const cached = pageLoader.getCached(pageName)
+    if (cached) {
+      return {
+        Component: cached.default,
+        pageConfig: cached.pageConfig,
+        isLoading: false,
+        error: null,
+      }
+    }
+    return {
+      Component: null,
+      pageConfig: undefined,
+      isLoading: true,
+      error: null,
+    }
+  })
 
-export const AsyncPage = (pageName: string) =>
-  load(
-    () =>
-      import(
-        /* webpackInclude: /\.page.tsx$/ */
-        /* webpackChunkName: "[request]" */
-        `@fider/pages/${pageName}`
-      )
-  )
+  useEffect(() => {
+    if (result.Component && !result.isLoading) {
+      return
+    }
+
+    pageLoader.load(pageName)
+      .then((module) => {
+        setResult({
+          Component: module.default,
+          pageConfig: module.pageConfig,
+          isLoading: false,
+          error: null,
+        })
+      })
+      .catch((error) => {
+        setResult({
+          Component: null,
+          pageConfig: undefined,
+          isLoading: false,
+          error,
+        })
+      })
+  }, [pageName])
+
+  return result
+}
+
+interface AsyncPageLoaderProps {
+  pageName: string
+  pageProps: Record<string, any>
+  renderWithLayout: (
+    Component: ComponentType<any>,
+    pageConfig: PageConfig | undefined,
+    pageProps: Record<string, any>
+  ) => React.ReactNode
+}
+
+export const AsyncPageLoader: React.FC<AsyncPageLoaderProps> = ({
+  pageName,
+  pageProps,
+  renderWithLayout,
+}) => {
+  const { Component, pageConfig, isLoading, error } = usePageLoader(pageName)
+
+  if (isLoading) {
+    return (
+      <div className="page">
+        <Loader />
+      </div>
+    )
+  }
+
+  if (error || !Component) {
+    return (
+      <div className="page">
+        <div className="container">
+          <p>Failed to load page: {error?.message || "Unknown error"}</p>
+        </div>
+      </div>
+    )
+  }
+
+  return <>{renderWithLayout(Component, pageConfig, pageProps)}</>
+}
+
+export type { PageModule }

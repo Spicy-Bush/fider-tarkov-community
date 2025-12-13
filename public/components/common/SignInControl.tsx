@@ -1,4 +1,4 @@
-import "./SignInControl.scss"
+// SignInControl converted to Tailwind
 
 import React, { useState } from "react"
 import { SocialSignInButton, Form, Button, Input, Message } from "@fider/components"
@@ -49,10 +49,10 @@ export const SignInControl: React.FunctionComponent<SignInControlProps> = (props
   }
 
   return (
-    <div className="c-signin-control">
+    <div>
       {providersLen > 0 && (
         <>
-          <div className="c-signin-control__oauth mb-2">
+          <div className="grid grid-cols-3 gap-2 mb-2">
             {fider.settings.oauth.map((o) => (
               <React.Fragment key={o.provider}>
                 <SocialSignInButton option={o} redirectTo={props.redirectTo} />
@@ -84,7 +84,7 @@ export const SignInControl: React.FunctionComponent<SignInControlProps> = (props
               />
             </Form>
             {!fider.session.tenant.isEmailAuthAllowed && (
-              <p className="text-red-700 mt-1">
+              <p className="text-danger mt-1">
                 <Trans id="signin.message.onlyadmins">Currently only allowed to sign in to an administrator account</Trans>
               </p>
             )}
@@ -94,7 +94,7 @@ export const SignInControl: React.FunctionComponent<SignInControlProps> = (props
             <p className="text-muted">
               <Trans id="signin.message.emaildisabled">
                 Email authentication has been disabled by an administrator. If you have an administrator account and need to bypass this restriction, please{" "}
-                <a href="#" className="text-bold" onClick={forceShowEmailForm}>
+                <a href="#" className="font-bold" onClick={forceShowEmailForm}>
                   click here
                 </a>
                 .

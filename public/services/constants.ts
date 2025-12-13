@@ -1,0 +1,50 @@
+export const TIME = {
+  ONE_HOUR_SECONDS: 3600,
+  TWELVE_HOURS_MS: 12 * 60 * 60 * 1000,
+  TWENTY_FOUR_HOURS_MS: 24 * 60 * 60 * 1000,
+  HEARTBEAT_INTERVAL_MS: 5 * 60 * 1000,
+  RECONNECT_DELAY_MS: 1000,
+  MAX_RECONNECT_DELAY_MS: 30000,
+  DEBOUNCE_MS: 500,
+  SEARCH_DEBOUNCE_MS: 500,
+}
+
+export const PAGINATION = {
+  DEFAULT_LIMIT: 15,
+  QUEUE_LIMIT: 50,
+  REPORTS_LIMIT: 50,
+  MEMBERS_LIMIT: 50,
+}
+
+export const RETRY = {
+  MAX_ATTEMPTS: 10,
+  MAX_PAGE_LOAD_RETRIES: 6,
+  PAGE_LOAD_RETRY_INTERVAL_MS: 1000,
+}
+
+export const STORAGE_KEYS = {
+  LAYOUT: "fider:layout",
+  POST_FILTERS: "post_filters",
+  POST_FILTERS_TIMESTAMP: "post_filters_timestamp",
+  POST_FILTERS_AUTH: "post_filters_auth",
+  RECENT_TAGS: "fider_recent_tags",
+  WARNING_BANNER: "fider_warning_banner",
+  DISMISSABLE_CONTENT_PREFIX: "fider:dismissed:",
+}
+
+export const CONTENT_LIMITS = {
+  MAX_IMAGES_PER_POST_DEFAULT: 3,
+  MAX_IMAGES_PER_COMMENT_DEFAULT: 2,
+  MAX_RECENT_TAGS: 10,
+  DISPLAY_RECENT_TAGS: 5,
+  HTTP_TRUNCATE_BODY: 1000,
+}
+
+export const constants = {
+  TIME,
+  PAGINATION,
+  RETRY,
+  STORAGE_KEYS,
+  CONTENT_LIMITS,
+}
+

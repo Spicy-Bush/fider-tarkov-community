@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -22,30 +23,34 @@ import (
 )
 
 type dbPost struct {
-	ID             int            `db:"id"`
-	Number         int            `db:"number"`
-	Title          string         `db:"title"`
-	Slug           string         `db:"slug"`
-	Description    string         `db:"description"`
-	CreatedAt      time.Time      `db:"created_at"`
-	User           *dbUser        `db:"user"`
-	VoteType       sql.NullInt32  `db:"vote_type"`
-	VotesCount     int            `db:"votes_count"`
-	CommentsCount  int            `db:"comments_count"`
-	RecentVotes    int            `db:"recent_votes_count"`
-	RecentComments int            `db:"recent_comments_count"`
-	Upvotes        int            `db:"upvotes"`
-	Downvotes      int            `db:"downvotes"`
-	Status         int            `db:"status"`
-	Response       sql.NullString `db:"response"`
-	RespondedAt    dbx.NullTime   `db:"response_date"`
-	ResponseUser   *dbUser        `db:"response_user"`
-	OriginalNumber sql.NullInt64  `db:"original_number"`
-	OriginalTitle  sql.NullString `db:"original_title"`
-	OriginalSlug   sql.NullString `db:"original_slug"`
-	OriginalStatus sql.NullInt64  `db:"original_status"`
-	Tags           []string       `db:"tags"`
-	LockedSettings sql.NullString `db:"locked_settings"`
+	ID                 int            `db:"id"`
+	Number             int            `db:"number"`
+	Title              string         `db:"title"`
+	Slug               string         `db:"slug"`
+	Description        string         `db:"description"`
+	CreatedAt          time.Time      `db:"created_at"`
+	LastActivityAt     time.Time      `db:"last_activity_at"`
+	User               *dbUser        `db:"user"`
+	VoteType           sql.NullInt32  `db:"vote_type"`
+	VotesCount         int            `db:"votes_count"`
+	CommentsCount      int            `db:"comments_count"`
+	RecentVotes        int            `db:"recent_votes_count"`
+	RecentComments     int            `db:"recent_comments_count"`
+	Upvotes            int            `db:"upvotes"`
+	Downvotes          int            `db:"downvotes"`
+	Status             int            `db:"status"`
+	Response           sql.NullString `db:"response"`
+	RespondedAt        dbx.NullTime   `db:"response_date"`
+	ResponseUser       *dbUser        `db:"response_user"`
+	OriginalNumber     sql.NullInt64  `db:"original_number"`
+	OriginalTitle      sql.NullString `db:"original_title"`
+	OriginalSlug       sql.NullString `db:"original_slug"`
+	OriginalStatus     sql.NullInt64  `db:"original_status"`
+	Tags               []string       `db:"tags"`
+	LockedSettings     sql.NullString `db:"locked_settings"`
+	TagDates           sql.NullString `db:"tag_dates"`
+	ArchivedAt         dbx.NullTime   `db:"archived_at"`
+	ArchivedFromStatus sql.NullInt64  `db:"archived_from_status"`
 }
 
 func (i *dbPost) toModel(ctx context.Context) *entity.Post {
@@ -61,6 +66,7 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 		Slug:           i.Slug,
 		Description:    i.Description,
 		CreatedAt:      i.CreatedAt,
+		LastActivityAt: i.LastActivityAt,
 		VoteType:       voteType,
 		VotesCount:     i.VotesCount,
 		CommentsCount:  i.CommentsCount,
@@ -68,6 +74,12 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 		User:           i.User.toModel(ctx),
 		Tags:           i.Tags,
 		LockedSettings: nil,
+		Upvotes:        i.Upvotes,
+		Downvotes:      i.Downvotes,
+	}
+
+	if i.TagDates.Valid {
+		post.TagDates = i.TagDates.String
 	}
 
 	if i.Response.Valid {
@@ -100,105 +112,91 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 		}
 	}
 
+	if post.Status == enum.PostArchived && i.ArchivedAt.Valid {
+		post.ArchivedSettings = &entity.PostArchivedSettings{
+			ArchivedAt:     i.ArchivedAt.Time,
+			PreviousStatus: enum.PostStatus(i.ArchivedFromStatus.Int64),
+		}
+	}
+
 	return post
 }
 
 var (
 	sqlSelectPostsWhere = `	WITH 
-													agg_tags AS ( 
-														SELECT 
-																post_id, 
-																ARRAY_REMOVE(ARRAY_AGG(tags.slug), NULL) as tags
-														FROM post_tags
-														INNER JOIN tags
-														ON tags.ID = post_tags.TAG_ID
-														AND tags.tenant_id = post_tags.tenant_id
-														WHERE post_tags.tenant_id = $1
-														%s
-														GROUP BY post_id 
-													), 
-													agg_comments AS (
-															SELECT 
-																	post_id, 
-																	COUNT(CASE WHEN comments.created_at > CURRENT_DATE - INTERVAL '30 days' THEN 1 END) as recent,
-																	COUNT(*) as all
-															FROM comments 
-															INNER JOIN posts
-															ON posts.id = comments.post_id
-															AND posts.tenant_id = comments.tenant_id
-															WHERE posts.tenant_id = $1
-															AND comments.deleted_at IS NULL
-															GROUP BY post_id
-													),
-													agg_votes AS (
-															SELECT 
-																	post_id, 
-																	SUM(CASE WHEN post_votes.created_at > CURRENT_DATE - INTERVAL '30 days' THEN vote_type ELSE 0 END) as recent,
-																	SUM(vote_type) as all,
-																	SUM(CASE WHEN vote_type > 0 THEN 1 ELSE 0 END) as upvotes,
-																	SUM(CASE WHEN vote_type < 0 THEN 1 ELSE 0 END) as downvotes
-															FROM post_votes 
-															INNER JOIN posts
-															ON posts.id = post_votes.post_id
-															AND posts.tenant_id = post_votes.tenant_id
-															WHERE posts.tenant_id = $1
-															GROUP BY post_id
-													)
-													SELECT p.id, 
-																p.number, 
-																p.title, 
-																p.slug, 
-																p.description, 
-																p.created_at,
-																COALESCE(agg_s.all, 0) as votes_count,
-																COALESCE(agg_c.all, 0) as comments_count,
-																COALESCE(agg_s.recent, 0) AS recent_votes_count,
-																COALESCE(agg_c.recent, 0) AS recent_comments_count,
-																COALESCE(agg_s.upvotes, 0) AS upvotes,
-																COALESCE(agg_s.downvotes, 0) AS downvotes,																
-																p.status, 
-																u.id AS user_id, 
-																u.name AS user_name, 
-																u.email AS user_email,
-																u.role AS user_role,
-																u.visual_role AS user_visual_role,
-																u.status AS user_status,
-																u.avatar_type AS user_avatar_type,
-																u.avatar_bkey AS user_avatar_bkey,
-																p.response,
-																p.response_date,
-																r.id AS response_user_id, 
-																r.name AS response_user_name, 
-																r.email AS response_user_email, 
-																r.role AS response_user_role,
-																r.visual_role AS response_user_visual_role,
-																r.status AS response_user_status,
-																r.avatar_type AS response_user_avatar_type,
-																r.avatar_bkey AS response_user_avatar_bkey,
-																d.number AS original_number,
-																d.title AS original_title,
-																d.slug AS original_slug,
-																d.status AS original_status,
-																COALESCE(agg_t.tags, ARRAY[]::text[]) AS tags,
-																p.locked_settings,
-																%s AS vote_type
-													FROM posts p
-													INNER JOIN users u
-													ON u.id = p.user_id
-													AND u.tenant_id = $1
-													LEFT JOIN users r
-													ON r.id = p.response_user_id
-													AND r.tenant_id = $1
-													LEFT JOIN posts d
-													ON d.id = p.original_id
-													AND d.tenant_id = $1
-													LEFT JOIN agg_comments agg_c
-													ON agg_c.post_id = p.id
-													LEFT JOIN agg_votes agg_s
-													ON agg_s.post_id = p.id
-													LEFT JOIN agg_tags agg_t 
-													ON agg_t.post_id = p.id
-													WHERE p.status != ` + strconv.Itoa(int(enum.PostDeleted)) + ` AND %s`
+							agg_tags AS ( 
+								SELECT 
+										post_id, 
+										ARRAY_REMOVE(ARRAY_AGG(tags.slug), NULL) as tags,
+										jsonb_agg(
+											jsonb_build_object(
+												'slug', tags.slug,
+												'created_at', post_tags.created_at
+											)
+										) as tag_dates
+								FROM post_tags
+								INNER JOIN tags
+								ON tags.ID = post_tags.TAG_ID
+								AND tags.tenant_id = post_tags.tenant_id
+								WHERE post_tags.tenant_id = $1
+								%s
+								GROUP BY post_id 
+							)
+							SELECT p.id, 
+										p.number, 
+										p.title, 
+										p.slug, 
+										p.description, 
+										p.created_at,
+										p.last_activity_at,
+										(p.upvotes - p.downvotes) as votes_count,
+										p.comments_count,
+										p.recent_votes AS recent_votes_count,
+										p.recent_comments AS recent_comments_count,
+										p.upvotes,
+										p.downvotes,																
+										p.status, 
+										u.id AS user_id, 
+										u.name AS user_name, 
+										u.email AS user_email,
+										u.role AS user_role,
+										u.visual_role AS user_visual_role,
+										u.status AS user_status,
+										u.avatar_type AS user_avatar_type,
+										u.avatar_bkey AS user_avatar_bkey,
+										p.response,
+										p.response_date,
+										r.id AS response_user_id, 
+										r.name AS response_user_name, 
+										r.email AS response_user_email, 
+										r.role AS response_user_role,
+										r.visual_role AS response_user_visual_role,
+										r.status AS response_user_status,
+										r.avatar_type AS response_user_avatar_type,
+										r.avatar_bkey AS response_user_avatar_bkey,
+										d.number AS original_number,
+										d.title AS original_title,
+										d.slug AS original_slug,
+										d.status AS original_status,
+										COALESCE(agg_t.tags, ARRAY[]::text[]) AS tags,
+										p.locked_settings,
+										p.archived_at,
+										p.archived_from_status,
+										%s AS tag_dates,
+										%s AS vote_type
+							FROM posts p
+							INNER JOIN users u
+							ON u.id = p.user_id
+							AND u.tenant_id = $1
+							LEFT JOIN users r
+							ON r.id = p.response_user_id
+							AND r.tenant_id = $1
+							LEFT JOIN posts d
+							ON d.id = p.original_id
+							AND d.tenant_id = $1
+							LEFT JOIN agg_tags agg_t 
+							ON agg_t.post_id = p.id
+							WHERE p.status != ` + strconv.Itoa(int(enum.PostDeleted)) + ` AND %s`
 )
 
 func postIsReferenced(ctx context.Context, q *query.PostIsReferenced) error {
@@ -260,15 +258,16 @@ func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error 
 
 		_, err := trx.Execute(`
 		UPDATE posts 
-		SET response = '', original_id = $3, response_date = $4, response_user_id = $5, status = $6 
+		SET response = $7, original_id = $3, response_date = $4, response_user_id = $5, status = $6 
 		WHERE id = $1 and tenant_id = $2
-		`, c.Post.ID, tenant.ID, c.Original.ID, respondedAt, user.ID, enum.PostDuplicate)
+		`, c.Post.ID, tenant.ID, c.Original.ID, respondedAt, user.ID, enum.PostDuplicate, c.Text)
 		if err != nil {
 			return errors.Wrap(err, "failed to update post's response")
 		}
 
 		c.Post.Status = enum.PostDuplicate
 		c.Post.Response = &entity.PostResponse{
+			Text:        c.Text,
 			RespondedAt: respondedAt,
 			User:        user,
 			Original: &entity.OriginalPost{
@@ -415,13 +414,12 @@ func getUserPostCount(ctx context.Context, q *query.GetUserPostCount) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, currentUser *entity.User) error {
 		var count int
 
-		// Example, ignoring deleted posts, i.e. status != PostDeleted (which is 5 in your enum)
 		sqlQuery := `
             SELECT COUNT(*) 
             FROM posts
             WHERE tenant_id = $1
               AND user_id = $2
-              AND status != 6
+              AND status NOT IN (6, 7)
               AND created_at >= $3
         `
 
@@ -455,12 +453,73 @@ func getUserCommentCount(ctx context.Context, q *query.GetUserCommentCount) erro
 	})
 }
 
+func countUntaggedPosts(ctx context.Context, q *query.CountUntaggedPosts) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if user != nil && user.IsHelper() && !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
+			if q.Date == "" {
+				q.Date = "7d"
+			}
+		}
+
+		if len(q.Statuses) == 0 {
+			q.Statuses = []enum.PostStatus{
+				enum.PostOpen,
+				enum.PostStarted,
+				enum.PostPlanned,
+				enum.PostCompleted,
+			}
+		}
+
+		var count int
+		sqlQuery := `
+			SELECT COUNT(*)
+			FROM posts p
+			WHERE p.tenant_id = $1
+			  AND p.status = ANY($2)
+			  AND NOT EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id)
+		`
+
+		args := []any{tenant.ID, pq.Array(q.Statuses)}
+
+		if q.Date != "" {
+			var days int
+			switch q.Date {
+			case "1d":
+				days = 1
+			case "7d":
+				days = 7
+			case "30d":
+				days = 30
+			case "1y":
+				days = 365
+			}
+			if days > 0 {
+				sqlQuery += fmt.Sprintf(" AND p.created_at >= NOW() - INTERVAL '%d days'", days)
+			}
+		}
+
+		if err := trx.Scalar(&count, sqlQuery, args...); err != nil {
+			return errors.Wrap(err, "failed to count untagged posts")
+		}
+
+		q.Result = count
+		return nil
+	})
+}
+
 func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		innerQuery := buildPostQuery(user, "p.tenant_id = $1 AND p.status = ANY($2)")
 		if q.Untagged {
 			innerQuery = fmt.Sprintf("%s AND NOT EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id)", innerQuery)
 		}
+
+		if user != nil && user.IsHelper() && !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
+			if q.Untagged && q.Date == "" {
+				q.Date = "7d"
+			}
+		}
+
 		if q.Tags == nil {
 			q.Tags = []string{}
 		}
@@ -507,13 +566,13 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 				userID = user.ID
 			}
 
-			condition, statuses, sort, extraParams := getViewData(*q, userID)
+			condition, statuses, sort, sortDir, extraParams := getViewData(*q, userID)
 			sql := fmt.Sprintf(`
 				SELECT * FROM (%s) AS q 
 				WHERE 1 = 1 %s
-				ORDER BY %s DESC
+				ORDER BY %s %s
 				LIMIT %s OFFSET %s
-			`, innerQuery, condition, sort, q.Limit, q.Offset)
+			`, innerQuery, condition, sort, sortDir, q.Limit, q.Offset)
 			params := []interface{}{tenant.ID, pq.Array(statuses)}
 			params = append(params, extraParams...)
 			err = trx.Select(&posts, sql, params...)
@@ -542,6 +601,38 @@ func getAllPosts(ctx context.Context, q *query.GetAllPosts) error {
 	})
 }
 
+func getPostsByIDs(ctx context.Context, q *query.GetPostsByIDs) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if len(q.PostIDs) == 0 {
+			q.Result = []*entity.Post{}
+			return nil
+		}
+
+		statuses := []enum.PostStatus{
+			enum.PostOpen,
+			enum.PostStarted,
+			enum.PostPlanned,
+			enum.PostCompleted,
+			enum.PostDeclined,
+		}
+
+		innerQuery := buildPostQuery(user, "p.tenant_id = $1 AND p.status = ANY($2) AND p.id = ANY($3)")
+		sql := fmt.Sprintf(`SELECT * FROM (%s) AS q`, innerQuery)
+
+		var posts []*dbPost
+		err := trx.Select(&posts, sql, tenant.ID, pq.Array(statuses), pq.Array(q.PostIDs))
+		if err != nil {
+			return errors.Wrap(err, "failed to get posts by IDs")
+		}
+
+		q.Result = make([]*entity.Post, len(posts))
+		for i, post := range posts {
+			q.Result[i] = post.toModel(ctx)
+		}
+		return nil
+	})
+}
+
 func querySinglePost(ctx context.Context, trx *dbx.Trx, query string, args ...any) (*entity.Post, error) {
 	post := dbPost{}
 
@@ -557,11 +648,18 @@ func buildPostQuery(user *entity.User, filter string) string {
 	if user != nil && (user.IsCollaborator() || user.IsModerator()) {
 		tagCondition = ``
 	}
+
+	tagDatesField := "NULL::jsonb"
+	if user != nil && (user.IsCollaborator() || user.IsModerator() || user.IsAdministrator() || user.IsHelper()) {
+		tagDatesField = "agg_t.tag_dates"
+	}
+
 	voteTypeSubQuery := "NULL"
 	if user != nil {
 		voteTypeSubQuery = fmt.Sprintf("(SELECT vote_type FROM post_votes WHERE post_id = p.id AND user_id = %d LIMIT 1)", user.ID)
 	}
-	return fmt.Sprintf(sqlSelectPostsWhere, tagCondition, voteTypeSubQuery, filter)
+
+	return fmt.Sprintf(sqlSelectPostsWhere, tagCondition, tagDatesField, voteTypeSubQuery, filter)
 }
 
 func lockPost(ctx context.Context, c *cmd.LockPost) error {
@@ -611,6 +709,206 @@ func unlockPost(ctx context.Context, c *cmd.UnlockPost) error {
 		}
 
 		c.Post.LockedSettings = nil
+		return nil
+	})
+}
+
+func refreshPostStats(ctx context.Context, c *cmd.RefreshPostStats) error {
+	return using(ctx, func(trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
+		baseQuery := `
+			UPDATE posts p SET
+				recent_votes = COALESCE((
+					SELECT SUM(v.vote_type) 
+					FROM post_votes v 
+					WHERE v.post_id = p.id AND v.tenant_id = p.tenant_id 
+					AND v.created_at > CURRENT_DATE - INTERVAL '30 days'
+				), 0),
+				recent_comments = COALESCE((
+					SELECT COUNT(*) 
+					FROM comments c 
+					WHERE c.post_id = p.id AND c.tenant_id = p.tenant_id 
+					AND c.deleted_at IS NULL 
+					AND c.created_at > CURRENT_DATE - INTERVAL '30 days'
+				), 0)
+			WHERE p.status NOT IN ($1, $2)`
+
+		var rowsUpdated int64
+		var err error
+		if c.Since != nil {
+			rowsUpdated, err = trx.Execute(baseQuery+" AND p.last_activity_at >= $3", int(enum.PostDeleted), int(enum.PostArchived), *c.Since)
+		} else {
+			rowsUpdated, err = trx.Execute(baseQuery, int(enum.PostDeleted), int(enum.PostArchived))
+		}
+		if err != nil {
+			return errors.Wrap(err, "failed to refresh post stats")
+		}
+
+		c.RowsUpdated = rowsUpdated
+		return nil
+	})
+}
+
+func archivePost(ctx context.Context, c *cmd.ArchivePost) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		_, err := trx.Execute(`
+			UPDATE posts 
+			SET status = $3, archived_at = NOW(), archived_from_status = status
+			WHERE id = $1 AND tenant_id = $2
+		`, c.Post.ID, tenant.ID, int(enum.PostArchived))
+		if err != nil {
+			return errors.Wrap(err, "failed to archive post")
+		}
+
+		c.Post.ArchivedSettings = &entity.PostArchivedSettings{
+			ArchivedAt:     time.Now(),
+			ArchivedBy:     user,
+			PreviousStatus: c.Post.Status,
+		}
+		c.Post.Status = enum.PostArchived
+		return nil
+	})
+}
+
+func unarchivePost(ctx context.Context, c *cmd.UnarchivePost) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		var previousStatus int
+		err := trx.Get(&previousStatus, `
+			SELECT COALESCE(archived_from_status, 0) FROM posts WHERE id = $1 AND tenant_id = $2
+		`, c.Post.ID, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get previous status")
+		}
+
+		_, err = trx.Execute(`
+			UPDATE posts 
+			SET status = $3, archived_at = NULL, archived_from_status = NULL
+			WHERE id = $1 AND tenant_id = $2
+		`, c.Post.ID, tenant.ID, previousStatus)
+		if err != nil {
+			return errors.Wrap(err, "failed to unarchive post")
+		}
+
+		c.Post.Status = enum.PostStatus(previousStatus)
+		c.Post.ArchivedSettings = nil
+		return nil
+	})
+}
+
+func bulkArchivePosts(ctx context.Context, c *cmd.BulkArchivePosts) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if len(c.PostIDs) == 0 {
+			return nil
+		}
+
+		_, err := trx.Execute(`
+			UPDATE posts 
+			SET status = $2, archived_at = NOW(), archived_from_status = status
+			WHERE tenant_id = $1 AND id = ANY($3) AND status NOT IN ($4, $5)
+		`, tenant.ID, int(enum.PostArchived), pq.Array(c.PostIDs), int(enum.PostDeleted), int(enum.PostArchived))
+		if err != nil {
+			return errors.Wrap(err, "failed to bulk archive posts")
+		}
+
+		return nil
+	})
+}
+
+func getArchivablePosts(ctx context.Context, q *query.GetArchivablePosts) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		conditions := []string{"p.tenant_id = $1", "p.status NOT IN ($2, $3)"}
+		args := []interface{}{tenant.ID, int(enum.PostDeleted), int(enum.PostArchived)}
+		argNum := 4
+
+		if q.CreatedBefore != nil {
+			conditions = append(conditions, fmt.Sprintf("p.created_at < $%d", argNum))
+			args = append(args, *q.CreatedBefore)
+			argNum++
+		}
+
+		if q.InactiveSince != nil {
+			conditions = append(conditions, fmt.Sprintf("p.last_activity_at < $%d", argNum))
+			args = append(args, *q.InactiveSince)
+			argNum++
+		}
+
+		if q.MaxVotes != nil {
+			conditions = append(conditions, fmt.Sprintf("(p.upvotes - p.downvotes) < $%d", argNum))
+			args = append(args, *q.MaxVotes)
+			argNum++
+		}
+
+		if q.MaxComments != nil {
+			conditions = append(conditions, fmt.Sprintf("p.comments_count < $%d", argNum))
+			args = append(args, *q.MaxComments)
+			argNum++
+		}
+
+		if len(q.Statuses) > 0 {
+			statusInts := make([]int, len(q.Statuses))
+			for i, s := range q.Statuses {
+				statusInts[i] = int(s)
+			}
+			conditions = append(conditions, fmt.Sprintf("p.status = ANY($%d)", argNum))
+			args = append(args, pq.Array(statusInts))
+			argNum++
+		}
+
+		if len(q.Tags) > 0 {
+			conditions = append(conditions, fmt.Sprintf(`
+				EXISTS (
+					SELECT 1 FROM post_tags pt 
+					INNER JOIN tags t ON t.id = pt.tag_id AND t.tenant_id = pt.tenant_id
+					WHERE pt.post_id = p.id AND t.slug = ANY($%d)
+				)
+			`, argNum))
+			args = append(args, pq.Array(q.Tags))
+			argNum++
+		}
+
+		whereClause := strings.Join(conditions, " AND ")
+
+		countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM posts p WHERE %s`, whereClause)
+		err := trx.Get(&q.Total, countQuery, args...)
+		if err != nil {
+			return errors.Wrap(err, "failed to count archivable posts")
+		}
+
+		if q.PerPage <= 0 {
+			q.PerPage = 50
+		}
+		if q.Page <= 0 {
+			q.Page = 1
+		}
+		offset := (q.Page - 1) * q.PerPage
+
+		selectQuery := buildPostQuery(user, whereClause) + fmt.Sprintf(" ORDER BY p.last_activity_at ASC LIMIT $%d OFFSET $%d", argNum, argNum+1)
+		args = append(args, q.PerPage, offset)
+
+		var posts []*dbPost
+		err = trx.Select(&posts, selectQuery, args...)
+		if err != nil {
+			return errors.Wrap(err, "failed to get archivable posts")
+		}
+
+		q.Result = make([]*entity.Post, len(posts))
+		for i, p := range posts {
+			q.Result[i] = p.toModel(ctx)
+		}
+
+		return nil
+	})
+}
+
+func countVotesSinceArchive(ctx context.Context, q *query.CountVotesSinceArchive) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		err := trx.Get(&q.Result, `
+			SELECT COALESCE(SUM(vote_type), 0) 
+			FROM post_votes 
+			WHERE post_id = $1 AND tenant_id = $2 AND created_at > $3
+		`, q.PostID, tenant.ID, q.ArchivedAt)
+		if err != nil {
+			return errors.Wrap(err, "failed to count votes since archive")
+		}
 		return nil
 	})
 }

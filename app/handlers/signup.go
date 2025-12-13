@@ -61,68 +61,70 @@ func CreateTenant() web.HandlerFunc {
 			status = enum.TenantActive
 		}
 
-		createTenant := &cmd.CreateTenant{
-			Name:      action.TenantName,
-			Subdomain: action.Subdomain,
-			Status:    status,
-		}
-		err := bus.Dispatch(c, createTenant)
-		if err != nil {
-			return c.Failure(err)
-		}
-
-		metrics.TotalTenants.Inc()
-		c.SetTenant(createTenant.Result)
-
-		user := &entity.User{
-			Tenant: createTenant.Result,
-			Role:   enum.RoleAdministrator,
-		}
-
-		siteURL := web.TenantBaseURL(c, c.Tenant())
-
-		if socialSignUp {
-			user.Name = action.UserClaims.OAuthName
-			user.Email = action.UserClaims.OAuthEmail
-			user.Providers = []*entity.UserProvider{
-				{
-					UID:  action.UserClaims.OAuthID,
-					Name: action.UserClaims.OAuthProvider,
-				},
+		return c.WithTransaction(func() error {
+			createTenant := &cmd.CreateTenant{
+				Name:      action.TenantName,
+				Subdomain: action.Subdomain,
+				Status:    status,
 			}
-
-			if err := bus.Dispatch(c, &cmd.RegisterUser{User: user}); err != nil {
-				return c.Failure(err)
-			}
-
-			if env.IsSingleHostMode() {
-				webutil.AddAuthUserCookie(c, user)
-			} else {
-				webutil.SetSignUpAuthCookie(c, user)
-			}
-
-		} else {
-			user.Name = action.Name
-			user.Email = action.Email
-
-			err := bus.Dispatch(c, &cmd.SaveVerificationKey{
-				Key:      action.VerificationKey,
-				Duration: 48 * time.Hour,
-				Request:  action,
-			})
+			err := bus.Dispatch(c, createTenant)
 			if err != nil {
 				return c.Failure(err)
 			}
 
-			c.Enqueue(tasks.SendSignUpEmail(action, siteURL))
-		}
+			metrics.TotalTenants.Inc()
+			c.SetTenant(createTenant.Result)
 
-		// Handle userlist.
-		if env.Config.UserList.Enabled {
-			c.Enqueue(tasks.UserListCreateCompany(*createTenant.Result, *user))
-		}
+			user := &entity.User{
+				Tenant: createTenant.Result,
+				Role:   enum.RoleAdministrator,
+			}
 
-		return c.Ok(web.Map{})
+			siteURL := web.TenantBaseURL(c, c.Tenant())
+
+			if socialSignUp {
+				user.Name = action.UserClaims.OAuthName
+				user.Email = action.UserClaims.OAuthEmail
+				user.Providers = []*entity.UserProvider{
+					{
+						UID:  action.UserClaims.OAuthID,
+						Name: action.UserClaims.OAuthProvider,
+					},
+				}
+
+				if err := bus.Dispatch(c, &cmd.RegisterUser{User: user}); err != nil {
+					return c.Failure(err)
+				}
+
+				if env.IsSingleHostMode() {
+					webutil.AddAuthUserCookie(c, user)
+				} else {
+					webutil.SetSignUpAuthCookie(c, user)
+				}
+
+			} else {
+				user.Name = action.Name
+				user.Email = action.Email
+
+				err := bus.Dispatch(c, &cmd.SaveVerificationKey{
+					Key:      action.VerificationKey,
+					Duration: 48 * time.Hour,
+					Request:  action,
+				})
+				if err != nil {
+					return c.Failure(err)
+				}
+
+				c.Enqueue(tasks.SendSignUpEmail(action, siteURL))
+			}
+
+			// Handle userlist.
+			if env.Config.UserList.Enabled {
+				c.Enqueue(tasks.UserListCreateCompany(*createTenant.Result, *user))
+			}
+
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -171,10 +173,6 @@ func VerifySignUpKey() web.HandlerFunc {
 			return err
 		}
 
-		if err = bus.Dispatch(c, &cmd.ActivateTenant{TenantID: c.Tenant().ID}); err != nil {
-			return c.Failure(err)
-		}
-
 		user := &entity.User{
 			Name:   result.Name,
 			Email:  result.Email,
@@ -182,13 +180,22 @@ func VerifySignUpKey() web.HandlerFunc {
 			Role:   enum.RoleAdministrator,
 		}
 
-		if err = bus.Dispatch(c, &cmd.RegisterUser{User: user}); err != nil {
-			return c.Failure(err)
-		}
+		err = c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.ActivateTenant{TenantID: c.Tenant().ID}); err != nil {
+				return c.Failure(err)
+			}
 
-		err = bus.Dispatch(c, &cmd.SetKeyAsVerified{Key: key})
+			if err := bus.Dispatch(c, &cmd.RegisterUser{User: user}); err != nil {
+				return c.Failure(err)
+			}
+
+			if err := bus.Dispatch(c, &cmd.SetKeyAsVerified{Key: key}); err != nil {
+				return c.Failure(err)
+			}
+			return nil
+		})
 		if err != nil {
-			return c.Failure(err)
+			return err
 		}
 
 		webutil.AddAuthUserCookie(c, user)

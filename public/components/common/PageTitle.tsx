@@ -16,7 +16,7 @@ export const PageTitle = (props: PageTitleLogo) => {
   return (
     <div className={className}>
       <div className="text-display2 mb-1">{props.title}</div>
-      <div className="text-gray-700">{props.subtitle}</div>
+      <div className="text-muted">{props.subtitle}</div>
     </div>
   )
 }

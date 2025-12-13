@@ -1,12 +1,12 @@
 import React from "react"
 import { PostStatus, Tag } from "@fider/models"
 import { Checkbox, Dropdown, Icon } from "@fider/components"
-import { HStack } from "@fider/components/layout"
-import HeroIconFilter from "@fider/assets/images/heroicons-filter.svg"
+import { heroiconsFilter as HeroIconFilter } from "@fider/icons.generated"
 import { useFider } from "@fider/hooks"
 import { i18n } from "@lingui/core"
 import { Fider } from "@fider/services"
-import { FilterState } from "./PostsContainer"
+import { FilterState } from "@fider/hooks/usePostFilters"
+import { HStack } from "@fider/components/layout"
 
 type FilterType = "tag" | "status" | "myVotes" | "myPosts" | "notMyVotes"
 
@@ -31,10 +31,10 @@ export interface FilterItem {
 
 const FilterStateToFilterItems = (filterState: FilterState): FilterItem[] => {
   const filterItems: FilterItem[] = []
-  filterState.statuses.forEach((s) => {
+  filterState.statuses.forEach((s: string) => {
     filterItems.push({ type: "status", value: s })
   })
-  filterState.tags.forEach((t) => {
+  filterState.tags.forEach((t: string) => {
     filterItems.push({ type: "tag", value: t })
   })
   if (filterState.myVotes) {
@@ -50,7 +50,16 @@ const FilterStateToFilterItems = (filterState: FilterState): FilterItem[] => {
 }
 
 const FilterItemsToFilterState = (filterItems: FilterItem[]): FilterState => {
-  const filterState: FilterState = { tags: [], statuses: [], myVotes: false, myPosts: false, notMyVotes: false }
+  const filterState: FilterState = {
+    tags: [],
+    statuses: [],
+    myVotes: false,
+    myPosts: false,
+    notMyVotes: false,
+    query: "",
+    view: "trending",
+    limit: 15
+  }
   filterItems.forEach((i) => {
     if (i.type === "tag") {
       filterState.tags.push(i.value as string)
@@ -109,13 +118,16 @@ export const PostFilter = (props: PostFilterProps) => {
   const filterCount = filterItems.length
 
   return (
-    <HStack className="mr-4">
-      <Dropdown
+    <Dropdown
         renderHandle={
-          <HStack className="h-10 text-medium text-xs rounded-md uppercase border border-gray-400 text-gray-800 p-2 px-3">
+          <HStack className="h-10 text-xs font-medium rounded-button uppercase border border-border text-foreground px-3 py-2 cursor-pointer transition-colors hover:bg-tertiary hover:border-border-strong">
             <Icon sprite={HeroIconFilter} className="h-5 pr-1" />
             {i18n._("home.filter.label", { message: "Filter" })}
-            {filterCount > 0 && <div id="c-dropdown-buttoncount" className="bg-gray-200 inline-block rounded-full px-2 py-1 w-min-4 text-2xs text-center">{filterCount}</div>}
+            {filterCount > 0 && (
+              <div className="bg-primary text-white inline-block rounded-full px-2 py-0.5 min-w-[20px] text-[10px] text-center ml-2">
+                {filterCount}
+              </div>
+            )}
           </HStack>
         }
       >
@@ -126,16 +138,17 @@ export const PostFilter = (props: PostFilterProps) => {
             <Dropdown.ListItem onClick={handleChangeFilter(o)} key={o.value.toString()}>
               <Checkbox field={o.value.toString()} checked={isChecked}>
                 <HStack spacing={2}>
-                  <span className={isChecked ? "text-semibold" : ""}>{o.label}</span>
-                  <div className="">
-                    {o.count && o.count > 0 && <span id="c-dropdown-buttoncount" className="bg-gray-200 inline-block rounded-full px-1 w-min-4 text-2xs text-center">{o.count}</span>}
-                  </div>
+                  <span className={isChecked ? "font-semibold text-foreground" : "text-foreground"}>{o.label}</span>
+                  {o.count && o.count > 0 && (
+                    <span className="bg-surface-alt inline-block rounded-full px-2 py-0.5 min-w-[20px] text-[10px] text-muted text-center">
+                      {o.count}
+                    </span>
+                  )}
                 </HStack>
               </Checkbox>
             </Dropdown.ListItem>
           )
         })}
       </Dropdown>
-    </HStack>
   )
 }

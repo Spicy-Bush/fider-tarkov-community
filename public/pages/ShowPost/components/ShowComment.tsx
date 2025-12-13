@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
-import { Comment, Post, ImageUpload, isPostLocked } from "@fider/models"
+import { Comment, Post, ImageUpload, isPostLocked, ReportReason } from "@fider/models"
 import {
   Reactions,
   Avatar,
@@ -9,32 +9,41 @@ import {
   Button,
   Markdown,
   Modal,
-  ImageViewer,
+  ImageGallery,
   MultiImageUploader,
   Dropdown,
   Icon,
   CommentEditor,
+  ReportModal,
+  ReportButton,
 } from "@fider/components"
 import { HStack } from "@fider/components/layout"
-import { formatDate, Failure, actions, notify, copyToClipboard, classSet, clearUrlHash } from "@fider/services"
+import { formatDate, Failure, actions, notify, copyToClipboard, classSet, clearUrlHash, commentPermissions } from "@fider/services"
 import { useFider } from "@fider/hooks"
-import IconDotsHorizontal from "@fider/assets/images/heroicons-dots-horizontal.svg"
+import { heroiconsDotsHorizontal as IconDotsHorizontal } from "@fider/icons.generated"
 import { t } from "@lingui/core/macro"
 import { Trans } from "@lingui/react/macro"
+import { useUserStanding } from "@fider/contexts/UserStandingContext"
 
 interface ShowCommentProps {
   post: Post
   comment: Comment
   highlighted?: boolean
   onToggleReaction?: () => void
+  hasReported: boolean
+  dailyLimitReached: boolean
+  reportReasons?: ReportReason[]
 }
 
 export const ShowComment = (props: ShowCommentProps) => {
   const fider = useFider()
+  const { isMuted, muteReason } = useUserStanding()
   const node = useRef<HTMLDivElement | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [newContent, setNewContent] = useState<string>(props.comment.content)
-  const [isDeleteConfirmationModalOpen, setIsDeleteConfirmationModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showReportModal, setShowReportModal] = useState(false)
   const [attachments, setAttachments] = useState<ImageUpload[]>([])
   const [localReactionCounts, setLocalReactionCounts] = useState(props.comment.reactionCounts)
   const emojiSelectorRef = useRef<HTMLDivElement>(null)
@@ -56,15 +65,14 @@ export const ShowComment = (props: ShowCommentProps) => {
     }
   }, [props.highlighted])
 
-  const canEditComment = (): boolean => {
-    if (fider.session.isAuthenticated) {
-      if (fider.session.user.isCollaborator || fider.session.user.isAdministrator) {
-        return true
-      }
-      
-      return props.comment.user.id === fider.session.user.id && !isPostLocked(props.post)
-    }
-    return false
+  const canEditComment = () => {
+    if (isMuted) return false
+    return commentPermissions.canEdit(props.comment)
+  }
+
+  const canDeleteComment = () => {
+    if (isMuted) return false
+    return commentPermissions.canDelete(props.comment)
   }
 
   const clearError = () => setError(undefined)
@@ -84,19 +92,34 @@ export const ShowComment = (props: ShowCommentProps) => {
     }
   }
 
-  const closeModal = async () => {
-    setIsDeleteConfirmationModalOpen(false)
-  }
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    setError(undefined)
 
-  const deleteComment = async () => {
-    const response = await actions.deleteComment(props.post.number, props.comment.id)
-    if (response.ok) {
-      location.reload()
+    const result = await actions.deleteComment(props.post.number, props.comment.id)
+    if (result.ok) {
+      setShowDeleteModal(false)
+      notify.success(t({ id: "action.deletecomment.success", message: "Comment deleted successfully" }))
+      // Reload the page to reflect the changes
+      window.location.reload()
+    } else {
+      setError(result.error)
     }
+    setIsDeleting(false)
   }
 
   const toggleReaction = async (emoji: string) => {
-    const response = await actions.toggleCommentReaction(props.post.number, comment.id, emoji)
+    if (isMuted) {
+      notify.error(t({ id: "showpost.comment.muted", message: `You are currently muted. Reason: ${muteReason}` }))
+      return
+    }
+
+    if (isPostLocked(props.post)) {
+      notify.error(t({ id: "showpost.comment.locked", message: "This post is locked and cannot be reacted to." }))
+      return
+    }
+
+    const response = await actions.toggleCommentReaction(props.post.number, props.comment.id, emoji)
     if (response.ok) {
       const added = response.data.added
 
@@ -123,40 +146,40 @@ export const ShowComment = (props: ShowCommentProps) => {
   }
 
   const onActionSelected = (action: string) => () => {
-    if (action === "copylink") {
-      window.location.hash = `#comment-${props.comment.id}`
-      copyToClipboard(window.location.href).then(
-        () => notify.success(t({ id: "showpost.comment.copylink.success", message: "Successfully copied comment link to clipboard" })),
-        () => notify.error(t({ id: "showpost.comment.copylink.error", message: "Could not copy comment link, please copy page URL" }))
-      )
-    } else if (action === "edit") {
+    if (action === "edit") {
       setIsEditing(true)
-      clearError()
     } else if (action === "delete") {
-      setIsDeleteConfirmationModalOpen(true)
+      setShowDeleteModal(true)
+    } else if (action === "copylink") {
+      const url = `${window.location.origin}${window.location.pathname}#comment-${props.comment.id}`
+      copyToClipboard(url)
+      notify.success(t({ id: "action.copylink.success", message: "Link copied to clipboard" }))
+    } else if (action === "report") {
+      setShowReportModal(true)
     }
   }
 
   const modal = () => {
     return (
-      <Modal.Window isOpen={isDeleteConfirmationModalOpen} onClose={closeModal} center={false} size="small">
+      <Modal.Window isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)}>
         <Modal.Header>
-          <Trans id="modal.deletecomment.header">Delete Comment</Trans>
+          <Trans id="action.deletecomment.title">Delete Comment</Trans>
         </Modal.Header>
         <Modal.Content>
           <p>
-            <Trans id="modal.deletecomment.text">
-              This process is irreversible. <strong>Are you sure?</strong>
-            </Trans>
+            <Trans id="action.deletecomment.message">Are you sure you want to delete this comment? This action cannot be undone.</Trans>
           </p>
         </Modal.Content>
-
         <Modal.Footer>
-          <Button variant="danger" onClick={deleteComment}>
-            <Trans id="action.delete">Delete</Trans>
-          </Button>
-          <Button variant="tertiary" onClick={closeModal}>
+          <Button variant="tertiary" onClick={() => setShowDeleteModal(false)}>
             <Trans id="action.cancel">Cancel</Trans>
+          </Button>
+          <Button variant="danger" onClick={handleDelete} disabled={isDeleting}>
+            {isDeleting ? (
+              <Trans id="action.deleting">Deleting...</Trans>
+            ) : (
+              <Trans id="action.delete">Delete</Trans>
+            )}
           </Button>
         </Modal.Footer>
       </Modal.Window>
@@ -166,73 +189,96 @@ export const ShowComment = (props: ShowCommentProps) => {
   const comment = props.comment
 
   const editedMetadata = !!comment.editedAt && !!comment.editedBy && (
-    <span data-tooltip={`This comment has been edited by ${comment.editedBy.name} on ${formatDate(fider.currentLocale, comment.editedAt)}`}>· edited</span>
+    <span 
+      className="text-muted whitespace-nowrap"
+      data-tooltip={`Edited by ${comment.editedBy.name} on ${formatDate(fider.currentLocale, comment.editedAt)}`}
+    >
+      · edited
+    </span>
   )
 
   const classList = classSet({
-    "flex-grow rounded-md p-2": true,
-    "bg-gray-100": !props.highlighted,
+    "rounded-card p-3": true,
+    "bg-tertiary": !props.highlighted,
     "highlighted-comment": props.highlighted,
   })
 
   return (
-    <div id={`comment-${comment.id}`}>
-      <HStack spacing={2} className="c-comment flex-items-baseline">
-        {modal()}
-        <div className="pt-4">
-          <Avatar user={comment.user} />
-        </div>
-        <div ref={node} className={classList}>
-          <div className="mb-1">
-            <HStack justify="between">
-              <HStack>
-                <UserName user={comment.user} />{" "}
-                <div className="text-xs">
-                  · <Moment locale={fider.currentLocale} date={comment.createdAt} /> {editedMetadata}
-                </div>
-              </HStack>
-              {!isEditing && (
-                <Dropdown position="left" renderHandle={<Icon sprite={IconDotsHorizontal} width="16" height="16" />}>
-                  <Dropdown.ListItem onClick={onActionSelected("copylink")}>
-                    <Trans id="action.copylink">Copy link</Trans>
-                  </Dropdown.ListItem>
-                  {canEditComment() && (
-                    <>
-                      <Dropdown.Divider />
-                      <Dropdown.ListItem onClick={onActionSelected("edit")}>
-                        <Trans id="action.edit">Edit</Trans>
-                      </Dropdown.ListItem>
-                      <Dropdown.ListItem onClick={onActionSelected("delete")} className="text-red-700">
-                        <Trans id="action.delete">Delete</Trans>
-                      </Dropdown.ListItem>
-                    </>
-                  )}
-                </Dropdown>
-              )}
-            </HStack>
+    <div id={`comment-${comment.id}`} className="mt-3">
+      {modal()}
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        postNumber={props.post.number}
+        commentId={comment.id}
+        reasons={props.reportReasons}
+      />
+      <div ref={node} className={classList}>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            <Avatar user={comment.user} size="small" />
+            <UserName user={comment.user} />
+            <span className="text-xs text-muted flex items-center gap-1 flex-wrap">
+              <Moment locale={fider.currentLocale} date={comment.createdAt} />
+              {editedMetadata}
+            </span>
           </div>
-          <div>
-            {isEditing ? (
-              <Form error={error}>
-                <CommentEditor initialValue={newContent} onChange={setNewContent} placeholder={comment.content} />
-                <MultiImageUploader field="attachments" bkeys={comment.attachments} maxUploads={2} onChange={setAttachments} />
-                <Button size="small" onClick={saveEdit} variant="primary">
-                  <Trans id="action.save">Save</Trans>
-                </Button>
-                <Button variant="tertiary" size="small" onClick={cancelEdit}>
-                  <Trans id="action.cancel">Cancel</Trans>
-                </Button>
-              </Form>
-            ) : (
-              <>
-                <Markdown text={comment.content} style="full" />
-                {comment.attachments && comment.attachments.map((x) => <ImageViewer key={x} bkey={x} />)}
+          {!isEditing && (
+            <div className="flex items-center gap-1 shrink-0">
+              <ReportButton
+                reportedUserId={comment.user.id}
+                size="small"
+                hasReported={props.hasReported}
+                dailyLimitReached={props.dailyLimitReached}
+                onReport={() => setShowReportModal(true)}
+              />
+              <Dropdown position="left" renderHandle={<Icon sprite={IconDotsHorizontal} width="16" height="16" className="cursor-pointer" />}>
+                <Dropdown.ListItem onClick={onActionSelected("copylink")}>
+                  <Trans id="action.copylink">Copy link</Trans>
+                </Dropdown.ListItem>
+                {canEditComment() && (
+                  <>
+                    <Dropdown.Divider />
+                    <Dropdown.ListItem onClick={onActionSelected("edit")}>
+                      <Trans id="action.edit">Edit</Trans>
+                    </Dropdown.ListItem>
+                  </>
+                )}
+                {canDeleteComment() && (
+                  <>
+                    <Dropdown.Divider />
+                    <Dropdown.ListItem onClick={onActionSelected("delete")} className="text-danger">
+                      <Trans id="action.delete">Delete</Trans>
+                    </Dropdown.ListItem>
+                  </>
+                )}
+              </Dropdown>
+            </div>
+          )}
+        </div>
+        <div>
+          {isEditing ? (
+            <Form error={error}>
+              <CommentEditor initialValue={newContent} onChange={setNewContent} placeholder={comment.content} />
+              <MultiImageUploader field="attachments" bkeys={comment.attachments} maxUploads={2} onChange={setAttachments} />
+              <Button size="small" onClick={saveEdit} variant="primary">
+                <Trans id="action.save">Save</Trans>
+              </Button>
+              <Button variant="tertiary" size="small" onClick={cancelEdit}>
+                <Trans id="action.cancel">Cancel</Trans>
+              </Button>
+            </Form>
+          ) : (
+            <>
+              <Markdown text={comment.content} style="full" />
+              {comment.attachments && comment.attachments.length > 0 && <ImageGallery bkeys={comment.attachments} />}
+              {!isPostLocked(props.post) && !isMuted && (
                 <Reactions reactions={localReactionCounts} emojiSelectorRef={emojiSelectorRef} toggleReaction={toggleReaction} />
-              </>
-            )}
-          </div>
+              )}
+            </>
+          )}
         </div>
-      </HStack>
+      </div>
     </div>
   )
 }

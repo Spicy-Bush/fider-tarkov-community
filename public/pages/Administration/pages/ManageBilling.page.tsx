@@ -3,9 +3,15 @@ import { Button, Moment, Money } from "@fider/components"
 import { HStack, VStack } from "@fider/components/layout"
 import { useFider } from "@fider/hooks"
 import { BillingStatus } from "@fider/models"
-import { AdminPageContainer } from "../components/AdminBasePage"
 import { CardDetails } from "../components/billing/CardDetails"
 import { usePaddle } from "../hooks/use-paddle"
+import { PageConfig } from "@fider/components/layouts"
+
+export const pageConfig: PageConfig = {
+  title: "Billing",
+  subtitle: "Manage your billing settings",
+  sidebarItem: "billing",
+}
 
 interface ManageBillingPageProps {
   paddle: {
@@ -58,7 +64,7 @@ const SubscribePanel = (props: { monthlyPrice: string; subscribeMonthly: () => v
         </VStack>
         <VStack spacing={4} className="py-2 px-4 shadow rounded text-center">
           <div>
-            <span className="block text-xs bg-yellow-100 p-1 rounded mb-2">
+            <span className="block text-xs bg-warning-light p-1 rounded mb-2">
               <strong>2 months free!</strong>
             </span>
             <span className="text-category">Yearly Subscription</span>
@@ -194,7 +200,7 @@ const FreeForeverInformation = () => {
     <VStack>
       <h3 className="text-display">Free!</h3>
       <p>
-        This site is on a <strong>Forever Free</strong> subscription, enjoy it! 🎉
+        This site is on a <strong>Forever Free</strong> subscription, enjoy it!
       </p>
       <p className="text-muted">
         You can still help us fund the development of Fider by contribution to our{" "}
@@ -223,11 +229,11 @@ const OpenCollectiveInformation = () => {
   )
 }
 
-const ManageBillingPage = (props: ManageBillingPageProps) => {
+const ManageBillingPage: React.FC<ManageBillingPageProps> = (props) => {
   const showPaddleFooter = [BillingStatus.Active, BillingStatus.Cancelled, BillingStatus.Trial].includes(props.status)
 
   return (
-    <AdminPageContainer id="p-admin-billing" name="billing" title="Billing" subtitle="Manage your billing settings">
+    <>
       {props.status === BillingStatus.Trial && <TrialInformation {...props} />}
       {props.status === BillingStatus.Active && <ActiveSubscriptionInformation {...props} />}
       {props.status === BillingStatus.Cancelled && <CancelledSubscriptionInformation {...props} />}
@@ -244,7 +250,7 @@ const ManageBillingPage = (props: ManageBillingPageProps) => {
           is our billing partner. You may see {'"PADDLE.NET* FIDER"'} on your credit card.
         </p>
       )}
-    </AdminPageContainer>
+    </>
   )
 }
 

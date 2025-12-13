@@ -1,6 +1,7 @@
 package apiv1
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/markdown"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/sse"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/tasks"
 )
@@ -80,34 +83,106 @@ func SearchPosts() web.HandlerFunc {
 			}
 		}
 
+		searchQuery := c.QueryParam("query")
+		myVotesOnly := false
+		if v, err := c.QueryParamAsBool("myvotes"); err == nil {
+			myVotesOnly = v
+		}
+		myPostsOnly := false
+		if v, err := c.QueryParamAsBool("myposts"); err == nil {
+			myPostsOnly = v
+		}
+		notMyVotes := false
+		if v, err := c.QueryParamAsBool("notmyvotes"); err == nil {
+			notMyVotes = v
+		}
+
+		statuses := c.QueryParamAsArray("statuses")
+		dateFilter := c.QueryParam("date")
+		includeCount, _ := c.QueryParamAsBool("includeCount")
+
+		isCacheable := postcache.IsCacheable(
+			viewQueryParams,
+			myVotesOnly,
+			myPostsOnly,
+			notMyVotes,
+			filteredTags,
+			searchQuery,
+			untagged,
+		) && clientOffset == 0 && len(statuses) == 0 && dateFilter == ""
+
+		tenantID := c.Tenant().ID
+
+		if isCacheable {
+			cacheKey := postcache.GetCacheKey(viewQueryParams)
+			if cachedIDs, ok := postcache.GetRanking(tenantID, cacheKey); ok && len(cachedIDs) > 0 {
+				endIdx := effectiveLimit
+				if endIdx > len(cachedIDs) {
+					endIdx = len(cachedIDs)
+				}
+				postIDs := cachedIDs[:endIdx]
+
+				getPostsByIDs := &query.GetPostsByIDs{PostIDs: postIDs}
+				if err := bus.Dispatch(c, getPostsByIDs); err != nil {
+					return c.Failure(err)
+				}
+
+				idToPost := make(map[int]*entity.Post)
+				for _, post := range getPostsByIDs.Result {
+					idToPost[post.ID] = post
+				}
+
+				result := make([]*entity.Post, 0, len(postIDs))
+				for _, id := range postIDs {
+					if post, ok := idToPost[id]; ok {
+						result = append(result, post)
+					}
+				}
+
+				return c.Ok(result)
+			}
+		}
+
 		searchPosts := &query.SearchPosts{
-			Query:    c.QueryParam("query"),
-			View:     viewQueryParams,
-			Limit:    strconv.Itoa(effectiveLimit),
-			Offset:   strconv.Itoa(clientOffset),
-			Tags:     filteredTags,
-			Untagged: untagged,
-			Date:     c.QueryParam("date"),
-			TagLogic: tagLogicParam,
+			Query:       searchQuery,
+			View:        viewQueryParams,
+			Limit:       strconv.Itoa(effectiveLimit),
+			Offset:      strconv.Itoa(clientOffset),
+			Tags:        filteredTags,
+			Untagged:    untagged,
+			Date:        dateFilter,
+			TagLogic:    tagLogicParam,
+			MyVotesOnly: myVotesOnly,
+			MyPostsOnly: myPostsOnly,
+			NotMyVotes:  notMyVotes,
 		}
 
-		if myVotesOnly, err := c.QueryParamAsBool("myvotes"); err == nil {
-			searchPosts.MyVotesOnly = myVotesOnly
-		}
-
-		if myPostsOnly, err := c.QueryParamAsBool("myposts"); err == nil {
-			searchPosts.MyPostsOnly = myPostsOnly
-		}
-
-		if notMyVotes, err := c.QueryParamAsBool("notmyvotes"); err == nil {
-			searchPosts.NotMyVotes = notMyVotes
-		}
-
-		searchPosts.SetStatusesFromStrings(c.QueryParamAsArray("statuses"))
+		searchPosts.SetStatusesFromStrings(statuses)
 
 		if err := bus.Dispatch(c, searchPosts); err != nil {
 			return c.Failure(err)
 		}
+
+		if isCacheable && len(searchPosts.Result) > 0 {
+			postIDs := make([]int, len(searchPosts.Result))
+			for i, post := range searchPosts.Result {
+				postIDs[i] = post.ID
+			}
+			cacheKey := postcache.GetCacheKey(viewQueryParams)
+			postcache.SetRanking(tenantID, cacheKey, postIDs)
+		}
+
+		if includeCount && untagged {
+			user := c.User()
+			if user != nil && (user.IsHelper() || user.IsModerator() || user.IsCollaborator() || user.IsAdministrator()) {
+				countQuery := &query.CountUntaggedPosts{Date: dateFilter}
+				countQuery.SetStatusesFromStrings(statuses)
+				if err := bus.Dispatch(c, countQuery); err == nil {
+					c.Response.Header().Set("X-Total-Count", strconv.Itoa(countQuery.Result))
+				}
+			}
+		}
+
 		return c.Ok(searchPosts.Result)
 	}
 }
@@ -115,47 +190,65 @@ func SearchPosts() web.HandlerFunc {
 // CreatePost creates a new post on current tenant
 func CreatePost() web.HandlerFunc {
 	return func(c *web.Context) error {
+		if c.User().IsMuted() {
+			return c.BadRequest(web.Map{
+				"message": "You are currently muted and cannot create new posts.",
+			})
+		}
+
 		action := new(actions.CreateNewPost)
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
 		}
 
-		if err := bus.Dispatch(c, &cmd.UploadImages{Images: action.Attachments, Folder: "attachments"}); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.UploadImages{Images: action.Attachments, Folder: "attachments"}); err != nil {
+				return c.Failure(err)
+			}
 
-		newPost := &cmd.AddNewPost{
-			Title:       action.Title,
-			Description: action.Description,
-		}
-		err := bus.Dispatch(c, newPost)
-		if err != nil {
-			return c.Failure(err)
-		}
+			newPost := &cmd.AddNewPost{
+				Title:       action.Title,
+				Description: action.Description,
+			}
+			if err := bus.Dispatch(c, newPost); err != nil {
+				return c.Failure(err)
+			}
 
-		setAttachments := &cmd.SetAttachments{Post: newPost.Result, Attachments: action.Attachments}
-		addVote := &cmd.AddVote{Post: newPost.Result, User: c.User(), VoteType: enum.VoteTypeUp}
-		if err = bus.Dispatch(c, setAttachments, addVote); err != nil {
-			return c.Failure(err)
-		}
+			setAttachments := &cmd.SetAttachments{Post: newPost.Result, Attachments: action.Attachments}
+			addVote := &cmd.AddVote{Post: newPost.Result, User: c.User(), VoteType: enum.VoteTypeUp}
+			if err := bus.Dispatch(c, setAttachments, addVote); err != nil {
+				return c.Failure(err)
+			}
 
-		if env.Config.PostCreationWithTagsEnabled {
-			for _, tag := range action.Tags {
-				assignTag := &cmd.AssignTag{Tag: tag, Post: newPost.Result}
-				if err := bus.Dispatch(c, assignTag); err != nil {
-					return c.Failure(err)
+			tagsAssigned := 0
+			if env.Config.PostCreationWithTagsEnabled {
+				for _, tag := range action.Tags {
+					assignTag := &cmd.AssignTag{Tag: tag, Post: newPost.Result}
+					if err := bus.Dispatch(c, assignTag); err != nil {
+						return c.Failure(err)
+					}
+					tagsAssigned++
 				}
 			}
-		}
 
-		c.Enqueue(tasks.NotifyAboutNewPost(newPost.Result))
+			if tagsAssigned == 0 {
+				sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgQueuePostNew, sse.QueueEventPayload{
+					PostID: newPost.Result.ID,
+				})
+			}
 
-		metrics.TotalPosts.Inc()
-		return c.Ok(web.Map{
-			"id":     newPost.Result.ID,
-			"number": newPost.Result.Number,
-			"title":  newPost.Result.Title,
-			"slug":   newPost.Result.Slug,
+			c.Enqueue(tasks.NotifyAboutNewPost(newPost.Result))
+
+			postcache.InvalidateTenantRankings(c.Tenant().ID)
+			postcache.InvalidateCountPerStatus(c.Tenant().ID)
+
+			metrics.TotalPosts.Inc()
+			return c.Ok(web.Map{
+				"id":     newPost.Result.ID,
+				"number": newPost.Result.Number,
+				"title":  newPost.Result.Title,
+				"slug":   newPost.Result.Slug,
+			})
 		})
 	}
 }
@@ -199,26 +292,28 @@ func UpdatePost() web.HandlerFunc {
 			return c.BadRequest(web.Map{})
 		}
 
-		err := bus.Dispatch(c,
-			&cmd.UploadImages{
-				Images: action.Attachments,
-				Folder: "attachments",
-			},
-			&cmd.UpdatePost{
-				Post:        action.Post,
-				Title:       action.Title,
-				Description: action.Description,
-			},
-			&cmd.SetAttachments{
-				Post:        action.Post,
-				Attachments: action.Attachments,
-			},
-		)
-		if err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c,
+				&cmd.UploadImages{
+					Images: action.Attachments,
+					Folder: "attachments",
+				},
+				&cmd.UpdatePost{
+					Post:        action.Post,
+					Title:       action.Title,
+					Description: action.Description,
+				},
+				&cmd.SetAttachments{
+					Post:        action.Post,
+					Attachments: action.Attachments,
+				},
+			)
+			if err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -237,24 +332,29 @@ func SetResponse() web.HandlerFunc {
 
 		prevStatus := getPost.Result.Status
 
-		var command bus.Msg
-		if action.Status == enum.PostDuplicate {
-			command = &cmd.MarkPostAsDuplicate{Post: getPost.Result, Original: action.Original}
-		} else {
-			command = &cmd.SetPostResponse{
-				Post:   getPost.Result,
-				Text:   action.Text,
-				Status: action.Status,
+		return c.WithTransaction(func() error {
+			var command bus.Msg
+			if action.Status == enum.PostDuplicate {
+				command = &cmd.MarkPostAsDuplicate{Post: getPost.Result, Original: action.Original, Text: action.Text}
+			} else {
+				command = &cmd.SetPostResponse{
+					Post:   getPost.Result,
+					Text:   action.Text,
+					Status: action.Status,
+				}
 			}
-		}
 
-		if err := bus.Dispatch(c, command); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, command); err != nil {
+				return c.Failure(err)
+			}
 
-		c.Enqueue(tasks.NotifyAboutStatusChange(getPost.Result, prevStatus))
+			c.Enqueue(tasks.NotifyAboutStatusChange(getPost.Result, prevStatus))
 
-		return c.Ok(web.Map{})
+			postcache.InvalidateTenantRankings(c.Tenant().ID)
+			postcache.InvalidateCountPerStatus(c.Tenant().ID)
+
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -266,18 +366,23 @@ func DeletePost() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.SetPostResponse{
-			Post:   action.Post,
-			Text:   action.Text,
-			Status: enum.PostDeleted,
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.SetPostResponse{
+				Post:   action.Post,
+				Text:   action.Text,
+				Status: enum.PostDeleted,
+			})
+			if err != nil {
+				return c.Failure(err)
+			}
+
+			c.Enqueue(tasks.TriggerDeleteWebhook(action.Post))
+
+			postcache.InvalidateTenantRankings(c.Tenant().ID)
+			postcache.InvalidateCountPerStatus(c.Tenant().ID)
+
+			return c.Ok(web.Map{})
 		})
-		if err != nil {
-			return c.Failure(err)
-		}
-
-		c.Enqueue(tasks.NotifyAboutDeletedPost(action.Post, action.Text != ""))
-
-		return c.Ok(web.Map{})
 	}
 }
 
@@ -308,6 +413,28 @@ func ListComments() web.HandlerFunc {
 	}
 }
 
+// GetPostAttachments returns a list of attachments for a post
+func GetPostAttachments() web.HandlerFunc {
+	return func(c *web.Context) error {
+		number, err := c.ParamAsInt("number")
+		if err != nil {
+			return c.NotFound()
+		}
+
+		getPost := &query.GetPostByNumber{Number: number}
+		if err := bus.Dispatch(c, getPost); err != nil {
+			return c.Failure(err)
+		}
+
+		getAttachments := &query.GetAttachments{Post: getPost.Result}
+		if err := bus.Dispatch(c, getAttachments); err != nil {
+			return c.Failure(err)
+		}
+
+		return c.Ok(getAttachments.Result)
+	}
+}
+
 // GetComment returns a single comment by its ID
 func GetComment() web.HandlerFunc {
 	return func(c *web.Context) error {
@@ -330,27 +457,30 @@ func GetComment() web.HandlerFunc {
 // ToggleReaction adds or removes a reaction on a comment
 func ToggleReaction() web.HandlerFunc {
 	return func(c *web.Context) error {
+		if c.User().IsMuted() {
+			return c.BadRequest(web.Map{
+				"message": "You are currently muted and cannot add reactions.",
+			})
+		}
+
 		action := new(actions.ToggleCommentReaction)
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
 		}
 
-		getComment := &query.GetCommentByID{CommentID: action.Comment}
-		if err := bus.Dispatch(c, getComment); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			toggleReaction := &cmd.ToggleCommentReaction{
+				Comment: action.Comment,
+				Emoji:   action.Reaction,
+				User:    c.User(),
+			}
+			if err := bus.Dispatch(c, toggleReaction); err != nil {
+				return c.Failure(err)
+			}
 
-		toggleReaction := &cmd.ToggleCommentReaction{
-			Comment: getComment.Result,
-			Emoji:   action.Reaction,
-			User:    c.User(),
-		}
-		if err := bus.Dispatch(c, toggleReaction); err != nil {
-			return c.Failure(err)
-		}
-
-		return c.Ok(web.Map{
-			"added": toggleReaction.Result,
+			return c.Ok(web.Map{
+				"added": toggleReaction.Result,
+			})
 		})
 	}
 }
@@ -358,6 +488,12 @@ func ToggleReaction() web.HandlerFunc {
 // PostComment creates a new comment on given post
 func PostComment() web.HandlerFunc {
 	return func(c *web.Context) error {
+		if c.User().IsMuted() {
+			return c.BadRequest(web.Map{
+				"message": "You are currently muted and cannot post comments.",
+			})
+		}
+
 		action := new(actions.AddNewComment)
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
@@ -377,36 +513,62 @@ func PostComment() web.HandlerFunc {
 			return c.BadRequest(web.Map{})
 		}
 
-		if err := bus.Dispatch(c, &cmd.UploadImages{Images: action.Attachments, Folder: "attachments"}); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.UploadImages{Images: action.Attachments, Folder: "attachments"}); err != nil {
+				return c.Failure(err)
+			}
 
-		addNewComment := &cmd.AddNewComment{
-			Post: getPost.Result,
-			Content: entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
-				return fmt.Sprintf(`{"id":%d,"name":"%s"}`, mention.ID, mention.Name)
-			}),
-		}
-		if err := bus.Dispatch(c, addNewComment); err != nil {
-			return c.Failure(err)
-		}
+			contentToSave := entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
+				nameJSON, _ := json.Marshal(mention.Name)
+				return fmt.Sprintf(`{"id":%d,"name":%s}`, mention.ID, string(nameJSON))
+			})
 
-		// For processing, restore the original content
-		addNewComment.Result.Content = action.Content
+			addNewComment := &cmd.AddNewComment{
+				Post:    getPost.Result,
+				Content: contentToSave,
+			}
+			if err := bus.Dispatch(c, addNewComment); err != nil {
+				return c.Failure(err)
+			}
 
-		if err := bus.Dispatch(c, &cmd.SetAttachments{
-			Post:        getPost.Result,
-			Comment:     addNewComment.Result,
-			Attachments: action.Attachments,
-		}); err != nil {
-			return c.Failure(err)
-		}
+			if err := bus.Dispatch(c, &cmd.SetAttachments{
+				Post:        getPost.Result,
+				Comment:     addNewComment.Result,
+				Attachments: action.Attachments,
+			}); err != nil {
+				return c.Failure(err)
+			}
 
-		c.Enqueue(tasks.NotifyAboutNewComment(addNewComment.Result, getPost.Result))
+			commentForNotification := &entity.Comment{
+				ID:      addNewComment.Result.ID,
+				Content: action.Content,
+				User:    addNewComment.Result.User,
+			}
+			c.Enqueue(tasks.NotifyAboutNewComment(commentForNotification, getPost.Result))
 
-		metrics.TotalComments.Inc()
-		return c.Ok(web.Map{
-			"id": addNewComment.Result.ID,
+			if getPost.Result.Status == enum.PostArchived {
+				unarchiveCmd := &cmd.UnarchivePost{Post: getPost.Result, Reason: "New comment"}
+				if err := bus.Dispatch(c, unarchiveCmd); err != nil {
+					return c.Failure(err)
+				}
+				postcache.InvalidateCountPerStatus(c.Tenant().ID)
+			}
+
+			postcache.InvalidateTenantRankings(c.Tenant().ID)
+
+			metrics.TotalComments.Inc()
+			
+			attachmentBKeys := make([]string, 0)
+			for _, att := range action.Attachments {
+				if att.BlobKey != "" && !att.Remove {
+					attachmentBKeys = append(attachmentBKeys, att.BlobKey)
+				}
+			}
+			
+			return c.Ok(web.Map{
+				"id":          addNewComment.Result.ID,
+				"attachments": attachmentBKeys,
+			})
 		})
 	}
 }
@@ -414,6 +576,12 @@ func PostComment() web.HandlerFunc {
 // UpdateComment changes an existing comment with new content
 func UpdateComment() web.HandlerFunc {
 	return func(c *web.Context) error {
+		if c.User().IsMuted() {
+			return c.BadRequest(web.Map{
+				"message": "You are currently muted and cannot edit comments.",
+			})
+		}
+
 		action := new(actions.EditComment)
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
@@ -433,34 +601,36 @@ func UpdateComment() web.HandlerFunc {
 			return c.BadRequest(web.Map{})
 		}
 
-		contentToSave := entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
-			return fmt.Sprintf(`{"id":%d,"name":"%s"}`, mention.ID, mention.Name)
+		return c.WithTransaction(func() error {
+			contentToSave := entity.CommentString(action.Content).FormatMentionJson(func(mention entity.Mention) string {
+				nameJSON, _ := json.Marshal(mention.Name)
+				return fmt.Sprintf(`{"id":%d,"name":%s}`, mention.ID, string(nameJSON))
+			})
+
+			err := bus.Dispatch(c,
+				&cmd.UploadImages{
+					Images: action.Attachments,
+					Folder: "attachments",
+				},
+				&cmd.UpdateComment{
+					CommentID: action.ID,
+					Content:   contentToSave,
+				},
+				&cmd.SetAttachments{
+					Post:        action.Post,
+					Comment:     action.Comment,
+					Attachments: action.Attachments,
+				},
+			)
+			if err != nil {
+				return c.Failure(err)
+			}
+
+			// Update the content
+			c.Enqueue(tasks.NotifyAboutUpdatedComment(contentToSave, getPost.Result, action.ID))
+
+			return c.Ok(web.Map{})
 		})
-
-		err := bus.Dispatch(c,
-			&cmd.UploadImages{
-				Images: action.Attachments,
-				Folder: "attachments",
-			},
-			&cmd.UpdateComment{
-				CommentID: action.ID,
-				Content:   contentToSave,
-			},
-			&cmd.SetAttachments{
-				Post:        action.Post,
-				Comment:     action.Comment,
-				Attachments: action.Attachments,
-			},
-		)
-		if err != nil {
-			return c.Failure(err)
-		}
-
-		// Update the content
-
-		c.Enqueue(tasks.NotifyAboutUpdatedComment(action.Content, getPost.Result))
-
-		return c.Ok(web.Map{})
 	}
 }
 
@@ -472,14 +642,25 @@ func DeleteComment() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.DeleteComment{
-			CommentID: action.CommentID,
-		})
-		if err != nil {
+		getPost := &query.GetPostByNumber{Number: action.PostNumber}
+		if err := bus.Dispatch(c, getPost); err != nil {
 			return c.Failure(err)
 		}
 
-		return c.Ok(web.Map{})
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.DeleteComment{
+				CommentID: action.CommentID,
+			})
+			if err != nil {
+				return c.Failure(err)
+			}
+
+			if getPost.Result != nil {
+				postcache.InvalidateTenantRankings(c.Tenant().ID)
+			}
+
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -502,15 +683,50 @@ func AddDownVote() web.HandlerFunc {
 // AddVote adds current user to given post list of votes
 func AddVote() web.HandlerFunc {
 	return func(c *web.Context) error {
-		err := addOrRemove(c, func(post *entity.Post, user *entity.User) bus.Msg {
-			return &cmd.AddVote{Post: post, User: user, VoteType: enum.VoteTypeUp}
-		})
-
-		if err == nil {
-			metrics.TotalVotes.Inc()
+		number, err := c.ParamAsInt("number")
+		if err != nil {
+			return c.NotFound()
 		}
 
-		return err
+		getPost := &query.GetPostByNumber{Number: number}
+		if err := bus.Dispatch(c, getPost); err != nil {
+			return c.Failure(err)
+		}
+
+		if getPost.Result.IsLocked() && !(c.IsAuthenticated() &&
+			(c.User().IsCollaborator() || c.User().IsAdministrator())) {
+			return c.BadRequest(web.Map{})
+		}
+
+		return c.WithTransaction(func() error {
+			voteCmd := &cmd.AddVote{Post: getPost.Result, User: c.User(), VoteType: enum.VoteTypeUp}
+			if err := bus.Dispatch(c, voteCmd); err != nil {
+				return c.Failure(err)
+			}
+
+			if getPost.Result.Status == enum.PostArchived && getPost.Result.ArchivedSettings != nil {
+				countVotes := &query.CountVotesSinceArchive{
+					PostID:     getPost.Result.ID,
+					ArchivedAt: getPost.Result.ArchivedSettings.ArchivedAt,
+				}
+				if err := bus.Dispatch(c, countVotes); err != nil {
+					return c.Failure(err)
+				}
+
+				if countVotes.Result > 10 {
+					unarchiveCmd := &cmd.UnarchivePost{Post: getPost.Result, Reason: "Vote threshold exceeded"}
+					if err := bus.Dispatch(c, unarchiveCmd); err != nil {
+						return c.Failure(err)
+					}
+					postcache.InvalidateCountPerStatus(c.Tenant().ID)
+				}
+			}
+
+			postcache.InvalidateTenantRankings(c.Tenant().ID)
+			metrics.TotalVotes.Inc()
+
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -570,12 +786,17 @@ func ToggleVote() web.HandlerFunc {
 			newVote = enum.VoteTypeUp
 		}
 
-		err = bus.Dispatch(c, &cmd.AddVote{Post: getPost.Result, User: c.User(), VoteType: newVote})
-		if err != nil {
-			return c.Failure(err)
-		}
-		metrics.TotalVotes.Inc()
-		return c.Ok(web.Map{"voted": (newVote == enum.VoteTypeUp)})
+		return c.WithTransaction(func() error {
+			err = bus.Dispatch(c, &cmd.AddVote{Post: getPost.Result, User: c.User(), VoteType: newVote})
+			if err != nil {
+				return c.Failure(err)
+			}
+
+			postcache.InvalidateTenantRankings(c.Tenant().ID)
+
+			metrics.TotalVotes.Inc()
+			return c.Ok(web.Map{"voted": (newVote == enum.VoteTypeUp)})
+		})
 	}
 }
 
@@ -636,13 +857,17 @@ func addOrRemove(c *web.Context, getCommand func(post *entity.Post, user *entity
 		return c.BadRequest(web.Map{})
 	}
 
-	cmd := getCommand(getPost.Result, c.User())
-	err = bus.Dispatch(c, cmd)
-	if err != nil {
-		return c.Failure(err)
-	}
+	return c.WithTransaction(func() error {
+		cmd := getCommand(getPost.Result, c.User())
+		err = bus.Dispatch(c, cmd)
+		if err != nil {
+			return c.Failure(err)
+		}
 
-	return c.Ok(web.Map{})
+		postcache.InvalidateTenantRankings(c.Tenant().ID)
+
+		return c.Ok(web.Map{})
+	})
 }
 
 func LockOrUnlockPost() web.HandlerFunc {
@@ -655,29 +880,33 @@ func LockOrUnlockPost() web.HandlerFunc {
 				return c.HandleValidation(result)
 			}
 
-			lockPost := &cmd.LockPost{
-				Post:        action.Post,
-				LockMessage: action.LockMessage,
-			}
-			if err := bus.Dispatch(c, lockPost); err != nil {
-				return c.Failure(err)
-			}
+			return c.WithTransaction(func() error {
+				lockPost := &cmd.LockPost{
+					Post:        action.Post,
+					LockMessage: action.LockMessage,
+				}
+				if err := bus.Dispatch(c, lockPost); err != nil {
+					return c.Failure(err)
+				}
+				return c.Ok(web.Map{})
+			})
 		} else if c.Request.Method == "DELETE" {
 			action := new(actions.UnlockPost)
 			if result := c.BindTo(action); !result.Ok {
 				return c.HandleValidation(result)
 			}
 
-			unlockPost := &cmd.UnlockPost{
-				Post: action.Post,
-			}
-			if err := bus.Dispatch(c, unlockPost); err != nil {
-				return c.Failure(err)
-			}
-		} else {
-			return c.BadRequest(web.Map{})
+			return c.WithTransaction(func() error {
+				unlockPost := &cmd.UnlockPost{
+					Post: action.Post,
+				}
+				if err := bus.Dispatch(c, unlockPost); err != nil {
+					return c.Failure(err)
+				}
+				return c.Ok(web.Map{})
+			})
 		}
 
-		return c.Ok(web.Map{})
+		return c.BadRequest(web.Map{})
 	}
 }

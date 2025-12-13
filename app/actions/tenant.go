@@ -238,7 +238,7 @@ type UpdateMessageBanner struct {
 }
 
 func (action *UpdateMessageBanner) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.Role == enum.RoleAdministrator || user.Role == enum.RoleCollaborator
+	return user != nil && (user.Role == enum.RoleAdministrator || user.Role == enum.RoleCollaborator)
 }
 
 func (action *UpdateMessageBanner) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -252,15 +252,15 @@ func (action *UpdateMessageBanner) Validate(ctx context.Context, user *entity.Us
 	return result
 }
 
-type UpdateGeneralSettings struct {
+type UpdateContentSettings struct {
 	Settings *entity.GeneralSettings `json:"settings"`
 }
 
-func (action *UpdateGeneralSettings) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+func (action *UpdateContentSettings) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
 }
 
-func (action *UpdateGeneralSettings) Validate(ctx context.Context, user *entity.User) *validate.Result {
+func (action *UpdateContentSettings) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	result := validate.Success()
 
 	if action.Settings == nil {

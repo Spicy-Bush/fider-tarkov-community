@@ -1,8 +1,20 @@
 import { http, Result, querystring } from "@fider/services"
-import { Post, Vote, ImageUpload, UserNames } from "@fider/models"
+import { Post, Vote, ImageUpload, UserNames, Comment } from "@fider/models"
 
 export const getAllPosts = async (): Promise<Result<Post[]>> => {
   return await http.get<Post[]>("/api/v1/posts")
+}
+
+export const getPost = async (postNumber: number): Promise<Result<Post>> => {
+  return await http.get<Post>(`/api/v1/posts/${postNumber}`)
+}
+
+export const getAllComments = async (postNumber: number): Promise<Result<Comment[]>> => {
+  return await http.get<Comment[]>(`/api/v1/posts/${postNumber}/comments`)
+}
+
+export const getPostAttachments = async (postNumber: number): Promise<Result<string[]>> => {
+  return await http.get<string[]>(`/api/v1/posts/${postNumber}/attachments`)
 }
 
 export interface SearchPostsParams {
@@ -17,6 +29,7 @@ export interface SearchPostsParams {
   statuses?: string[]
   date?: string
   tagLogic?: "OR" | "AND"
+  includeCount?: boolean
 }
 
 export const searchPosts = async (params: SearchPostsParams): Promise<Result<Post[]>> => {
@@ -38,6 +51,10 @@ export const searchPosts = async (params: SearchPostsParams): Promise<Result<Pos
   }
   if (params.notMyVotes) {
     qsParams += `&notmyvotes=true`
+  }
+  if (params.includeCount) {
+    qsParams += `&includeCount=true`
+    return await http.getWithHeaders<Post[]>(`/api/v1/posts${qsParams}`)
   }
   return await http.get<Post[]>(`/api/v1/posts${qsParams}`)
 }
@@ -82,8 +99,8 @@ export const getTaggableUsers = async (nameFilter: string): Promise<Result<UserN
   return http.get<UserNames[]>(`/api/v1/taggable-users${querystring.stringify({ name: nameFilter })}`)
 }
 
-export const createComment = async (postNumber: number, content: string, attachments: ImageUpload[]): Promise<Result> => {
-  return http.post(`/api/v1/posts/${postNumber}/comments`, { content, attachments }).then(http.event("comment", "create"))
+export const createComment = async (postNumber: number, content: string, attachments: ImageUpload[]): Promise<Result<{ id: number; attachments: string[] }>> => {
+  return http.post<{ id: number; attachments: string[] }>(`/api/v1/posts/${postNumber}/comments`, { content, attachments }).then(http.event("comment", "create"))
 }
 
 export const updateComment = async (postNumber: number, commentID: number, content: string, attachments: ImageUpload[]): Promise<Result> => {
@@ -138,4 +155,46 @@ export const createPost = async (title: string, description: string, attachments
 
 export const updatePost = async (postNumber: number, title: string, description: string, attachments: ImageUpload[]): Promise<Result> => {
   return http.put(`/api/v1/posts/${postNumber}`, { title, description, attachments }).then(http.event("post", "update"))
+}
+
+export const archivePost = async (postNumber: number): Promise<Result> => {
+  return http.post(`/api/v1/posts/${postNumber}/archive`).then(http.event("post", "archive"))
+}
+
+export const unarchivePost = async (postNumber: number): Promise<Result> => {
+  return http.post(`/api/v1/posts/${postNumber}/unarchive`).then(http.event("post", "unarchive"))
+}
+
+export interface GetArchivablePostsParams {
+  page?: number
+  perPage?: number
+  createdBefore?: string
+  inactiveSince?: string
+  maxVotes?: number
+  maxComments?: number
+  statuses?: string[]
+  tags?: string[]
+}
+
+export interface GetArchivablePostsResponse {
+  posts: Post[]
+  total: number
+}
+
+export const getArchivablePosts = async (params: GetArchivablePostsParams): Promise<Result<GetArchivablePostsResponse>> => {
+  const qs = querystring.stringify({
+    page: params.page,
+    perPage: params.perPage,
+    createdBefore: params.createdBefore,
+    inactiveSince: params.inactiveSince,
+    maxVotes: params.maxVotes,
+    maxComments: params.maxComments,
+    statuses: params.statuses,
+    tags: params.tags,
+  })
+  return http.get<GetArchivablePostsResponse>(`/api/v1/archive/posts${qs}`)
+}
+
+export const bulkArchivePosts = async (postIds: number[]): Promise<Result<{ archived: number }>> => {
+  return http.post<{ archived: number }>(`/api/v1/archive/bulk`, { postIds })
 }

@@ -19,6 +19,8 @@ export enum WebhookType {
   NEW_COMMENT = "new_comment",
   CHANGE_STATUS = "change_status",
   DELETE_POST = "delete_post",
+  NEW_REPORT = "new_report",
+  REPORT_RESOLVED = "report_resolved",
 }
 
 export enum WebhookStatus {

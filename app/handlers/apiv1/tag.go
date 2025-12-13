@@ -5,6 +5,8 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/sse"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -28,12 +30,23 @@ func AssignTag() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.AssignTag{Tag: action.Tag, Post: action.Post})
-		if err != nil {
-			return c.Failure(err)
-		}
+		wasUntagged := len(action.Post.Tags) == 0
 
-		return c.Ok(web.Map{})
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.AssignTag{Tag: action.Tag, Post: action.Post})
+			if err != nil {
+				return c.Failure(err)
+			}
+
+			if wasUntagged {
+				sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgQueuePostTagged, sse.QueueEventPayload{
+					PostID:         action.Post.ID,
+					TaggedByUserID: c.User().ID,
+				})
+			}
+
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -45,12 +58,24 @@ func UnassignTag() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.UnassignTag{Tag: action.Tag, Post: action.Post})
-		if err != nil {
-			return c.Failure(err)
-		}
+		willBeUntagged := len(action.Post.Tags) == 1
 
-		return c.Ok(web.Map{})
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.UnassignTag{Tag: action.Tag, Post: action.Post})
+			if err != nil {
+				return c.Failure(err)
+			}
+
+			if willBeUntagged {
+				sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgQueuePostNew, sse.QueueEventPayload{
+					PostID:           action.Post.ID,
+					PostNumber:       action.Post.Number,
+					UntaggedByUserID: c.User().ID,
+				})
+			}
+
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
@@ -62,28 +87,32 @@ func CreateEditTag() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		if action.Slug != "" {
-			updateTag := &cmd.UpdateTag{
-				TagID:    action.Tag.ID,
+		return c.WithTransaction(func() error {
+			if action.Slug != "" {
+				updateTag := &cmd.UpdateTag{
+					TagID:    action.Tag.ID,
+					Name:     action.Name,
+					Color:    action.Color,
+					IsPublic: action.IsPublic,
+				}
+				if err := bus.Dispatch(c, updateTag); err != nil {
+					return c.Failure(err)
+				}
+				postcache.InvalidateTags(c.Tenant().ID)
+				return c.Ok(updateTag.Result)
+			}
+
+			addNewTag := &cmd.AddNewTag{
 				Name:     action.Name,
 				Color:    action.Color,
 				IsPublic: action.IsPublic,
 			}
-			if err := bus.Dispatch(c, updateTag); err != nil {
+			if err := bus.Dispatch(c, addNewTag); err != nil {
 				return c.Failure(err)
 			}
-			return c.Ok(updateTag.Result)
-		}
-
-		addNewTag := &cmd.AddNewTag{
-			Name:     action.Name,
-			Color:    action.Color,
-			IsPublic: action.IsPublic,
-		}
-		if err := bus.Dispatch(c, addNewTag); err != nil {
-			return c.Failure(err)
-		}
-		return c.Ok(addNewTag.Result)
+			postcache.InvalidateTags(c.Tenant().ID)
+			return c.Ok(addNewTag.Result)
+		})
 	}
 }
 
@@ -95,11 +124,14 @@ func DeleteTag() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		err := bus.Dispatch(c, &cmd.DeleteTag{Tag: action.Tag})
-		if err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			err := bus.Dispatch(c, &cmd.DeleteTag{Tag: action.Tag})
+			if err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			postcache.InvalidateTags(c.Tenant().ID)
+			return c.Ok(web.Map{})
+		})
 	}
 }

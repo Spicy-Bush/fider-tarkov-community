@@ -1,7 +1,7 @@
+// DisplayError converted to Tailwind
+
 import React from "react"
 import { Failure } from "@fider/services"
-
-import "./DisplayError.scss"
 
 const arrayToTag = (items: string[]) => {
   return items.map((m) => <li key={m}>{m}</li>)
@@ -48,8 +48,8 @@ export const DisplayError = (props: DisplayErrorProps) => {
   }
 
   return items.length > 0 ? (
-    <div className={`c-form-error`}>
-      <ul>{items}</ul>
+    <div className="text-danger text-sm">
+      <ul className="list-none pl-1 m-0">{items}</ul>
     </div>
   ) : null
 }

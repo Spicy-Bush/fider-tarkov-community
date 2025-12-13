@@ -58,10 +58,10 @@ services:
     # Image is specified first to prioritize pulling from registry
     # Will only build if the image doesn't exist in the registry
     image: ${IMAGE_REGISTRY:-ghcr.io}/${github_repo}:${image_tag:-latest}
-    build:
-      context: ./
-      dockerfile: Dockerfile
-      args: *common-build-args
+    #build:
+    #  context: ./
+    #  dockerfile: Dockerfile
+    #  args: *common-build-args
     pull_policy: always
     environment: *fider-env
     ports:

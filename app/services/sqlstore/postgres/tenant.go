@@ -103,7 +103,7 @@ func (t *dbEmailVerification) toModel() *entity.EmailVerification {
 	return model
 }
 
-func updateGeneralSettings(ctx context.Context, c *cmd.UpdateGeneralSettings) error {
+func updateGeneralSettings(ctx context.Context, c *cmd.UpdateContentSettings) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if c.Settings == nil {
 			c.Settings = &entity.GeneralSettings{
@@ -119,6 +119,8 @@ func updateGeneralSettings(ctx context.Context, c *cmd.UpdateGeneralSettings) er
 				CommentingDisabledFor:      []string{},
 				PostingGloballyDisabled:    false,
 				CommentingGloballyDisabled: false,
+				ReportingGloballyDisabled:  false,
+				ReportLimitsPerDay:         10,
 			}
 		}
 

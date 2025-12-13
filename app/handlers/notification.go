@@ -55,6 +55,7 @@ func GetAllNotifications() web.HandlerFunc {
 }
 
 // TotalUnreadNotifications returns the total number of unread notifications
+// For staff members, it also includes the pending reports count and post queue count
 func TotalUnreadNotifications() web.HandlerFunc {
 	return func(c *web.Context) error {
 		q := &query.CountUnreadNotifications{}
@@ -62,9 +63,25 @@ func TotalUnreadNotifications() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		return c.Ok(web.Map{
+		response := web.Map{
 			"total": q.Result,
-		})
+		}
+
+		if c.User() != nil && (c.User().IsCollaborator() || c.User().IsModerator() || c.User().IsAdministrator()) {
+			reportCount := &query.CountPendingReports{}
+			if err := bus.Dispatch(c, reportCount); err == nil {
+				response["pendingReports"] = reportCount.Result
+			}
+		}
+
+		if c.User() != nil && (c.User().IsHelper() || c.User().IsCollaborator() || c.User().IsModerator() || c.User().IsAdministrator()) {
+			queueCount := &query.CountUntaggedPosts{}
+			if err := bus.Dispatch(c, queueCount); err == nil {
+				response["queueCount"] = queueCount.Result
+			}
+		}
+
+		return c.Ok(response)
 	}
 }
 
@@ -105,35 +122,48 @@ func ReadNotification() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		if err = bus.Dispatch(c, &cmd.MarkNotificationAsRead{ID: q.Result.ID}); err != nil {
-			return c.Failure(err)
+		// store link before transaction since we need it afterwards too
+		link := q.Result.Link
+
+		err = c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.MarkNotificationAsRead{ID: q.Result.ID}); err != nil {
+				return c.Failure(err)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
 		}
 
-		return c.Redirect(c.BaseURL() + q.Result.Link)
+		return c.Redirect(c.BaseURL() + link)
 	}
 }
 
 // ReadAllNotifications marks all unread notifications as read
 func ReadAllNotifications() web.HandlerFunc {
 	return func(c *web.Context) error {
-		if err := bus.Dispatch(c, &cmd.MarkAllNotificationsAsRead{}); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.MarkAllNotificationsAsRead{}); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{})
+			return c.Ok(web.Map{})
+		})
 	}
 }
 
 // PurgeReadNotifications purges all read notifications for current user
 func PurgeReadNotifications() web.HandlerFunc {
 	return func(c *web.Context) error {
-		cmd := &cmd.PurgeReadNotifications{}
-		if err := bus.Dispatch(c, cmd); err != nil {
-			return c.Failure(err)
-		}
+		return c.WithTransaction(func() error {
+			purgeCmd := &cmd.PurgeReadNotifications{}
+			if err := bus.Dispatch(c, purgeCmd); err != nil {
+				return c.Failure(err)
+			}
 
-		return c.Ok(web.Map{
-			"purgedCount": cmd.NumOfPurgedNotifications,
+			return c.Ok(web.Map{
+				"purgedCount": purgeCmd.NumOfPurgedNotifications,
+			})
 		})
 	}
 }

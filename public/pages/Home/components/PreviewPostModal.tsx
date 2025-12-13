@@ -1,5 +1,5 @@
 import React from "react"
-import { Modal, Button, Avatar, UserName, Moment, Markdown, ImageViewer } from "@fider/components"
+import { Modal, Button, Avatar, UserName, Moment, Markdown, ImageGallery } from "@fider/components"
 import { ImageUpload } from "@fider/models"
 import { useFider } from "@fider/hooks"
 import { Trans } from "@lingui/react/macro"
@@ -35,7 +35,7 @@ export const PreviewPostModal: React.FC<PreviewPostModalProps> = (props) => {
       <Modal.Content>
         <VStack spacing={8}>
           <HStack>
-            {isAuthenticated ? ( <Avatar user={fider.session.user} />) : ( <div className="c-avatar" style={{ width: '24px', height: '24px', backgroundColor: '#e9ecef' }}></div> )}
+            {isAuthenticated ? ( <Avatar user={fider.session.user} />) : ( <div className="c-avatar" style={{ width: '24px', height: '24px', backgroundColor: 'var(--color-surface-alt)' }}></div> )}
             <VStack spacing={1}> {isAuthenticated ? ( <UserName user={fider.session.user} /> ) : ( <span>Anonymous User</span> )}
               <Moment className="text-muted" locale={fider.currentLocale} date={currentDate} />
             </VStack>
@@ -52,9 +52,9 @@ export const PreviewPostModal: React.FC<PreviewPostModalProps> = (props) => {
               </em>
             )}
             
-            {validAttachments.map((attachment, index) => (
-              attachment.bkey && <ImageViewer key={`bkey-${index}`} bkey={attachment.bkey} />
-            ))}
+            {validAttachments.filter(a => a.bkey).length > 0 && (
+              <ImageGallery bkeys={validAttachments.filter(a => a.bkey).map(a => a.bkey!)} />
+            )}
           </VStack>
         </VStack>
       </Modal.Content>

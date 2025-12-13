@@ -5,8 +5,7 @@ import { TagFormState, TagForm } from "./TagForm"
 import { actions, Failure } from "@fider/services"
 import { useFider } from "@fider/hooks"
 
-import IconX from "@fider/assets/images/heroicons-x.svg"
-import IconPencilAlt from "@fider/assets/images/heroicons-pencil-alt.svg"
+import { heroiconsX as IconX, heroiconsPencilAlt as IconPencilAlt } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 
 interface TagListItemProps {
@@ -23,6 +22,8 @@ export const TagListItem = (props: TagListItemProps) => {
   const startDelete = async () => setState("delete")
   const startEdit = async () => setState("edit")
   const resetState = async () => setState("view")
+
+  const canEdit = (fider.session.user.isAdministrator || fider.session.user.isCollaborator)
 
   const deleteTag = async () => {
     const result = await actions.deleteTag(tag.slug)
@@ -69,12 +70,12 @@ export const TagListItem = (props: TagListItemProps) => {
   }
 
   const renderViewMode = () => {
-    const buttons = fider.session.user.isAdministrator && [
-      <Button size="small" key={0} onClick={startEdit}>
+    const buttons = canEdit && [
+      <Button size="small" key={0} variant="secondary" onClick={startEdit}>
         <Icon sprite={IconPencilAlt} />
         <span>Edit</span>
       </Button>,
-      <Button size="small" key={1} onClick={startDelete}>
+      <Button size="small" key={1} variant="danger" onClick={startDelete}>
         <Icon sprite={IconX} />
         <span>Delete</span>
       </Button>,

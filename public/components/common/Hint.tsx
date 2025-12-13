@@ -1,7 +1,7 @@
-import "./Hint.scss"
+// import "./Hint.scss"
 
 import React, { useState } from "react"
-import IconX from "@fider/assets/images/heroicons-x.svg"
+import { heroiconsX as IconX } from "@fider/icons.generated"
 import { HStack } from "@fider/components/layout"
 import { cache } from "@fider/services"
 import { Icon } from "./Icon"
@@ -28,9 +28,9 @@ export const Hint: React.FC<HintProps> = (props) => {
   }
 
   return (
-    <HStack className="c-hint" justify="between" spacing={2}>
+    <HStack className="relative p-4 mb-2 text-primary border-l-2 border-primary bg-accent-light text-left [&>span]:flex-1" justify="between" spacing={2}>
       <span>{props.children}</span>
-      {cacheKey && <Icon sprite={IconX} onClick={close} className="c-hint__close h-5" />}
+      {cacheKey && <Icon sprite={IconX} onClick={close} className="cursor-pointer h-5" />}
     </HStack>
   )
 }

@@ -1,4 +1,4 @@
-const toastify = () => import(/* webpackChunkName: "toastify" */ "./toastify")
+const toastify = () => import("./toastify")
 
 export const success = (content: string | JSX.Element) => {
   return toastify().then((toast) => {

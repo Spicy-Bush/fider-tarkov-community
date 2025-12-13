@@ -12,20 +12,28 @@ const (
 	WebhookChangeStatus WebhookType = 3
 	// WebhookDeletePost is triggered on post deletion
 	WebhookDeletePost WebhookType = 4
+	// WebhookNewReport is triggered on new report
+	WebhookNewReport WebhookType = 5
+	// WebhookReportResolved is triggered when a report is resolved
+	WebhookReportResolved WebhookType = 6
 )
 
 var webhookTypeIDs = map[WebhookType]string{
-	WebhookNewPost:      "new_post",
-	WebhookNewComment:   "new_comment",
-	WebhookChangeStatus: "change_status",
-	WebhookDeletePost:   "delete_post",
+	WebhookNewPost:        "new_post",
+	WebhookNewComment:     "new_comment",
+	WebhookChangeStatus:   "change_status",
+	WebhookDeletePost:     "delete_post",
+	WebhookNewReport:      "new_report",
+	WebhookReportResolved: "report_resolved",
 }
 
 var webhookTypeName = map[string]WebhookType{
-	"new_post":      WebhookNewPost,
-	"new_comment":   WebhookNewComment,
-	"change_status": WebhookChangeStatus,
-	"delete_post":   WebhookDeletePost,
+	"new_post":        WebhookNewPost,
+	"new_comment":     WebhookNewComment,
+	"change_status":   WebhookChangeStatus,
+	"delete_post":     WebhookDeletePost,
+	"new_report":      WebhookNewReport,
+	"report_resolved": WebhookReportResolved,
 }
 
 // MarshalText returns the Text version of the webhook type

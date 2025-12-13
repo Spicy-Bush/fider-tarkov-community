@@ -33,6 +33,12 @@ func (s Service) Init() {
 
 	bus.AddHandler(purgeExpiredNotifications)
 
+	bus.AddHandler(createCannedResponse)
+	bus.AddHandler(updateCannedResponse)
+	bus.AddHandler(deleteCannedResponse)
+	bus.AddHandler(getCannedResponseByID)
+	bus.AddHandler(listCannedResponses)
+
 	bus.AddHandler(markAllNotificationsAsRead)
 	bus.AddHandler(markNotificationAsRead)
 	bus.AddHandler(countUnreadNotifications)
@@ -64,14 +70,22 @@ func (s Service) Init() {
 	bus.AddHandler(getPostBySlug)
 	bus.AddHandler(getPostByNumber)
 	bus.AddHandler(getUserPostCount)
+	bus.AddHandler(countUntaggedPosts)
 	bus.AddHandler(searchPosts)
 	bus.AddHandler(getAllPosts)
+	bus.AddHandler(getPostsByIDs)
 	bus.AddHandler(countPostPerStatus)
 	bus.AddHandler(markPostAsDuplicate)
 	bus.AddHandler(setPostResponse)
 	bus.AddHandler(postIsReferenced)
 	bus.AddHandler(lockPost)
 	bus.AddHandler(unlockPost)
+	bus.AddHandler(refreshPostStats)
+	bus.AddHandler(archivePost)
+	bus.AddHandler(unarchivePost)
+	bus.AddHandler(bulkArchivePosts)
+	bus.AddHandler(getArchivablePosts)
+	bus.AddHandler(countVotesSinceArchive)
 
 	bus.AddHandler(setAttachments)
 	bus.AddHandler(getAttachments)
@@ -110,6 +124,7 @@ func (s Service) Init() {
 	bus.AddHandler(registerUser)
 	bus.AddHandler(registerUserProvider)
 	bus.AddHandler(updateCurrentUser)
+	bus.AddHandler(updateUserAvatar)
 	bus.AddHandler(getUserByAPIKey)
 	bus.AddHandler(getUserByEmail)
 	bus.AddHandler(getUserByID)
@@ -117,6 +132,9 @@ func (s Service) Init() {
 	bus.AddHandler(getAllUserProviders)
 	bus.AddHandler(getAllUsers)
 	bus.AddHandler(getAllUsersNames)
+	bus.AddHandler(getUserProfileStats)
+	bus.AddHandler(getUserProfileStanding)
+	bus.AddHandler(searchUserContent)
 
 	bus.AddHandler(createTenant)
 	bus.AddHandler(getFirstTenant)
@@ -156,13 +174,55 @@ func (s Service) Init() {
 
 	bus.AddHandler(setSystemSettings)
 	bus.AddHandler(getSystemSettings)
+
+	bus.AddHandler(muteUser)
+	bus.AddHandler(warnUser)
+	bus.AddHandler(deleteWarning)
+	bus.AddHandler(deleteMute)
+	bus.AddHandler(expireWarning)
+	bus.AddHandler(expireMute)
+	bus.AddHandler(getUsersToNotify)
+
+	bus.AddHandler(updateUser)
+
+	bus.AddHandler(createReport)
+	bus.AddHandler(assignReport)
+	bus.AddHandler(unassignReport)
+	bus.AddHandler(resolveReport)
+	bus.AddHandler(deleteReport)
+	bus.AddHandler(getReportByID)
+	bus.AddHandler(listReports)
+	bus.AddHandler(countPendingReports)
+	bus.AddHandler(getReportReasons)
+	bus.AddHandler(listAllReportReasons)
+	bus.AddHandler(countUserReportsToday)
+	bus.AddHandler(hasUserReportedTarget)
+	bus.AddHandler(getUserReportedItemsOnPost)
+	bus.AddHandler(createReportReason)
+	bus.AddHandler(updateReportReason)
+	bus.AddHandler(deleteReportReason)
+	bus.AddHandler(reorderReportReasons)
 }
 
 type SqlHandler func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error
 
 func using(ctx context.Context, handler SqlHandler) error {
-	trx, _ := ctx.Value(app.TransactionCtxKey).(*dbx.Trx)
+	trx, owned, err := dbx.GetOrBeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
 	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 	user, _ := ctx.Value(app.UserCtxKey).(*entity.User)
-	return handler(trx, tenant, user)
+	err = handler(trx, tenant, user)
+
+	if owned {
+		if err != nil {
+			trx.MustRollback()
+		} else {
+			trx.MustCommit()
+		}
+	}
+
+	return err
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/crawler"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 )
@@ -96,6 +97,17 @@ func (r *Request) IsCrawler() bool {
 	return crawlerRegex.MatchString(r.GetHeader("User-Agent"))
 }
 
+func (r *Request) IsVerifiedCrawler() bool {
+	if !r.IsCrawler() {
+		return false
+	}
+	if crawler.DefaultVerifier == nil {
+		return false
+	}
+	ip := crawler.GetRealIP(r.instance)
+	return crawler.DefaultVerifier.IsVerified(ip)
+}
+
 // IsCustomDomain returns true if the request was made using a custom domain (CNAME)
 func (r *Request) IsCustomDomain() bool {
 	return !strings.HasSuffix(r.URL.Hostname(), env.Config.HostDomain)
@@ -110,4 +122,9 @@ func (r *Request) BaseURL() string {
 	}
 
 	return address
+}
+
+// Original will returns the underlying *http.Request
+func (r *Request) Original() *http.Request {
+	return r.instance
 }

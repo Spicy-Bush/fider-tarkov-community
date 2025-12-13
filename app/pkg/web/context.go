@@ -144,6 +144,24 @@ func (c *Context) Rollback() {
 	}
 }
 
+// creates a new database transaction, executes the given function,
+// and commits on success or rolls back on error. Any write op
+// that need's atomicity will use this. The transaction is stored in context so all bus.Dispatch
+// calls within fn will use the same transaction
+func (c *Context) WithTransaction(fn func() error) error {
+	trx, err := dbx.BeginTx(c)
+	if err != nil {
+		return err
+	}
+	c.Set(app.TransactionCtxKey, trx)
+
+	if err := fn(); err != nil {
+		trx.MustRollback()
+		return err
+	}
+	return trx.Commit()
+}
+
 // Enqueue given task to be processed in background
 func (c *Context) Enqueue(task worker.Task) {
 	task.OriginContext = c

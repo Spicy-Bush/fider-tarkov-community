@@ -1,4 +1,4 @@
-import "./ImageUploader.scss"
+// ImageUploader converted to Tailwind
 
 import React from "react"
 import { ValidationContext } from "./Form"
@@ -6,7 +6,7 @@ import { DisplayError, hasError } from "./DisplayError"
 import { classSet, fileToBase64, uploadedImageURL } from "@fider/services"
 import { Button, Icon, Modal } from "@fider/components"
 import { ImageUpload } from "@fider/models"
-import IconPhotograph from "@fider/assets/images/heroicons-photograph.svg"
+import { heroiconsPhotograph as IconPhotograph } from "@fider/icons.generated"
 
 const hardFileSizeLimit = 7.5 * 1024 * 1024
 
@@ -107,7 +107,7 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
 
   private modal() {
     return (
-      <Modal.Window className="c-image-viewer-modal" isOpen={this.state.showModal} onClose={this.closeModal} center={false} size="fluid">
+      <Modal.Window isOpen={this.state.showModal} onClose={this.closeModal} center={false} size="fluid">
         <Modal.Content>{this.props.bkey ? <img alt="" src={uploadedImageURL(this.props.bkey)} /> : <img alt="" src={this.state.previewURL} />}</Modal.Content>
 
         <Modal.Footer>
@@ -128,28 +128,32 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
         {(ctx) => (
           <div
             className={classSet({
-              "c-form-field": true,
-              "c-image-upload": true,
-              "m-error": hasError(this.props.field, ctx.error),
+              "mb-4": true,
+              "has-error": hasError(this.props.field, ctx.error),
             })}
           >
             {this.modal()}
-            {this.props.label && <label htmlFor={`input-${this.props.field}`}>{this.props.label}</label>}
+            {this.props.label && <label htmlFor={`input-${this.props.field}`} className="block text-sm font-medium mb-1">{this.props.label}</label>}
 
             {hasFile && (
-              <div className="preview h-20">
-                <img alt="" onClick={this.openModal} src={this.state.previewURL} />
+              <div className="relative inline-block h-20">
+                <img 
+                  alt="" 
+                  onClick={this.openModal} 
+                  src={this.state.previewURL} 
+                  className="p-1 min-w-[50px] min-h-[50px] border border-border cursor-pointer h-full"
+                />
                 {!this.props.disabled && (
-                  <Button onClick={this.removeFile} variant="danger">
+                  <Button onClick={this.removeFile} variant="danger" className="absolute top-1 right-1 rounded-full px-1.5 py-1">
                     X
                   </Button>
                 )}
               </div>
             )}
 
-            <input ref={(e) => (this.fileSelector = e)} type="file" onChange={this.fileChanged} accept="image/png, image/jpeg, image/jpg, image/webp" />
+            <input ref={(e) => (this.fileSelector = e)} type="file" onChange={this.fileChanged} accept="image/png, image/jpeg, image/jpg, image/webp" className="hidden" />
             {!hasFile && (
-              <Button onClick={this.selectFile} disabled={this.props.disabled}>
+              <Button variant="secondary" onClick={this.selectFile} disabled={this.props.disabled}>
                 <Icon sprite={IconPhotograph} />
               </Button>
             )}

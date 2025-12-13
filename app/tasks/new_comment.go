@@ -2,11 +2,13 @@ package tasks
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/i18n"
@@ -20,7 +22,6 @@ import (
 // NotifyAboutNewComment sends a notification (web and email) to subscribers
 func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Task {
 	return describe("Notify about new comment", func(c *worker.Context) error {
-
 		comment.ParseMentions()
 
 		// Web notification
@@ -35,7 +36,7 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 			"title":    post.Title,
 			"postLink": fmt.Sprintf("#%d", post.Number),
 		})
-		link := fmt.Sprintf("/posts/%d/%s", post.Number, post.Slug)
+		link := fmt.Sprintf("/posts/%d/%s#comment-%d", post.Number, post.Slug, comment.ID)
 		for _, user := range users {
 			if user.ID != author.ID {
 				err = bus.Dispatch(c, &cmd.AddNewNotification{
@@ -51,15 +52,18 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 		}
 
 		// Web notification - mentions
-		title = i18n.T(c, "web.new_mention.text", i18n.Params{
-			"userName": author.Name,
-			"title":    post.Title,
-			"postLink": fmt.Sprintf("#%d", post.Number),
-		})
-
 		if comment.Mentions != nil {
+			title = i18n.T(c, "web.new_mention.text", i18n.Params{
+				"userName": author.Name,
+				"title":    post.Title,
+				"postLink": fmt.Sprintf("#%d", post.Number),
+			})
 
-			users, err = getActiveSubscribers(c, post, enum.NotificationChannelWeb, enum.NotificationEventMention)
+			q := &query.GetUsersToNotify{
+				Event:   enum.NotificationEventMention,
+				Channel: enum.NotificationChannelWeb,
+			}
+			err = bus.Dispatch(c, q)
 			if err != nil {
 				return c.Failure(err)
 			}
@@ -67,7 +71,7 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 			// Iterate the mentions
 			for _, mention := range comment.Mentions {
 				// Check if the user is in the list of mention subscribers (users)
-				for _, u := range users {
+				for _, u := range q.Result {
 					if u.ID == mention.ID && mention.IsNew {
 						err = bus.Dispatch(c, &cmd.AddNewNotification{
 							User:   u,
@@ -81,7 +85,6 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 					}
 				}
 			}
-
 		}
 
 		strippedContent := markdown.StripMentionMetaData(comment.Content)
@@ -99,32 +102,33 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 			}
 		}
 
-		sendEmailNotifications(c, post, to, strippedContent, enum.NotificationEventNewComment)
+		sendEmailNotifications(c, post, to, strippedContent, enum.NotificationEventNewComment, comment.ID)
 
 		// Mentions
 		to = make([]dto.Recipient, 0)
 		if comment.Mentions != nil {
-
-			users, err = getActiveSubscribers(c, post, enum.NotificationChannelEmail, enum.NotificationEventMention)
+			q := &query.GetUsersToNotify{
+				Event:   enum.NotificationEventMention,
+				Channel: enum.NotificationChannelEmail,
+			}
+			err = bus.Dispatch(c, q)
 			if err != nil {
 				return c.Failure(err)
 			}
 
 			// Iterate the mentions
 			for _, mention := range comment.Mentions {
-
-				// Check if the user is in the list of mention subscribers (users)
-				for _, u := range users {
+				// Check if the user is in the list of users with mention notifications enabled
+				for _, u := range q.Result {
 					if u.ID == mention.ID && mention.IsNew {
 						to = append(to, dto.NewRecipient(u.Name, u.Email, dto.Props{}))
 						break
 					}
 				}
 			}
-
 		}
 
-		sendEmailNotifications(c, post, to, strippedContent, enum.NotificationEventMention)
+		sendEmailNotifications(c, post, to, strippedContent, enum.NotificationEventMention, comment.ID)
 
 		tenant := c.Tenant()
 		baseURL, logoURL := web.BaseURL(c), web.LogoURL(c)
@@ -146,9 +150,8 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 	})
 }
 
-func NotifyAboutUpdatedComment(content string, post *entity.Post) worker.Task {
+func NotifyAboutUpdatedComment(content string, post *entity.Post, commentID int) worker.Task {
 	return describe("Notify about updated comment", func(c *worker.Context) error {
-
 		contentString := entity.CommentString(content)
 		mentions := contentString.ParseMentions()
 
@@ -163,18 +166,21 @@ func NotifyAboutUpdatedComment(content string, post *entity.Post) worker.Task {
 			"title":    post.Title,
 			"postLink": fmt.Sprintf("#%d", post.Number),
 		})
-		link := fmt.Sprintf("/posts/%d/%s", post.Number, post.Slug)
+		link := fmt.Sprintf("/posts/%d/%s#comment-%d", post.Number, post.Slug, commentID)
 		if mentions != nil {
-
-			users, err := getActiveSubscribers(c, post, enum.NotificationChannelWeb, enum.NotificationEventMention)
+			q := &query.GetUsersToNotify{
+				Event:   enum.NotificationEventMention,
+				Channel: enum.NotificationChannelWeb,
+			}
+			err := bus.Dispatch(c, q)
 			if err != nil {
 				return c.Failure(err)
 			}
 
 			// Iterate the mentions
 			for _, mention := range mentions {
-				// Check if the user is in the list of mention subscribers (users)
-				for _, u := range users {
+				// Check if the user is in the list of users with mention notifications enabled
+				for _, u := range q.Result {
 					if u.ID == mention.ID && mention.IsNew {
 						err = bus.Dispatch(c, &cmd.AddNewNotification{
 							User:   u,
@@ -188,38 +194,39 @@ func NotifyAboutUpdatedComment(content string, post *entity.Post) worker.Task {
 					}
 				}
 			}
-
 		}
 
 		strippedContent := markdown.StripMentionMetaData(content)
 
 		to := make([]dto.Recipient, 0)
 		if mentions != nil {
-
-			users, err := getActiveSubscribers(c, post, enum.NotificationChannelEmail, enum.NotificationEventMention)
+			q := &query.GetUsersToNotify{
+				Event:   enum.NotificationEventMention,
+				Channel: enum.NotificationChannelEmail,
+			}
+			err := bus.Dispatch(c, q)
 			if err != nil {
 				return c.Failure(err)
 			}
 
 			for _, mention := range mentions {
 				// Check if the user is in the list of mention subscribers (users)
-				for _, u := range users {
+				for _, u := range q.Result {
 					if u.ID == mention.ID && mention.IsNew {
 						to = append(to, dto.NewRecipient(u.Name, u.Email, dto.Props{}))
 						break
 					}
 				}
 			}
-
 		}
 
-		sendEmailNotifications(c, post, to, strippedContent, enum.NotificationEventMention)
+		sendEmailNotifications(c, post, to, strippedContent, enum.NotificationEventMention, commentID)
 
 		return nil
 	})
 }
 
-func sendEmailNotifications(c *worker.Context, post *entity.Post, to []dto.Recipient, comment string, event enum.NotificationEvent) {
+func sendEmailNotifications(c *worker.Context, post *entity.Post, to []dto.Recipient, comment string, event enum.NotificationEvent, commentID int) {
 	if env.Config.Email.DisableEmailNotifications {
 		return
 	}
@@ -243,12 +250,19 @@ func sendEmailNotifications(c *worker.Context, post *entity.Post, to []dto.Recip
 		"siteName":            tenant.Name,
 		"userName":            author.Name,
 		"content":             markdown.Full(comment),
-		"postLink":            linkWithText(fmt.Sprintf("#%d", post.Number), baseURL, "/posts/%d/%s", post.Number, post.Slug),
-		"view":                linkWithText(i18n.T(c, "email.subscription.view"), baseURL, "/posts/%d/%s", post.Number, post.Slug),
-		"unsubscribe":         linkWithText(i18n.T(c, "email.subscription.unsubscribe"), baseURL, "/posts/%d/%s", post.Number, post.Slug),
-		"change":              linkWithText(i18n.T(c, "email.subscription.change"), baseURL, "/settings"),
-		"logo":                logoURL,
 	}
+
+	path := "/posts/%d/%s"
+	if commentID > 0 {
+		commentFragment := "#comment-" + strconv.Itoa(commentID)
+		path = "/posts/%d/%s" + commentFragment
+	}
+
+	mailProps["postLink"] = linkWithText(fmt.Sprintf("#%d", post.Number), baseURL, path, post.Number, post.Slug)
+	mailProps["view"] = linkWithText(i18n.T(c, "email.subscription.view"), baseURL, path, post.Number, post.Slug)
+	mailProps["unsubscribe"] = linkWithText(i18n.T(c, "email.subscription.unsubscribe"), baseURL, path, post.Number, post.Slug)
+	mailProps["change"] = linkWithText(i18n.T(c, "email.subscription.change"), baseURL, "/profile#settings")
+	mailProps["logo"] = logoURL
 
 	bus.Publish(c, &cmd.SendMail{
 		From:         dto.Recipient{Name: author.Name},

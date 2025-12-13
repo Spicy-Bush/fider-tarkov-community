@@ -22,31 +22,31 @@ export class APIKeyForm extends React.Component<any, APIKeyFormState> {
 
   private showAPIKey() {
     return (
-      <>
-        <p className="text-muted">
+      <div className="mt-4 p-4 bg-success-light border border-success-light rounded-card">
+        <p className="text-success font-medium mb-2">
           <Trans id="mysettings.apikey.newkey">
-            Your new API Key is: <code>{this.state.apiKey}</code>
+            Your new API Key is:
           </Trans>
         </p>
-        <p className="text-muted">
+        <code className="block p-3 bg-elevated border border-surface-alt rounded text-sm font-mono break-all">
+          {this.state.apiKey}
+        </code>
+        <p className="text-muted text-sm mt-3">
           <Trans id="mysettings.apikey.newkeynotice">Store it securely on your servers and never store it in the client side of your app.</Trans>
         </p>
-      </>
+      </div>
     )
   }
 
   public render() {
     return (
       <div>
-        <h4 className="text-title mb-1">
-          <Trans id="mysettings.apikey.title">API Key</Trans>
-        </h4>
-        <p className="text-muted">
+        <p className="text-muted text-sm mb-3">
           <Trans id="mysettings.apikey.notice">
             The API Key is only shown whenever generated. If your Key is lost or has been compromised, generated a new one and take note of it.
           </Trans>
         </p>
-        <p className="text-muted">
+        <p className="text-muted text-sm mb-4">
           <Trans id="mysettings.apikey.documentation">
             To learn how to use the API, read the{" "}
             <a className="text-link" rel="noopener" href="https://fider.io/docs/api" target="_blank">
@@ -55,11 +55,9 @@ export class APIKeyForm extends React.Component<any, APIKeyFormState> {
             .
           </Trans>
         </p>
-        <p>
-          <Button size="small" onClick={this.regenerate}>
-            <Trans id="mysettings.apikey.generate">Regenerate API Key</Trans>
-          </Button>
-        </p>
+        <Button variant="danger" size="small" onClick={this.regenerate}>
+          <Trans id="mysettings.apikey.generate">Regenerate API Key</Trans>
+        </Button>
         {this.state.apiKey && this.showAPIKey()}
       </div>
     )

@@ -72,7 +72,10 @@ func OAuthEcho() web.HandlerFunc {
 func OAuthToken() web.HandlerFunc {
 	return func(c *web.Context) error {
 		provider := c.Param("provider")
-		redirectURL, _ := url.ParseRequestURI(c.QueryParam("redirect"))
+		redirectURL, err := url.ParseRequestURI(c.QueryParam("redirect"))
+		if err != nil || redirectURL == nil {
+			return c.Redirect(c.BaseURL())
+		}
 		redirectURL.ResolveReference(c.Request.URL)
 
 		code := c.QueryParam("code")
@@ -94,7 +97,7 @@ func OAuthToken() web.HandlerFunc {
 		var user *entity.User
 
 		userByProvider := &query.GetUserByProvider{Provider: provider, UID: oauthUser.Result.ID}
-		err := bus.Dispatch(c, userByProvider)
+		err = bus.Dispatch(c, userByProvider)
 		user = userByProvider.Result
 
 		if errors.Cause(err) == app.ErrNotFound && oauthUser.Result.Email != "" {
@@ -246,7 +249,10 @@ func SignInByOAuth() web.HandlerFunc {
 			return c.Forbidden()
 		}
 
-		redirectURL, _ := url.ParseRequestURI(redirect)
+		redirectURL, err := url.ParseRequestURI(redirect)
+		if err != nil || redirectURL == nil {
+			return c.Redirect(c.BaseURL())
+		}
 		redirectURL.ResolveReference(c.Request.URL)
 
 		if c.IsAuthenticated() && redirectURL.Path != fmt.Sprintf("/oauth/%s/echo", provider) {

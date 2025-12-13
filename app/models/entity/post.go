@@ -9,20 +9,25 @@ import (
 
 // Post represents an post on a tenant board
 type Post struct {
-	ID             int                 `json:"id"`
-	Number         int                 `json:"number"`
-	Title          string              `json:"title"`
-	Slug           string              `json:"slug"`
-	Description    string              `json:"description"`
-	CreatedAt      time.Time           `json:"createdAt"`
-	User           *User               `json:"user"`
-	VoteType       int                 `json:"voteType"`
-	VotesCount     int                 `json:"votesCount"`
-	CommentsCount  int                 `json:"commentsCount"`
-	Status         enum.PostStatus     `json:"status"`
-	Response       *PostResponse       `json:"response,omitempty"`
-	Tags           []string            `json:"tags"`
-	LockedSettings *PostLockedSettings `json:"lockedSettings,omitempty"`
+	ID               int                   `json:"id"`
+	Number           int                   `json:"number"`
+	Title            string                `json:"title"`
+	Slug             string                `json:"slug"`
+	Description      string                `json:"description"`
+	CreatedAt        time.Time             `json:"createdAt"`
+	LastActivityAt   time.Time             `json:"lastActivityAt"`
+	User             *User                 `json:"user"`
+	VoteType         int                   `json:"voteType"`
+	VotesCount       int                   `json:"votesCount"`
+	CommentsCount    int                   `json:"commentsCount"`
+	Status           enum.PostStatus       `json:"status"`
+	Response         *PostResponse         `json:"response,omitempty"`
+	Tags             []string              `json:"tags"`
+	TagDates         string                `json:"tagDates,omitempty"`
+	LockedSettings   *PostLockedSettings   `json:"lockedSettings,omitempty"`
+	ArchivedSettings *PostArchivedSettings `json:"archivedSettings,omitempty"`
+	Upvotes          int                   `json:"upvotes"`
+	Downvotes        int                   `json:"downvotes"`
 }
 
 type PostLockedSettings struct {
@@ -32,9 +37,19 @@ type PostLockedSettings struct {
 	LockMessage string    `json:"lockMessage,omitempty"`
 }
 
+type PostArchivedSettings struct {
+	ArchivedAt     time.Time       `json:"archivedAt"`
+	ArchivedBy     *User           `json:"archivedBy"`
+	PreviousStatus enum.PostStatus `json:"previousStatus"`
+}
+
 // IsLocked returns true if this post is locked
 func (p *Post) IsLocked() bool {
 	return p.LockedSettings != nil && p.LockedSettings.Locked
+}
+
+func (p *Post) IsArchived() bool {
+	return p.Status == enum.PostArchived
 }
 
 // CanBeVoted returns true if this post can have its vote changed

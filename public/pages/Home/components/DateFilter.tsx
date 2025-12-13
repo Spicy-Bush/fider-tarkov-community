@@ -1,7 +1,7 @@
 import React from "react"
 import { Dropdown, Icon } from "@fider/components"
 import { HStack } from "@fider/components/layout"
-import HeroIconCalendar from "@fider/assets/images/heroicons-calendar.svg"
+import { heroiconsCalendar as HeroIconCalendar } from "@fider/icons.generated"
 import { i18n } from "@lingui/core"
 
 interface DateFilterProps {
@@ -30,7 +30,7 @@ export const DateFilter = (props: DateFilterProps) => {
     <HStack className="mr-4">
       <Dropdown
         renderHandle={
-          <HStack className="h-10 text-medium text-xs rounded-md uppercase border border-gray-400 text-gray-800 p-2 px-3">
+          <HStack className="h-10 text-medium text-xs rounded-button uppercase border border-border-strong text-foreground p-2 px-3">
             <Icon sprite={HeroIconCalendar} className="h-5 pr-1" />
             {activeLabel}
           </HStack>
@@ -44,7 +44,7 @@ export const DateFilter = (props: DateFilterProps) => {
           </Dropdown.ListItem>
         ))}
         {props.activeDate && (
-          <Dropdown.ListItem onClick={handleClick(undefined)} className="text-red-600">
+          <Dropdown.ListItem onClick={handleClick(undefined)} className="text-danger">
             {i18n._("home.datefilter.option.clear", { message: "Clear filter" })}
           </Dropdown.ListItem>
         )}

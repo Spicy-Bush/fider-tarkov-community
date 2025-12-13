@@ -16,22 +16,14 @@ import (
 )
 
 func purgeExpiredNotifications(ctx context.Context, c *cmd.PurgeExpiredNotifications) error {
-	trx, err := dbx.BeginTx(ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to open transaction")
-	}
-
-	count, err := trx.Execute("DELETE FROM notifications WHERE CREATED_AT <= NOW() - INTERVAL '365 days'")
-	if err != nil {
-		return errors.Wrap(err, "failed to delete expired notifications")
-	}
-
-	if err = trx.Commit(); err != nil {
-		return errors.Wrap(err, "failed commit transaction")
-	}
-
-	c.NumOfDeletedNotifications = int(count)
-	return nil
+	return using(ctx, func(trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
+		count, err := trx.Execute("DELETE FROM notifications WHERE CREATED_AT <= NOW() - INTERVAL '365 days'")
+		if err != nil {
+			return errors.Wrap(err, "failed to delete expired notifications")
+		}
+		c.NumOfDeletedNotifications = int(count)
+		return nil
+	})
 }
 
 func markAllNotificationsAsRead(ctx context.Context, c *cmd.MarkAllNotificationsAsRead) error {
@@ -196,11 +188,17 @@ func addNewNotification(ctx context.Context, c *cmd.AddNewNotification) error {
 			CreatedAt: now,
 			Read:      false,
 		}
+
+		var postID interface{} = c.PostID
+		if c.PostID == 0 {
+			postID = nil
+		}
+
 		err := trx.Get(&notification.ID, `
 			INSERT INTO notifications (tenant_id, user_id, title, link, read, post_id, author_id, created_at, updated_at) 
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
 			RETURNING id
-		`, tenant.ID, c.User.ID, c.Title, c.Link, false, c.PostID, user.ID, now)
+		`, tenant.ID, c.User.ID, c.Title, c.Link, false, postID, user.ID, now)
 		if err != nil {
 			return errors.Wrap(err, "failed to insert notification")
 		}
@@ -282,10 +280,10 @@ func getActiveSubscribers(ctx context.Context, q *query.GetActiveSubscribers) er
 				ON set.user_id = u.id
 				AND set.key = $3
 				AND set.tenant_id = u.tenant_id
-				WHERE u.tenant_id = $4
-				AND u.status = $8
-				%s
-				AND ( sub.status = $2 OR (sub.status IS NULL AND NOT u.role = ANY($7)) )
+		WHERE u.tenant_id = $4
+		AND u.status = $8
+		%s
+		AND ( sub.status = $2 OR (sub.status IS NULL AND NOT u.role = ANY($7)) )
 				AND (
 					(set.value IS NULL AND u.role = ANY($5))
 					OR CAST(set.value AS integer) & $6 > 0
@@ -339,6 +337,42 @@ func supressEmail(ctx context.Context, c *cmd.SupressEmail) error {
 			return errors.Wrap(err, "failed to update supress email: %s", strings.Join(c.EmailAddresses, ","))
 		}
 		c.NumOfSupressedEmailAddresses = int(rowsCount)
+		return nil
+	})
+}
+
+// GetUsersToNotify retrieves users who should receive notifications
+func getUsersToNotify(ctx context.Context, q *query.GetUsersToNotify) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		var users []*dbUser
+		err := trx.Select(&users, `
+			SELECT DISTINCT u.id, u.name, u.email, u.tenant_id, u.role, u.status
+			FROM users u
+			LEFT JOIN user_settings set
+			ON set.user_id = u.id
+			AND set.tenant_id = u.tenant_id
+			AND set.key = $1
+			WHERE u.tenant_id = $2
+			AND u.status = $5
+			AND (
+				(set.value IS NULL AND u.role = ANY($3))
+				OR CAST(set.value AS integer) & $4 > 0
+			)
+			ORDER by u.id`,
+			q.Event.UserSettingsKeyName,
+			tenant.ID,
+			pq.Array(q.Event.DefaultEnabledUserRoles),
+			q.Channel,
+			enum.UserActive,
+		)
+		if err != nil {
+			return errors.Wrap(err, "failed to get users to notify")
+		}
+
+		q.Result = make([]*entity.User, len(users))
+		for i, user := range users {
+			q.Result[i] = user.toModel(ctx)
+		}
 		return nil
 	})
 }
