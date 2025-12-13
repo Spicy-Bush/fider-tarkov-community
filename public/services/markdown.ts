@@ -126,20 +126,20 @@ fullMarked.use({
       
       return defaultLink(href, title, text)
     },
-
-    text({ raw }) {
-      return raw.replace(/@{([^}]+)}/g, (match) => {
-        try {
-          const json = match.substring(1).replace(/&quot;/g, '"')
-          const mention = JSON.parse(json)
-          return `<span class="mention">@${mention.name}</span>`
-        } catch {
-          return match
-        }
-      })
-    },
   },
 })
+
+const processMentions = (html: string): string => {
+  return html.replace(/@{([^}]+)}/g, (match) => {
+    try {
+      const json = match.substring(1).replace(/&quot;/g, '"')
+      const mention = JSON.parse(json)
+      return `<span class="mention">@${mention.name}</span>`
+    } catch {
+      return match
+    }
+  })
+}
 
 const plainTextMarked = new Marked({
   gfm: true,
@@ -196,7 +196,8 @@ const encodeHTML = (s: string) => s.replace(/[<>]/g, (tag) => entities[tag] || t
 const sanitize = (input: string) => DOMPurify.isSupported ? DOMPurify.sanitize(input) : input
 
 export const full = (input: string): string => {
-  return sanitize(fullMarked.parse(encodeHTML(input)) as string).trim()
+  const parsed = fullMarked.parse(encodeHTML(input)) as string
+  return sanitize(processMentions(parsed)).trim()
 }
 
 export const plainText = (input: string): string => {
