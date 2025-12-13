@@ -314,16 +314,6 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                   showModal={state.isModalOpen("delete")}
                   post={props.post}
                 />
-                {postPermissions.canRespond() && (
-                  <ResponseModal
-                    onCloseModal={state.closeModal}
-                    showModal={state.isModalOpen("response")}
-                    post={props.post}
-                    tags={props.tags}
-                    attachments={props.attachments}
-                    hasCopiedContent={state.hasCopiedContent}
-                  />
-                )}
                 <VStack>
                   {state.editMode ? (
                     <Form error={state.error}>
@@ -404,6 +394,16 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
           </div>
         </div>
       </div>
+      {postPermissions.canRespond() && (
+        <ResponseModal
+          onCloseModal={state.closeModal}
+          showModal={state.isModalOpen("response")}
+          post={props.post}
+          tags={props.tags}
+          attachments={props.attachments}
+          hasCopiedContent={state.hasCopiedContent}
+        />
+      )}
       <PostLockingModal
         post={props.post}
         isOpen={state.isModalOpen("lock") || state.isModalOpen("unlock")}
