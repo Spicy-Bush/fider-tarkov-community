@@ -80,11 +80,31 @@ func PostDetails() web.HandlerFunc {
 		isSubscribed := &query.UserSubscribedTo{PostID: getPost.Result.ID}
 		getComments := &query.GetCommentsByPost{Post: getPost.Result}
 		getAllTags := &query.GetAllTags{}
-		listVotes := &query.ListPostVotes{PostID: getPost.Result.ID, Limit: 24, IncludeEmail: false}
 		getAttachments := &query.GetAttachments{Post: getPost.Result}
 		getReportReasons := &query.GetReportReasons{}
-		if err := bus.Dispatch(c, getAllTags, getComments, listVotes, isSubscribed, getAttachments, getReportReasons); err != nil {
+		if err := bus.Dispatch(c, getAllTags, getComments, isSubscribed, getAttachments, getReportReasons); err != nil {
 			return c.Failure(err)
+		}
+
+		// Get votes for avatar display
+		listVotes := &query.ListPostVotes{PostID: getPost.Result.ID, Limit: 8, IncludeEmail: false}
+		if err := bus.Dispatch(c, listVotes); err != nil {
+			return c.Failure(err)
+		}
+
+		// For non-staff users, strip out the VoteType to anonymise what each person voted
+		isStaff := c.User() != nil && (c.User().IsCollaborator() || c.User().IsModerator() || c.User().IsAdministrator())
+		votes := listVotes.Result
+		if !isStaff {
+			// Create anonymous votes without VoteType for regular users
+			votes = make([]*entity.Vote, len(listVotes.Result))
+			for i, v := range listVotes.Result {
+				votes[i] = &entity.Vote{
+					User:      v.User,
+					CreatedAt: v.CreatedAt,
+					// VoteType intentionally omitted (will be zero value)
+				}
+			}
 		}
 
 		data := web.Map{
@@ -92,7 +112,7 @@ func PostDetails() web.HandlerFunc {
 			"subscribed":    isSubscribed.Result,
 			"post":          getPost.Result,
 			"tags":          getAllTags.Result,
-			"votes":         listVotes.Result,
+			"votes":         votes,
 			"attachments":   getAttachments.Result,
 			"reportReasons": getReportReasons.Result,
 		}

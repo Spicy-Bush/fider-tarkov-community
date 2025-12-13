@@ -879,7 +879,19 @@ func getArchivablePosts(ctx context.Context, q *query.GetArchivablePosts) error 
 		if q.Page <= 0 {
 			q.Page = 1
 		}
+		
+		const maxInt32 = 2147483647
+		if q.PerPage > maxInt32 {
+			q.PerPage = maxInt32
+		}
+		if q.Page > maxInt32 {
+			q.Page = maxInt32
+		}
+		
 		offset := (q.Page - 1) * q.PerPage
+		if offset > maxInt32 {
+			offset = maxInt32
+		}
 
 		selectQuery := buildPostQuery(user, whereClause) + fmt.Sprintf(" ORDER BY p.last_activity_at ASC LIMIT $%d OFFSET $%d", argNum, argNum+1)
 		args = append(args, q.PerPage, offset)

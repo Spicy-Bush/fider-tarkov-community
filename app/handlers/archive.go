@@ -34,6 +34,14 @@ func ListArchivablePosts() web.HandlerFunc {
 		page, _ := c.QueryParamAsInt("page")
 		perPage, _ := c.QueryParamAsInt("perPage")
 
+		const maxInt32 = 2147483647
+		if page > maxInt32 {
+			page = maxInt32
+		}
+		if perPage > maxInt32 {
+			perPage = maxInt32
+		}
+
 		q := &query.GetArchivablePosts{
 			Page:    page,
 			PerPage: perPage,
@@ -54,10 +62,16 @@ func ListArchivablePosts() web.HandlerFunc {
 		}
 
 		if maxVotes, err := c.QueryParamAsInt("maxVotes"); err == nil && maxVotes > 0 {
+			if maxVotes > maxInt32 {
+				maxVotes = maxInt32
+			}
 			q.MaxVotes = &maxVotes
 		}
 
 		if maxComments, err := c.QueryParamAsInt("maxComments"); err == nil && maxComments > 0 {
+			if maxComments > maxInt32 {
+				maxComments = maxInt32
+			}
 			q.MaxComments = &maxComments
 		}
 

@@ -58,14 +58,15 @@ export const CollapsiblePanel: React.FC<CollapsiblePanelProps> = ({
       </div>
       <div 
         id={`panel-content-${title.replace(/\s+/g, '-').toLowerCase()}`}
-        className="p-2 border-t border-surface-alt"
+        className={classSet({
+          "p-2 border-t border-surface-alt": true,
+          "block": isOpen,
+          "hidden": !isOpen
+        })}
         aria-hidden={!isOpen}
         ref={contentRef}
-        style={{ 
-          display: isOpen ? 'block' : 'none'
-        }}
       >
-        {isOpen && children}
+        {children}
       </div>
     </div>
   )

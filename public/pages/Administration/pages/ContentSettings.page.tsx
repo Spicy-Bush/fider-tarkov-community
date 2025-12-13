@@ -238,7 +238,7 @@ const ContentSettingsPage: React.FC = () => {
               </Input>
             </div>
 
-            <div className="settings-grid-2col mt-4">
+            <div className="grid grid-cols-2 gap-2 max-md:grid-cols-1 mt-4">
               <Input
                 field="descriptionLengthMin"
                 label="Minimum Description Length"
@@ -315,19 +315,27 @@ const ContentSettingsPage: React.FC = () => {
           </CollapsiblePanel>
 
           <CollapsiblePanel title="Post Permissions" defaultOpen={false}>            
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-1">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
               {roles.map(role => (
-                <div key={`posting-disabled-${role}`} className="mb-1">
-                  <label className="settings-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={(settings.postingDisabledFor || []).includes(role)}
-                      disabled={!canEdit}
-                      onChange={() => toggleDisabledRole('postingDisabledFor', role)}
-                    />
-                    <span>Disable posting for {role}</span>
-                  </label>
-                </div>
+                <label 
+                  key={`posting-disabled-${role}`} 
+                  className="flex items-center gap-2 cursor-pointer hover:bg-tertiary p-2 rounded transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={(settings.postingDisabledFor || []).includes(role)}
+                    disabled={!canEdit}
+                    onChange={() => toggleDisabledRole('postingDisabledFor', role)}
+                    className="m-0 h-4 w-4 min-h-4 min-w-4 flex-shrink-0 appearance-none border border-border rounded-sm bg-elevated cursor-pointer checked:border-transparent checked:bg-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      backgroundImage: (settings.postingDisabledFor || []).includes(role) ? "url(\"data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e\")" : "none",
+                      backgroundSize: "contain",
+                      backgroundPosition: "center",
+                      backgroundRepeat: "no-repeat"
+                    }}
+                  />
+                  <span className="text-sm text-foreground">Disable posting for {role}</span>
+                </label>
               ))}
             </div>
           </CollapsiblePanel>
@@ -392,19 +400,27 @@ const ContentSettingsPage: React.FC = () => {
           </CollapsiblePanel>
 
           <CollapsiblePanel title="Comment Permissions" defaultOpen={false}>            
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-1">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
               {roles.map(role => (
-                <div key={`commenting-disabled-${role}`} className="mb-1">
-                  <label className="settings-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={(settings.commentingDisabledFor || []).includes(role)}
-                      disabled={!canEdit}
-                      onChange={() => toggleDisabledRole('commentingDisabledFor', role)}
-                    />
-                    <span>Disable commenting for {role}</span>
-                  </label>
-                </div>
+                <label 
+                  key={`commenting-disabled-${role}`} 
+                  className="flex items-center gap-2 cursor-pointer hover:bg-tertiary p-2 rounded transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={(settings.commentingDisabledFor || []).includes(role)}
+                    disabled={!canEdit}
+                    onChange={() => toggleDisabledRole('commentingDisabledFor', role)}
+                    className="m-0 h-4 w-4 min-h-4 min-w-4 flex-shrink-0 appearance-none border border-border rounded-sm bg-elevated cursor-pointer checked:border-transparent checked:bg-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      backgroundImage: (settings.commentingDisabledFor || []).includes(role) ? "url(\"data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e\")" : "none",
+                      backgroundSize: "contain",
+                      backgroundPosition: "center",
+                      backgroundRepeat: "no-repeat"
+                    }}
+                  />
+                  <span className="text-sm text-foreground">Disable commenting for {role}</span>
+                </label>
               ))}
             </div>
           </CollapsiblePanel>

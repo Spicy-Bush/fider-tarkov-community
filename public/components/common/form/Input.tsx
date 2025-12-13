@@ -55,7 +55,7 @@ export const Input: React.FunctionComponent<InputProps> = (props) => {
           <HStack spacing={0} align={props.icon ? "center" : "start"} className="relative">
             <input
               className={classSet({
-                "w-full p-2 text-base bg-elevated border border-border rounded-input appearance-none leading-relaxed text-foreground": true,
+                "w-full px-3 py-2 text-base bg-elevated border border-border rounded-input appearance-none leading-relaxed text-foreground": true,
                 "pr-8": !!props.icon,
                 "border-danger": hasError(props.field, ctx.error),
                 "rounded-r-none": !!suffix,

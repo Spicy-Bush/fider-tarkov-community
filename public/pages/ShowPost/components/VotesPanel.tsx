@@ -37,9 +37,9 @@ export const VotesPanel = (props: VotesPanelProps) => {
       )}
       {hasVotes ? (
         <>
-          <HStack spacing={0} className="gap-2">
-            <AvatarStack users={props.votes.map((x) => x.user)} overlap={false} />
-          </HStack>
+          <div className="flex">
+            <AvatarStack users={props.votes.slice(0, 8).map((x) => x.user)} overlap={true} />
+          </div>
           {canShowAll && (
             <Button variant="tertiary" size="small" onClick={openModal}>
                 View Details
