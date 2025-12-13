@@ -6,6 +6,13 @@ const path = require("path")
 const esbuild = require("esbuild")
 const babel = require("@babel/core")
 
+function shimImportMetaGlob(contents) {
+  if (contents.includes("import.meta.glob")) {
+    return contents.replace(/import\.meta\.glob(<[^>]*>)?\([^)]*\)/g, "({})")
+  }
+  return contents
+}
+
 // Replace with NPM package when this is resolved: https://github.com/nativew/esbuild-plugin-babel/issues/7
 const babelPlugin = (options = {}) => ({
   name: "babel",
@@ -13,6 +20,8 @@ const babelPlugin = (options = {}) => ({
     const { filter = /.*/, namespace = "", config = {} } = options
 
     const transformContents = ({ args, contents }) => {
+      contents = shimImportMetaGlob(contents)
+
       const babelOptions = babel.loadOptions({
         ...config,
         filename: args.path,
