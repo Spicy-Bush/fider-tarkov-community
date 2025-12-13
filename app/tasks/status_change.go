@@ -53,6 +53,13 @@ func NotifyAboutStatusChange(post *entity.Post, prevStatus enum.PostStatus) work
 		logoURL := web.LogoURL(c)
 		baseURL := web.BaseURL(c)
 
+		pushTitle := fmt.Sprintf("#%d marked as %s", post.Number, post.Status.Name())
+		pushBody := truncateText(post.Title, 100)
+		pushIcon := baseURL + "/static/favicon?size=192"
+		pushURL := baseURL + link
+		pushTag := fmt.Sprintf("status-%d", post.Number)
+		sendPushNotifications(c, users, 0, pushTitle, pushBody, pushURL, pushIcon, pushTag)
+
 		// Email notification
 		if !env.Config.Email.DisableEmailNotifications {
 			users, err = getActiveSubscribers(c, post, enum.NotificationChannelEmail, enum.NotificationEventChangeStatus)

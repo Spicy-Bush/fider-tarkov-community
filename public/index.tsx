@@ -4,7 +4,7 @@ import "@fider/assets/styles/tailwind.css"
 import React from "react"
 import { createRoot } from "react-dom/client"
 import { ErrorBoundary, ReadOnlyNotice, DevBanner, WarningBanner, AdminPageLoader } from "@fider/components"
-import { classSet, Fider, FiderContext, actions, activateI18N } from "@fider/services"
+import { classSet, Fider, FiderContext, actions, activateI18N, push } from "@fider/services"
 import { UserStandingProvider } from "@fider/contexts/UserStandingContext"
 import { LayoutProvider } from "@fider/contexts/LayoutContext"
 import { LayoutResolver } from "@fider/components/layouts"
@@ -12,6 +12,10 @@ import { LayoutResolver } from "@fider/components/layouts"
 import { I18n } from "@lingui/core"
 import { I18nProvider } from "@lingui/react"
 import { AsyncPageLoader } from "./AsyncPages"
+
+if ("serviceWorker" in navigator) {
+  push.registerServiceWorker()
+}
 
 const logProductionError = (err: Error) => {
   if (Fider.isProduction()) {

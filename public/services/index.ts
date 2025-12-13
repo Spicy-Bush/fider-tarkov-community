@@ -16,5 +16,6 @@ import * as notify from "./notify"
 import * as querystring from "./querystring"
 import * as device from "./device"
 import * as actions from "./actions"
+import * as push from "./push"
 import navigator from "./navigator"
-export { actions, querystring, navigator, device, notify, markdown }
+export { actions, querystring, navigator, device, notify, markdown, push }

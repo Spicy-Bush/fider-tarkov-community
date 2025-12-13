@@ -95,6 +95,13 @@ func routes(r *web.Engine) *web.Engine {
 
 	r.Get("/sitemap.xml", handlers.Sitemap())
 
+	pwa := r.Group()
+	{
+		pwa.Get("/manifest.json", handlers.Manifest())
+		pwa.Get("/sw.js", handlers.ServiceWorker())
+		pwa.Get("/_api/push/vapid-key", handlers.GetVAPIDPublicKey())
+	}
+
 	r.Get("/signup/verify", handlers.VerifySignUpKey())
 	r.Get("/signout", handlers.SignOut())
 	r.Get("/oauth/:provider/token", handlers.OAuthToken())
@@ -154,6 +161,11 @@ func routes(r *web.Engine) *web.Engine {
 		membersApi.Get("/_api/notifications/unread/total", handlers.TotalUnreadNotifications())
 		membersApi.Post("/_api/notifications/purge-read", handlers.PurgeReadNotifications())
 		membersApi.Post("/_api/notifications/read-all", handlers.ReadAllNotifications())
+
+		// push notifications
+		membersApi.Post("/_api/push/subscribe", handlers.SavePushSubscription())
+		membersApi.Delete("/_api/push/subscribe", handlers.DeletePushSubscription())
+		membersApi.Get("/_api/push/status", handlers.HasPushSubscription())
 
 		// posting
 		membersApi.Post("/api/v1/posts", apiv1.CreatePost())

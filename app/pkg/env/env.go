@@ -119,6 +119,10 @@ type config struct {
 			EnableStartTLS bool   `env:"EMAIL_SMTP_ENABLE_STARTTLS,default=true"`
 		}
 	}
+	WebPush struct {
+		VAPIDPublicKey  string `env:"VAPID_PUBLIC_KEY"`
+		VAPIDPrivateKey string `env:"VAPID_PRIVATE_KEY"`
+	}
 	BlobStorage struct {
 		Type string `env:"BLOB_STORAGE,default=sql"` // possible values: sql, fs or s3
 		S3   struct {
@@ -237,6 +241,10 @@ func MultiTenantDomain() string {
 // IsBillingEnabled returns true if Paddle is configured
 func IsBillingEnabled() bool {
 	return Config.Paddle.VendorID != "" && Config.Paddle.VendorAuthCode != ""
+}
+
+func IsWebPushEnabled() bool {
+	return Config.WebPush.VAPIDPublicKey != "" && Config.WebPush.VAPIDPrivateKey != ""
 }
 
 // IsProduction returns true on Fider production environment

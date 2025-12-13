@@ -202,6 +202,15 @@ func (s Service) Init() {
 	bus.AddHandler(updateReportReason)
 	bus.AddHandler(deleteReportReason)
 	bus.AddHandler(reorderReportReasons)
+
+	bus.AddHandler(savePushSubscription)
+	bus.AddHandler(deletePushSubscription)
+	bus.AddHandler(deleteAllPushSubscriptions)
+	bus.AddHandler(deletePushSubscriptionByEndpoint)
+	bus.AddHandler(getPushSubscriptionsByUser)
+	bus.AddHandler(getPushSubscriptionsByUsers)
+	bus.AddHandler(getAllPushSubscriptions)
+	bus.AddHandler(hasPushSubscription)
 }
 
 type SqlHandler func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error

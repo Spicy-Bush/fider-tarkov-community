@@ -51,6 +51,14 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 			}
 		}
 
+		baseURL := web.BaseURL(c)
+		pushTitle := fmt.Sprintf("%s commented on #%d", author.Name, post.Number)
+		pushBody := truncateText(post.Title, 100)
+		pushIcon := baseURL + "/static/favicon?size=192"
+		pushURL := baseURL + link
+		pushTag := fmt.Sprintf("comment-%d", comment.ID)
+		sendPushNotifications(c, users, author.ID, pushTitle, pushBody, pushURL, pushIcon, pushTag)
+
 		// Web notification - mentions
 		if comment.Mentions != nil {
 			title = i18n.T(c, "web.new_mention.text", i18n.Params{
@@ -68,9 +76,8 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 				return c.Failure(err)
 			}
 
-			// Iterate the mentions
+			mentionedUsers := make([]*entity.User, 0)
 			for _, mention := range comment.Mentions {
-				// Check if the user is in the list of mention subscribers (users)
 				for _, u := range q.Result {
 					if u.ID == mention.ID && mention.IsNew {
 						err = bus.Dispatch(c, &cmd.AddNewNotification{
@@ -82,8 +89,16 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 						if err != nil {
 							return c.Failure(err)
 						}
+						mentionedUsers = append(mentionedUsers, u)
 					}
 				}
+			}
+
+			if len(mentionedUsers) > 0 {
+				mentionPushTitle := fmt.Sprintf("%s mentioned you", author.Name)
+				mentionPushBody := truncateText(post.Title, 100)
+				mentionPushTag := fmt.Sprintf("mention-%d", comment.ID)
+				sendPushNotifications(c, mentionedUsers, author.ID, mentionPushTitle, mentionPushBody, pushURL, pushIcon, mentionPushTag)
 			}
 		}
 

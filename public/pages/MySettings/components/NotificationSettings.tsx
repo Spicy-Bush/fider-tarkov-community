@@ -1,11 +1,12 @@
-import React, { useState } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 
 import { UserSettings } from "@fider/models"
-import { Toggle, Field } from "@fider/components"
+import { Toggle, Field, Button } from "@fider/components"
 import { useFider } from "@fider/hooks"
 import { HStack } from "@fider/components/layout"
 import { i18n } from "@lingui/core"
 import { t, Trans } from "@lingui/macro"
+import { push } from "@fider/services"
 
 type Channel = number
 const WebChannel: Channel = 1
@@ -19,6 +20,47 @@ interface NotificationSettingsProps {
 export const NotificationSettings = (props: NotificationSettingsProps) => {
   const fider = useFider()
   const [userSettings, setUserSettings] = useState(props.userSettings)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushSubscribed, setPushSubscribed] = useState(false)
+  const [pushLoading, setPushLoading] = useState(false)
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>("default")
+
+  useEffect(() => {
+    const checkPush = async () => {
+      if (!push.isPushSupported()) return
+
+      setPushPermission(push.getNotificationPermission())
+      
+      const vapidKey = await push.getVAPIDPublicKey()
+      setPushEnabled(vapidKey.enabled)
+      
+      if (vapidKey.enabled) {
+        const subscription = await push.getCurrentSubscription()
+        setPushSubscribed(!!subscription)
+      }
+    }
+    checkPush()
+  }, [])
+
+  const handlePushToggle = useCallback(async () => {
+    setPushLoading(true)
+    try {
+      if (pushSubscribed) {
+        const result = await push.unsubscribeFromPush()
+        if (result.ok) {
+          setPushSubscribed(false)
+        }
+      } else {
+        const result = await push.subscribeToPush()
+        if (result.ok) {
+          setPushSubscribed(true)
+          setPushPermission("granted")
+        }
+      }
+    } finally {
+      setPushLoading(false)
+    }
+  }, [pushSubscribed])
 
   const isEnabled = (settingsKey: string, channel: Channel): boolean => {
     if (settingsKey in userSettings) {
@@ -49,9 +91,8 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
   const info = (settingsKey: string, aboutForVisitors: string, aboutForCollaborators: string) => {
     const about = fider.session.user.isCollaborator ? aboutForCollaborators : aboutForVisitors
     const webEnabled = isEnabled(settingsKey, WebChannel)
-    const emailEnabled = isEnabled(settingsKey, EmailChannel)
 
-    if (!webEnabled && !emailEnabled) {
+    if (!webEnabled) {
       return (
         <p className="text-muted text-sm mt-1 mb-2">
           <Trans id="mysettings.notification.message.none">
@@ -59,32 +100,61 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
           </Trans>
         </p>
       )
-    } else if (webEnabled && !emailEnabled) {
-      return (
-        <p className="text-muted text-sm mt-1 mb-2">
-          <Trans id="mysettings.notification.message.webonly">
-            You&apos;ll receive <strong>web</strong> notifications about {about}.
-          </Trans>
-        </p>
-      )
-    } else if (!webEnabled && emailEnabled) {
-      return (
-        <p className="text-muted text-sm mt-1 mb-2">
-          <Trans id="mysettings.notification.message.emailonly">
-            You&apos;ll receive <strong>email</strong> notifications about {about}.
-          </Trans>
-        </p>
-      )
-    } else if (webEnabled && emailEnabled) {
-      return (
-        <p className="text-muted text-sm mt-1 mb-2">
-          <Trans id="mysettings.notification.message.webandemail">
-            You&apos;ll receive <strong>web</strong> and <strong>email</strong> notifications about {about}.
-          </Trans>
-        </p>
-      )
     }
-    return null
+    return (
+      <p className="text-muted text-sm mt-1 mb-2">
+        <Trans id="mysettings.notification.message.enabled">
+          You&apos;ll receive notifications about {about}.
+        </Trans>
+      </p>
+    )
+  }
+
+  const renderPushSection = () => {
+    if (!push.isPushSupported()) {
+      return null
+    }
+
+    if (!pushEnabled) {
+      return null
+    }
+
+    return (
+      <div className="p-4 bg-elevated">
+        <div className="font-medium mb-1">
+          <Trans id="mysettings.notification.push.title">Push Notifications</Trans>
+        </div>
+        <p className="text-muted text-sm mt-1 mb-2">
+          {pushSubscribed ? (
+            <Trans id="mysettings.notification.push.enabled">
+              Push notifications are enabled for this device.
+            </Trans>
+          ) : pushPermission === "denied" ? (
+            <Trans id="mysettings.notification.push.blocked">
+              Push notifications are blocked. Enable them in your browser settings.
+            </Trans>
+          ) : (
+            <Trans id="mysettings.notification.push.disabled">
+              Enable push notifications to receive alerts even when the site is closed.
+            </Trans>
+          )}
+        </p>
+        <Button
+          variant={pushSubscribed ? "secondary" : "primary"}
+          size="small"
+          disabled={pushLoading || pushPermission === "denied"}
+          onClick={handlePushToggle}
+        >
+          {pushLoading ? (
+            <Trans id="mysettings.notification.push.loading">Loading...</Trans>
+          ) : pushSubscribed ? (
+            <Trans id="mysettings.notification.push.disable">Disable Push</Trans>
+          ) : (
+            <Trans id="mysettings.notification.push.enable">Enable Push</Trans>
+          )}
+        </Button>
+      </div>
+    )
   }
 
   return (
@@ -96,6 +166,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
       </p>
 
       <div className="divide-y divide-surface-alt border border-surface-alt rounded-card overflow-hidden">
+        {renderPushSection()}
         <div className="p-4 bg-elevated">
           <div className="font-medium mb-1">
             <Trans id="mysettings.notification.event.newpost">New Post</Trans>
@@ -107,7 +178,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
           )}
           <HStack spacing={6}>
             {icon("event_notification_new_post", WebChannel)}
-            {(fider.session.user.isCollaborator || fider.session.user.isAdministrator) && icon("event_notification_new_post", EmailChannel)}
+            {fider.session.user.isAdministrator && icon("event_notification_new_post", EmailChannel)}
           </HStack>
         </div>
         <div className="p-4 bg-elevated">
@@ -121,7 +192,21 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
           )}
           <HStack spacing={6}>
             {icon("event_notification_new_comment", WebChannel)}
-            {(fider.session.user.isCollaborator || fider.session.user.isAdministrator) && icon("event_notification_new_comment", EmailChannel)}
+            {fider.session.user.isAdministrator && icon("event_notification_new_comment", EmailChannel)}
+          </HStack>
+        </div>
+        <div className="p-4 bg-elevated">
+          <div className="font-medium mb-1">
+            <Trans id="mysettings.notification.event.mention">Mentions</Trans>
+          </div>
+          {info(
+            "event_notification_mention",
+            t({ id: "mysettings.notification.event.mention.description", message: "when someone mentions you in a comment" }),
+            t({ id: "mysettings.notification.event.mention.description", message: "when someone mentions you in a comment" })
+          )}
+          <HStack spacing={6}>
+            {icon("event_notification_mention", WebChannel)}
+            {fider.session.user.isAdministrator && icon("event_notification_mention", EmailChannel)}
           </HStack>
         </div>
         <div className="p-4 bg-elevated">
@@ -135,7 +220,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
           )}
           <HStack spacing={6}>
             {icon("event_notification_change_status", WebChannel)}
-            {(fider.session.user.isCollaborator || fider.session.user.isAdministrator) && icon("event_notification_change_status", EmailChannel)}
+            {fider.session.user.isAdministrator && icon("event_notification_change_status", EmailChannel)}
           </HStack>
         </div>
       </div>
