@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback } from "react"
-import { Tag, ViewerInfo } from "@fider/models"
+import { Post, Tag, ViewerInfo } from "@fider/models"
 import { PageConfig } from "@fider/components/layouts"
 import { useStackNavigation, useRealtimePresence } from "@fider/hooks"
 import { useQueueState, useQueueEvents, useQueueActions, QueueSortOption } from "./hooks"
@@ -123,12 +123,13 @@ const PostQueuePage: React.FC<PostQueuePageProps> = (props) => {
     
     const currentIndex = state.posts.findIndex((p) => p.id === state.selectedPost?.id)
     
-    if (currentIndex === -1 || currentIndex >= state.posts.length - 1) {
-      actions.handleDeselectPost()
-      return
+    let nextPost: Post | undefined
+    
+    if (currentIndex === -1) { nextPost = state.posts[0] } 
+    else if (currentIndex < state.posts.length - 1) {
+      nextPost = state.posts[currentIndex + 1]
     }
     
-    const nextPost = state.posts[currentIndex + 1]
     if (nextPost) {
       actions.handleSelectPost(nextPost)
       const previewEl = document.getElementById("queue-preview-container")
