@@ -18,12 +18,12 @@ export const AvatarStack = (props: AvatarStackProps) => {
   const shouldOverlap = props.overlap ?? true
 
   return (
-    <div className="flex">
+    <div className={shouldOverlap ? "flex" : "flex flex-wrap gap-2"}>
       {props.users.map((x, i) => (
         <div 
           key={i} 
           className={classSet({
-            "border-2 border-white rounded-full": true,
+            "border-2 border-white rounded-full shrink-0": true,
             "-ml-3": shouldOverlap && i > 0,
           })}
         >

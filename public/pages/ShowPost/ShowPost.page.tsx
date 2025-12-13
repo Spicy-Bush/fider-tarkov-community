@@ -24,7 +24,6 @@ import {
   ReportButton,
 } from "@fider/components"
 import { ResponseDetails } from "@fider/components/post/ShowPostResponse"
-import { SentimentBar } from "@fider/components/post/SentimentBar"
 import { DiscussionPanel } from "./components/DiscussionPanel"
 
 import { heroiconsX as IconX, heroiconsThumbsup as IconThumbsUp } from "@fider/icons.generated"
@@ -376,7 +375,6 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                       </Button>
                     </HStack>
                   )}
-                  <SentimentBar post={props.post} upvotes={upvotes} downvotes={downvotes} />
                 </VStack>
 
                 <ResponseDetails status={props.post.status} response={props.post.response} />
