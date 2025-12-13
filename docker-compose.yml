@@ -47,6 +47,9 @@ x-common-env: &fider-env
   METRICS_ENABLED: ${METRICS_ENABLED}
   METRICS_PORT: 4000
 
+  VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+  VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+
 
 
 x-common-build-args: &common-build-args
