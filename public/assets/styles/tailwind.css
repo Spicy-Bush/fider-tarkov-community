@@ -141,8 +141,7 @@ p:last-child, pre:last-child { margin-bottom: 0; }
 }
 @media (min-width: 640px) { .container { width: 100vw; } }
 @media (min-width: 768px) { .container { width: 720px; } }
-@media (min-width: 1024px) { .container { width: 960px; } }
-@media (min-width: 1280px) { .container { width: 1140px; } }
+@media (min-width: 1024px) { .container { width: 1140px; } }
 
 .text-large { font-size: 26px; color: var(--color-foreground); font-weight: 700; letter-spacing: -1px; }
 .text-display2 { font-size: 22px; font-weight: 500; letter-spacing: -1px; }

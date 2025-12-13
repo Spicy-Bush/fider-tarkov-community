@@ -88,8 +88,8 @@ export const VoteCounter = (props: VoteCounterProps) => {
 
   const upvoteClassName = classSet({
     "text-lg w-11 font-bold cursor-pointer text-center mx-auto py-0.5 pb-2 text-muted flex flex-col items-center [&_svg]:text-border-strong [&_svg]:-mb-0.5": true,
-    "hover:text-primary hover:[&_svg]:text-primary": !isDisabled,
-    "text-primary [&_svg]:text-primary": !status.closed && voteType === 'up',
+    "hover:text-success hover:[&_svg]:text-success": !isDisabled,
+    "text-success [&_svg]:text-success": !status.closed && voteType === 'up',
     "opacity-50 cursor-not-allowed pointer-events-none": isDisabled,
   })
 
