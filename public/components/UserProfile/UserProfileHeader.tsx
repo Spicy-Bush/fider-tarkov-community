@@ -90,7 +90,7 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
 
   return (
     <>
-      <div className="col-span-full flex items-start gap-5 p-5 bg-surface-raised rounded-card shadow-sm max-md:flex-col max-md:p-3 max-md:gap-3 max-md:items-center">
+      <div className="col-span-full flex items-start gap-5 p-5 bg-surface-alt rounded-card shadow-sm max-md:flex-col max-md:p-3 max-md:gap-3 max-md:items-center">
         <div 
           className={`relative rounded-full overflow-hidden shrink-0 flex items-center justify-center ${isCompact ? 'w-20 h-20' : 'w-[120px] h-[120px]'} max-md:w-[100px] max-md:h-[100px]`}
           onMouseEnter={() => setAvatarModalState(prev => ({ ...prev, isHoveringAvatar: true }))}
