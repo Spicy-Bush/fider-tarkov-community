@@ -12,6 +12,7 @@
   {{ if .private.canonicalURL }}
     <link rel="canonical" href="{{ .private.canonicalURL }}" />
   {{ end }}
+  {{ if .public.tenant }}{{ if .public.tenant.CustomCSS }}<style>{{ .public.tenant.CustomCSS | safeCSS }}</style>{{ end }}{{ end }}
   {{ if .private.assets }}
     {{range .private.assets.CSS}}
       <link rel="stylesheet" href="{{ $.public.settings.assetsURL }}{{ . }}" />
@@ -57,10 +58,5 @@
   {{ end }}
 
   {{template "end-of-body" .}}
-  {{ if .public.tenant }} 
-    {{ if .public.tenant.CustomCSS }} 
-    <link rel="stylesheet" href="{{ .public.settings.assetsURL }}/static/custom/{{ .public.tenant.CustomCSS | md5 }}.css" />
-    {{ end }}
-  {{ end }}
 </body>
 </html>
