@@ -38,6 +38,10 @@ func TestNotificationsHandler(t *testing.T) {
 		return nil
 	})
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
+	})
+
 	server := mock.NewServer()
 
 	code, _ := server.

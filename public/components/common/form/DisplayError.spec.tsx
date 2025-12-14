@@ -21,7 +21,7 @@ describe("<DisplayError />", () => {
 
     const { container } = render(<DisplayError error={error} />)
     const root = container.querySelector("div")
-    expect(root).toHaveClass("c-form-error")
+    expect(root).toHaveClass("text-danger", "text-sm")
     const items = root?.querySelectorAll("ul li")
     expect(items).toHaveLength(1)
     expect(items?.item(0)).toHaveTextContent("Something went wrong.")
@@ -48,7 +48,7 @@ describe("<DisplayError />", () => {
 
     const { container: container1 } = render(<DisplayError error={error} fields={["name"]} />)
     const root1 = container1.querySelector("div")
-    expect(root1).toHaveClass("c-form-error")
+    expect(root1).toHaveClass("text-danger", "text-sm")
     const items1 = root1?.querySelectorAll("ul li")
     expect(items1).toHaveLength(2)
     expect(items1?.item(0)).toHaveTextContent("Name is required")
@@ -56,14 +56,14 @@ describe("<DisplayError />", () => {
 
     const { container: container2 } = render(<DisplayError error={error} fields={["age"]} />)
     const root2 = container2.querySelector("div")
-    expect(root2).toHaveClass("c-form-error")
+    expect(root2).toHaveClass("text-danger", "text-sm")
     const items2 = root2?.querySelectorAll("ul li")
     expect(items2).toHaveLength(1)
     expect(items2?.item(0)).toHaveTextContent("Age must be >= 18")
 
     const { container: container3 } = render(<DisplayError error={error} fields={["name", "age"]} />)
     const root3 = container3.querySelector("div")
-    expect(root3).toHaveClass("c-form-error")
+    expect(root3).toHaveClass("text-danger", "text-sm")
     const items3 = root3?.querySelectorAll("ul li")
     expect(items3).toHaveLength(3)
     expect(items3?.item(0)).toHaveTextContent("Name is required")

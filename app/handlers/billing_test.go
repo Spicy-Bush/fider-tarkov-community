@@ -69,6 +69,10 @@ func TestManageBillingHandler_ReturnsCorrectBillingInformation(t *testing.T) {
 		return nil
 	})
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
+	})
+
 	server := mock.NewServer()
 	code, page := server.
 		OnTenant(mock.DemoTenant).

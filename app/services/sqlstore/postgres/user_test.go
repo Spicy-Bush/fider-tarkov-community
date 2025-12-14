@@ -19,11 +19,11 @@ import (
 )
 
 func TestUserStorage_GetByID(t *testing.T) {
-	ctx := SetupDatabaseTest(t)
+	SetupDatabaseTest(t)
 	defer TeardownDatabaseTest()
 
 	userByID := &query.GetUserByID{UserID: 1}
-	err := bus.Dispatch(ctx, userByID)
+	err := bus.Dispatch(demoTenantCtx, userByID)
 	Expect(err).IsNil()
 	Expect(userByID.Result.ID).Equals(int(1))
 	Expect(userByID.Result.Tenant.ID).Equals(1)
@@ -312,6 +312,7 @@ func TestUserStorage_DefaultUserSettings(t *testing.T) {
 	Expect(err).IsNil()
 	Expect(getSettings.Result).Equals(map[string]string{
 		enum.NotificationEventChangeStatus.UserSettingsKeyName: enum.NotificationEventChangeStatus.DefaultSettingValue,
+		enum.NotificationEventMention.UserSettingsKeyName:      enum.NotificationEventMention.DefaultSettingValue,
 	})
 }
 
@@ -334,6 +335,7 @@ func TestUserStorage_SaveGetUserSettings(t *testing.T) {
 	Expect(firstSettings.Result).Equals(map[string]string{
 		enum.NotificationEventNewPost.UserSettingsKeyName:      "0",
 		enum.NotificationEventChangeStatus.UserSettingsKeyName: "1",
+		enum.NotificationEventMention.UserSettingsKeyName:      enum.NotificationEventMention.DefaultSettingValue,
 	})
 
 	err = bus.Dispatch(aryaStarkCtx, &cmd.UpdateCurrentUserSettings{Settings: nil})

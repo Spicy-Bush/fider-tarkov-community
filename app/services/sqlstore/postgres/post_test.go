@@ -554,7 +554,7 @@ func TestGetPosts_Different_Statuses(t *testing.T) {
 			name:          "Default Search (Everything except declined, completed and duplicate)",
 			searchParams:  &query.SearchPosts{},
 			expectedCount: 3,
-			expectedIDs:   []int{startedPost.Result.ID, newPost.Result.ID, plannedPost.Result.ID},
+			expectedIDs:   []int{newPost.Result.ID, startedPost.Result.ID, plannedPost.Result.ID},
 		},
 		{
 			name: "Started and Completed",
@@ -562,7 +562,7 @@ func TestGetPosts_Different_Statuses(t *testing.T) {
 				Statuses: []enum.PostStatus{enum.PostStarted, enum.PostCompleted},
 			},
 			expectedCount: 2,
-			expectedIDs:   []int{startedPost.Result.ID, completedPost.Result.ID},
+			expectedIDs:   []int{completedPost.Result.ID, startedPost.Result.ID},
 		},
 		{
 			name: "Only Started",
@@ -593,7 +593,7 @@ func TestGetPosts_Different_Statuses(t *testing.T) {
 				},
 			},
 			expectedCount: 6,
-			expectedIDs:   []int{startedPost.Result.ID, completedPost.Result.ID, newPost.Result.ID, duplicatePost.Result.ID, declinedPost.Result.ID, plannedPost.Result.ID},
+			expectedIDs:   []int{completedPost.Result.ID, newPost.Result.ID, duplicatePost.Result.ID, declinedPost.Result.ID, startedPost.Result.ID, plannedPost.Result.ID},
 		},
 		{
 			name: "Completed, with bug tag",

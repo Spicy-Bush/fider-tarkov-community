@@ -47,6 +47,11 @@ func TestNotifyAboutNewCommentTask(t *testing.T) {
 		return nil
 	})
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetUsersToNotify) error {
+		q.Result = []*entity.User{mock.JonSnow}
+		return nil
+	})
+
 	worker := mock.NewWorker()
 	post := &entity.Post{
 		ID:          1,
@@ -76,7 +81,7 @@ func TestNotifyAboutNewCommentTask(t *testing.T) {
 		"userName":            "Arya Stark",
 		"content":             template.HTML("<p>I agree</p>"),
 		"view":                "<a href='http://domain.com/posts/1/add-support-for-typescript'>view it on your browser</a>",
-		"change":              "<a href='http://domain.com/settings'>change your notification preferences</a>",
+		"change":              "<a href='http://domain.com/profile#settings'>change your notification preferences</a>",
 		"unsubscribe":         "<a href='http://domain.com/posts/1/add-support-for-typescript'>unsubscribe from it</a>",
 		"logo":                "https://fider.io/images/logo-100x100.png",
 	})
@@ -92,8 +97,8 @@ func TestNotifyAboutNewCommentTask(t *testing.T) {
 
 	Expect(addNewNotification).IsNotNil()
 	Expect(addNewNotification.PostID).Equals(post.ID)
-	Expect(addNewNotification.Link).Equals("/posts/1/add-support-for-typescript")
-	Expect(addNewNotification.Title).Equals("**Arya Stark** left a comment on **Add support for TypeScript**")
+	Expect(addNewNotification.Link).Equals("/posts/1/add-support-for-typescript#comment-0")
+	Expect(addNewNotification.Title).Equals("**Arya Stark** left a comment on **Add support for TypeScript**.")
 	Expect(addNewNotification.User).Equals(mock.JonSnow)
 
 	Expect(triggerWebhooks).IsNotNil()
@@ -158,6 +163,11 @@ func TestNotifyAboutNewCommentTask_WithMention(t *testing.T) {
 		Description: "TypeScript is great, please add support for it",
 		User:        mock.JonSnow,
 	}
+	bus.AddHandler(func(ctx context.Context, q *query.GetUsersToNotify) error {
+		q.Result = []*entity.User{mock.JonSnow}
+		return nil
+	})
+
 	task := tasks.NotifyAboutNewComment(&entity.Comment{Content: "I agree with @{\"id\":1,\"name\":\"Jon Snow\",\"isNew\":true}"}, post)
 
 	err := worker.
@@ -178,7 +188,7 @@ func TestNotifyAboutNewCommentTask_WithMention(t *testing.T) {
 		"userName":            "Arya Stark",
 		"content":             template.HTML("<p>I agree with @Jon Snow</p>"),
 		"view":                "<a href='http://domain.com/posts/1/add-support-for-typescript'>view it on your browser</a>",
-		"change":              "<a href='http://domain.com/settings'>change your notification preferences</a>",
+		"change":              "<a href='http://domain.com/profile#settings'>change your notification preferences</a>",
 		"unsubscribe":         "<a href='http://domain.com/posts/1/add-support-for-typescript'>unsubscribe from it</a>",
 		"logo":                "https://fider.io/images/logo-100x100.png",
 	})
@@ -194,8 +204,8 @@ func TestNotifyAboutNewCommentTask_WithMention(t *testing.T) {
 
 	Expect(addNewNotification).IsNotNil()
 	Expect(addNewNotification.PostID).Equals(post.ID)
-	Expect(addNewNotification.Link).Equals("/posts/1/add-support-for-typescript")
-	Expect(addNewNotification.Title).Equals("**Arya Stark** mentioned you in **Add support for TypeScript**")
+	Expect(addNewNotification.Link).Equals("/posts/1/add-support-for-typescript#comment-0")
+	Expect(addNewNotification.Title).Equals("**Arya Stark** mentioned you in **Add support for TypeScript**.")
 	Expect(addNewNotification.User).Equals(mock.JonSnow)
 
 	Expect(triggerWebhooks).IsNotNil()
@@ -251,8 +261,13 @@ func TestNotifyAboutUpdatedComment(t *testing.T) {
 		User:        mock.JonSnow,
 	}
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetUsersToNotify) error {
+		q.Result = []*entity.User{mock.JonSnow}
+		return nil
+	})
+
 	commentString := "I agree with @{\"id\":1,\"name\":\"Jon Snow\",\"isNew\":true} but not @{\"id\":2,\"name\":\"Arya Stark\",\"isNew\":false}"
-	task := tasks.NotifyAboutUpdatedComment(commentString, post)
+	task := tasks.NotifyAboutUpdatedComment(commentString, post, 1)
 
 	err := worker.
 		OnTenant(mock.DemoTenant).
@@ -267,13 +282,13 @@ func TestNotifyAboutUpdatedComment(t *testing.T) {
 	Expect(emailmock.MessageHistory[0].Props).Equals(dto.Props{
 		"title":               "Add support for TypeScript",
 		"messageLocaleString": "email.new_mention.text",
-		"postLink":            "<a href='http://domain.com/posts/1/add-support-for-typescript'>#1</a>",
+		"postLink":            "<a href='http://domain.com/posts/1/add-support-for-typescript#comment-1'>#1</a>",
 		"siteName":            "Demonstration",
 		"userName":            "Arya Stark",
 		"content":             template.HTML("<p>I agree with @Jon Snow but not @Arya Stark</p>"),
-		"view":                "<a href='http://domain.com/posts/1/add-support-for-typescript'>view it on your browser</a>",
-		"change":              "<a href='http://domain.com/settings'>change your notification preferences</a>",
-		"unsubscribe":         "<a href='http://domain.com/posts/1/add-support-for-typescript'>unsubscribe from it</a>",
+		"view":                "<a href='http://domain.com/posts/1/add-support-for-typescript#comment-1'>view it on your browser</a>",
+		"change":              "<a href='http://domain.com/profile#settings'>change your notification preferences</a>",
+		"unsubscribe":         "<a href='http://domain.com/posts/1/add-support-for-typescript#comment-1'>unsubscribe from it</a>",
 		"logo":                "https://fider.io/images/logo-100x100.png",
 	})
 	Expect(emailmock.MessageHistory[0].From).Equals(dto.Recipient{
@@ -288,7 +303,7 @@ func TestNotifyAboutUpdatedComment(t *testing.T) {
 
 	Expect(addNewNotification).IsNotNil()
 	Expect(addNewNotification.PostID).Equals(post.ID)
-	Expect(addNewNotification.Link).Equals("/posts/1/add-support-for-typescript")
-	Expect(addNewNotification.Title).Equals("**Arya Stark** mentioned you in **Add support for TypeScript**")
+	Expect(addNewNotification.Link).Equals("/posts/1/add-support-for-typescript#comment-1")
+	Expect(addNewNotification.Title).Equals("**Arya Stark** mentioned you in **Add support for TypeScript**.")
 	Expect(addNewNotification.User).Equals(mock.JonSnow)
 }

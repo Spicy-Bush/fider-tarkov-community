@@ -70,7 +70,7 @@ func TestNotifyAboutNewPostTask(t *testing.T) {
 		"userName": "Jon Snow",
 		"content":  template.HTML("<p>TypeScript is great, please add support for it</p>"),
 		"view":     "<a href='http://domain.com/posts/1/add-support-for-typescript'>view it on your browser</a>",
-		"change":   "<a href='http://domain.com/settings'>change your notification preferences</a>",
+		"change":   "<a href='http://domain.com/profile#settings'>change your notification preferences</a>",
 		"logo":     "https://fider.io/images/logo-100x100.png",
 	})
 	Expect(emailmock.MessageHistory[0].From).Equals(dto.Recipient{
@@ -86,7 +86,7 @@ func TestNotifyAboutNewPostTask(t *testing.T) {
 	Expect(addNewNotification).IsNotNil()
 	Expect(addNewNotification.PostID).Equals(post.ID)
 	Expect(addNewNotification.Link).Equals("/posts/1/add-support-for-typescript")
-	Expect(addNewNotification.Title).Equals("New post: **Add support for TypeScript**")
+	Expect(addNewNotification.Title).Equals("**Jon Snow** created a new post **Add support for TypeScript**.")
 	Expect(addNewNotification.User).Equals(mock.AryaStark)
 
 	Expect(triggerWebhooks).IsNotNil()

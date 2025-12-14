@@ -231,6 +231,8 @@ func TestSingleTenant_NoTenants(t *testing.T) {
 func TestSingleTenant_WithTenants_ShouldSetFirstToContext(t *testing.T) {
 	RegisterT(t)
 
+	middlewares.InvalidateTenantCache()
+
 	bus.AddHandler(func(ctx context.Context, q *query.GetFirstTenant) error {
 		q.Result = &entity.Tenant{Name: "MyCompany", Subdomain: "mycompany", Status: enum.TenantActive}
 		return nil
@@ -240,7 +242,11 @@ func TestSingleTenant_WithTenants_ShouldSetFirstToContext(t *testing.T) {
 	server.Use(middlewares.SingleTenant())
 
 	status, response := server.WithURL("http://test.fider.io").Execute(func(c *web.Context) error {
-		return c.String(http.StatusOK, c.Tenant().Name)
+		tenant := c.Tenant()
+		if tenant == nil {
+			return c.String(http.StatusInternalServerError, "tenant is nil")
+		}
+		return c.String(http.StatusOK, tenant.Name)
 	})
 
 	Expect(status).Equals(http.StatusOK)
@@ -367,6 +373,8 @@ func TestRequireTenant_MultiHostMode_ValidTenant(t *testing.T) {
 func TestRequireTenant_SingleHostMode_NoTenants_RedirectToSignUp(t *testing.T) {
 	RegisterT(t)
 
+	middlewares.InvalidateTenantCache()
+
 	bus.AddHandler(func(ctx context.Context, q *query.GetFirstTenant) error {
 		return app.ErrNotFound
 	})
@@ -386,6 +394,8 @@ func TestRequireTenant_SingleHostMode_NoTenants_RedirectToSignUp(t *testing.T) {
 func TestRequireTenant_SingleHostMode_ValidTenant(t *testing.T) {
 	RegisterT(t)
 
+	middlewares.InvalidateTenantCache()
+
 	bus.AddHandler(func(ctx context.Context, q *query.GetFirstTenant) error {
 		q.Result = mock.DemoTenant
 		return nil
@@ -396,7 +406,11 @@ func TestRequireTenant_SingleHostMode_ValidTenant(t *testing.T) {
 	server.Use(middlewares.RequireTenant())
 
 	status, response := server.WithURL("http://test.fider.io").Execute(func(c *web.Context) error {
-		return c.String(http.StatusOK, c.Tenant().Name)
+		tenant := c.Tenant()
+		if tenant == nil {
+			return c.String(http.StatusInternalServerError, "tenant is nil")
+		}
+		return c.String(http.StatusOK, tenant.Name)
 	})
 
 	Expect(status).Equals(http.StatusOK)

@@ -24,8 +24,8 @@ func TestWebSetup(t *testing.T) {
 	server := mock.NewServer()
 	server.Use(middlewares.WebSetup())
 	status, _ := server.Execute(func(c *web.Context) error {
-		trx, ok := c.Value(app.TransactionCtxKey).(*dbx.Trx)
-		Expect(ok).IsTrue()
+		trx, _, err := dbx.GetOrBeginTx(c)
+		Expect(err).IsNil()
 		Expect(trx).IsNotNil()
 		return c.NoContent(http.StatusOK)
 	})

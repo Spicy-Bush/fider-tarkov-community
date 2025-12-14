@@ -7,20 +7,26 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 )
 
 func TestInvalidUserNames(t *testing.T) {
 	RegisterT(t)
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetTenantProfanityWords) error {
+		q.Result = ""
+		return nil
+	})
 
 	for _, name := range []string{
 		"",
 		"123456789012345678901234567890123456789012345678901", // 51 chars
 	} {
 
-		action := actions.NewUpdateUserSettings()
+		action := actions.NewUpdateUserName()
 		action.Name = name
-		action.AvatarType = enum.AvatarTypeGravatar
 		result := action.Validate(context.Background(), &entity.User{})
 		ExpectFailed(result, "name")
 	}
@@ -29,13 +35,17 @@ func TestInvalidUserNames(t *testing.T) {
 func TestValidUserNames(t *testing.T) {
 	RegisterT(t)
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetTenantProfanityWords) error {
+		q.Result = ""
+		return nil
+	})
+
 	for _, name := range []string{
 		"Jon Snow",
 		"Arya",
 	} {
-		action := actions.NewUpdateUserSettings()
+		action := actions.NewUpdateUserName()
 		action.Name = name
-		action.AvatarType = enum.AvatarTypeGravatar
 		result := action.Validate(context.Background(), &entity.User{})
 		ExpectSuccess(result)
 	}
@@ -53,10 +63,9 @@ func TestInvalidSettings(t *testing.T) {
 		},
 	} {
 		action := actions.NewUpdateUserSettings()
-		action.Name = "John Snow"
 		action.Settings = settings
 		result := action.Validate(context.Background(), &entity.User{})
-		ExpectFailed(result, "settings", "avatarType")
+		ExpectFailed(result, "settings")
 	}
 }
 
@@ -75,15 +84,12 @@ func TestValidSettings(t *testing.T) {
 		},
 	} {
 		action := actions.NewUpdateUserSettings()
-		action.Name = "John Snow"
 		action.Settings = settings
-		action.AvatarType = enum.AvatarTypeGravatar
 
 		result := action.Validate(context.Background(), &entity.User{
 			AvatarBlobKey: "jon.png",
 		})
 
 		ExpectSuccess(result)
-		Expect(action.Avatar.BlobKey).Equals("jon.png")
 	}
 }
