@@ -259,8 +259,14 @@ func UpdateUserAvatar() web.HandlerFunc {
 				}
 			}
 
+			getUser := &query.GetUserByID{UserID: userID}
+			if err := bus.Dispatch(c, getUser); err != nil {
+				return c.Failure(err)
+			}
+
 			return c.Ok(web.Map{
 				"avatarRejected": avatarFlagged,
+				"avatarURL":      getUser.Result.AvatarURL,
 			})
 		})
 	}

@@ -5,7 +5,7 @@ import { ArchiveStatus } from "./components/ArchiveStatus"
 import { HiddenStatus } from "./components/HiddenStatus"
 import { PostLockingModal } from "./components/PostLockingModal"
 import { Comment, Post, Tag, Vote, PostStatus, isPostLocked, isPostArchived, isPostHidden, ReportReason } from "@fider/models"
-import { actions, clearUrlHash, Fider, notify, formatDate, postPermissions } from "@fider/services"
+import { actions, Fider, notify, formatDate, postPermissions } from "@fider/services"
 import { heroiconsDotsHorizontal as IconDotsHorizontal, heroiconsChevronUp as IconChevronUp } from "@fider/icons.generated"
 
 import {
