@@ -5,7 +5,7 @@ import { Failure, actions, notify, classSet, copyToClipboard } from "@fider/serv
 import { ImageUpload } from "@fider/models"
 import { PageConfig } from "@fider/components/layouts"
 
-import { heroiconsTrash as IconTrash, heroiconsPencilAlt as IconPencilAlt, heroiconsDownload as IconDownload, heroiconsUpload as IconUpload, heroiconsEye as IconEye, heroiconsX as IconX, heroiconsSearch as IconSearch, heroiconsDuplicate as IconCopy, heroiconsCheck as IconCheck, heroiconsExternalLink as IconExternalLink } from "@fider/icons.generated"
+import { heroiconsTrash as IconTrash, heroiconsPencilAlt as IconPencilAlt, heroiconsDownload as IconDownload, heroiconsUpload as IconUpload, heroiconsEye as IconEye, heroiconsX as IconX, heroiconsSearch as IconSearch, heroiconsDuplicate as IconCopy, heroiconsCheck as IconCheck, heroiconsExternalLink as IconExternalLink, heroiconsSelector as IconSelector } from "@fider/icons.generated"
 
 export const pageConfig: PageConfig = {
   title: "Media Library",
@@ -170,6 +170,13 @@ const FileManagementPage: React.FC = () => {
   const [copiedAssetKey, setCopiedAssetKey] = useState<string | null>(null)
   const [showImageGallery, setShowImageGallery] = useState(false)
   const [galleryImageUrl, setGalleryImageUrl] = useState<string>("")
+  const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set())
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
+  const [showBulkUsageModal, setShowBulkUsageModal] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [showPruneModal, setShowPruneModal] = useState(false)
+  const [prunableCount, setPrunableCount] = useState(0)
+  const [isPruning, setIsPruning] = useState(false)
   
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -218,6 +225,7 @@ const FileManagementPage: React.FC = () => {
 
   useEffect(() => {
     loadAssets()
+    setSelectedAssets(new Set())
   }, [pagination.page, sortBy, sortDir, mediaTypeFilter])
 
   const handlePageChange = (page: number) => {
@@ -227,6 +235,7 @@ const FileManagementPage: React.FC = () => {
   const handleSearchChange = (value: string) => {
     setSearchQuery(value)
     setPagination(prev => ({ ...prev, page: 1 }))
+    setSelectedAssets(new Set())
   
     if (searchTimeout.current !== null) {
       clearTimeout(searchTimeout.current);
@@ -391,6 +400,128 @@ const FileManagementPage: React.FC = () => {
   const showAssetUsage = (asset: MediaAsset) => {
     setSelectedAsset(asset)
     setShowUsageModal(true)
+  }
+
+  const toggleAssetSelection = (blobKey: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    setSelectedAssets(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(blobKey)) {
+        newSet.delete(blobKey)
+      } else {
+        newSet.add(blobKey)
+      }
+      return newSet
+    })
+  }
+
+  const selectAllAssets = () => {
+    if (selectedAssets.size === assets.length) {
+      setSelectedAssets(new Set())
+    } else {
+      setSelectedAssets(new Set(assets.map(a => a.blobKey)))
+    }
+  }
+
+  const clearSelection = () => {
+    setSelectedAssets(new Set())
+  }
+
+  const getSelectedAssetObjects = (): MediaAsset[] => {
+    return assets.filter(a => selectedAssets.has(a.blobKey))
+  }
+
+  const bulkDownload = () => {
+    const selected = getSelectedAssetObjects()
+    selected.forEach((asset, index) => {
+      setTimeout(() => {
+        const url = getAssetURL(asset)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = asset.name
+        link.target = '_blank'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      }, index * 200)
+    })
+    notify.success(`Downloading ${selected.length} file(s)`)
+  }
+
+  const bulkDelete = async (forceDelete: boolean = false) => {
+    setBulkDeleting(true)
+    try {
+      const endpoint = `/api/v1/admin/files-bulk/delete${forceDelete ? '?force=true' : ''}`
+      const result = await fetch(endpoint, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blobKeys: Array.from(selectedAssets) })
+      })
+
+      if (result.ok) {
+        const data = await result.json()
+        if (data.deleted > 0) {
+          notify.success(`Deleted ${data.deleted} file(s)${data.skipped > 0 ? `, skipped ${data.skipped} (in use)` : ''}`)
+        } else if (data.skipped > 0) {
+          notify.error(`Skipped ${data.skipped} file(s) that are in use. Use force delete to remove them.`)
+        }
+        setShowBulkDeleteModal(false)
+        clearSelection()
+        await loadAssets()
+      } else {
+        const data = await result.json()
+        notify.error(data.message || "Failed to delete files")
+      }
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  const fetchPrunableCount = async () => {
+    try {
+      const result = await fetch('/api/v1/admin/files-bulk/prunable-count', {
+        credentials: 'same-origin'
+      })
+      if (result.ok) {
+        const data = await result.json()
+        setPrunableCount(data.count)
+      }
+    } catch {
+      setPrunableCount(0)
+    }
+  }
+
+  const openPruneModal = async () => {
+    await fetchPrunableCount()
+    setShowPruneModal(true)
+  }
+
+  const executePrune = async () => {
+    setIsPruning(true)
+    try {
+      const result = await fetch('/api/v1/admin/files-bulk/prune', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (result.ok) {
+        const data = await result.json()
+        if (data.deleted > 0) {
+          notify.success(`Successfully deleted ${data.deleted} unused file(s)`)
+        } else {
+          notify.success("No unused files to prune")
+        }
+        setShowPruneModal(false)
+        await loadAssets()
+      } else {
+        const data = await result.json()
+        notify.error(data.message || "Failed to prune files")
+      }
+    } finally {
+      setIsPruning(false)
+    }
   }
 
   const renderUploadView = () => {
@@ -650,18 +781,257 @@ const FileManagementPage: React.FC = () => {
     );
   }
 
-  const renderMediaCard = (asset: MediaAsset) => {
+  const renderBulkUsageModal = () => {
+    if (!showBulkUsageModal) return null
+    const selected = getSelectedAssetObjects()
+
     return (
-      <div key={asset.blobKey} className="bg-elevated rounded-card overflow-hidden border border-surface-alt transition-all hover:shadow-lg hover:border-border-strong group">
+      <div className="fixed inset-0 z-modal flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/50" onClick={() => setShowBulkUsageModal(false)}></div>
+        <div className="bg-elevated rounded-modal shadow-xl p-6 relative max-w-[600px] w-[90%] max-h-[80vh] overflow-hidden flex flex-col z-modal-content">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-foreground">Usage for {selected.length} Selected Files</h2>
+            <button 
+              type="button"
+              className="p-1.5 rounded-badge text-muted hover:text-foreground hover:bg-surface-alt transition-colors cursor-pointer border-none bg-transparent"
+              onClick={() => setShowBulkUsageModal(false)}
+            >
+              <Icon sprite={IconX} className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="overflow-y-auto flex-1">
+            {selected.map(asset => (
+              <div key={asset.blobKey} className="mb-4 p-3 bg-tertiary rounded-card">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded overflow-hidden bg-surface-alt shrink-0">
+                    <img src={getAssetURL(asset)} alt={asset.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-foreground text-sm truncate">{asset.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-2xs px-1.5 py-0.5 rounded-full font-medium ${getBadgeClasses(asset.mediaType)}`}>
+                        {getMediaTypeLabel(asset.mediaType)}
+                      </span>
+                      {asset.isInUse && (
+                        <span className="text-2xs px-1.5 py-0.5 rounded-full font-medium bg-success-light text-success">In Use</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {asset.usedIn && asset.usedIn.length > 0 ? (
+                  <div className="text-xs text-muted space-y-1 ml-13">
+                    {asset.usedIn.map((usage, i) => {
+                      const { text, href, linkText } = parseUsageLink(usage)
+                      return (
+                        <div key={i} className="flex items-center justify-between">
+                          <span>{text}</span>
+                          {href && (
+                            <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary text-2xs hover:underline flex items-center gap-1">
+                              {linkText} <Icon sprite={IconExternalLink} className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted italic ml-13">Not in use</div>
+                )}
+              </div>
+            ))}
+          </div>
+          
+          <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-surface-alt">
+            <Button variant="tertiary" size="small" onClick={() => setShowBulkUsageModal(false)}>Close</Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderBulkDeleteModal = () => {
+    if (!showBulkDeleteModal) return null
+    const selected = getSelectedAssetObjects()
+    const inUseCount = selected.filter(a => a.isInUse).length
+
+    return (
+      <div className="fixed inset-0 z-modal flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/50" onClick={() => setShowBulkDeleteModal(false)}></div>
+        <div className="bg-elevated rounded-modal shadow-xl p-6 relative max-w-[500px] w-[90%] z-modal-content">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Delete {selected.length} Files</h2>
+          
+          <div className="mb-4">
+            <p className="mb-3">Are you sure you want to delete <strong>{selected.length}</strong> selected file(s)?</p>
+            
+            {inUseCount > 0 && (
+              <div className="bg-warning-medium border-l-4 border-warning text-warning p-3 rounded-r mb-3">
+                <p className="font-semibold mb-1">Warning: {inUseCount} file(s) are in use</p>
+                <p className="text-sm">These files are referenced by posts, comments, avatars, or logos. Use "Force Delete" to remove them and all references.</p>
+              </div>
+            )}
+            
+            <div className="bg-tertiary rounded-card p-3 max-h-[200px] overflow-y-auto">
+              <div className="text-xs text-muted space-y-1">
+                {selected.map(asset => (
+                  <div key={asset.blobKey} className="flex items-center gap-2">
+                    <span className="truncate flex-1">{asset.name}</span>
+                    {asset.isInUse && <span className="text-warning text-2xs shrink-0">(in use)</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button variant="tertiary" onClick={() => setShowBulkDeleteModal(false)} disabled={bulkDeleting}>Cancel</Button>
+            {inUseCount > 0 && (
+              <Button variant="danger" onClick={() => bulkDelete(true)} disabled={bulkDeleting}>
+                {bulkDeleting ? "Deleting..." : "Force Delete All"}
+              </Button>
+            )}
+            <Button 
+              variant={inUseCount === selected.length ? "secondary" : "danger"} 
+              onClick={() => bulkDelete(false)} 
+              disabled={bulkDeleting || inUseCount === selected.length}
+            >
+              {bulkDeleting ? "Deleting..." : inUseCount === selected.length ? "All In Use" : `Delete ${selected.length - inUseCount}`}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderBulkActionBar = () => {
+    if (selectedAssets.size === 0) return null
+
+    const selected = getSelectedAssetObjects()
+    const inUseCount = selected.filter(a => a.isInUse).length
+
+    return (
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-elevated border border-border-strong rounded-card shadow-xl px-4 py-3 flex items-center gap-4">
+        <div className="text-sm font-medium text-foreground">
+          {selectedAssets.size} selected
+        </div>
+        
+        <div className="h-6 w-px bg-border"></div>
+        
+        <div className="flex items-center gap-2">
+          {inUseCount > 0 && (
+            <Button variant="secondary" size="small" onClick={() => setShowBulkUsageModal(true)}>
+              <Icon sprite={IconEye} className="w-4 h-4" />
+              <span>View Usage</span>
+            </Button>
+          )}
+          
+          <Button variant="secondary" size="small" onClick={bulkDownload}>
+            <Icon sprite={IconDownload} className="w-4 h-4" />
+            <span>Download</span>
+          </Button>
+          
+          <Button variant="danger" size="small" onClick={() => setShowBulkDeleteModal(true)}>
+            <Icon sprite={IconTrash} className="w-4 h-4" />
+            <span>Delete</span>
+          </Button>
+        </div>
+        
+        <div className="h-6 w-px bg-border"></div>
+        
+        <button
+          type="button"
+          onClick={clearSelection}
+          className="p-1.5 rounded-badge text-muted hover:text-foreground hover:bg-surface-alt transition-colors cursor-pointer border-none bg-transparent"
+          title="Clear selection"
+        >
+          <Icon sprite={IconX} className="w-4 h-4" />
+        </button>
+      </div>
+    )
+  }
+
+  const renderPruneModal = () => {
+    if (!showPruneModal) return null
+
+    return (
+      <div className="fixed inset-0 z-modal flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/50" onClick={() => !isPruning && setShowPruneModal(false)}></div>
+        <div className="bg-elevated rounded-modal shadow-xl p-6 relative max-w-[450px] w-[90%] z-modal-content">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Prune Unused Files</h2>
+          
+          <div className="mb-4">
+            {prunableCount > 0 ? (
+              <>
+                <p className="mb-3">
+                  Found <strong>{prunableCount}</strong> file(s) that are not used anywhere and can be safely deleted.
+                </p>
+              </>
+            ) : (
+              <p className="text-muted">No unused files found. All files are either in use or attached to content.</p>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button variant="tertiary" onClick={() => setShowPruneModal(false)} disabled={isPruning}>
+              Cancel
+            </Button>
+            {prunableCount > 0 && (
+              <Button variant="danger" onClick={executePrune} disabled={isPruning}>
+                {isPruning ? "Pruning..." : `Delete ${prunableCount} File(s)`}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const isSelectMode = selectedAssets.size > 0
+
+  const renderMediaCard = (asset: MediaAsset) => {
+    const isSelected = selectedAssets.has(asset.blobKey)
+    
+    const handleCardClick = (e: React.MouseEvent) => {
+      if (isSelectMode) {
+        e.preventDefault()
+        e.stopPropagation()
+        toggleAssetSelection(asset.blobKey, e)
+      } else {
+        openImageGallery(asset)
+      }
+    }
+    
+    return (
+      <div key={asset.blobKey} className={classSet({
+        "bg-elevated rounded-card overflow-hidden border transition-all hover:shadow-lg group": true,
+        "border-primary ring-2 ring-primary/30": isSelected,
+        "border-surface-alt hover:border-border-strong": !isSelected,
+      })}>
         <div 
-          className="relative aspect-square bg-surface-alt flex items-center justify-center overflow-hidden cursor-pointer"
-          onClick={() => openImageGallery(asset)}
+          className={classSet({
+            "relative aspect-square bg-surface-alt flex items-center justify-center overflow-hidden": true,
+            "cursor-pointer": true,
+          })}
+          onClick={handleCardClick}
         >
           <img 
             src={getAssetURL(asset)} 
             alt={asset.name}
             className="w-full h-full object-cover transition-transform duration-75 group-hover:scale-105"
             loading="lazy"
+          />
+          
+          <div
+            onClick={(e) => toggleAssetSelection(asset.blobKey, e)}
+            className={classSet({
+              "absolute top-2 right-2 h-5 w-5 border rounded-badge flex items-center justify-center transition-all cursor-pointer z-10 bg-no-repeat bg-center": true,
+              "border-transparent bg-primary": isSelected,
+              "bg-elevated border-border hover:border-primary": !isSelected,
+            })}
+            style={{
+              backgroundImage: isSelected ? "url(\"data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e\")" : "none",
+              backgroundSize: "100% 100%"
+            }}
           />
           
           <div className="absolute top-2 left-2 flex flex-col gap-1">
@@ -793,6 +1163,10 @@ const FileManagementPage: React.FC = () => {
       <>
         {renderUsageModal()}
         {renderDeleteConfirmation()}
+        {renderBulkUsageModal()}
+        {renderBulkDeleteModal()}
+        {renderBulkActionBar()}
+        {renderPruneModal()}
         
         <div className="flex flex-col sm:flex-row justify-between mb-4 gap-3">
           <div className="relative flex-1 max-w-[350px] [&_.c-form-field]:mb-0">
@@ -806,10 +1180,22 @@ const FileManagementPage: React.FC = () => {
             />
           </div>
           
-          <Button variant="primary" onClick={() => setView("upload")}>
-            <Icon sprite={IconUpload} className="w-4 h-4" />
-            <span>Upload</span>
-          </Button>
+          <div className="flex gap-2">
+            {assets.length > 0 && (
+              <Button variant="secondary" onClick={selectAllAssets}>
+                <Icon sprite={selectedAssets.size === assets.length ? IconX : IconSelector} className="w-4 h-4" />
+                <span>{selectedAssets.size === assets.length ? "Deselect All" : "Select All"}</span>
+              </Button>
+            )}
+            <Button variant="secondary" onClick={openPruneModal}>
+              <Icon sprite={IconTrash} className="w-4 h-4" />
+              <span>Prune Unused</span>
+            </Button>
+            <Button variant="primary" onClick={() => setView("upload")}>
+              <Icon sprite={IconUpload} className="w-4 h-4" />
+              <span>Upload</span>
+            </Button>
+          </div>
         </div>
         
         <div className="bg-elevated border border-surface-alt rounded-card p-4 mb-5">

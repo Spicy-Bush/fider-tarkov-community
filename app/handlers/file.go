@@ -185,3 +185,103 @@ func GetFileUsage() web.HandlerFunc {
 		return c.Ok(usageQuery.UsedIn)
 	}
 }
+
+func BulkDeleteFiles() web.HandlerFunc {
+	return func(c *web.Context) error {
+		action := actions.NewBulkDeleteFiles()
+		if result := c.BindTo(action); !result.Ok {
+			return c.HandleValidation(result)
+		}
+
+		forceDelete := c.QueryParam("force") == "true"
+
+		return c.WithTransaction(func() error {
+			deleted := 0
+			skipped := 0
+			errors := []string{}
+
+			for _, blobKey := range action.BlobKeys {
+				usageQuery := &query.IsImageFileInUse{BlobKey: blobKey}
+				if err := bus.Dispatch(c, usageQuery); err != nil {
+					errors = append(errors, fmt.Sprintf("%s: %v", blobKey, err))
+					continue
+				}
+
+				if usageQuery.Result && !forceDelete {
+					skipped++
+					continue
+				}
+
+				if forceDelete && usageQuery.Result {
+					deleteRefsCmd := &cmd.DeleteImageFileReferences{BlobKey: blobKey}
+					if err := bus.Dispatch(c, deleteRefsCmd); err != nil {
+						errors = append(errors, fmt.Sprintf("%s: %v", blobKey, err))
+						continue
+					}
+				}
+
+				deleteCmd := &cmd.DeleteImageFile{BlobKey: blobKey}
+				if err := bus.Dispatch(c, deleteCmd); err != nil {
+					errors = append(errors, fmt.Sprintf("%s: %v", blobKey, err))
+					continue
+				}
+
+				deleted++
+			}
+
+			return c.Ok(web.Map{
+				"deleted": deleted,
+				"skipped": skipped,
+				"errors":  errors,
+			})
+		})
+	}
+}
+
+func PruneUnusedFiles() web.HandlerFunc {
+	return func(c *web.Context) error {
+		prunableQuery := &query.GetPrunableFiles{}
+		if err := bus.Dispatch(c, prunableQuery); err != nil {
+			return c.Failure(err)
+		}
+
+		if len(prunableQuery.Result) == 0 {
+			return c.Ok(web.Map{
+				"deleted": 0,
+				"message": "No unused files to prune",
+			})
+		}
+
+		return c.WithTransaction(func() error {
+			deleted := 0
+			errors := []string{}
+
+			for _, blobKey := range prunableQuery.Result {
+				deleteCmd := &cmd.DeleteImageFile{BlobKey: blobKey}
+				if err := bus.Dispatch(c, deleteCmd); err != nil {
+					errors = append(errors, fmt.Sprintf("%s: %v", blobKey, err))
+					continue
+				}
+				deleted++
+			}
+
+			return c.Ok(web.Map{
+				"deleted": deleted,
+				"errors":  errors,
+			})
+		})
+	}
+}
+
+func GetPrunableFilesCount() web.HandlerFunc {
+	return func(c *web.Context) error {
+		prunableQuery := &query.GetPrunableFiles{}
+		if err := bus.Dispatch(c, prunableQuery); err != nil {
+			return c.Failure(err)
+		}
+
+		return c.Ok(web.Map{
+			"count": len(prunableQuery.Result),
+		})
+	}
+}

@@ -796,3 +796,32 @@ func extractNameFromBlobKey(blobKey string) string {
 	return filename + extension
 }
 
+func getPrunableFiles(ctx context.Context, q *query.GetPrunableFiles) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		q.Result = []string{}
+
+		rows, err := trx.Query(`
+			SELECT b.key 
+			FROM blobs b
+			WHERE b.tenant_id = $1
+			  AND b.key NOT IN (SELECT logo_bkey FROM tenants WHERE logo_bkey IS NOT NULL AND id = $1)
+			  AND b.key NOT IN (SELECT avatar_bkey FROM users WHERE avatar_bkey IS NOT NULL)
+			  AND b.key NOT IN (SELECT attachment_bkey FROM attachments WHERE attachment_bkey IS NOT NULL AND tenant_id = $1)
+		`, tenant.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get prunable files")
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var blobKey string
+			if err := rows.Scan(&blobKey); err != nil {
+				return errors.Wrap(err, "failed to scan prunable file row")
+			}
+			q.Result = append(q.Result, blobKey)
+		}
+
+		return rows.Err()
+	})
+}
+

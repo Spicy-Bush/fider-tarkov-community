@@ -81,3 +81,29 @@ func (action *RenameFile) Validate(ctx context.Context, user *entity.User) *vali
 
 	return result
 }
+
+type BulkDeleteFiles struct {
+	BlobKeys []string `json:"blobKeys"`
+}
+
+func NewBulkDeleteFiles() *BulkDeleteFiles {
+	return &BulkDeleteFiles{}
+}
+
+func (action *BulkDeleteFiles) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	return user != nil && user.IsAdministrator()
+}
+
+func (action *BulkDeleteFiles) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+
+	if len(action.BlobKeys) == 0 {
+		result.AddFieldFailure("blobKeys", "At least one blob key is required")
+	}
+
+	if len(action.BlobKeys) > 100 {
+		result.AddFieldFailure("blobKeys", "Cannot delete more than 100 files at once")
+	}
+
+	return result
+}

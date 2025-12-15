@@ -101,6 +101,7 @@ func (s Service) Init() {
 	bus.AddHandler(deleteImageFileReferences)
 	bus.AddHandler(updateImageFileReferences)
 	bus.AddHandler(listImageFiles)
+	bus.AddHandler(getPrunableFiles)
 
 	bus.AddHandler(addNewComment)
 	bus.AddHandler(updateComment)
