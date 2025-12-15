@@ -228,17 +228,12 @@ func getImageFile(ctx context.Context, q *query.GetImageFile) error {
 }
 
 func uploadImageFile(ctx context.Context, c *cmd.UploadImageFile) error {
-	sanitizedName := blob.SanitizeFileName(c.Name)
-	if sanitizedName == "" {
-		sanitizedName = "file"
-	}
-
 	prefix := c.Prefix
 	if prefix == "" {
 		prefix = "files/"
 	}
 
-	blobKey := prefix + sanitizedName + "-" + rand.String(12)
+	blobKey := prefix + rand.String(32)
 
 	storeCmd := &cmd.StoreBlob{
 		Key:         blobKey,
@@ -272,19 +267,9 @@ func renameImageFile(ctx context.Context, c *cmd.RenameImageFile) error {
 		return errors.Wrap(err, "failed to get blob")
 	}
 
-	// Since we cant rename blobs directly, we need to:
-	// 1 create a new blob with a new name
-	// 2 Update any references to point to the new blob
-	// 3 delete the old blob
-
-	sanitizedName := blob.SanitizeFileName(c.Name)
-	if sanitizedName == "" {
-		sanitizedName = "file"
-	}
-
 	parts := strings.Split(c.BlobKey, "/")
 	dir := strings.Join(parts[:len(parts)-1], "/")
-	newBlobKey := dir + "/" + sanitizedName + "-" + rand.String(8)
+	newBlobKey := dir + "/" + rand.String(32)
 
 	storeCmd := &cmd.StoreBlob{
 		Key:         newBlobKey,
@@ -824,4 +809,3 @@ func getPrunableFiles(ctx context.Context, q *query.GetPrunableFiles) error {
 		return rows.Err()
 	})
 }
-
