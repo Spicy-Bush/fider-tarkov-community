@@ -87,7 +87,13 @@ func isImageFileInUse(ctx context.Context, q *query.IsImageFileInUse) error {
 			SELECT 
 				(SELECT COUNT(*) FROM tenants WHERE logo_bkey = $1 AND id = $2) AS logo_count,
 				(SELECT COUNT(*) FROM users WHERE avatar_bkey = $1) AS avatar_count,
-				(SELECT COUNT(*) FROM attachments WHERE attachment_bkey = $1 AND tenant_id = $2) AS attachment_count
+				(SELECT COUNT(*) FROM attachments a
+					LEFT JOIN posts p ON a.post_id = p.id
+					LEFT JOIN comments c ON a.comment_id = c.id
+					WHERE a.attachment_bkey = $1 AND a.tenant_id = $2
+					  AND (a.post_id IS NULL OR p.status != 6)
+					  AND (a.comment_id IS NULL OR c.deleted_at IS NULL)
+				) AS attachment_count
 		`, q.BlobKey, tenant.ID)
 
 		if err != nil {
@@ -140,6 +146,8 @@ func isImageFileInUse(ctx context.Context, q *query.IsImageFileInUse) error {
 				LEFT JOIN posts p ON a.post_id = p.id
 				LEFT JOIN comments c ON a.comment_id = c.id
 				WHERE a.attachment_bkey = $1 AND a.tenant_id = $2
+				  AND (a.post_id IS NULL OR p.status != 6)
+				  AND (a.comment_id IS NULL OR c.deleted_at IS NULL)
 			`, q.BlobKey, tenant.ID)
 
 			if err != nil {
@@ -610,7 +618,13 @@ func getBulkFileUsage(trx *dbx.Trx, tenantID int, blobKeys []string) (map[string
 			UNION ALL
 			SELECT avatar_bkey as key, 'avatar' as usage_type FROM users WHERE avatar_bkey IN (%s)
 			UNION ALL
-			SELECT attachment_bkey as key, 'attachment' as usage_type FROM attachments WHERE attachment_bkey IN (%s) AND tenant_id = $1
+			SELECT a.attachment_bkey as key, 'attachment' as usage_type 
+			FROM attachments a
+			LEFT JOIN posts p ON a.post_id = p.id
+			LEFT JOIN comments c ON a.comment_id = c.id
+			WHERE a.attachment_bkey IN (%s) AND a.tenant_id = $1
+			  AND (a.post_id IS NULL OR p.status != 6)
+			  AND (a.comment_id IS NULL OR c.deleted_at IS NULL)
 		) combined
 		GROUP BY key, usage_type
 	`, inClause, inClause, inClause)
@@ -672,6 +686,8 @@ func getBulkAttachmentContext(trx *dbx.Trx, tenantID int, blobKeys []string) (ma
 		LEFT JOIN posts p ON a.post_id = p.id
 		LEFT JOIN comments c ON a.comment_id = c.id
 		WHERE a.attachment_bkey IN (%s) AND a.tenant_id = $1
+		  AND (a.post_id IS NULL OR p.status != 6)
+		  AND (a.comment_id IS NULL OR c.deleted_at IS NULL)
 	`, inClause)
 
 	type contextRow struct {
