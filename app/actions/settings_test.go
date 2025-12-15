@@ -59,7 +59,7 @@ func TestInvalidSettings(t *testing.T) {
 			"bad_name": "3",
 		},
 		{
-			enum.NotificationEventNewComment.UserSettingsKeyName: "4",
+			enum.NotificationEventNewComment.UserSettingsKeyName: "8",
 		},
 	} {
 		action := actions.NewUpdateUserSettings()
