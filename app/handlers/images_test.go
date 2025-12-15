@@ -40,7 +40,7 @@ func TestGravatarHandler(t *testing.T) {
 	})
 
 	code, response := server.
-		WithURL("https://demo.test.fider.io/?size=50").
+		WithURL("https://demo.test.fider.io/?size=64").
 		OnTenant(mock.DemoTenant).
 		AddParam("id", user.ID).
 		AddParam("name", user.Name).
@@ -74,7 +74,7 @@ func TestGravatarNotFound_LetterAvatarHandler(t *testing.T) {
 
 	code, response := server.
 		OnTenant(mock.DemoTenant).
-		WithURL("https://demo.test.fider.io/?size=50").
+		WithURL("https://demo.test.fider.io/?size=64").
 		AddParam("id", user.ID).
 		AddParam("name", user.Name).
 		Execute(handlers.Gravatar())
@@ -92,7 +92,7 @@ func TestUnknownUser_LetterAvatarHandler(t *testing.T) {
 	server := mock.NewServer()
 	code, response := server.
 		OnTenant(mock.DemoTenant).
-		WithURL("https://demo.test.fider.io/?size=50").
+		WithURL("https://demo.test.fider.io/?size=64").
 		AddParam("id", 0).
 		AddParam("name", "Jon Snow").
 		Execute(handlers.Gravatar())

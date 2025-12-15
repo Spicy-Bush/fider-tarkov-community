@@ -56,7 +56,7 @@ func NotifyAboutNewPost(post *entity.Post) worker.Task {
 		}
 		pushTitle := fmt.Sprintf("New post by %s", author.Name)
 		pushBody := truncateText(post.Title, 100)
-		pushIcon := baseURL + "/static/favicon?size=192"
+		pushIcon := baseURL + "/static/favicon?size=200"
 		pushURL := baseURL + link
 		pushTag := fmt.Sprintf("post-%d", post.Number)
 		sendPushNotifications(c, pushUsers, author.ID, pushTitle, pushBody, pushURL, pushIcon, pushTag)

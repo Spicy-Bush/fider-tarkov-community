@@ -186,3 +186,17 @@ func between(n, min, max int) int {
 	}
 	return n
 }
+
+var imageSizeBuckets = []int{0, 64, 100, 200, 512, 1500, 2000}
+
+func snapToSize(size int, buckets []int) int {
+	if size <= 0 {
+		return 0
+	}
+	for _, b := range buckets {
+		if b >= size {
+			return b
+		}
+	}
+	return buckets[len(buckets)-1]
+}

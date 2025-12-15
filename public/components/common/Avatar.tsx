@@ -51,7 +51,7 @@ interface AvatarProps {
 export const Avatar = (props: AvatarProps) => {
   const fider = useFider()
   const sizeClass = props.size === "small" ? "h-6 w-6" : props.size === "fill" ? "w-full h-full" : "h-8 w-8"
-  const imageSize = props.imageSize ?? 50
+  const imageSize = props.imageSize ?? 64
   const clickable = props.clickable !== undefined ? props.clickable : true
   
   const useImage = isCustomAvatar(props.user.avatarURL, props.user.avatarType)

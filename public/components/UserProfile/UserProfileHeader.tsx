@@ -131,7 +131,7 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
           onClick={handleAvatarClick}
           style={canEditAvatar ? { cursor: "pointer" } : undefined}
         >
-          <Avatar user={{ ...userForComponents, avatarType: user.avatarType as UserAvatarType }} size="fill" imageSize={isCompact ? 80 : 120} clickable={false} />
+          <Avatar user={{ ...userForComponents, avatarType: user.avatarType as UserAvatarType }} size="fill" imageSize={isCompact ? 100 : 200} clickable={false} />
           {canEditAvatar && avatarModalState.isHoveringAvatar && (
             <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity text-sm">
               <Trans id="profile.avatar.change">Change Avatar</Trans>
@@ -286,7 +286,7 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
                       <Trans id="modal.avatar.preview.current">Current</Trans>
                     </div>
                     <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-border shrink-0">
-                      <Avatar user={{ ...userForComponents, avatarType: user.avatarType as UserAvatarType }} size="fill" imageSize={56} clickable={false} />
+                      <Avatar user={{ ...userForComponents, avatarType: user.avatarType as UserAvatarType }} size="fill" imageSize={64} clickable={false} />
                     </div>
                   </div>
                   <div className="text-muted text-xl">→</div>

@@ -59,7 +59,7 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 		}
 		pushTitle := fmt.Sprintf("%s commented on #%d", author.Name, post.Number)
 		pushBody := truncateText(post.Title, 100)
-		pushIcon := baseURL + "/static/favicon?size=192"
+		pushIcon := baseURL + "/static/favicon?size=200"
 		pushURL := baseURL + link
 		pushTag := fmt.Sprintf("comment-%d", comment.ID)
 		sendPushNotifications(c, pushUsers, author.ID, pushTitle, pushBody, pushURL, pushIcon, pushTag)

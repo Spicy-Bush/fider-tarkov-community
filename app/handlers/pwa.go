@@ -61,13 +61,13 @@ func Manifest() web.HandlerFunc {
 			ID:              baseURL,
 			Icons: []manifestIcon{
 				{
-					Src:   faviconBase + "?size=192",
-					Sizes: "192x192",
+					Src:   faviconBase + "?size=200",
+					Sizes: "200x200",
 					Type:  "image/png",
 				},
 				{
-					Src:     faviconBase + "?size=192",
-					Sizes:   "192x192",
+					Src:     faviconBase + "?size=200",
+					Sizes:   "200x200",
 					Type:    "image/png",
 					Purpose: "maskable",
 				},

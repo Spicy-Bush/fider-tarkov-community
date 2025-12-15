@@ -23,7 +23,7 @@ self.addEventListener('push', function(event) {
 
   var options = {
     body: data.body || '',
-    icon: data.icon || '/static/favicon?size=192',
+    icon: data.icon || '/static/favicon?size=200',
     badge: data.badge || '/static/favicon?size=64',
     tag: data.tag || 'default',
     data: { url: data.url || '/' },

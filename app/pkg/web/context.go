@@ -95,7 +95,6 @@ func NewContext(engine *Engine, req *http.Request, rw http.ResponseWriter, param
 		Request:  wrappedRequest,
 		Response: Response{Writer: rw},
 		params:   params,
-		tasks:    make([]worker.Task, 0),
 	}
 }
 
@@ -165,6 +164,9 @@ func (c *Context) WithTransaction(fn func() error) error {
 // Enqueue given task to be processed in background
 func (c *Context) Enqueue(task worker.Task) {
 	task.OriginContext = c
+	if c.tasks == nil {
+		c.tasks = make([]worker.Task, 0, 4)
+	}
 	c.tasks = append(c.tasks, task)
 }
 

@@ -60,7 +60,7 @@ func NotifyAboutStatusChange(post *entity.Post, prevStatus enum.PostStatus) work
 		}
 		pushTitle := fmt.Sprintf("#%d marked as %s", post.Number, post.Status.Name())
 		pushBody := truncateText(post.Title, 100)
-		pushIcon := baseURL + "/static/favicon?size=192"
+		pushIcon := baseURL + "/static/favicon?size=200"
 		pushURL := baseURL + link
 		pushTag := fmt.Sprintf("status-%d", post.Number)
 		sendPushNotifications(c, pushUsers, 0, pushTitle, pushBody, pushURL, pushIcon, pushTag)

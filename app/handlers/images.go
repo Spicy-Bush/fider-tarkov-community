@@ -106,17 +106,42 @@ func Gravatar() web.HandlerFunc {
 	}
 }
 
+var faviconSizeBuckets = []int{64, 100, 200, 512}
+
 func Favicon() web.HandlerFunc {
 	defaultFavicon, _ := fs.ReadFile(assets.FS, "favicon.png")
 
 	return func(c *web.Context) error {
+		bkey := c.Param("bkey")
+		bg := c.QueryParam("bg")
+
+		requestedSize, err := c.QueryParamAsInt("size")
+		if err != nil {
+			return c.BadRequest(web.Map{})
+		}
+
+		canonicalSize := snapToSize(requestedSize, faviconSizeBuckets)
+		if canonicalSize == 0 {
+			canonicalSize = 64
+		}
+
+		if requestedSize != canonicalSize {
+			redirectURL := "/static/favicon"
+			if bkey != "" {
+				redirectURL = fmt.Sprintf("/static/favicon/%s", bkey)
+			}
+			redirectURL = fmt.Sprintf("%s?size=%d", redirectURL, canonicalSize)
+			if bg != "" {
+				redirectURL += "&bg=white"
+			}
+			return c.PermanentRedirect(redirectURL)
+		}
+
 		var (
 			faviconBytes []byte
-			err          error
 			contentType  string
 		)
 
-		bkey := c.Param("bkey")
 		if bkey != "" {
 			q := &query.GetBlobByKey{Key: bkey}
 			err := bus.Dispatch(c, q)
@@ -130,20 +155,12 @@ func Favicon() web.HandlerFunc {
 			contentType = "image/png"
 		}
 
-		size, err := c.QueryParamAsInt("size")
-		if err != nil {
-			return c.BadRequest(web.Map{})
+		opts := []imagic.ImageOperation{
+			imagic.Padding(canonicalSize * 10 / 100),
+			imagic.Resize(canonicalSize),
 		}
 
-		size = between(size, 50, 200)
-
-		opts := []imagic.ImageOperation{}
-		if size > 0 {
-			opts = append(opts, imagic.Padding(size*10/100))
-			opts = append(opts, imagic.Resize(size))
-		}
-
-		if c.QueryParam("bg") != "" {
+		if bg != "" {
 			opts = append(opts, imagic.ChangeBackground(color.White))
 		}
 
@@ -160,12 +177,18 @@ func ViewUploadedImage() web.HandlerFunc {
 	return func(c *web.Context) error {
 		bkey := c.Param("bkey")
 
-		size, err := c.QueryParamAsInt("size")
+		requestedSize, err := c.QueryParamAsInt("size")
 		if err != nil {
 			return c.BadRequest(web.Map{})
 		}
 
-		size = between(size, 0, 2000)
+		canonicalSize := snapToSize(requestedSize, imageSizeBuckets)
+		if requestedSize != canonicalSize {
+			if canonicalSize == 0 {
+				return c.PermanentRedirect(fmt.Sprintf("/static/images/%s", bkey))
+			}
+			return c.PermanentRedirect(fmt.Sprintf("/static/images/%s?size=%d", bkey, canonicalSize))
+		}
 
 		q := &query.GetBlobByKey{Key: bkey}
 		err = bus.Dispatch(c, q)
@@ -174,8 +197,8 @@ func ViewUploadedImage() web.HandlerFunc {
 		}
 
 		imgBytes := q.Result.Content
-		if size > 0 {
-			imgBytes, err = imagic.Apply(imgBytes, imagic.Resize(size))
+		if canonicalSize > 0 {
+			imgBytes, err = imagic.Apply(imgBytes, imagic.Resize(canonicalSize))
 			if err != nil {
 				return c.Failure(err)
 			}
