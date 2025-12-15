@@ -1,5 +1,19 @@
 #####################
-### Server Build Step
+### UI Build Step (Must run first for embedding)
+#####################
+FROM --platform=${TARGETPLATFORM:-linux/amd64} node:22-bookworm AS ui-builder 
+
+WORKDIR /ui
+
+COPY package.json package-lock.json ./
+RUN npm ci --maxsockets 1
+
+COPY . .
+RUN make build-ssr
+RUN make build-ui
+
+#####################
+### Server Build Step (Embeds all frontend assets)
 #####################
 FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.22-bookworm AS server-builder 
 
@@ -16,25 +30,14 @@ RUN go mod download
 
 COPY . ./
 
+COPY --from=ui-builder /ui/dist /server/dist
+COPY --from=ui-builder /ui/ssr.js /server/ssr.js
+
 ARG COMMITHASH
 RUN COMMITHASH=${COMMITHASH} GOOS=${TARGETOS} GOARCH=${TARGETARCH} make build-server
-#################
-### UI Build Step
-#################
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node:22-bookworm AS ui-builder 
-
-WORKDIR /ui
-
-COPY package.json package-lock.json ./
-RUN npm ci --maxsockets 1
-
-COPY . .
-# Cache bust: 2025-12-12
-RUN make build-ssr
-RUN make build-ui
 
 ################
-### Runtime Step
+### Runtime Step (Single binary deployment)
 ################
 FROM --platform=${TARGETPLATFORM:-linux/amd64} debian:bookworm-slim
 
@@ -42,19 +45,8 @@ RUN apt-get update && apt-get install -y ca-certificates
 
 WORKDIR /app
 
-COPY --from=server-builder /server/migrations /app/migrations
-COPY --from=server-builder /server/views /app/views
-COPY --from=server-builder /server/locale /app/locale
-COPY --from=server-builder /server/misc /app/misc
-COPY --from=server-builder /server/etc /app/etc
-COPY --from=server-builder /server/LICENSE /app
-COPY --from=server-builder /server/fider /app
-
-COPY --from=ui-builder /ui/favicon.png /app
-COPY --from=ui-builder /ui/dist /app/dist
-COPY --from=ui-builder /ui/robots-dev.txt /app
-COPY --from=ui-builder /ui/robots.txt /app
-COPY --from=ui-builder /ui/ssr.js /app
+COPY --from=server-builder /server/fider /app/fider
+COPY --from=server-builder /server/LICENSE /app/LICENSE
 
 EXPOSE 3000
 

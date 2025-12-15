@@ -1,23 +1,18 @@
 package handlers
 
 import (
+	"io/fs"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
-	"sync"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/webpush"
-)
-
-var (
-	serviceWorkerContent []byte
-	serviceWorkerOnce    sync.Once
 )
 
 type webAppManifest struct {
@@ -99,20 +94,16 @@ func truncateName(s string, maxLen int) string {
 }
 
 func ServiceWorker() web.HandlerFunc {
-	return func(c *web.Context) error {
-		serviceWorkerOnce.Do(func() {
-			content, err := os.ReadFile(env.Path("/views/sw.js"))
-			if err != nil {
-				serviceWorkerContent = []byte("'use strict';")
-			} else {
-				serviceWorkerContent = content
-			}
-		})
+	content, err := fs.ReadFile(assets.FS, "views/sw.js")
+	if err != nil {
+		content = []byte("'use strict';")
+	}
 
+	return func(c *web.Context) error {
 		c.Response.Header().Set("Content-Type", "application/javascript")
 		c.Response.Header().Set("Cache-Control", "public, max-age=0, must-revalidate")
 		c.Response.Header().Set("Service-Worker-Allowed", "/")
-		return c.Blob(http.StatusOK, "application/javascript", serviceWorkerContent)
+		return c.Blob(http.StatusOK, "application/javascript", content)
 	}
 }
 

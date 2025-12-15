@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	stdLog "log"
 	"net/http"
-	"os"
-	"path"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
@@ -21,9 +22,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 	cache "github.com/patrickmn/go-cache"
 )
-
-// fonts.gstatic.com and fonts.googleapis.com are required for Custom CSS to work with Google Fonts
-// unsafe-inline on Style is required for rendering Tags on SSR
 
 var (
 	cspBase    = "base-uri 'self'"
@@ -37,7 +35,6 @@ var (
 	cspMedia   = "media-src 'none'"
 	cspConnect = "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net https://cloudflareinsights.com https://*.cloudflare.com %[2]s"
 
-	//CspPolicyTemplate is the template used to generate the policy
 	CspPolicyTemplate = fmt.Sprintf("%s; %s; %s; %s; %s; %s; %s; %s; %s; %s", cspBase, cspDefault, cspStyle, cspScript, cspImage, cspFont, cspObject, cspMedia, cspConnect, cspFrame)
 )
 
@@ -51,13 +48,10 @@ func (h *notFoundHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) 
 	_ = h.handler(ctx)
 }
 
-// HandlerFunc represents an HTTP handler
 type HandlerFunc func(*Context) error
 
-// MiddlewareFunc represents an HTTP middleware
 type MiddlewareFunc func(HandlerFunc) HandlerFunc
 
-// Engine is our web engine wrapper
 type Engine struct {
 	context.Context
 	mux           *httprouter.Router
@@ -70,7 +64,6 @@ type Engine struct {
 	cache         *cache.Cache
 }
 
-// New creates a new Engine
 func New() *Engine {
 	ctx := context.Background()
 	ctx = log.WithProperties(ctx, dto.Props{
@@ -94,7 +87,6 @@ func New() *Engine {
 	return router
 }
 
-// Start the server.
 func (e *Engine) Start(address string) {
 	log.Info(e, "Application is starting")
 	log.Infof(e, "Version: @{Version}", dto.Props{
@@ -167,7 +159,6 @@ func (e *Engine) Start(address string) {
 	}
 }
 
-// Stop the server.
 func (e *Engine) Stop() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -199,17 +190,14 @@ func (e *Engine) Stop() error {
 	return nil
 }
 
-// Cache returns current cache
 func (e *Engine) Cache() *cache.Cache {
 	return e.cache
 }
 
-// Worker returns current worker reference
 func (e *Engine) Worker() worker.Worker {
 	return e.worker
 }
 
-// Group creates a new route group
 func (e *Engine) Group() *Group {
 	g := &Group{
 		engine:      e,
@@ -218,7 +206,6 @@ func (e *Engine) Group() *Group {
 	return g
 }
 
-// Use adds a middleware to the root engine
 func (e *Engine) Use(middleware MiddlewareFunc) {
 	if middleware == nil {
 		return
@@ -227,27 +214,22 @@ func (e *Engine) Use(middleware MiddlewareFunc) {
 	e.middlewares = append(e.middlewares, middleware)
 }
 
-// Get handles HTTP GET requests
 func (e *Engine) Get(path string, handler HandlerFunc) {
 	e.mux.Handle("GET", path, e.handle(e.middlewares, handler))
 }
 
-// Post handles HTTP POST requests
 func (e *Engine) Post(path string, handler HandlerFunc) {
 	e.mux.Handle("POST", path, e.handle(e.middlewares, handler))
 }
 
-// Put handles HTTP PUT requests
 func (e *Engine) Put(path string, handler HandlerFunc) {
 	e.mux.Handle("PUT", path, e.handle(e.middlewares, handler))
 }
 
-// Delete handles HTTP DELETE requests
 func (e *Engine) Delete(path string, handler HandlerFunc) {
 	e.mux.Handle("DELETE", path, e.handle(e.middlewares, handler))
 }
 
-// NotFound register how to handle routes that are not found
 func (e *Engine) NotFound(handler HandlerFunc) {
 	e.mux.NotFound = &notFoundHandler{
 		engine:  e,
@@ -271,13 +253,11 @@ func (e *Engine) handle(middlewares []MiddlewareFunc, handler HandlerFunc) httpr
 	return h
 }
 
-// Group is our router group wrapper
 type Group struct {
 	engine      *Engine
 	middlewares []MiddlewareFunc
 }
 
-// Group creates a new route group
 func (g *Group) Group() *Group {
 	g2 := &Group{
 		engine:      g.engine,
@@ -286,60 +266,52 @@ func (g *Group) Group() *Group {
 	return g2
 }
 
-// Use adds a middleware to current route stack
 func (g *Group) Use(middleware MiddlewareFunc) {
 	g.middlewares = append(g.middlewares, middleware)
 }
 
-// Get handles HTTP GET requests
 func (g *Group) Get(path string, handler HandlerFunc) {
 	g.engine.mux.Handle("GET", path, g.engine.handle(g.middlewares, handler))
 }
 
-// Post handles HTTP POST requests
 func (g *Group) Post(path string, handler HandlerFunc) {
 	g.engine.mux.Handle("POST", path, g.engine.handle(g.middlewares, handler))
 }
 
-// Put handles HTTP PUT requests
 func (g *Group) Put(path string, handler HandlerFunc) {
 	g.engine.mux.Handle("PUT", path, g.engine.handle(g.middlewares, handler))
 }
 
-// Delete handles HTTP DELETE requests
 func (g *Group) Delete(path string, handler HandlerFunc) {
 	g.engine.mux.Handle("DELETE", path, g.engine.handle(g.middlewares, handler))
 }
 
-// Static return files from given folder
 func (g *Group) Static(prefix, root string) {
-	fi, err := os.Stat(env.Path(root))
+	subFS, err := fs.Sub(assets.FS, root)
 	if err != nil {
-		panic(fmt.Sprintf("Path '%s' not found", root))
+		panic(fmt.Sprintf("Failed to create sub filesystem for '%s': %v", root, err))
 	}
 
-	var h HandlerFunc
-	if fi.IsDir() {
-		h = func(c *Context) error {
-			filePath := path.Join(root, c.Param("filepath"))
-			fi, err := os.Stat(filePath)
-			if err == nil && !fi.IsDir() {
-				http.ServeFile(&c.Response, c.Request.instance, filePath)
-				return nil
-			}
+	fileServer := http.FileServer(http.FS(subFS))
+
+	h := func(c *Context) error {
+		filePath := c.Param("filepath")
+		filePath = strings.TrimPrefix(filePath, "/")
+
+		_, err := fs.Stat(subFS, filePath)
+		if err != nil {
 			c.Response.Header().Set("Cache-Control", "no-cache, no-store")
 			return c.NotFound()
 		}
-	} else {
-		h = func(c *Context) error {
-			http.ServeFile(&c.Response, c.Request.instance, root)
-			return nil
-		}
+
+		c.Request.instance.URL.Path = "/" + filePath
+		fileServer.ServeHTTP(&c.Response, c.Request.instance)
+		return nil
 	}
+
 	g.engine.mux.Handle("GET", prefix, g.engine.handle(g.middlewares, h))
 }
 
-// ParseCookie return a list of cookie parsed from raw Set-Cookie
 func ParseCookie(s string) *http.Cookie {
 	if s == "" {
 		return nil

@@ -2,21 +2,21 @@ package env
 
 import (
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
-	"path"
-
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/joeshaw/envdecode"
 )
 
 var (
-	// this value is set by the CI build
 	commithash = ""
 	version    = "0.22.0"
 )
@@ -96,7 +96,7 @@ type config struct {
 		}
 	}
 	Email struct {
-		Type                      string `env:"EMAIL"` // possible values: smtp, mailgun, awsses
+		Type                      string `env:"EMAIL"`
 		NoReply                   string `env:"EMAIL_NOREPLY,required"`
 		Allowlist                 string `env:"EMAIL_ALLOWLIST"`
 		Blocklist                 string `env:"EMAIL_BLOCKLIST"`
@@ -109,7 +109,7 @@ type config struct {
 		Mailgun struct {
 			APIKey string `env:"EMAIL_MAILGUN_API"`
 			Domain string `env:"EMAIL_MAILGUN_DOMAIN"`
-			Region string `env:"EMAIL_MAILGUN_REGION,default=US"` // possible values: US or EU
+			Region string `env:"EMAIL_MAILGUN_REGION,default=US"`
 		}
 		SMTP struct {
 			Host           string `env:"EMAIL_SMTP_HOST"`
@@ -124,7 +124,7 @@ type config struct {
 		VAPIDPrivateKey string `env:"VAPID_PRIVATE_KEY"`
 	}
 	BlobStorage struct {
-		Type string `env:"BLOB_STORAGE,default=sql"` // possible values: sql, fs or s3
+		Type string `env:"BLOB_STORAGE,default=sql"`
 		S3   struct {
 			EndpointURL     string `env:"BLOB_STORAGE_S3_ENDPOINT_URL"`
 			Region          string `env:"BLOB_STORAGE_S3_REGION"`
@@ -151,14 +151,12 @@ type config struct {
 	GoogleAdSense   string `env:"GOOGLE_ADSENSE"`
 }
 
-// Config is a strongly typed reference to all configuration parsed from Environment Variables
 var Config config
 
 func init() {
 	Reload()
 }
 
-// Reload configuration from current Enviornment Variables
 func Reload() {
 	Config = config{}
 	err := envdecode.Decode(&Config)
@@ -179,7 +177,6 @@ func Reload() {
 		}
 	}
 
-	// Email Type can be inferred if absense
 	if Config.Email.Type == "" {
 		if Config.Email.Mailgun.APIKey != "" {
 			Config.Email.Type = "mailgun"
@@ -218,25 +215,22 @@ func mustBeSet(name string) {
 	}
 }
 
-// IsSingleHostMode returns true if host mode is set to single tenant
 func IsSingleHostMode() bool {
 	return Config.HostMode == "single"
 }
 
 var hasLegal *bool
 
-// HasLegal returns true if current instance contains legal documents: privacy.md and terms.md
 func HasLegal() bool {
 	if hasLegal == nil {
-		_, err1 := os.Stat(Etc("privacy.md"))
-		_, err2 := os.Stat(Etc("terms.md"))
+		_, err1 := fs.Stat(assets.FS, "etc/privacy.md")
+		_, err2 := fs.Stat(assets.FS, "etc/terms.md")
 		exists := err1 == nil && err2 == nil
 		hasLegal = &exists
 	}
 	return *hasLegal
 }
 
-// MultiTenantDomain returns domain name of current instance for multi tenant hosts
 func MultiTenantDomain() string {
 	if !IsSingleHostMode() {
 		return "." + Config.HostDomain
@@ -244,7 +238,6 @@ func MultiTenantDomain() string {
 	return ""
 }
 
-// IsBillingEnabled returns true if Paddle is configured
 func IsBillingEnabled() bool {
 	return Config.Paddle.VendorID != "" && Config.Paddle.VendorAuthCode != ""
 }
@@ -257,22 +250,18 @@ func IsOpenAIModerationEnabled() bool {
 	return Config.OpenAI.APIKey != "" && Config.OpenAI.ModerationEnabled
 }
 
-// IsProduction returns true on Fider production environment
 func IsProduction() bool {
 	return Config.Environment == "production" || (!IsTest() && !IsDevelopment())
 }
 
-// IsTest returns true on Fider test environment
 func IsTest() bool {
 	return Config.Environment == "test"
 }
 
-// IsDevelopment returns true on Fider production environment
 func IsDevelopment() bool {
 	return Config.Environment == "development"
 }
 
-// Path returns root path of project + given path
 func Path(p ...string) string {
 	root := "./"
 	if IsTest() {
@@ -285,13 +274,11 @@ func Path(p ...string) string {
 	return path.Join(elems...)
 }
 
-// Etc returns a path to a folder or file inside the /etc/ folder
 func Etc(p ...string) string {
 	paths := append([]string{"etc"}, p...)
 	return Path(paths...)
 }
 
-// Subdomain returns the Fider subdomain (if available) from given host
 func Subdomain(host string) string {
 	if IsSingleHostMode() {
 		return ""

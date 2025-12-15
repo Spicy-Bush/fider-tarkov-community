@@ -5,28 +5,22 @@ import (
 	"html/template"
 	"io"
 	"path"
+	"strings"
 
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/i18n"
 )
 
-var cache = make(map[string]*template.Template)
-
 func GetTemplate(baseFileName, templateFileName string) *template.Template {
-	tmpl, ok := cache[templateFileName]
-	if ok && !env.IsDevelopment() {
-		return tmpl
-	}
+	baseFile := strings.TrimPrefix(baseFileName, "/")
+	templateFile := strings.TrimPrefix(templateFileName, "/")
 
-	baseFile := env.Path(baseFileName)
-	templateFile := env.Path(templateFileName)
-	tpl, err := template.New(path.Base(baseFile)).Funcs(templateFunctions).ParseFiles(baseFile, templateFile)
+	tpl, err := template.New(path.Base(baseFile)).Funcs(templateFunctions).ParseFS(assets.FS, baseFile, templateFile)
 	if err != nil {
 		panic(errors.Wrap(err, "failed to parse template %s", templateFileName))
 	}
 
-	cache[templateFileName] = tpl
 	return tpl
 }
 

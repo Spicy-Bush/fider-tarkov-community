@@ -4,16 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"sync"
+	"io/fs"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/gotnospirit/messageformat"
 )
 
-// localeToPlurals maps between Fider locale and gotnospirit/messageformat culture
 var localeToPlurals = map[string]string{
 	"en":    "en",
 	"pt-BR": "pt",
@@ -33,29 +32,13 @@ var localeToPlurals = map[string]string{
 
 type Params map[string]any
 
-// cache for locale parser and file content to prevent excessive disk IO
-var cache = make(map[string]localeData)
-var mu sync.RWMutex
-
 type localeData struct {
 	file   map[string]string
 	parser *messageformat.Parser
 }
 
-// getLocaleData returns the file content and culture specific parser
 func getLocaleData(locale string) localeData {
-	if item, ok := cache[locale]; ok {
-		return item
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	if item, ok := cache[locale]; ok {
-		return item
-	}
-
-	content, err := os.ReadFile(env.Path(fmt.Sprintf("locale/%s/server.json", locale)))
+	content, err := fs.ReadFile(assets.FS, fmt.Sprintf("locale/%s/server.json", locale))
 	if err != nil {
 		panic(errors.Wrap(err, "failed to read locale file"))
 	}
@@ -71,17 +54,9 @@ func getLocaleData(locale string) localeData {
 		panic(errors.Wrap(err, "failed create parser"))
 	}
 
-	data := localeData{file, parser}
-
-	if env.IsProduction() {
-		cache[locale] = data
-	}
-
-	return data
+	return localeData{file, parser}
 }
 
-// getMessage returns the translated message for a given locale
-// If given key is not found, it'll fallback to english
 func getMessage(locale, key string) (string, *messageformat.Parser) {
 	localeData := getLocaleData(locale)
 	if str, ok := localeData.file[key]; ok && str != "" {
@@ -93,10 +68,9 @@ func getMessage(locale, key string) (string, *messageformat.Parser) {
 		return str, enData.parser
 	}
 
-	return fmt.Sprintf("⚠️ Missing Translation: %s", key), enData.parser
+	return fmt.Sprintf("Missing Translation: %s", key), enData.parser
 }
 
-// IsValidLocale returns true if given locale is valid
 func IsValidLocale(locale string) bool {
 	if _, ok := localeToPlurals[locale]; ok {
 		return true
@@ -104,8 +78,6 @@ func IsValidLocale(locale string) bool {
 	return false
 }
 
-// GetLocale returns the locale defined in context
-// If it is not defined, the environment locale is used
 func GetLocale(ctx context.Context) string {
 	locale, ok := ctx.Value(app.LocaleCtxKey).(string)
 	if ok && locale != "" {
@@ -114,8 +86,6 @@ func GetLocale(ctx context.Context) string {
 	return env.Config.Locale
 }
 
-// T translates a given key to current locale
-// Params is used to replace variables and pluralize
 func T(ctx context.Context, key string, params ...Params) string {
 	locale := GetLocale(ctx)
 	msg, parser := getMessage(locale, key)

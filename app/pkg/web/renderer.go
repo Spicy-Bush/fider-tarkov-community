@@ -1,17 +1,17 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
@@ -46,11 +46,8 @@ const (
 )
 
 type Renderer struct {
-	templates     map[string]*template.Template
 	assets        *clientAssets
 	chunkedAssets map[string]*clientAssets
-	mutex         sync.RWMutex
-	assetsOnce    sync.Once
 	reactRenderer *ReactRenderer
 }
 
@@ -61,63 +58,20 @@ func NewRenderer() *Renderer {
 	}
 
 	r := &Renderer{
-		templates:     make(map[string]*template.Template),
-		mutex:         sync.RWMutex{},
 		reactRenderer: reactRenderer,
 	}
 
-	if env.IsProduction() {
-		r.precompileTemplates()
+	if err := r.loadAssets(); err != nil {
+		panic(errors.Wrap(err, "failed to load assets"))
 	}
 
 	return r
 }
 
-func (r *Renderer) precompileTemplates() {
-	baseTemplate := "/views/base.html"
-	templatesToCache := []string{"index.html", "ssr.html"}
-
-	for _, page := range templatesToCache {
-		tmpl := tpl.GetTemplate(baseTemplate, fmt.Sprintf("/views/%s", page))
-		if tmpl == nil {
-			log.Errorf(context.Background(), "Failed to precompile template %s", dto.Props{
-				"page": page,
-			})
-			continue
-		}
-		r.mutex.Lock()
-		r.templates[page] = tmpl
-		r.mutex.Unlock()
-	}
-}
-
 func (r *Renderer) loadAssets() error {
-	if env.IsProduction() {
-		var loadErr error
-		r.assetsOnce.Do(func() {
-			loadErr = r.loadAssetsFromFile()
-		})
-		return loadErr
-	}
+	manifestPath := "dist/.vite/manifest.json"
 
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-	return r.loadAssetsFromFile()
-}
-
-func (r *Renderer) loadAssetsFromFile() error {
-	manifestPath := "/dist/.vite/manifest.json"
-	if env.IsTest() {
-		manifestPath = "/app/pkg/web/testdata/manifest.json"
-	}
-
-	jsonFile, err := os.Open(env.Path(manifestPath))
-	if err != nil {
-		return errors.Wrap(err, "failed to open file: manifest.json")
-	}
-	defer jsonFile.Close()
-
-	jsonBytes, err := io.ReadAll(jsonFile)
+	jsonBytes, err := fs.ReadFile(assets.FS, manifestPath)
 	if err != nil {
 		return errors.Wrap(err, "failed to read file: manifest.json")
 	}
@@ -315,14 +269,6 @@ func getUserStandingInfo(ctx *Context, userID int) userStandingInfo {
 }
 
 func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context) {
-	var err error
-
-	if r.assets == nil || env.IsDevelopment() {
-		if err := r.loadAssets(); err != nil {
-			panic(err)
-		}
-	}
-
 	public := make(Map)
 	private := make(Map)
 	if props.Data == nil {
@@ -337,7 +283,7 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 
 	title := tenantName
 	if props.Title != "" {
-		title = fmt.Sprintf("%s · %s", props.Title, tenantName)
+		title = fmt.Sprintf("%s - %s", props.Title, tenantName)
 	}
 
 	public["title"] = title
@@ -433,19 +379,9 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 		}
 	}
 
-	var tmpl *template.Template
-	if env.IsProduction() {
-		r.mutex.RLock()
-		tmpl = r.templates[templateName]
-		r.mutex.RUnlock()
-		if tmpl == nil {
-			tmpl = tpl.GetTemplate("/views/base.html", fmt.Sprintf("/views/%s", templateName))
-		}
-	} else {
-		tmpl = tpl.GetTemplate("/views/base.html", fmt.Sprintf("/views/%s", templateName))
-	}
+	tmpl := tpl.GetTemplate("/views/base.html", fmt.Sprintf("/views/%s", templateName))
 
-	err = tpl.Render(ctx, tmpl, w, Map{
+	err := tpl.Render(ctx, tmpl, w, Map{
 		"public":  public,
 		"private": private,
 	})

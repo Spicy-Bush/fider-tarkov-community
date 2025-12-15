@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"fmt"
+	"io/fs"
 	"net/http"
-	"os"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/middlewares"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -25,14 +25,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
-var (
-	robotsContent string
-	robotsOnce    sync.Once
-)
-
-var legalPagesCache sync.Map
-
-// Health always returns OK
 func Health() web.HandlerFunc {
 	return func(c *web.Context) error {
 		err := dbx.Ping()
@@ -43,7 +35,6 @@ func Health() web.HandlerFunc {
 	}
 }
 
-// UpdateMessageBanner updates the message banner for the tenant
 func UpdateMessageBanner() web.HandlerFunc {
 	return func(c *web.Context) error {
 		action := new(cmd.UpdateMessageBanner)
@@ -61,39 +52,25 @@ func UpdateMessageBanner() web.HandlerFunc {
 	}
 }
 
-// LegalPage returns a legal page with content from a file
 func LegalPage(title, file string) web.HandlerFunc {
-	return func(c *web.Context) error {
-		var content string
-		if env.Config.Environment == "development" {
-			bytes, err := os.ReadFile(env.Etc(file))
-			if err != nil {
-				return c.NotFound()
-			}
-			content = string(bytes)
-		} else {
-			if cached, ok := legalPagesCache.Load(file); ok {
-				content = cached.(string)
-			} else {
-				bytes, err := os.ReadFile(env.Etc(file))
-				if err != nil {
-					return c.NotFound()
-				}
-				content = string(bytes)
-				legalPagesCache.Store(file, content)
-			}
+	content, err := fs.ReadFile(assets.FS, "etc/"+file)
+	if err != nil {
+		return func(c *web.Context) error {
+			return c.NotFound()
 		}
+	}
+
+	return func(c *web.Context) error {
 		return c.Page(http.StatusOK, web.Props{
 			Page:  "Legal/Legal.page",
 			Title: title,
 			Data: web.Map{
-				"content": content,
+				"content": string(content),
 			},
 		})
 	}
 }
 
-// Sitemap returns the sitemap.xml of current site
 func Sitemap() web.HandlerFunc {
 	return func(c *web.Context) error {
 		if c.Tenant().IsPrivate {
@@ -124,36 +101,26 @@ func Sitemap() web.HandlerFunc {
 	}
 }
 
-// RobotsTXT return content of robots.txt file
 func RobotsTXT() web.HandlerFunc {
-	return func(c *web.Context) error {
-		var content string
-		if env.Config.Environment == "development" {
-			bytes, err := os.ReadFile(env.Path("./robots-dev.txt"))
-			if err != nil {
-				return c.NotFound()
-			}
-			content = string(bytes)
-		} else {
-			robotsOnce.Do(func() {
-				bytes, err := os.ReadFile(env.Path("./robots.txt"))
-				if err != nil {
-					log.Errorf(c, "Failed to read robots.txt: %{Error}", dto.Props{"Error": err.Error()})
-					return
-				}
-				sitemapURL := c.BaseURL() + "/sitemap.xml"
-				robotsContent = fmt.Sprintf("%s\nSitemap: %s", bytes, sitemapURL)
-			})
-			if robotsContent == "" {
-				return c.NotFound()
-			}
-			content = robotsContent
+	robotsFile := "robots.txt"
+	if env.IsDevelopment() {
+		robotsFile = "robots-dev.txt"
+	}
+
+	robotsBytes, err := fs.ReadFile(assets.FS, robotsFile)
+	if err != nil {
+		return func(c *web.Context) error {
+			return c.NotFound()
 		}
+	}
+
+	return func(c *web.Context) error {
+		sitemapURL := c.BaseURL() + "/sitemap.xml"
+		content := fmt.Sprintf("%s\nSitemap: %s", string(robotsBytes), sitemapURL)
 		return c.String(http.StatusOK, content)
 	}
 }
 
-// Page returns a page without properties
 func Page(title, description, page string) web.HandlerFunc {
 	return func(c *web.Context) error {
 		return c.Page(http.StatusOK, web.Props{
@@ -164,13 +131,11 @@ func Page(title, description, page string) web.HandlerFunc {
 	}
 }
 
-// NewLogError is the input model for UI errors
 type NewLogError struct {
 	Message string `json:"message"`
 	Data    any    `json:"data"`
 }
 
-// LogError logs an error coming from the UI
 func LogError() web.HandlerFunc {
 	return func(c *web.Context) error {
 		action := new(NewLogError)
@@ -186,7 +151,6 @@ func LogError() web.HandlerFunc {
 }
 
 func validateKey(kind enum.EmailVerificationKind, key string, c *web.Context) (*entity.EmailVerification, error) {
-	//If key has been used, return NotFound
 	findByKey := &query.GetVerificationByKey{Kind: kind, Key: key}
 	err := bus.Dispatch(c, findByKey)
 	if err != nil {
@@ -199,14 +163,10 @@ func validateKey(kind enum.EmailVerificationKind, key string, c *web.Context) (*
 	now := time.Now()
 	res := findByKey.Result
 
-	// If key has been used more than 5 minutes ago, deny usage
-	// The 5 minutes grace period is to avoid issues with email clients that preview the link
-	// Examples: Outlook Smart Preview, corporate email protection software
 	if res.VerifiedAt != nil && now.Sub(*res.VerifiedAt) > 5*time.Minute {
 		return nil, c.Gone()
 	}
 
-	//If key expired, deny usage
 	if now.After(res.ExpiresAt) {
 		err = bus.Dispatch(c, &cmd.SetKeyAsVerified{Key: key})
 		if err != nil {
