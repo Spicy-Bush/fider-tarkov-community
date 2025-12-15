@@ -8,7 +8,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
@@ -173,17 +173,10 @@ type userStandingInfo struct {
 	latestMuteID    int
 }
 
-var (
-	cachedOAuthProviders []*dto.OAuthProviderOption
-	oauthCacheOnce       sync.Once
-	oauthCacheMu         sync.RWMutex
-)
+var cachedOAuthProviders atomic.Pointer[[]*dto.OAuthProviderOption]
 
 func InvalidateOAuthCache() {
-	oauthCacheMu.Lock()
-	cachedOAuthProviders = nil
-	oauthCacheOnce = sync.Once{}
-	oauthCacheMu.Unlock()
+	cachedOAuthProviders.Store(nil)
 }
 
 func getOAuthProviders(ctx *Context) []*dto.OAuthProviderOption {
@@ -191,34 +184,19 @@ func getOAuthProviders(ctx *Context) []*dto.OAuthProviderOption {
 		return nil
 	}
 
-	oauthCacheMu.RLock()
-	if cachedOAuthProviders != nil {
-		defer oauthCacheMu.RUnlock()
-		return cachedOAuthProviders
+	if providers := cachedOAuthProviders.Load(); providers != nil {
+		return *providers
 	}
-	oauthCacheMu.RUnlock()
 
-	var loadErr error
-	oauthCacheOnce.Do(func() {
-		providers := &query.ListActiveOAuthProviders{
-			Result: make([]*dto.OAuthProviderOption, 0),
-		}
-		if err := bus.Dispatch(ctx, providers); err != nil {
-			loadErr = err
-			return
-		}
-		oauthCacheMu.Lock()
-		cachedOAuthProviders = providers.Result
-		oauthCacheMu.Unlock()
-	})
-
-	if loadErr != nil {
+	providers := &query.ListActiveOAuthProviders{
+		Result: make([]*dto.OAuthProviderOption, 0),
+	}
+	if err := bus.Dispatch(ctx, providers); err != nil {
 		return nil
 	}
 
-	oauthCacheMu.RLock()
-	defer oauthCacheMu.RUnlock()
-	return cachedOAuthProviders
+	cachedOAuthProviders.Store(&providers.Result)
+	return providers.Result
 }
 
 func getUserStandingInfo(ctx *Context, userID int) userStandingInfo {

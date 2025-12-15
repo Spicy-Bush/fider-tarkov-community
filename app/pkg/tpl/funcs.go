@@ -20,10 +20,7 @@ var strictHtmlPolicy = bluemonday.NewPolicy()
 
 var cssURLRegex = regexp.MustCompile(`url\s*\(\s*['"]?([^'")\s]+)['"]?\s*\)`)
 
-var (
-	cssImageCache     = make(map[string][]string)
-	cssImageCacheLock sync.RWMutex
-)
+var cssImageCache sync.Map
 
 func extractCSSImages(css string) []string {
 	if css == "" {
@@ -32,12 +29,9 @@ func extractCSSImages(css string) []string {
 
 	cacheKey := crypto.MD5(css)
 
-	cssImageCacheLock.RLock()
-	if cached, ok := cssImageCache[cacheKey]; ok {
-		cssImageCacheLock.RUnlock()
-		return cached
+	if cached, ok := cssImageCache.Load(cacheKey); ok {
+		return cached.([]string)
 	}
-	cssImageCacheLock.RUnlock()
 
 	matches := cssURLRegex.FindAllStringSubmatch(css, -1)
 	if len(matches) == 0 {
@@ -56,10 +50,7 @@ func extractCSSImages(css string) []string {
 		}
 	}
 
-	cssImageCacheLock.Lock()
-	cssImageCache[cacheKey] = urls
-	cssImageCacheLock.Unlock()
-
+	cssImageCache.Store(cacheKey, urls)
 	return urls
 }
 
