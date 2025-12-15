@@ -19,8 +19,12 @@
   {{ end }}<style>{{ $.public.tenant.CustomCSS | safeCSS }}</style>{{ end }}{{ end }}
   {{ if .private.assets }}
     {{range .private.assets.CSS}}
-      <link rel="stylesheet" href="{{ $.public.settings.assetsURL }}{{ . }}" />
+      <link rel="stylesheet" href="{{ $.public.settings.assetsURL }}{{ . }}" media="print" class="async-css" />
+      <noscript><link rel="stylesheet" href="{{ $.public.settings.assetsURL }}{{ . }}" /></noscript>
     {{end}}
+    <script nonce="{{ .public.contextID }}">
+      document.querySelectorAll('link.async-css').forEach(function(l){l.onload=function(){this.media='all'};if(l.sheet)l.media='all';});
+    </script>
   {{end}}
   {{block "head" .}}{{end}}
   <title>{{ .public.title }}</title>
