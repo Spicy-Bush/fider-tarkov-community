@@ -39,6 +39,7 @@ import (
 // Returns an exitcode, 0 for OK and 1 for ERROR
 func RunServer() int {
 	svcs := bus.Init()
+	bus.Freeze()
 	ctx := log.WithProperty(context.Background(), log.PropertyKeyTag, "BOOTSTRAP")
 	for _, s := range svcs {
 		log.Debugf(ctx, "Service '@{ServiceCategory}.@{ServiceName}' has been initialized.", dto.Props{

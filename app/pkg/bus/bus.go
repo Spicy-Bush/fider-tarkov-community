@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
@@ -26,7 +27,9 @@ var listeners = make(map[string][]HandlerFunc)
 var services = make([]Service, 0)
 var busLock = &sync.RWMutex{}
 
-// We only keep counters during unit tests to avoid unnecessary overhead
+var frozenHandlers atomic.Pointer[map[string]HandlerFunc]
+var frozenListeners atomic.Pointer[map[string][]HandlerFunc]
+
 var shouldCount = env.IsTest()
 var handlersCallCounter = make(map[string]int)
 var counterLock = &sync.RWMutex{}
@@ -42,6 +45,9 @@ func Reset() {
 	busLock.Lock()
 	defer busLock.Unlock()
 
+	frozenHandlers.Store(nil)
+	frozenListeners.Store(nil)
+
 	services = make([]Service, 0)
 	handlers = make(map[string]HandlerFunc)
 	listeners = make(map[string][]HandlerFunc)
@@ -49,9 +55,6 @@ func Reset() {
 	handlersCallCounter = make(map[string]int)
 }
 
-// Initializes the bus services that have been registered via bus.Register
-// Services that set via Init(...services) are always registered (regardless of Enabled() function)
-// / and have preference over services registered from bus.Register
 func Init(forcedServices ...Service) []Service {
 	initializedServices := make([]Service, 0)
 	for _, svc := range forcedServices {
@@ -66,6 +69,25 @@ func Init(forcedServices ...Service) []Service {
 		}
 	}
 	return initializedServices
+}
+
+func Freeze() {
+	busLock.RLock()
+	defer busLock.RUnlock()
+
+	h := make(map[string]HandlerFunc, len(handlers))
+	for k, v := range handlers {
+		h[k] = v
+	}
+	frozenHandlers.Store(&h)
+
+	l := make(map[string][]HandlerFunc, len(listeners))
+	for k, v := range listeners {
+		cpy := make([]HandlerFunc, len(v))
+		copy(cpy, v)
+		l[k] = cpy
+	}
+	frozenListeners.Store(&l)
 }
 
 func AddHandler(handler HandlerFunc) {
@@ -103,12 +125,20 @@ func Dispatch(ctx context.Context, msgs ...Msg) error {
 		return nil
 	}
 
+	h := frozenHandlers.Load()
+	if h != nil {
+		return dispatchWithHandlers(ctx, *h, msgs)
+	}
+
 	busLock.RLock()
 	defer busLock.RUnlock()
+	return dispatchWithHandlers(ctx, handlers, msgs)
+}
 
+func dispatchWithHandlers(ctx context.Context, h map[string]HandlerFunc, msgs []Msg) error {
 	for _, msg := range msgs {
 		key := getKey(msg)
-		handler := handlers[key]
+		handler := h[key]
 		if handler == nil {
 			panic(fmt.Errorf("could not find handler for '%s'.", key))
 		}
@@ -138,12 +168,21 @@ func Publish(ctx context.Context, msgs ...Msg) {
 		return
 	}
 
+	l := frozenListeners.Load()
+	if l != nil {
+		publishWithListeners(ctx, *l, msgs)
+		return
+	}
+
 	busLock.RLock()
 	defer busLock.RUnlock()
+	publishWithListeners(ctx, listeners, msgs)
+}
 
+func publishWithListeners(ctx context.Context, l map[string][]HandlerFunc, msgs []Msg) {
 	for _, msg := range msgs {
 		key := getKey(msg)
-		msgListeners := listeners[key]
+		msgListeners := l[key]
 
 		var params = []reflect.Value{
 			reflect.ValueOf(ctx),
@@ -163,8 +202,6 @@ func Publish(ctx context.Context, msgs ...Msg) {
 	}
 }
 
-// GetCallCount returns	the number of times a handler has been called
-// Only available during unit tests
 func GetCallCount(msg Msg) int {
 	key := getKey(msg)
 	return handlersCallCounter[key]

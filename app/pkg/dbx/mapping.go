@@ -8,40 +8,27 @@ import (
 	"github.com/lib/pq"
 )
 
-//RowMapper is responsible for mapping a sql.Rows into a Struct (model)
 type RowMapper struct {
-	cache map[reflect.Type]TypeMapper
-	sync.RWMutex
+	cache sync.Map
 }
 
-//NewRowMapper creates a new instance of RowMapper
 func NewRowMapper() *RowMapper {
-	return &RowMapper{
-		cache: make(map[reflect.Type]TypeMapper),
-	}
+	return &RowMapper{}
 }
 
-//Map values from scanner (usually sql.Rows.Scan) into dest based on columns
 func (m *RowMapper) Map(dest any, columns []string, scanner func(dest ...any) error) error {
 	t := reflect.TypeOf(dest)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 
-	var (
-		typeMapper TypeMapper
-		ok         bool
-	)
+	var typeMapper TypeMapper
 
-	m.RLock()
-	typeMapper, ok = m.cache[t]
-	m.RUnlock()
-
-	if !ok {
+	if cached, ok := m.cache.Load(t); ok {
+		typeMapper = cached.(TypeMapper)
+	} else {
 		typeMapper = NewTypeMapper(t)
-		m.Lock()
-		m.cache[t] = typeMapper
-		m.Unlock()
+		m.cache.Store(t, typeMapper)
 	}
 
 	pointers := make([]any, len(columns))
@@ -75,13 +62,11 @@ func (m *RowMapper) Map(dest any, columns []string, scanner func(dest ...any) er
 	return scanner(pointers...)
 }
 
-//TypeMapper holds information about how to map SQL ResultSet to a Struct
 type TypeMapper struct {
 	Type   reflect.Type
 	Fields map[string]FieldInfo
 }
 
-//NewTypeMapper creates a new instance of TypeMapper for given reflect.Type
 func NewTypeMapper(t reflect.Type) TypeMapper {
 	all := make(map[string]FieldInfo)
 
@@ -122,7 +107,6 @@ func NewTypeMapper(t reflect.Type) TypeMapper {
 	}
 }
 
-//FieldInfo is a simple struct to map Column -> Field
 type FieldInfo struct {
 	FieldName  []string
 	ColumnName string
