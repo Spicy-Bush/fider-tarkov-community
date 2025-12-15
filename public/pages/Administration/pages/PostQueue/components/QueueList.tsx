@@ -140,7 +140,7 @@ export const QueueList: React.FC<QueueListProps> = ({
           <Button
             size="small"
             variant="tertiary"
-            disabled={posts.length < perPage}
+            disabled={page * perPage >= total}
             onClick={onNextPage}
           >
             Next

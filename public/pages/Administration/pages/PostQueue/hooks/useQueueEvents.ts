@@ -61,10 +61,12 @@ export const useQueueEvents = (config: UseQueueEventsConfig): void => {
       const isTaggedByMe = data.taggedByUserId === currentUserIdRef.current
       if (isTaggedByMe) {
         setPosts((prev) => prev.filter((p) => p.id !== data.postId))
+        setTotal((prev) => Math.max(0, prev - 1))
       } else if (selectedPostRef.current?.id === data.postId) {
         setTaggedByOtherIds((prev) => new Set(prev).add(data.postId))
       } else {
         setPosts((prev) => prev.filter((p) => p.id !== data.postId))
+        setTotal((prev) => Math.max(0, prev - 1))
       }
     })
 

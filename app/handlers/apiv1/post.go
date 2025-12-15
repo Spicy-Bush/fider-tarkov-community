@@ -62,19 +62,26 @@ func SearchPosts() web.HandlerFunc {
 		}
 
 		var effectiveLimit int
+		user := c.User()
+		isPrivileged := user != nil && (user.IsHelper() || user.IsCollaborator() || user.IsModerator() || user.IsAdministrator())
+		maxLimit := 15
+		if isPrivileged {
+			maxLimit = 50
+		}
+
 		if clientLimitParam == "" || clientLimitParam == "all" {
 			if env.Config.Environment == "development" {
 				effectiveLimit = 9999
 			} else {
-				effectiveLimit = 15
+				effectiveLimit = maxLimit
 			}
 		} else {
 			clientLimit, err := strconv.Atoi(clientLimitParam)
 			if err != nil {
-				effectiveLimit = 15
+				effectiveLimit = maxLimit
 			} else {
-				if clientLimit > 15 {
-					effectiveLimit = 15
+				if clientLimit > maxLimit {
+					effectiveLimit = maxLimit
 				} else if clientLimit < 5 {
 					effectiveLimit = 5
 				} else {
@@ -173,8 +180,7 @@ func SearchPosts() web.HandlerFunc {
 		}
 
 		if includeCount && untagged {
-			user := c.User()
-			if user != nil && (user.IsHelper() || user.IsModerator() || user.IsCollaborator() || user.IsAdministrator()) {
+			if isPrivileged {
 				countQuery := &query.CountUntaggedPosts{Date: dateFilter}
 				countQuery.SetStatusesFromStrings(statuses)
 				if err := bus.Dispatch(c, countQuery); err == nil {
@@ -557,14 +563,14 @@ func PostComment() web.HandlerFunc {
 			postcache.InvalidateTenantRankings(c.Tenant().ID)
 
 			metrics.TotalComments.Inc()
-			
+
 			attachmentBKeys := make([]string, 0)
 			for _, att := range action.Attachments {
 				if att.BlobKey != "" && !att.Remove {
 					attachmentBKeys = append(attachmentBKeys, att.BlobKey)
 				}
 			}
-			
+
 			return c.Ok(web.Map{
 				"id":          addNewComment.Result.ID,
 				"attachments": attachmentBKeys,

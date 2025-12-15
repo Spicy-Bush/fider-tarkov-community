@@ -26,9 +26,10 @@ export const VoteSection = (props: VoteSectionProps) => {
   const upvotePercentage = totalEngagement > 0 ? (upvotes / totalEngagement) * 100 : 50
 
   useEffect(() => {
+    setVoteType(props.post.voteType === 1 ? 'up' : props.post.voteType === -1 ? 'down' : 'none')
     setUpvotes(props.post.upvotes || 0)
     setDownvotes(props.post.downvotes || 0)
-  }, [props.post.upvotes, props.post.downvotes])
+  }, [props.post.id, props.post.voteType, props.post.upvotes, props.post.downvotes])
 
   const handleVote = async (type: 'up' | 'down') => {
     if (!fider.session.isAuthenticated) {
