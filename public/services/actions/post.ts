@@ -198,3 +198,19 @@ export const getArchivablePosts = async (params: GetArchivablePostsParams): Prom
 export const bulkArchivePosts = async (postIds: number[]): Promise<Result<{ archived: number }>> => {
   return http.post<{ archived: number }>(`/api/v1/archive/bulk`, { postIds })
 }
+
+export const hidePost = async (postId: number): Promise<Result> => {
+  return http.post(`/_api/admin/moderation/posts/${postId}/hide`)
+}
+
+export const unhidePost = async (postId: number): Promise<Result> => {
+  return http.post(`/_api/admin/moderation/posts/${postId}/approve`)
+}
+
+export const hideComment = async (commentId: number): Promise<Result> => {
+  return http.post(`/_api/admin/moderation/comments/${commentId}/hide`)
+}
+
+export const unhideComment = async (commentId: number): Promise<Result> => {
+  return http.post(`/_api/admin/moderation/comments/${commentId}/approve`)
+}

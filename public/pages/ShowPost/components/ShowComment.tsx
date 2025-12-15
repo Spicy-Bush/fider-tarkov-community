@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
-import { Comment, Post, ImageUpload, isPostLocked, ReportReason } from "@fider/models"
+import { Comment, Post, ImageUpload, isPostLocked, isCommentHidden, ReportReason } from "@fider/models"
 import {
   Reactions,
   Avatar,
@@ -17,8 +17,7 @@ import {
   ReportModal,
   ReportButton,
 } from "@fider/components"
-import { HStack } from "@fider/components/layout"
-import { formatDate, Failure, actions, notify, copyToClipboard, classSet, clearUrlHash, commentPermissions } from "@fider/services"
+import { formatDate, Failure, actions, notify, copyToClipboard, classSet, clearUrlHash, commentPermissions, postPermissions } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { heroiconsDotsHorizontal as IconDotsHorizontal } from "@fider/icons.generated"
 import { t } from "@lingui/core/macro"
@@ -145,7 +144,7 @@ export const ShowComment = (props: ShowCommentProps) => {
     }
   }
 
-  const onActionSelected = (action: string) => () => {
+  const onActionSelected = (action: string) => async () => {
     if (action === "edit") {
       setIsEditing(true)
     } else if (action === "delete") {
@@ -156,6 +155,18 @@ export const ShowComment = (props: ShowCommentProps) => {
       notify.success(t({ id: "action.copylink.success", message: "Link copied to clipboard" }))
     } else if (action === "report") {
       setShowReportModal(true)
+    } else if (action === "hide") {
+      const result = await actions.hideComment(props.comment.id)
+      if (result.ok) {
+        notify.success(t({ id: "showcomment.hide.success", message: "Comment has been hidden" }))
+        location.reload()
+      }
+    } else if (action === "unhide") {
+      const result = await actions.unhideComment(props.comment.id)
+      if (result.ok) {
+        notify.success(t({ id: "showcomment.unhide.success", message: "Comment has been unhidden" }))
+        location.reload()
+      }
     }
   }
 
@@ -199,8 +210,9 @@ export const ShowComment = (props: ShowCommentProps) => {
 
   const classList = classSet({
     "rounded-card p-3": true,
-    "bg-tertiary": !props.highlighted,
+    "bg-tertiary": !props.highlighted && !isCommentHidden(props.comment),
     "highlighted-comment": props.highlighted,
+    "bg-danger-light border border-danger-medium": isCommentHidden(props.comment),
   })
 
   return (
@@ -214,6 +226,11 @@ export const ShowComment = (props: ShowCommentProps) => {
         reasons={props.reportReasons}
       />
       <div ref={node} className={classList}>
+        {isCommentHidden(props.comment) && (
+          <div className="text-xs font-medium text-danger mb-2">
+            <Trans id="showcomment.hidden.label">Hidden from public view</Trans>
+          </div>
+        )}
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 min-w-0 flex-wrap">
             <Avatar user={comment.user} size="small" />
@@ -250,6 +267,20 @@ export const ShowComment = (props: ShowCommentProps) => {
                     <Dropdown.ListItem onClick={onActionSelected("delete")} className="text-danger">
                       <Trans id="action.delete">Delete</Trans>
                     </Dropdown.ListItem>
+                  </>
+                )}
+                {postPermissions.canHide() && (
+                  <>
+                    <Dropdown.Divider />
+                    {!isCommentHidden(props.comment) ? (
+                      <Dropdown.ListItem onClick={onActionSelected("hide")}>
+                        <Trans id="action.hide">Hide</Trans>
+                      </Dropdown.ListItem>
+                    ) : (
+                      <Dropdown.ListItem onClick={onActionSelected("unhide")}>
+                        <Trans id="action.unhide">Unhide</Trans>
+                      </Dropdown.ListItem>
+                    )}
                   </>
                 )}
               </Dropdown>

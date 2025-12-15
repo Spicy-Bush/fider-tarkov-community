@@ -244,6 +244,12 @@ func routes(r *web.Engine) *web.Engine {
 		staff.Post("/api/v1/reports/:id/heartbeat", handlers.ReportHeartbeat())
 		staff.Delete("/api/mod/viewing", handlers.StopViewingReport())
 		staff.Get("/api/mod/report-events", handlers.ReportsSSE())
+
+		// content moderation
+		staff.Post("/_api/admin/moderation/posts/:id/approve", handlers.ApprovePostModeration())
+		staff.Post("/_api/admin/moderation/comments/:id/approve", handlers.ApproveCommentModeration())
+		staff.Post("/_api/admin/moderation/posts/:id/hide", handlers.HidePostModeration())
+		staff.Post("/_api/admin/moderation/comments/:id/hide", handlers.HideCommentModeration())
 	}
 
 	// Operations available only to collaborators and administrators

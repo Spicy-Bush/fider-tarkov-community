@@ -245,6 +245,16 @@ func CreatePost() web.HandlerFunc {
 
 			c.Enqueue(tasks.NotifyAboutNewPost(newPost.Result))
 
+			if env.IsOpenAIModerationEnabled() {
+				blobKeys := make([]string, 0)
+				for _, att := range action.Attachments {
+					if att.BlobKey != "" && !att.Remove {
+						blobKeys = append(blobKeys, att.BlobKey)
+					}
+				}
+				c.Enqueue(tasks.ModerateNewContent("post", newPost.Result.ID, action.Description, blobKeys))
+			}
+
 			postcache.InvalidateTenantRankings(c.Tenant().ID)
 			postcache.InvalidateCountPerStatus(c.Tenant().ID)
 
@@ -551,6 +561,16 @@ func PostComment() web.HandlerFunc {
 				User:    addNewComment.Result.User,
 			}
 			c.Enqueue(tasks.NotifyAboutNewComment(commentForNotification, getPost.Result))
+
+			if env.IsOpenAIModerationEnabled() {
+				blobKeys := make([]string, 0)
+				for _, att := range action.Attachments {
+					if att.BlobKey != "" && !att.Remove {
+						blobKeys = append(blobKeys, att.BlobKey)
+					}
+				}
+				c.Enqueue(tasks.ModerateNewContent("comment", addNewComment.Result.ID, action.Content, blobKeys))
+			}
 
 			if getPost.Result.Status == enum.PostArchived {
 				unarchiveCmd := &cmd.UnarchivePost{Post: getPost.Result, Reason: "New comment"}

@@ -105,6 +105,12 @@ export const postPermissions = {
     if (!currentUser) return false
     return currentUser.isCollaborator || currentUser.isModerator || currentUser.isAdministrator || currentUser.isHelper
   },
+
+  canHide: (user?: CurrentUser): boolean => {
+    const currentUser = user ?? getCurrentUser()
+    if (!currentUser) return false
+    return currentUser.isCollaborator || currentUser.isModerator || currentUser.isAdministrator
+  },
 }
 
 export const commentPermissions = {

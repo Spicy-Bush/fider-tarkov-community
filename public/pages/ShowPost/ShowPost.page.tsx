@@ -2,8 +2,9 @@ import React, { useEffect, useCallback, useState } from "react"
 
 import { LockStatus } from "./components/LockStatus"
 import { ArchiveStatus } from "./components/ArchiveStatus"
+import { HiddenStatus } from "./components/HiddenStatus"
 import { PostLockingModal } from "./components/PostLockingModal"
-import { Comment, Post, Tag, Vote, PostStatus, isPostLocked, isPostArchived, ReportReason } from "@fider/models"
+import { Comment, Post, Tag, Vote, PostStatus, isPostLocked, isPostArchived, isPostHidden, ReportReason } from "@fider/models"
 import { actions, clearUrlHash, Fider, notify, formatDate, postPermissions } from "@fider/services"
 import { heroiconsDotsHorizontal as IconDotsHorizontal, heroiconsChevronUp as IconChevronUp } from "@fider/icons.generated"
 
@@ -172,7 +173,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
   }, [props.post.status, props.post.user.role])
 
   const onActionSelected = useCallback(
-    (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report" | "archive" | "unarchive") => async () => {
+    (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report" | "archive" | "unarchive" | "hide" | "unhide") => async () => {
       if (action === "copy") {
         navigator.clipboard.writeText(window.location.href)
         notify.success(<Trans id="showpost.copylink.success">Link copied to clipboard</Trans>)
@@ -200,9 +201,21 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
           notify.success(<Trans id="showpost.unarchive.success">Post has been unarchived</Trans>)
           location.reload()
         }
+      } else if (action === "hide") {
+        const result = await actions.hidePost(props.post.id)
+        if (result.ok) {
+          notify.success(<Trans id="showpost.hide.success">Post has been hidden</Trans>)
+          location.reload()
+        }
+      } else if (action === "unhide") {
+        const result = await actions.unhidePost(props.post.id)
+        if (result.ok) {
+          notify.success(<Trans id="showpost.unhide.success">Post has been unhidden</Trans>)
+          location.reload()
+        }
       }
     },
-    [state.startEdit, state.openModal, props.post.number]
+    [state.startEdit, state.openModal, props.post.number, props.post.id]
   )
 
   return (
@@ -283,6 +296,19 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                                 )}
                               </>
                             )}
+                            {postPermissions.canHide() && (
+                              <>
+                                {!isPostHidden(props.post) ? (
+                                  <Dropdown.ListItem onClick={onActionSelected("hide")}>
+                                    <Trans id="action.hide">Hide</Trans>
+                                  </Dropdown.ListItem>
+                                ) : (
+                                  <Dropdown.ListItem onClick={onActionSelected("unhide")}>
+                                    <Trans id="action.unhide">Unhide</Trans>
+                                  </Dropdown.ListItem>
+                                )}
+                              </>
+                            )}
                           </>
                         )}
                         {canDeletePost() && (
@@ -305,6 +331,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                       <h1 className="text-large">{props.post.title}</h1>
                       {isPostLocked(props.post) && <LockStatus post={props.post} />}
                       {isPostArchived(props.post) && <ArchiveStatus post={props.post} />}
+                      {isPostHidden(props.post) && <HiddenStatus post={props.post} />}
                     </>
                   )}
                 </div>

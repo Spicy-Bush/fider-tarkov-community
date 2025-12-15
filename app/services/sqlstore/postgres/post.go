@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -51,6 +52,8 @@ type dbPost struct {
 	TagDates           sql.NullString `db:"tag_dates"`
 	ArchivedAt         dbx.NullTime   `db:"archived_at"`
 	ArchivedFromStatus sql.NullInt64  `db:"archived_from_status"`
+	ModerationPending  bool           `db:"moderation_pending"`
+	ModerationData     sql.NullString `db:"moderation_data"`
 }
 
 func (i *dbPost) toModel(ctx context.Context) *entity.Post {
@@ -119,6 +122,15 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 		}
 	}
 
+	user, _ := ctx.Value(app.UserCtxKey).(*entity.User)
+	isStaff := user != nil && (user.IsCollaborator() || user.IsModerator() || user.IsAdministrator())
+	if isStaff {
+		post.ModerationPending = i.ModerationPending
+		if i.ModerationData.Valid {
+			post.ModerationData = i.ModerationData.String
+		}
+	}
+
 	return post
 }
 
@@ -179,12 +191,14 @@ var (
 										d.slug AS original_slug,
 										d.status AS original_status,
 										COALESCE(agg_t.tags, ARRAY[]::text[]) AS tags,
-										p.locked_settings,
-										p.archived_at,
-										p.archived_from_status,
-										%s AS tag_dates,
-										%s AS vote_type
-							FROM posts p
+								p.locked_settings,
+								p.archived_at,
+								p.archived_from_status,
+								%s AS tag_dates,
+								%s AS vote_type,
+								p.moderation_pending,
+								p.moderation_data
+						FROM posts p
 							INNER JOIN users u
 							ON u.id = p.user_id
 							AND u.tenant_id = $1
@@ -659,7 +673,14 @@ func buildPostQuery(user *entity.User, filter string) string {
 		voteTypeSubQuery = fmt.Sprintf("(SELECT vote_type FROM post_votes WHERE post_id = p.id AND user_id = %d LIMIT 1)", user.ID)
 	}
 
-	return fmt.Sprintf(sqlSelectPostsWhere, tagCondition, tagDatesField, voteTypeSubQuery, filter)
+	moderationFilter := ""
+	if user == nil {
+		moderationFilter = " AND p.moderation_pending = FALSE"
+	} else if !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
+		moderationFilter = fmt.Sprintf(" AND (p.moderation_pending = FALSE OR p.user_id = %d)", user.ID)
+	}
+
+	return fmt.Sprintf(sqlSelectPostsWhere, tagCondition, tagDatesField, voteTypeSubQuery, filter+moderationFilter)
 }
 
 func lockPost(ctx context.Context, c *cmd.LockPost) error {

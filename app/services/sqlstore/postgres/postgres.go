@@ -211,6 +211,8 @@ func (s Service) Init() {
 	bus.AddHandler(getPushSubscriptionsByUsers)
 	bus.AddHandler(getAllPushSubscriptions)
 	bus.AddHandler(hasPushSubscription)
+
+	bus.AddHandler(setModerationPending)
 }
 
 type SqlHandler func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error

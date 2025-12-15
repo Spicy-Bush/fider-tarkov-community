@@ -141,6 +141,12 @@ type config struct {
 		Message string `env:"MAINTENANCE_MESSAGE"`
 		Until   string `env:"MAINTENANCE_UNTIL"`
 	}
+	OpenAI struct {
+		APIKey            string  `env:"OPENAI_API_KEY"`
+		ModerationEnabled bool    `env:"OPENAI_MODERATION_ENABLED,default=false"`
+		SexualThreshold   float64 `env:"OPENAI_MODERATION_SEXUAL_THRESHOLD,default=0.5"`
+		SelfHarmThreshold float64 `env:"OPENAI_MODERATION_SELFHARM_THRESHOLD,default=0.5"`
+	}
 	GoogleAnalytics string `env:"GOOGLE_ANALYTICS"`
 	GoogleAdSense   string `env:"GOOGLE_ADSENSE"`
 }
@@ -245,6 +251,10 @@ func IsBillingEnabled() bool {
 
 func IsWebPushEnabled() bool {
 	return Config.WebPush.VAPIDPublicKey != "" && Config.WebPush.VAPIDPrivateKey != ""
+}
+
+func IsOpenAIModerationEnabled() bool {
+	return Config.OpenAI.APIKey != "" && Config.OpenAI.ModerationEnabled
 }
 
 // IsProduction returns true on Fider production environment
