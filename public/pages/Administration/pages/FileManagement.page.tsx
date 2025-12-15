@@ -113,9 +113,7 @@ const mapApiResponseToAssets = (apiAssets: any[]): MediaAsset[] => {
 
 const getAssetURL = (asset: MediaAsset): string => {
   if (asset.blobKey.startsWith('logos/')) {
-    return `/static/favicon/${asset.blobKey.replace('logos/', '')}`;
-  } else if (asset.blobKey.startsWith('avatars/')) {
-    return `/static/avatars/gravatar/${asset.blobKey.replace('avatars/', '')}`;
+    return `/static/favicon/${asset.blobKey}`;
   }
   return `/static/images/${asset.blobKey}`;
 }
