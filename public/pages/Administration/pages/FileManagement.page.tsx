@@ -545,18 +545,18 @@ const FileManagementPage: React.FC = () => {
     );
   }
 
-  const parseUsageLink = (usage: string): { text: string; href?: string } => {
-    const postMatch = usage.match(/Post #(\d+)/i)
-    if (postMatch) {
-      return { text: usage, href: `/posts/${postMatch[1]}` }
-    }
+  const parseUsageLink = (usage: string): { text: string; href?: string; linkText?: string } => {
     const commentMatch = usage.match(/Comment #(\d+) on Post #(\d+)/i)
     if (commentMatch) {
-      return { text: usage, href: `/posts/${commentMatch[2]}#comment-${commentMatch[1]}` }
+      return { text: usage, href: `/posts/${commentMatch[2]}#comment-${commentMatch[1]}`, linkText: "View comment" }
     }
-    const userMatch = usage.match(/User: (.+)/i)
+    const postMatch = usage.match(/Post #(\d+)/i)
+    if (postMatch) {
+      return { text: usage, href: `/posts/${postMatch[1]}`, linkText: "View post" }
+    }
+    const userMatch = usage.match(/User #(\d+): (.+)/i)
     if (userMatch) {
-      return { text: usage, href: undefined }
+      return { text: usage, href: `/profile/${userMatch[1]}`, linkText: "View profile" }
     }
     return { text: usage, href: undefined }
   }
@@ -602,10 +602,10 @@ const FileManagementPage: React.FC = () => {
           <div className="mb-4">
             <div className="text-sm font-medium text-foreground mb-2">Used in:</div>
             <div className="bg-tertiary rounded-card overflow-hidden">
-              {selectedAsset.usedIn && selectedAsset.usedIn.length > 0 ? (
+                {selectedAsset.usedIn && selectedAsset.usedIn.length > 0 ? (
                 <div className="max-h-[250px] overflow-y-auto divide-y divide-surface-alt">
                   {selectedAsset.usedIn.map((usage: string, index: number) => {
-                    const { text, href } = parseUsageLink(usage)
+                    const { text, href, linkText } = parseUsageLink(usage)
                     return href ? (
                       <div 
                         key={index}
@@ -619,7 +619,7 @@ const FileManagementPage: React.FC = () => {
                           className="flex items-center gap-1 text-primary text-xs hover:text-primary-hover transition-colors"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <span>Go to post</span>
+                          <span>{linkText}</span>
                           <Icon sprite={IconExternalLink} className="w-3 h-3" />
                         </a>
                       </div>

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -99,8 +100,28 @@ func isImageFileInUse(ctx context.Context, q *query.IsImageFileInUse) error {
 		}
 
 		if usageCount.AvatarCount > 0 {
-			usageLocations = append(usageLocations, "User Avatar")
 			q.Result = true
+
+			rows, err := trx.Query(`
+				SELECT id, name FROM users WHERE avatar_bkey = $1
+			`, q.BlobKey)
+			if err != nil {
+				return errors.Wrap(err, "failed to fetch user avatar usage")
+			}
+			defer rows.Close()
+
+			for rows.Next() {
+				var userID int
+				var userName string
+				if err := rows.Scan(&userID, &userName); err != nil {
+					return errors.Wrap(err, "failed to scan user avatar row")
+				}
+				usageLocations = append(usageLocations, fmt.Sprintf("User #%d: %s", userID, userName))
+			}
+
+			if err := rows.Err(); err != nil {
+				return errors.Wrap(err, "error iterating user avatar rows")
+			}
 		}
 
 		if usageCount.AttachmentCount > 0 {
@@ -108,8 +129,8 @@ func isImageFileInUse(ctx context.Context, q *query.IsImageFileInUse) error {
 
 			rows, err := trx.Query(`
 				SELECT 
-					COALESCE(p.title, 'Untitled Post') as post_title,
 					COALESCE(p.id, c.post_id) as post_id,
+					a.comment_id,
 					CASE 
 						WHEN a.post_id IS NOT NULL THEN 'post'
 						WHEN a.comment_id IS NOT NULL THEN 'comment'
@@ -127,20 +148,18 @@ func isImageFileInUse(ctx context.Context, q *query.IsImageFileInUse) error {
 			defer rows.Close()
 
 			for rows.Next() {
-				var postTitle string
 				var postID int
+				var commentID sql.NullInt64
 				var attachmentType string
 
-				if err := rows.Scan(&postTitle, &postID, &attachmentType); err != nil {
+				if err := rows.Scan(&postID, &commentID, &attachmentType); err != nil {
 					return errors.Wrap(err, "failed to scan attachment usage row")
 				}
 
 				if attachmentType == "post" {
-					usageLocations = append(usageLocations,
-						fmt.Sprintf("Post Attachment: %s (ID: %d)", postTitle, postID))
-				} else if attachmentType == "comment" {
-					usageLocations = append(usageLocations,
-						fmt.Sprintf("Comment Attachment (Post: %s, ID: %d)", postTitle, postID))
+					usageLocations = append(usageLocations, fmt.Sprintf("Post #%d", postID))
+				} else if attachmentType == "comment" && commentID.Valid {
+					usageLocations = append(usageLocations, fmt.Sprintf("Comment #%d on Post #%d", commentID.Int64, postID))
 				}
 			}
 
@@ -493,9 +512,13 @@ func listImageFiles(ctx context.Context, q *query.ListImageFiles) error {
 		}
 
 		attachmentKeys := make([]string, 0)
+		avatarKeys := make([]string, 0)
 		for _, key := range blobKeys {
 			if strings.HasPrefix(key, "attachments/") {
 				attachmentKeys = append(attachmentKeys, key)
+			}
+			if strings.HasPrefix(key, "avatars/") {
+				avatarKeys = append(avatarKeys, key)
 			}
 		}
 
@@ -504,6 +527,14 @@ func listImageFiles(ctx context.Context, q *query.ListImageFiles) error {
 			attachmentContextMap, err = getBulkAttachmentContext(trx, tenant.ID, attachmentKeys)
 			if err != nil {
 				return errors.Wrap(err, "failed to get bulk attachment context")
+			}
+		}
+
+		avatarContextMap := make(map[string][]string)
+		if len(avatarKeys) > 0 {
+			avatarContextMap, err = getBulkAvatarContext(trx, avatarKeys)
+			if err != nil {
+				return errors.Wrap(err, "failed to get bulk avatar context")
 			}
 		}
 
@@ -517,7 +548,11 @@ func listImageFiles(ctx context.Context, q *query.ListImageFiles) error {
 				usedIn = append(usedIn, "Tenant Logo")
 			}
 			if usage.AvatarCount > 0 {
-				usedIn = append(usedIn, "User Avatar")
+				if contexts, ok := avatarContextMap[b.Key]; ok {
+					usedIn = append(usedIn, contexts...)
+				} else {
+					usedIn = append(usedIn, "User Avatar")
+				}
 			}
 			if usage.AttachmentCount > 0 {
 				if contexts, ok := attachmentContextMap[b.Key]; ok {
@@ -626,8 +661,8 @@ func getBulkAttachmentContext(trx *dbx.Trx, tenantID int, blobKeys []string) (ma
 	contextQuery := fmt.Sprintf(`
 		SELECT 
 			a.attachment_bkey as key,
-			COALESCE(p.title, 'Untitled Post') as post_title,
 			COALESCE(p.id, c.post_id) as post_id,
+			a.comment_id,
 			CASE 
 				WHEN a.post_id IS NOT NULL THEN 'post'
 				WHEN a.comment_id IS NOT NULL THEN 'comment'
@@ -640,10 +675,10 @@ func getBulkAttachmentContext(trx *dbx.Trx, tenantID int, blobKeys []string) (ma
 	`, inClause)
 
 	type contextRow struct {
-		Key            string `db:"key"`
-		PostTitle      string `db:"post_title"`
-		PostID         int    `db:"post_id"`
-		AttachmentType string `db:"attachment_type"`
+		Key            string        `db:"key"`
+		PostID         int           `db:"post_id"`
+		CommentID      sql.NullInt64 `db:"comment_id"`
+		AttachmentType string        `db:"attachment_type"`
 	}
 
 	var contexts []*contextRow
@@ -654,13 +689,50 @@ func getBulkAttachmentContext(trx *dbx.Trx, tenantID int, blobKeys []string) (ma
 	for _, row := range contexts {
 		var contextStr string
 		if row.AttachmentType == "post" {
-			contextStr = fmt.Sprintf("Post Attachment: %s (ID: %d)", row.PostTitle, row.PostID)
-		} else if row.AttachmentType == "comment" {
-			contextStr = fmt.Sprintf("Comment Attachment (Post: %s, ID: %d)", row.PostTitle, row.PostID)
+			contextStr = fmt.Sprintf("Post #%d", row.PostID)
+		} else if row.AttachmentType == "comment" && row.CommentID.Valid {
+			contextStr = fmt.Sprintf("Comment #%d on Post #%d", row.CommentID.Int64, row.PostID)
 		}
 		if contextStr != "" {
 			result[row.Key] = append(result[row.Key], contextStr)
 		}
+	}
+
+	return result, nil
+}
+
+func getBulkAvatarContext(trx *dbx.Trx, blobKeys []string) (map[string][]string, error) {
+	result := make(map[string][]string)
+	if len(blobKeys) == 0 {
+		return result, nil
+	}
+
+	placeholders := make([]string, len(blobKeys))
+	args := make([]interface{}, len(blobKeys))
+	for i, key := range blobKeys {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = key
+	}
+	inClause := strings.Join(placeholders, ", ")
+
+	contextQuery := fmt.Sprintf(`
+		SELECT avatar_bkey as key, id, name FROM users WHERE avatar_bkey IN (%s)
+	`, inClause)
+
+	type contextRow struct {
+		Key    string `db:"key"`
+		UserID int    `db:"id"`
+		Name   string `db:"name"`
+	}
+
+	var contexts []*contextRow
+	if err := trx.Select(&contexts, contextQuery, args...); err != nil {
+		return nil, errors.Wrap(err, "failed to get avatar contexts")
+	}
+
+	for _, row := range contexts {
+		contextStr := fmt.Sprintf("User #%d: %s", row.UserID, row.Name)
+		result[row.Key] = append(result[row.Key], contextStr)
 	}
 
 	return result, nil
