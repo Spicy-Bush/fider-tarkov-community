@@ -63,10 +63,39 @@
   --color-info-dark: #9fc3cd;
 }
 
-html, body {
+html {
   height: 100%;
   box-sizing: border-box;
   overflow-y: scroll;
+  scrollbar-color: var(--color-border) transparent;
+  scrollbar-width: thin;
+}
+
+body {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 *, *::before, *::after {
