@@ -230,6 +230,7 @@
   "mysettings.message.noemail": "Your account doesn't have an email.",
   "mysettings.message.privateemail": "Your email is private and will never be publicly displayed.",
   "mysettings.notification.channelemail": "Email",
+  "mysettings.notification.channelpush": "Push",
   "mysettings.notification.channelweb": "Web",
   "mysettings.notification.event.discussion": "Discussion",
   "mysettings.notification.event.discussion.staff": "comments on all posts unless individually unsubscribed",

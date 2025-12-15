@@ -230,6 +230,7 @@
   "mysettings.message.noemail": "У вашего аккаунта отсутствует email.",
   "mysettings.message.privateemail": "Ваш email является приватным и никогда не будет отображаться публично.",
   "mysettings.notification.channelemail": "Email",
+  "mysettings.notification.channelpush": "Пуш",
   "mysettings.notification.channelweb": "Веб",
   "mysettings.notification.event.discussion": "Обсуждение",
   "mysettings.notification.event.discussion.staff": "комментарии ко всем постам, кроме неотслеживаемых",

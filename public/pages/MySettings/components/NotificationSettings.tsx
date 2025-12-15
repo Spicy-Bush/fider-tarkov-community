@@ -11,6 +11,7 @@ import { push } from "@fider/services"
 type Channel = number
 const WebChannel: Channel = 1
 const EmailChannel: Channel = 2
+const PushChannel: Channel = 4
 
 interface NotificationSettingsProps {
   userSettings: UserSettings
@@ -80,10 +81,18 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
 
   const labelWeb = i18n._("mysettings.notification.channelweb", { message: "Web" })
   const labelEmail = i18n._("mysettings.notification.channelemail", { message: "Email" })
+  const labelPush = i18n._("mysettings.notification.channelpush", { message: "Push" })
 
   const icon = (settingsKey: string, channel: Channel) => {
     const active = isEnabled(settingsKey, channel)
-    const label = channel === WebChannel ? labelWeb : labelEmail
+    let label: string
+    if (channel === WebChannel) {
+      label = labelWeb
+    } else if (channel === EmailChannel) {
+      label = labelEmail
+    } else {
+      label = labelPush
+    }
     const onToggle = () => toggle(settingsKey, channel)
     return <Toggle key={`${settingsKey}_${channel}`} active={active} label={label} onToggle={onToggle} />
   }
@@ -179,6 +188,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
           <HStack spacing={6}>
             {icon("event_notification_new_post", WebChannel)}
             {fider.session.user.isAdministrator && icon("event_notification_new_post", EmailChannel)}
+            {pushSubscribed && icon("event_notification_new_post", PushChannel)}
           </HStack>
         </div>
         <div className="p-4 bg-elevated">
@@ -193,6 +203,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
           <HStack spacing={6}>
             {icon("event_notification_new_comment", WebChannel)}
             {fider.session.user.isAdministrator && icon("event_notification_new_comment", EmailChannel)}
+            {pushSubscribed && icon("event_notification_new_comment", PushChannel)}
           </HStack>
         </div>
         <div className="p-4 bg-elevated">
@@ -207,6 +218,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
           <HStack spacing={6}>
             {icon("event_notification_mention", WebChannel)}
             {fider.session.user.isAdministrator && icon("event_notification_mention", EmailChannel)}
+            {pushSubscribed && icon("event_notification_mention", PushChannel)}
           </HStack>
         </div>
         <div className="p-4 bg-elevated">
@@ -221,6 +233,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
           <HStack spacing={6}>
             {icon("event_notification_change_status", WebChannel)}
             {fider.session.user.isAdministrator && icon("event_notification_change_status", EmailChannel)}
+            {pushSubscribed && icon("event_notification_change_status", PushChannel)}
           </HStack>
         </div>
       </div>

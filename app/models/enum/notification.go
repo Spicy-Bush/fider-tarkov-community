@@ -12,6 +12,8 @@ var (
 	NotificationChannelWeb NotificationChannel = 1
 	//NotificationChannelEmail is an email notification
 	NotificationChannelEmail NotificationChannel = 2
+	//NotificationChannelPush is a push notification
+	NotificationChannelPush NotificationChannel = 4
 )
 
 // NotificationEvent represents all possible notification events
@@ -24,7 +26,7 @@ type NotificationEvent struct {
 }
 
 func notificationEventValidation(v string) bool {
-	return v == "0" || v == "1" || v == "2" || v == "3"
+	return v == "0" || v == "1" || v == "2" || v == "3" || v == "4" || v == "5" || v == "6" || v == "7"
 }
 
 var (
