@@ -115,6 +115,8 @@ export const VoteCounter = (props: VoteCounterProps) => {
           className={upvoteClassName} 
           onClick={() => handleVote('up')}
           disabled={isDisabled}
+          aria-label="Upvote"
+          aria-pressed={voteType === 'up'}
         >
           <Icon sprite={FaCaretUp} height="16" width="16" />
         </button>
@@ -127,6 +129,8 @@ export const VoteCounter = (props: VoteCounterProps) => {
           className={downvoteClassName} 
           onClick={() => handleVote('down')}
           disabled={isDisabled}
+          aria-label="Downvote"
+          aria-pressed={voteType === 'down'}
         >
           <Icon sprite={FaCaretDown} height="16" width="16" />
         </button>
