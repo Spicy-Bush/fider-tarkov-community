@@ -48,7 +48,7 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
     }
   }, [])
 
-  const searchPosts = useCallback((resetOffset = true) => {
+  const searchPosts = useCallback((resetOffset = true, immediate = false) => {
     if (timerRef.current) {
       clearTimeout(timerRef.current)
     }
@@ -75,7 +75,8 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
           }
           setLoading(false)
         })
-    }, 500)
+        .catch(() => setLoading(false))
+    }, immediate ? 0 : 500)
   }, [filters, setOffset])
 
   const loadMore = useCallback(() => {
@@ -152,9 +153,17 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
     prevFiltersRef.current = filters
 
     if (filtersChanged && offset === 0) {
-      searchPosts(true)
+      searchPosts(true, !hasInitialPosts)
     }
-  }, [filters, offset, searchPosts])
+  }, [filters, offset, searchPosts, hasInitialPosts])
+
+  // If the server did not provide initial posts, run an immediate fetch on mount.
+  useEffect(() => {
+    if (!hasInitialPosts) {
+      searchPosts(true, true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     return () => {

@@ -20,8 +20,12 @@ func Index() web.HandlerFunc {
 
 		tenantID := c.Tenant().ID
 
-		var tags []*entity.Tag
-		var countPerStatus map[enum.PostStatus]int
+		var (
+			tags           []*entity.Tag
+			countPerStatus map[enum.PostStatus]int
+			pfilterValue   string
+			hasPfilter     bool
+		)
 
 		if cached, ok := postcache.GetTags(tenantID); ok {
 			tags = cached
@@ -45,25 +49,36 @@ func Index() web.HandlerFunc {
 			postcache.SetCountPerStatus(tenantID, countPerStatus)
 		}
 
-		var pfilterValue string
 		if cookie, err := c.Request.Cookie("pfilter"); err == nil {
 			pfilterValue = cookie.Value
+			hasPfilter = true
 		}
-		pf := web.DecodePFilter(pfilterValue, c.User() != nil)
-		tagSlugs := tagIDsToSlugs(pf.Tags, tags)
-		statuses := statusIDsToStatuses(pf.Statuses)
 
-		searchPosts := &query.SearchPosts{
-			View:        pf.View,
-			Limit:       "20",
-			Tags:        tagSlugs,
-			Statuses:    statuses,
-			MyVotesOnly: pf.MyVotes,
-			MyPostsOnly: pf.MyPosts,
-			NotMyVotes:  pf.NotMyVotes,
-		}
-		if err := bus.Dispatch(c, searchPosts); err != nil {
-			return c.Failure(err)
+		var (
+			posts any = []interface{}{}
+			pf    any = nil
+		)
+
+		if hasPfilter {
+			decoded := web.DecodePFilter(pfilterValue, c.User() != nil)
+			tagSlugs := tagIDsToSlugs(decoded.Tags, tags)
+			statuses := statusIDsToStatuses(decoded.Statuses)
+
+			searchPosts := &query.SearchPosts{
+				View:        decoded.View,
+				Limit:       "20",
+				Tags:        tagSlugs,
+				Statuses:    statuses,
+				MyVotesOnly: decoded.MyVotes,
+				MyPostsOnly: decoded.MyPosts,
+				NotMyVotes:  decoded.NotMyVotes,
+			}
+			if err := bus.Dispatch(c, searchPosts); err != nil {
+				return c.Failure(err)
+			}
+
+			posts = searchPosts.Result
+			pf = decoded
 		}
 
 		description := ""
@@ -77,7 +92,7 @@ func Index() web.HandlerFunc {
 			Page:        "Home/Home.page",
 			Description: description,
 			Data: web.Map{
-				"posts":          searchPosts.Result,
+				"posts":          posts,
 				"tags":           tags,
 				"countPerStatus": countPerStatus,
 				"pfilter":        pf,
@@ -99,6 +114,10 @@ func tagIDsToSlugs(ids []int, tags []*entity.Tag) []string {
 		if _, ok := idSet[tag.ID]; ok {
 			slugs = append(slugs, tag.Slug)
 		}
+	}
+	// special bit for untagged (bit 0)
+	if _, ok := idSet[0]; ok {
+		slugs = append(slugs, "untagged")
 	}
 	return slugs
 }

@@ -85,7 +85,13 @@ function encodePFilterCookie(filters: StoredFilters, tags?: TagWithID[]): string
 
     const tagIds: number[] = []
     for (let i = 0; i < filters.tags.length; i++) {
-      const id = slugToId.get(filters.tags[i])
+      const slug = filters.tags[i]
+      // reserve bit 0 for "untagged"
+      if (slug === "untagged") {
+        tagIds.push(0)
+        continue
+      }
+      const id = slugToId.get(slug)
       if (id !== undefined) tagIds.push(id)
     }
 
