@@ -306,7 +306,7 @@ func (g *Group) Static(prefix, root string) {
 
 		c.Request.instance.URL.Path = "/" + filePath
 		fileServer.ServeHTTP(&c.Response, c.Request.instance)
-		return nil
+			return nil
 	}
 
 	g.engine.mux.Handle("GET", prefix, g.engine.handle(g.middlewares, h))

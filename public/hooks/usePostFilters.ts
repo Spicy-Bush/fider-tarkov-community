@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { querystring, Fider, PAGINATION, filterStorage, StoredFilters } from "@fider/services"
+import { Tag } from "@fider/models"
 
 export interface FilterState extends StoredFilters {
   query: string
@@ -16,6 +17,10 @@ const DEFAULT_FILTERS: FilterState = {
   query: "",
   view: "trending",
   limit: PAGINATION.DEFAULT_LIMIT,
+}
+
+export interface UsePostFiltersOptions {
+  tags?: Tag[]
 }
 
 const getUrlParams = (): FilterState | null => {
@@ -62,11 +67,14 @@ const toStoredFilters = (filters: FilterState): StoredFilters => {
   return rest
 }
 
-export const usePostFilters = () => {
+export const usePostFilters = (options?: UsePostFiltersOptions) => {
+  const tagsRef = useRef(options?.tags)
+  tagsRef.current = options?.tags
+
   const [filters, setFilters] = useState<FilterState>(() => {
     const urlParams = getUrlParams()
     if (urlParams) {
-      filterStorage.save(toStoredFilters(urlParams))
+      filterStorage.save(toStoredFilters(urlParams), tagsRef.current)
       return urlParams
     }
 
@@ -82,11 +90,11 @@ export const usePostFilters = () => {
 
       if (metadata && filterStorage.isExpired(metadata)) {
         const updatedFilters = { ...restoredFilters, view: "trending" }
-        filterStorage.save(toStoredFilters(updatedFilters))
+        filterStorage.save(toStoredFilters(updatedFilters), tagsRef.current)
         return updatedFilters
       }
 
-      filterStorage.save(toStoredFilters(restoredFilters))
+      filterStorage.save(toStoredFilters(restoredFilters), tagsRef.current)
       return restoredFilters
     }
 
@@ -100,7 +108,7 @@ export const usePostFilters = () => {
   const [offset, setOffset] = useState(0)
 
   useEffect(() => {
-    filterStorage.save(toStoredFilters(filters))
+    filterStorage.save(toStoredFilters(filters), tagsRef.current)
     updateUrl(filters)
   }, [filters])
 

@@ -188,10 +188,10 @@ func getOAuthProviders(ctx *Context) []*dto.OAuthProviderOption {
 		return *providers
 	}
 
-	providers := &query.ListActiveOAuthProviders{
-		Result: make([]*dto.OAuthProviderOption, 0),
-	}
-	if err := bus.Dispatch(ctx, providers); err != nil {
+		providers := &query.ListActiveOAuthProviders{
+			Result: make([]*dto.OAuthProviderOption, 0),
+		}
+		if err := bus.Dispatch(ctx, providers); err != nil {
 		return nil
 	}
 

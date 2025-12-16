@@ -45,6 +45,27 @@ func Index() web.HandlerFunc {
 			postcache.SetCountPerStatus(tenantID, countPerStatus)
 		}
 
+		var pfilterValue string
+		if cookie, err := c.Request.Cookie("pfilter"); err == nil {
+			pfilterValue = cookie.Value
+		}
+		pf := web.DecodePFilter(pfilterValue, c.User() != nil)
+		tagSlugs := tagIDsToSlugs(pf.Tags, tags)
+		statuses := statusIDsToStatuses(pf.Statuses)
+
+		searchPosts := &query.SearchPosts{
+			View:        pf.View,
+			Limit:       "20",
+			Tags:        tagSlugs,
+			Statuses:    statuses,
+			MyVotesOnly: pf.MyVotes,
+			MyPostsOnly: pf.MyPosts,
+			NotMyVotes:  pf.NotMyVotes,
+		}
+		if err := bus.Dispatch(c, searchPosts); err != nil {
+			return c.Failure(err)
+		}
+
 		description := ""
 		if c.Tenant().WelcomeMessage != "" {
 			description = markdown.PlainText(c.Tenant().WelcomeMessage)
@@ -56,12 +77,47 @@ func Index() web.HandlerFunc {
 			Page:        "Home/Home.page",
 			Description: description,
 			Data: web.Map{
-				"posts":          []interface{}{},
+				"posts":          searchPosts.Result,
 				"tags":           tags,
 				"countPerStatus": countPerStatus,
+				"pfilter":        pf,
 			},
 		})
 	}
+}
+
+func tagIDsToSlugs(ids []int, tags []*entity.Tag) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	idSet := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		idSet[id] = struct{}{}
+	}
+	slugs := make([]string, 0, len(ids))
+	for _, tag := range tags {
+		if _, ok := idSet[tag.ID]; ok {
+			slugs = append(slugs, tag.Slug)
+		}
+	}
+	return slugs
+}
+
+func statusIDsToStatuses(ids []int) []enum.PostStatus {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make([]enum.PostStatus, 0, len(ids))
+	for _, id := range ids {
+		switch enum.PostStatus(id) {
+		case enum.PostOpen, enum.PostStarted, enum.PostCompleted, enum.PostDeclined, enum.PostPlanned, enum.PostDuplicate, enum.PostDeleted, enum.PostArchived:
+			out = append(out, enum.PostStatus(id))
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // PostDetails shows details of given Post by id

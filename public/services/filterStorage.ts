@@ -19,6 +19,100 @@ export interface FilterStorageMetadata {
   wasAuthenticated: boolean
 }
 
+interface TagWithID {
+  id: number
+  slug: string
+}
+
+const VIEW_MAP: Record<string, number> = {
+  "trending": 0,
+  "newest": 1,
+  "most-wanted": 2,
+  "most-discussed": 3,
+  "controversial": 4,
+  "recently-updated": 5,
+  "all": 6,
+}
+
+const STATUS_MAP: Record<string, number> = {
+  "open": 0,
+  "started": 1,
+  "completed": 2,
+  "declined": 3,
+  "planned": 4,
+  "duplicate": 5,
+  "deleted": 6,
+  "archived": 7,
+}
+
+function encodePFilterCookie(filters: StoredFilters, tags?: TagWithID[]): string {
+  const viewNum = VIEW_MAP[filters.view] ?? 0
+
+  // flags byte
+  let flags = viewNum & 0b111
+  if (filters.myVotes) flags |= 1 << 3
+  if (filters.myPosts) flags |= 1 << 4
+  if (filters.notMyVotes) flags |= 1 << 5
+
+  const flagStr = String(flags)
+
+  // statuses bitmask
+  let statusB64 = ""
+  if (filters.statuses && filters.statuses.length > 0) {
+    let maxStatus = 0
+    for (let i = 0; i < filters.statuses.length; i++) {
+      const id = STATUS_MAP[filters.statuses[i]]
+      if (id > maxStatus) maxStatus = id
+    }
+    const byteLen = ((maxStatus + 1) >> 3) + 1
+    const bytes = new Uint8Array(byteLen)
+    for (let i = 0; i < filters.statuses.length; i++) {
+      const id = STATUS_MAP[filters.statuses[i]]
+      if (id !== undefined) {
+        bytes[id >> 3] |= 1 << (id & 7)
+      }
+    }
+    statusB64 = btoa(String.fromCharCode.apply(null, bytes as unknown as number[]))
+  }
+
+  // tags bitmask
+  let tagsB64 = ""
+  if (tags && filters.tags.length > 0) {
+    const slugToId = new Map<string, number>()
+    for (let i = 0; i < tags.length; i++) {
+      slugToId.set(tags[i].slug, tags[i].id)
+    }
+
+    const tagIds: number[] = []
+    for (let i = 0; i < filters.tags.length; i++) {
+      const id = slugToId.get(filters.tags[i])
+      if (id !== undefined) tagIds.push(id)
+    }
+
+    if (tagIds.length > 0) {
+      let maxId = 0
+      for (let i = 0; i < tagIds.length; i++) {
+        if (tagIds[i] > maxId) maxId = tagIds[i]
+      }
+
+      const byteLen = ((maxId + 1) >> 3) + 1
+      const bytes = new Uint8Array(byteLen)
+      for (let i = 0; i < tagIds.length; i++) {
+        const id = tagIds[i]
+        bytes[id >> 3] |= 1 << (id & 7)
+      }
+
+      tagsB64 = btoa(String.fromCharCode.apply(null, bytes as unknown as number[]))
+    }
+  }
+
+  return `${flagStr}:${statusB64}:${tagsB64}`
+}
+
+function setPFilterCookie(value: string): void {
+  document.cookie = `pfilter=${value};path=/;max-age=31536000;SameSite=Lax`
+}
+
 export const getStoredFilters = (): StoredFilters | null => {
   const stored = tryLocalStorageGet(STORAGE_KEYS.POST_FILTERS)
   if (!stored) return null
@@ -38,10 +132,11 @@ export const getFilterMetadata = (): FilterStorageMetadata | null => {
   }
 }
 
-export const saveFilters = (filters: StoredFilters): void => {
+export const saveFilters = (filters: StoredFilters, tags?: TagWithID[]): void => {
   tryLocalStorageSet(STORAGE_KEYS.POST_FILTERS, JSON.stringify(filters))
   tryLocalStorageSet(STORAGE_KEYS.POST_FILTERS_TIMESTAMP, Date.now().toString())
   tryLocalStorageSet(STORAGE_KEYS.POST_FILTERS_AUTH, Fider.session.isAuthenticated ? "true" : "false")
+  setPFilterCookie(encodePFilterCookie(filters, tags))
 }
 
 export const clearFilters = (): void => {
