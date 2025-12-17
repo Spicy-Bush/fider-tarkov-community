@@ -231,7 +231,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                             data-tooltip={i18n._("showpost.createdat", { message: "Created {date}", date: formatDate(Fider.currentLocale, props.post.createdAt, "full") })}
                           >
                             <Trans id="showpost.lastactivity">Last activity:</Trans>{" "}
-                            <Moment locale={Fider.currentLocale} date={lastActivityAt} />
+                            <Moment locale={Fider.currentLocale} date={lastActivityAt} showTooltip={false} />
                           </span>
                         </VStack>
                       </HStack>

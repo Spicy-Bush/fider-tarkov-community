@@ -6,6 +6,7 @@ interface MomentText {
   date: Date | string
   className?: string
   format?: "relative" | "short" | "full" | "date"
+  showTooltip?: boolean
 }
 
 export const Moment = (props: MomentText) => {
@@ -67,7 +68,7 @@ export const Moment = (props: MomentText) => {
     return undefined
   }, [props.date, props.format, props.locale])
 
-  const tooltip = formatDate(props.locale, props.date, "full")
+  const tooltip = props.showTooltip !== false ? formatDate(props.locale, props.date, "full") : undefined
 
   const className = classSet({
     ...(props.className ? { [props.className]: true } : {}),
