@@ -157,7 +157,6 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
     }
   }, [filters, offset, searchPosts, hasInitialPosts])
 
-  // If the server did not provide initial posts, run an immediate fetch on mount.
   useEffect(() => {
     if (!hasInitialPosts) {
       searchPosts(true, true)
