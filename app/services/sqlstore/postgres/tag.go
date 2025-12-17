@@ -150,7 +150,7 @@ func assignTag(ctx context.Context, c *cmd.AssignTag) error {
 		}
 
 		_, err = trx.Execute(
-			`INSERT INTO post_tags (tag_id, post_id, created_at, created_by_id, tenant_id) VALUES ($1, $2, $3, $4, $5)`,
+			`INSERT INTO post_tags (tag_id, post_id, created_at, created_by_id, tenant_id) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`,
 			c.Tag.ID, c.Post.ID, time.Now(), user.ID, tenant.ID,
 		)
 
