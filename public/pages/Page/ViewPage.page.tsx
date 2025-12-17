@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useState, useEffect } from "react"
-import { Page, Comment } from "@fider/models"
+import { Page, Comment, Post } from "@fider/models"
 import { Markdown, Button } from "@fider/components"
 import { VStack, HStack } from "@fider/components/layout"
 import { togglePageReaction, togglePageCommentReaction } from "@fider/services/pages"
@@ -15,6 +15,10 @@ interface ViewPageProps {
   comments: Comment[]
 }
 
+type ContentPart = 
+  | { type: "text"; content: string }
+  | { type: "posts"; postIds: number[] | null; filters: Record<string, string> | null }
+
 const ViewPage = ({ page, comments: initialComments }: ViewPageProps) => {
   const contentRef = useRef<HTMLDivElement>(null)
   const emojiSelectorRef = useRef<HTMLDivElement>(null)
@@ -25,34 +29,56 @@ const ViewPage = ({ page, comments: initialComments }: ViewPageProps) => {
   const readingTime = useMemo(() => Math.max(1, Math.ceil(page.content.split(/\s+/).length / 250)), [page.content])
 
   const contentParts = useMemo(() => {
-    const parts: Array<{ type: "text" | "posts"; content: string }> = []
-    let lastIndex = 0
+    const parts: ContentPart[] = []
     
-    const tableRegex = /<table\s+type=posts\s+filters=(?:"([^"]+)"|(\S+))\s*\/>/g
+    const tableRegex = /<table\s+type=posts\s+filters=(?:"([^"]+)"|(\S+))(?:\s+limit=(\d+))?\s*\/>/g
     const postRegex = /<post\s+id=(\d+)\s*\/>/g
-    const postsRegex = /<posts\s+ids=(?:"([^"]+)"|(\S+))\s*\/>/g
+    const postsRegex = /<posts\s+ids=(?:"([^"]+)"|(\S+))(?:\s+limit=(\d+))?\s*\/>/g
     
-    const allMatches: Array<{ index: number; length: number }> = []
+    interface EmbedMatch {
+      index: number
+      length: number
+      postIds: number[] | null
+      filters: Record<string, string> | null
+    }
+    
+    const allMatches: EmbedMatch[] = []
     
     let match
     while ((match = tableRegex.exec(page.content)) !== null) {
-      allMatches.push({ index: match.index, length: match[0].length })
+      const filterStr = match[1] || match[2] || ""
+      const filters: Record<string, string> = {}
+      filterStr.split(/\s+/).forEach(part => {
+        if (part.includes(":")) {
+          const [key, val] = part.split(":", 2)
+          filters[key] = val
+        } else if (part) {
+          filters["tag"] = part
+        }
+      })
+      allMatches.push({ index: match.index, length: match[0].length, postIds: null, filters })
     }
+    
     while ((match = postRegex.exec(page.content)) !== null) {
-      allMatches.push({ index: match.index, length: match[0].length })
+      const id = parseInt(match[1], 10)
+      allMatches.push({ index: match.index, length: match[0].length, postIds: [id], filters: null })
     }
+    
     while ((match = postsRegex.exec(page.content)) !== null) {
-      allMatches.push({ index: match.index, length: match[0].length })
+      const idsStr = match[1] || match[2] || ""
+      const ids = idsStr.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+      allMatches.push({ index: match.index, length: match[0].length, postIds: ids, filters: null })
     }
     
     allMatches.sort((a, b) => a.index - b.index)
     
-    for (const match of allMatches) {
-      if (match.index > lastIndex) {
-        parts.push({ type: "text", content: page.content.substring(lastIndex, match.index) })
+    let lastIndex = 0
+    for (const embedMatch of allMatches) {
+      if (embedMatch.index > lastIndex) {
+        parts.push({ type: "text", content: page.content.substring(lastIndex, embedMatch.index) })
       }
-      parts.push({ type: "posts", content: "" })
-      lastIndex = match.index + match.length
+      parts.push({ type: "posts", postIds: embedMatch.postIds, filters: embedMatch.filters })
+      lastIndex = embedMatch.index + embedMatch.length
     }
     
     if (lastIndex < page.content.length) {
@@ -65,6 +91,25 @@ const ViewPage = ({ page, comments: initialComments }: ViewPageProps) => {
     
     return parts
   }, [page.content])
+
+  const getPostsForPart = (part: ContentPart): Post[] => {
+    if (part.type !== "posts" || !page.embeddedPosts) return []
+    
+    if (part.postIds && part.postIds.length > 0) {
+      const postsById = new Map(page.embeddedPosts.map(p => [p.id, p]))
+      return part.postIds.map(id => postsById.get(id)).filter((p): p is Post => p !== undefined)
+    }
+    
+    if (part.filters) {
+      return page.embeddedPosts.filter(post => {
+        if (part.filters!.tag && !post.tags.includes(part.filters!.tag)) return false
+        if (part.filters!.status && post.status !== part.filters!.status) return false
+        return true
+      })
+    }
+    
+    return page.embeddedPosts
+  }
 
   useEffect(() => {
     const images = contentRef.current?.querySelectorAll('img')
@@ -177,16 +222,18 @@ const ViewPage = ({ page, comments: initialComments }: ViewPageProps) => {
           </HStack>
 
           <div ref={contentRef} className="c-markdown mb-8 min-w-0 max-w-full">
-            {contentParts.map((part, index) => (
-              <React.Fragment key={index}>
-                {part.type === "text" && <Markdown text={part.content} style="full" embedImages={true} />}
-                {part.type === "posts" && page.embeddedPosts && page.embeddedPosts.length > 0 && (
-                  <div className="my-6 p-4 bg-tertiary rounded-card border border-border min-w-0 max-w-full">
-                    <EmbeddedPostsList posts={page.embeddedPosts} />
-                  </div>
-                )}
-              </React.Fragment>
-            ))}
+            {contentParts.map((part, index) => {
+              if (part.type === "text") {
+                return <Markdown key={index} text={part.content} style="full" embedImages={true} />
+              }
+              const postsToShow = getPostsForPart(part)
+              if (postsToShow.length === 0) return null
+              return (
+                <div key={index} className="my-6 p-4 bg-tertiary rounded-card border border-border min-w-0 max-w-full">
+                  <EmbeddedPostsList posts={postsToShow} />
+                </div>
+              )
+            })}
           </div>
 
           {page.allowReactions && (
