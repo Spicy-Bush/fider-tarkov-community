@@ -861,12 +861,13 @@ func getCommentsByPage(ctx context.Context, q *query.GetCommentsByPage) error {
 			)
 			SELECT c.id, c.content, c.created_at, c.edited_at,
 				u.id AS user_id, u.name AS user_name, u.email AS user_email,
-				u.role AS user_role, u.status AS user_status,
+				u.role AS user_role, u.visual_role AS user_visual_role, u.status AS user_status,
 				u.avatar_type AS user_avatar_type, u.avatar_bkey AS user_avatar_bkey,
 				e.id AS edited_by_id, e.name AS edited_by_name, e.email AS edited_by_email,
 				e.role AS edited_by_role, e.status AS edited_by_status,
+				e.avatar_type AS edited_by_avatar_type, e.avatar_bkey AS edited_by_avatar_bkey,
 				ar.reaction_counts,
-				c.moderation_pending
+				c.moderation_pending, c.moderation_data
 			FROM comments c
 			INNER JOIN users u ON u.id = c.user_id
 			LEFT JOIN users e ON e.id = c.edited_by_id
