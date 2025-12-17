@@ -1,6 +1,7 @@
 package csv_test
 
 import (
+	"bytes"
 	"os"
 	"testing"
 	"time"
@@ -11,6 +12,10 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/csv"
 )
 
+func normalizeLineEndings(data []byte) []byte {
+	return bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+}
+
 func TestExportPostsToCSV_Empty(t *testing.T) {
 	RegisterT(t)
 
@@ -19,7 +24,7 @@ func TestExportPostsToCSV_Empty(t *testing.T) {
 	Expect(err).IsNil()
 	actual, err := csv.FromPosts(posts)
 	Expect(err).IsNil()
-	Expect(actual).Equals(expected)
+	Expect(normalizeLineEndings(actual)).Equals(normalizeLineEndings(expected))
 }
 
 func TestExportPostsToCSV_OnePost(t *testing.T) {
@@ -33,7 +38,7 @@ func TestExportPostsToCSV_OnePost(t *testing.T) {
 	Expect(err).IsNil()
 	actual, err := csv.FromPosts(posts)
 	Expect(err).IsNil()
-	Expect(actual).Equals(expected)
+	Expect(normalizeLineEndings(actual)).Equals(normalizeLineEndings(expected))
 }
 
 func TestExportPostsToCSV_MorePosts(t *testing.T) {
@@ -49,7 +54,7 @@ func TestExportPostsToCSV_MorePosts(t *testing.T) {
 	Expect(err).IsNil()
 	actual, err := csv.FromPosts(posts)
 	Expect(err).IsNil()
-	Expect(actual).Equals(expected)
+	Expect(normalizeLineEndings(actual)).Equals(normalizeLineEndings(expected))
 }
 
 var declinedPost = &entity.Post{

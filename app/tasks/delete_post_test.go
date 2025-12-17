@@ -76,7 +76,7 @@ func TestNotifyAboutDeletePostTask(t *testing.T) {
 		"title":    "Add support for TypeScript",
 		"siteName": "Demonstration",
 		"content":  template.HTML("<p>Invalid post!</p>"),
-		"change":   "<a href='http://domain.com/settings'>change your notification preferences</a>",
+		"change":   "<a href='http://domain.com/profile#settings'>change your notification preferences</a>",
 		"logo":     "https://fider.io/images/logo-100x100.png",
 	})
 	Expect(emailmock.MessageHistory[0].From).Equals(dto.Recipient{

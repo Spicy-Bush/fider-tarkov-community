@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -13,14 +14,16 @@ import (
 )
 
 type dbComment struct {
-	ID             int            `db:"id"`
-	Content        string         `db:"content"`
-	CreatedAt      time.Time      `db:"created_at"`
-	User           *dbUser        `db:"user"`
-	Attachments    []string       `db:"attachment_bkeys"`
-	EditedAt       dbx.NullTime   `db:"edited_at"`
-	EditedBy       *dbUser        `db:"edited_by"`
-	ReactionCounts dbx.NullString `db:"reaction_counts"`
+	ID                int            `db:"id"`
+	Content           string         `db:"content"`
+	CreatedAt         time.Time      `db:"created_at"`
+	User              *dbUser        `db:"user"`
+	Attachments       []string       `db:"attachment_bkeys"`
+	EditedAt          dbx.NullTime   `db:"edited_at"`
+	EditedBy          *dbUser        `db:"edited_by"`
+	ReactionCounts    dbx.NullString `db:"reaction_counts"`
+	ModerationPending bool           `db:"moderation_pending"`
+	ModerationData    dbx.NullString `db:"moderation_data"`
 }
 
 func (c *dbComment) toModel(ctx context.Context) *entity.Comment {
@@ -39,6 +42,16 @@ func (c *dbComment) toModel(ctx context.Context) *entity.Comment {
 	if c.ReactionCounts.Valid {
 		_ = json.Unmarshal([]byte(c.ReactionCounts.String), &comment.ReactionCounts)
 	}
+
+	user, _ := ctx.Value(app.UserCtxKey).(*entity.User)
+	isStaff := user != nil && (user.IsCollaborator() || user.IsModerator() || user.IsAdministrator())
+	if isStaff {
+		comment.ModerationPending = c.ModerationPending
+		if c.ModerationData.Valid {
+			comment.ModerationData = c.ModerationData.String
+		}
+	}
+
 	return comment
 }
 
@@ -230,7 +243,9 @@ func getCommentsByPost(ctx context.Context, q *query.GetCommentsByPost) error {
 					e.avatar_type AS edited_by_avatar_type, 
 					e.avatar_bkey AS edited_by_avatar_bkey,
 					at.attachment_bkeys,
-					ar.reaction_counts
+					ar.reaction_counts,
+					c.moderation_pending,
+					c.moderation_data
 			FROM comments c
 			INNER JOIN posts p
 			ON p.id = c.post_id
@@ -248,7 +263,8 @@ func getCommentsByPost(ctx context.Context, q *query.GetCommentsByPost) error {
 			WHERE p.id = $1
 			AND p.tenant_id = $2
 			AND c.deleted_at IS NULL
-			ORDER BY c.created_at ASC`, q.Post.ID, tenant.ID, userId)
+			AND (c.moderation_pending = FALSE OR c.user_id = $4 OR $5 = TRUE)
+			ORDER BY c.created_at ASC`, q.Post.ID, tenant.ID, userId, userId, user != nil && (user.IsCollaborator() || user.IsModerator() || user.IsAdministrator()))
 		if err != nil {
 			return errors.Wrap(err, "failed get comments of post with id '%d'", q.Post.ID)
 		}

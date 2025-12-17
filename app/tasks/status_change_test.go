@@ -80,7 +80,7 @@ func TestNotifyAboutStatusChangeTask(t *testing.T) {
 		"duplicate":   "",
 		"status":      "Planned",
 		"view":        "<a href='http://domain.com/posts/1/add-support-for-typescript'>view it on your browser</a>",
-		"change":      "<a href='http://domain.com/settings'>change your notification preferences</a>",
+		"change":      "<a href='http://domain.com/profile#settings'>change your notification preferences</a>",
 		"unsubscribe": "<a href='http://domain.com/posts/1/add-support-for-typescript'>unsubscribe from it</a>",
 		"logo":        "https://fider.io/images/logo-100x100.png",
 	})
@@ -97,7 +97,7 @@ func TestNotifyAboutStatusChangeTask(t *testing.T) {
 	Expect(addNewNotification).IsNotNil()
 	Expect(addNewNotification.PostID).Equals(post.ID)
 	Expect(addNewNotification.Link).Equals("/posts/1/add-support-for-typescript")
-	Expect(addNewNotification.Title).Equals("**Jon Snow** changed status of **Add support for TypeScript** to **planned**")
+	Expect(addNewNotification.Title).Equals("**Jon Snow** changed status of **Add support for TypeScript** to **planned**.")
 	Expect(addNewNotification.User).Equals(mock.AryaStark)
 
 	Expect(triggerWebhooks).IsNotNil()
@@ -197,7 +197,7 @@ func TestNotifyAboutStatusChangeTask_Duplicate(t *testing.T) {
 		"duplicate":   "<a href='http://domain.com/posts/1/add-support-for-typescript'>Add support for TypeScript</a>",
 		"status":      "Duplicate",
 		"view":        "<a href='http://domain.com/posts/2/i-need-typescript'>view it on your browser</a>",
-		"change":      "<a href='http://domain.com/settings'>change your notification preferences</a>",
+		"change":      "<a href='http://domain.com/profile#settings'>change your notification preferences</a>",
 		"unsubscribe": "<a href='http://domain.com/posts/2/i-need-typescript'>unsubscribe from it</a>",
 		"logo":        "https://fider.io/images/logo-100x100.png",
 	})
@@ -214,7 +214,7 @@ func TestNotifyAboutStatusChangeTask_Duplicate(t *testing.T) {
 	Expect(addNewNotification).IsNotNil()
 	Expect(addNewNotification.PostID).Equals(post.ID)
 	Expect(addNewNotification.Link).Equals("/posts/2/i-need-typescript")
-	Expect(addNewNotification.Title).Equals("**Jon Snow** changed status of **I need TypeScript** to **duplicate**")
+	Expect(addNewNotification.Title).Equals("**Jon Snow** changed status of **I need TypeScript** to **duplicate**.")
 	Expect(addNewNotification.User).Equals(mock.AryaStark)
 
 	Expect(triggerWebhooks).IsNotNil()

@@ -512,6 +512,44 @@ func getAllUsersNames(ctx context.Context, q *query.GetAllUsersNames) error {
 	})
 }
 
+func getUsersByIDs(ctx context.Context, q *query.GetUsersByIDs) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if len(q.UserIDs) == 0 {
+			q.Result = []*entity.User{}
+			return nil
+		}
+
+		var users []*dbUser
+		placeholders := make([]string, len(q.UserIDs))
+		args := make([]interface{}, len(q.UserIDs)+2)
+		args[0] = tenant.ID
+		args[1] = enum.UserDeleted
+		for i, id := range q.UserIDs {
+			placeholders[i] = fmt.Sprintf("$%d", i+3)
+			args[i+2] = id
+		}
+
+		query := fmt.Sprintf(`
+			SELECT id, name, email, tenant_id, role, status, avatar_type, avatar_bkey, visual_role
+			FROM users 
+			WHERE tenant_id = $1 
+			AND status != $2
+			AND id IN (%s)
+			ORDER BY id`, strings.Join(placeholders, ","))
+
+		err := trx.Select(&users, query, args...)
+		if err != nil {
+			return errors.Wrap(err, "failed to get users by ids")
+		}
+
+		q.Result = make([]*entity.User, len(users))
+		for i, user := range users {
+			q.Result[i] = user.toModel(ctx)
+		}
+		return nil
+	})
+}
+
 func queryUser(ctx context.Context, trx *dbx.Trx, filter string, args ...any) (*entity.User, error) {
 	user := dbUser{}
 	sql := fmt.Sprintf("SELECT id, name, email, tenant_id, role, visual_role, status, avatar_type, avatar_bkey FROM users WHERE status != %d AND ", enum.UserDeleted)

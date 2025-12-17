@@ -162,11 +162,12 @@ func buildAvatarURL(ctx context.Context, avatarType enum.AvatarType, id int, nam
 		name = "-"
 	}
 
-	if avatarType == enum.AvatarTypeCustom {
+	switch avatarType {
+	case enum.AvatarTypeCustom:
 		return web.AssetsURL(ctx, "/static/images/%s", avatarBlobKey)
-	} else if avatarType == enum.AvatarTypeGravatar {
+	case enum.AvatarTypeGravatar:
 		return web.AssetsURL(ctx, "/static/avatars/gravatar/%d/%s", id, url.PathEscape(name))
-	} else {
+	default:
 		return web.AssetsURL(ctx, "/static/avatars/letter/%d/%s", id, url.PathEscape(name))
 	}
 }

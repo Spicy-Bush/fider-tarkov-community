@@ -48,6 +48,19 @@ func NotifyAboutNewPost(post *entity.Post) worker.Task {
 
 		tenant := c.Tenant()
 		baseURL, logoURL := web.BaseURL(c), web.LogoURL(c)
+
+		// push notification
+		pushUsers, err := getActiveSubscribers(c, post, enum.NotificationChannelPush, enum.NotificationEventNewPost)
+		if err != nil {
+			return c.Failure(err)
+		}
+		pushTitle := fmt.Sprintf("New post by %s", author.Name)
+		pushBody := truncateText(post.Title, 100)
+		pushIcon := baseURL + "/static/favicon?size=200"
+		pushURL := baseURL + link
+		pushTag := fmt.Sprintf("post-%d", post.Number)
+		sendPushNotifications(c, pushUsers, author.ID, pushTitle, pushBody, pushURL, pushIcon, pushTag)
+
 		// Email notification
 		if !env.Config.Email.DisableEmailNotifications {
 			users, err = getActiveSubscribers(c, post, enum.NotificationChannelEmail, enum.NotificationEventNewPost)

@@ -4,31 +4,26 @@ import (
 	"context"
 	"database/sql"
 	stdErrors "errors"
-	"os"
+	"io/fs"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/log"
 )
 
-// ErrNoChanges means that the migration process didn't change execute any file
 var ErrNoChanges = stdErrors.New("nothing to migrate.")
 
-// Migrate the database to latest version
 func Migrate(ctx context.Context, path string) error {
 	log.Info(ctx, "Running migrations...")
-	dir, err := os.Open(env.Path(path))
-	if err != nil {
-		return errors.Wrap(err, "failed to open dir '%s'", path)
-	}
 
-	files, err := dir.Readdir(0)
+	dirPath := strings.TrimPrefix(path, "/")
+	files, err := fs.ReadDir(assets.FS, dirPath)
 	if err != nil {
-		return errors.Wrap(err, "failed to read files from dir '%s'", path)
+		return errors.Wrap(err, "failed to read dir '%s'", path)
 	}
 
 	versions := make([]int, len(files))
@@ -63,7 +58,6 @@ func Migrate(ctx context.Context, path string) error {
 
 	totalMigrationsExecuted := 0
 
-	// Apply all migrations
 	for _, version := range versions {
 		if version > lastVersion {
 			fileName := versionFiles[version]
@@ -71,7 +65,7 @@ func Migrate(ctx context.Context, path string) error {
 				"Version":  version,
 				"FileName": fileName,
 			})
-			err := runMigration(ctx, version, path, fileName)
+			err := runMigration(ctx, version, dirPath, fileName)
 			if err != nil {
 				return errors.Wrap(err, "failed to run migration '%s'", fileName)
 			}
@@ -90,8 +84,8 @@ func Migrate(ctx context.Context, path string) error {
 }
 
 func runMigration(ctx context.Context, version int, path, fileName string) error {
-	filePath := env.Path(path + "/" + fileName)
-	content, err := os.ReadFile(filePath)
+	filePath := path + "/" + fileName
+	content, err := fs.ReadFile(assets.FS, filePath)
 	if err != nil {
 		return errors.Wrap(err, "failed to read file '%s'", filePath)
 	}
@@ -132,8 +126,6 @@ func getLastMigration() (int, error) {
 	}
 
 	if !lastVersion.Valid {
-		// If it's the first run, maybe we have records on old migrations table, so try to get from it.
-		// This SHOULD be removed in the far future.
 		row := conn.QueryRow("SELECT version FROM schema_migrations LIMIT 1")
 		_ = row.Scan(&lastVersion)
 	}

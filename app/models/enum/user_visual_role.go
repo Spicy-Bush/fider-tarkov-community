@@ -1,11 +1,10 @@
 package enum
 
-import "strconv"
+import "fmt"
 
 type VisualRole int
 
 const (
-	// Just use the role we have in the app/models/enum/user_role.go
 	VisualRoleNone          VisualRole = 0
 	VisualRoleVisitor       VisualRole = 1
 	VisualRoleHelper        VisualRole = 2
@@ -18,56 +17,47 @@ const (
 	VisualRoleEmissary      VisualRole = 9
 )
 
-// String returns string representation of role
+var visualRoleNames = []string{
+	"",
+	"Visitor",
+	"Helper",
+	"Administrator",
+	"Moderator",
+	"BSGCrew",
+	"Developer",
+	"Sherpa",
+	"TCStaff",
+	"Emissary",
+}
+
 func (r VisualRole) String() string {
-	switch r {
-	case VisualRoleVisitor:
-		return "Visitor"
-	case VisualRoleHelper:
-		return "Helper"
-	case VisualRoleAdministrator:
-		return "Administrator"
-	case VisualRoleModerator:
-		return "Moderator"
-	case VisualRoleBSGCrew:
-		return "BSGCrew"
-	case VisualRoleDeveloper:
-		return "Developer"
-	case VisualRoleSherpa:
-		return "Sherpa"
-	case VisualRoleTCStaff:
-		return "TCStaff"
-	case VisualRoleEmissary:
-		return "Emissary"
-	default:
-		return ""
+	if r >= 0 && int(r) < len(visualRoleNames) {
+		return visualRoleNames[r]
 	}
+	return ""
 }
 
-func (r VisualRole) MarshalText() ([]byte, error) {
-	return []byte(r.String()), nil
+func (r VisualRole) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf(`"%s"`, r.String())), nil
 }
 
-func (r *VisualRole) UnmarshalText(text []byte) error {
-	val, err := strconv.Atoi(string(text))
-	if err != nil {
-		return err
+func (r *VisualRole) UnmarshalJSON(data []byte) error {
+	s := string(data)
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		s = s[1 : len(s)-1]
 	}
-	*r = VisualRole(val)
+	for i, name := range visualRoleNames {
+		if name == s {
+			*r = VisualRole(i)
+			return nil
+		}
+	}
+	*r = VisualRoleNone
 	return nil
 }
 
 func (r VisualRole) IsValid() bool {
-	return r == VisualRoleNone ||
-		r == VisualRoleVisitor ||
-		r == VisualRoleHelper ||
-		r == VisualRoleAdministrator ||
-		r == VisualRoleModerator ||
-		r == VisualRoleBSGCrew ||
-		r == VisualRoleDeveloper ||
-		r == VisualRoleSherpa ||
-		r == VisualRoleTCStaff ||
-		r == VisualRoleEmissary
+	return r >= 0 && int(r) < len(visualRoleNames)
 }
 
 var AllVisualRoles = []VisualRole{

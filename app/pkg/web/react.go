@@ -3,12 +3,12 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/url"
-	"os"
 	"runtime"
 	"sync"
 
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"rogchap.com/v8go"
 )
@@ -37,7 +37,7 @@ func newIsolatePool() *sync.Pool {
 
 func NewReactRenderer(scriptPath string) (*ReactRenderer, error) {
 	pool := newIsolatePool()
-	bytes, err := os.ReadFile(env.Path(scriptPath))
+	bytes, err := fs.ReadFile(assets.FS, scriptPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read SSR script.")
 	}

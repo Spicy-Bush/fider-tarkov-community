@@ -20,8 +20,10 @@ func Index() web.HandlerFunc {
 
 		tenantID := c.Tenant().ID
 
-		var tags []*entity.Tag
-		var countPerStatus map[enum.PostStatus]int
+		var (
+			tags           []*entity.Tag
+			countPerStatus map[enum.PostStatus]int
+		)
 
 		if cached, ok := postcache.GetTags(tenantID); ok {
 			tags = cached
@@ -45,6 +47,69 @@ func Index() web.HandlerFunc {
 			postcache.SetCountPerStatus(tenantID, countPerStatus)
 		}
 
+		var (
+			posts any = []interface{}{}
+			pf    any = nil
+		)
+
+		q := c.Request.URL.Query()
+		hasURLParams := len(q["tags"]) > 0 || len(q["statuses"]) > 0 || q.Get("view") != "" || q.Get("myvotes") == "true" || q.Get("myposts") == "true" || q.Get("notmyvotes") == "true"
+
+		if hasURLParams {
+			view := q.Get("view")
+			if view == "" {
+				view = "trending"
+			}
+			var statuses []enum.PostStatus
+			for _, s := range q["statuses"] {
+				switch s {
+				case "open":
+					statuses = append(statuses, enum.PostOpen)
+				case "started":
+					statuses = append(statuses, enum.PostStarted)
+				case "planned":
+					statuses = append(statuses, enum.PostPlanned)
+				case "completed":
+					statuses = append(statuses, enum.PostCompleted)
+				case "declined":
+					statuses = append(statuses, enum.PostDeclined)
+				case "duplicate":
+					statuses = append(statuses, enum.PostDuplicate)
+				case "archived":
+					statuses = append(statuses, enum.PostArchived)
+				}
+			}
+			searchPosts := &query.SearchPosts{
+				View:        view,
+				Limit:       "20",
+				Tags:        q["tags"],
+				Statuses:    statuses,
+				MyVotesOnly: q.Get("myvotes") == "true",
+				MyPostsOnly: q.Get("myposts") == "true",
+				NotMyVotes:  q.Get("notmyvotes") == "true",
+			}
+			if err := bus.Dispatch(c, searchPosts); err != nil {
+				return c.Failure(err)
+			}
+			posts = searchPosts.Result
+		} else if cookie, err := c.Request.Cookie("pfilter"); err == nil {
+			decoded := web.DecodePFilter(cookie.Value, c.User() != nil)
+			searchPosts := &query.SearchPosts{
+				View:        decoded.View,
+				Limit:       "20",
+				Tags:        tagIDsToSlugs(decoded.Tags, tags),
+				Statuses:    statusIDsToStatuses(decoded.Statuses),
+				MyVotesOnly: decoded.MyVotes,
+				MyPostsOnly: decoded.MyPosts,
+				NotMyVotes:  decoded.NotMyVotes,
+			}
+			if err := bus.Dispatch(c, searchPosts); err != nil {
+				return c.Failure(err)
+			}
+			posts = searchPosts.Result
+			pf = decoded
+		}
+
 		description := ""
 		if c.Tenant().WelcomeMessage != "" {
 			description = markdown.PlainText(c.Tenant().WelcomeMessage)
@@ -56,12 +121,51 @@ func Index() web.HandlerFunc {
 			Page:        "Home/Home.page",
 			Description: description,
 			Data: web.Map{
-				"posts":          []interface{}{},
+				"posts":          posts,
 				"tags":           tags,
 				"countPerStatus": countPerStatus,
+				"pfilter":        pf,
 			},
 		})
 	}
+}
+
+func tagIDsToSlugs(ids []int, tags []*entity.Tag) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	idSet := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		idSet[id] = struct{}{}
+	}
+	slugs := make([]string, 0, len(ids))
+	for _, tag := range tags {
+		if _, ok := idSet[tag.ID]; ok {
+			slugs = append(slugs, tag.Slug)
+		}
+	}
+	// special bit for untagged (bit 0)
+	if _, ok := idSet[0]; ok {
+		slugs = append(slugs, "untagged")
+	}
+	return slugs
+}
+
+func statusIDsToStatuses(ids []int) []enum.PostStatus {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make([]enum.PostStatus, 0, len(ids))
+	for _, id := range ids {
+		switch enum.PostStatus(id) {
+		case enum.PostOpen, enum.PostStarted, enum.PostCompleted, enum.PostDeclined, enum.PostPlanned, enum.PostDuplicate, enum.PostDeleted, enum.PostArchived:
+			out = append(out, enum.PostStatus(id))
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // PostDetails shows details of given Post by id

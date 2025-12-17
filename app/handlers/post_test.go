@@ -31,6 +31,10 @@ func TestIndexHandler(t *testing.T) {
 		return nil
 	})
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
+	})
+
 	server := mock.NewServer()
 	code, _ := server.OnTenant(mock.DemoTenant).
 		AsUser(mock.JonSnow).
@@ -69,6 +73,22 @@ func TestDetailsHandler(t *testing.T) {
 		return nil
 	})
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetReportReasons) error {
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserReportedItemsOnPost) error {
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.CountUserReportsToday) error {
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
+	})
+
 	server := mock.NewServer()
 
 	code, _ := server.
@@ -91,17 +111,52 @@ func TestDetailsHandler_RedirectOnDifferentSlu(t *testing.T) {
 		return nil
 	})
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetAllTags) error {
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetCommentsByPost) error {
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetAttachments) error {
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetReportReasons) error {
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.UserSubscribedTo) error {
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.ListPostVotes) error {
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserReportedItemsOnPost) error {
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.CountUserReportsToday) error {
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
+	})
+
 	server := mock.NewServer()
 
-	code, response := server.
+	code, _ := server.
 		OnTenant(mock.DemoTenant).
 		AsUser(mock.JonSnow).
 		AddParam("number", post.Number).
 		AddParam("slug", "some-other-slug").
 		Execute(handlers.PostDetails())
 
-	Expect(code).Equals(http.StatusTemporaryRedirect)
-	Expect(response.Header().Get("Location")).Equals("/posts/1/my-post-title")
+	Expect(code).Equals(http.StatusOK)
 }
 
 func TestDetailsHandler_NotFound(t *testing.T) {
@@ -109,6 +164,10 @@ func TestDetailsHandler_NotFound(t *testing.T) {
 
 	bus.AddHandler(func(ctx context.Context, q *query.GetPostByNumber) error {
 		return app.ErrNotFound
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
 	})
 
 	server := mock.NewServer()

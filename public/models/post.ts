@@ -20,6 +20,12 @@ export interface Post {
   archivedSettings?: PostArchivedSettings
   upvotes?: number
   downvotes?: number
+  moderationPending?: boolean
+  moderationData?: string
+}
+
+export function isPostHidden(post: Post): boolean {
+  return !!post.moderationPending
 }
 
 export function isPostLocked(post: Post): boolean {
@@ -94,6 +100,12 @@ export interface Comment {
   reactionCounts?: ReactionCount[]
   editedAt?: string
   editedBy?: User
+  moderationPending?: boolean
+  moderationData?: string
+}
+
+export function isCommentHidden(comment: Comment): boolean {
+  return !!comment.moderationPending
 }
 
 export interface Tag {

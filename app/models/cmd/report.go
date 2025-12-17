@@ -9,6 +9,7 @@ type CreateReport struct {
 	ReportedID   int
 	Reason       string
 	Details      string
+	ReporterID   *int
 	Result       int
 }
 

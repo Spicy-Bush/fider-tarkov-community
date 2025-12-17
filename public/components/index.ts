@@ -40,6 +40,7 @@ export * from "./common/form/DisplayError"
 
 // App shell components
 export * from "./app"
+export * from "./SubheaderBar"
 
 // Post-related components
 export * from "./post"

@@ -50,6 +50,11 @@ type GetAllUsers struct {
 	Result []*entity.User
 }
 
+type GetUsersByIDs struct {
+	UserIDs []int
+	Result  []*entity.User
+}
+
 type GetAllUserProviders struct {
 	Result []*entity.UserProvider
 }

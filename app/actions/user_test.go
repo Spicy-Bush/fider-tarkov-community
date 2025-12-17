@@ -133,7 +133,7 @@ func TestChangeUserRole_InvalidRole(t *testing.T) {
 		return app.ErrNotFound
 	})
 
-	invalidRole := enum.Role(5)
+	invalidRole := enum.Role(99)
 	action := actions.ChangeUserRole{UserID: targetUser.ID, Role: invalidRole}
 	action.IsAuthorized(context.Background(), currentUser)
 	result := action.Validate(context.Background(), currentUser)

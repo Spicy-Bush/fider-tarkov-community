@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
@@ -21,16 +22,25 @@ const (
 )
 
 func GetProperties(ctx context.Context) dto.Props {
-	props, ok := ctx.Value(app.LogPropsCtxKey).(*dto.Props)
-	if ok {
-		return *props
+	sm, ok := ctx.Value(app.LogPropsCtxKey).(*sync.Map)
+	if !ok {
+		return dto.Props{}
 	}
-	return dto.Props{}
+	result := dto.Props{}
+	sm.Range(func(k, v any) bool {
+		result[k.(string)] = v
+		return true
+	})
+	return result
 }
 
 func GetProperty(ctx context.Context, key string) any {
-	props := GetProperties(ctx)
-	return props[key]
+	sm, ok := ctx.Value(app.LogPropsCtxKey).(*sync.Map)
+	if ok {
+		v, _ := sm.Load(key)
+		return v
+	}
+	return nil
 }
 
 func WithProperty(ctx context.Context, key string, value any) context.Context {
@@ -40,14 +50,14 @@ func WithProperty(ctx context.Context, key string, value any) context.Context {
 }
 
 func WithProperties(ctx context.Context, kv dto.Props) context.Context {
-	props, ok := ctx.Value(app.LogPropsCtxKey).(*dto.Props)
+	sm, ok := ctx.Value(app.LogPropsCtxKey).(*sync.Map)
 	if !ok {
-		props = &dto.Props{}
-		ctx = context.WithValue(ctx, app.LogPropsCtxKey, props)
+		sm = &sync.Map{}
+		ctx = context.WithValue(ctx, app.LogPropsCtxKey, sm)
 	}
 
 	for key, value := range kv {
-		(*props)[key] = value
+		sm.Store(key, value)
 	}
 
 	return ctx

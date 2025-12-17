@@ -1,8 +1,7 @@
-import React, { useState } from "react"
+import React, { useState, useMemo } from "react"
 import { Button, Modal, Select, TextArea, Form, SelectOption } from "@fider/components"
-import { HStack } from "@fider/components/layout"
 import { Post, PostStatus, Tag } from "@fider/models"
-import { actions, Failure } from "@fider/services"
+import { actions, Failure, postPermissions } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
@@ -43,12 +42,14 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
   const [error, setError] = useState<Failure | undefined>()
   const prevDuplicateNumberRef = React.useRef(duplicateOriginalNumber)
 
-  const canChangeStatus = fider.session.user.isCollaborator || fider.session.user.isModerator || fider.session.user.isAdministrator
+  const canChangeStatus = postPermissions.canRespond()
+  const canChangeToDuplicateOnly = postPermissions.canRespondDuplicateOnly()
+  const canChangeAnyStatus = canChangeStatus || canChangeToDuplicateOnly
   const canLock = fider.session.user.isCollaborator || fider.session.user.isAdministrator
   const canDelete = fider.session.user.isCollaborator || fider.session.user.isAdministrator || fider.session.user.isModerator
   
   const isHelper = fider.session.user.isHelper && !fider.session.user.isModerator && !fider.session.user.isCollaborator && !fider.session.user.isAdministrator
-  const hasAnyAction = canChangeStatus || canLock || canDelete
+  const hasAnyAction = canChangeAnyStatus || canLock || canDelete
   if (!hasAnyAction || isHelper) return null
 
   const handleStatusChange = (opt?: SelectOption) => {
@@ -108,13 +109,17 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
     }
   }
 
-  const statusOptions = PostStatus.All.map((s) => {
-    const id = `enum.poststatus.${s.value.toString()}`
-    return {
-      value: s.value.toString(),
-      label: i18n._(id, { message: s.title }),
-    }
-  })
+  const statusOptions = useMemo(() => {
+    return PostStatus.All
+      .filter((s) => !canChangeToDuplicateOnly || s.value === PostStatus.Duplicate.value)
+      .map((s) => {
+        const id = `enum.poststatus.${s.value.toString()}`
+        return {
+          value: s.value.toString(),
+          label: i18n._(id, { message: s.title }),
+        }
+      })
+  }, [canChangeToDuplicateOnly])
 
   const handleDecline = () => {
     setStatus(PostStatus.Declined.value)
@@ -130,12 +135,12 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
     <div className="p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt bg-surface-alt last:border-b-0">
       <h4 className="text-base font-semibold text-foreground m-0 mb-3">Actions</h4>
       <div className="flex flex-wrap gap-2">
-        {canChangeStatus && (
+        {canChangeAnyStatus && (
           <Button size="small" variant="secondary" onClick={handleDuplicate}>
             <Trans id="action.duplicate">Duplicate</Trans>
           </Button>
         )}
-        {canChangeStatus && (
+        {canChangeAnyStatus && (
           <Button size="small" variant="secondary" onClick={onEditPost} disabled={isEditMode}>
             <Trans id="action.edit">Edit</Trans>
           </Button>

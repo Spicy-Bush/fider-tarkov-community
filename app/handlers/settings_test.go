@@ -29,10 +29,14 @@ func TestSettingsHandler(t *testing.T) {
 		return nil
 	})
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
+	})
+
 	server := mock.NewServer()
 	code, _ := server.
 		AsUser(mock.JonSnow).
-		Execute(handlers.UserSettings())
+		Execute(handlers.UserProfile())
 
 	Expect(code).Equals(http.StatusOK)
 }
@@ -40,51 +44,20 @@ func TestSettingsHandler(t *testing.T) {
 func TestUpdateUserSettingsHandler_EmptyInput(t *testing.T) {
 	RegisterT(t)
 
+	bus.AddHandler(func(ctx context.Context, c *cmd.UpdateCurrentUserSettings) error {
+		return nil
+	})
+
 	server := mock.NewServer()
 	code, _ := server.
 		AsUser(mock.JonSnow).
 		ExecutePost(handlers.UpdateUserSettings(), `{ }`)
 
-	Expect(code).Equals(http.StatusBadRequest)
-}
-
-func TestUpdateUserSettingsHandler_ValidName(t *testing.T) {
-	RegisterT(t)
-
-	var newName string
-	bus.AddHandler(func(ctx context.Context, c *cmd.UpdateCurrentUser) error {
-		newName = c.Name
-		return nil
-	})
-
-	bus.AddHandler(func(ctx context.Context, c *cmd.UpdateCurrentUserSettings) error {
-		return nil
-	})
-
-	bus.AddHandler(func(ctx context.Context, c *cmd.UploadImage) error {
-		Expect(c.Image.Upload).IsNil()
-		Expect(c.Image.Remove).IsFalse()
-		return nil
-	})
-
-	server := mock.NewServer()
-	code, _ := server.
-		OnTenant(mock.DemoTenant).
-		AsUser(mock.JonSnow).
-		ExecutePost(handlers.UpdateUserSettings(), `{ "name": "Jon Stark", "avatarType": "gravatar" }`)
-
 	Expect(code).Equals(http.StatusOK)
-	Expect(newName).Equals("Jon Stark")
 }
 
-func TestUpdateUserSettingsHandler_NewSettings(t *testing.T) {
+func TestUpdateUserSettingsHandler_ValidSettings(t *testing.T) {
 	RegisterT(t)
-
-	var updateCmd *cmd.UpdateCurrentUser
-	bus.AddHandler(func(ctx context.Context, c *cmd.UpdateCurrentUser) error {
-		updateCmd = c
-		return nil
-	})
 
 	var updateSettingsCmd *cmd.UpdateCurrentUserSettings
 	bus.AddHandler(func(ctx context.Context, c *cmd.UpdateCurrentUserSettings) error {
@@ -92,9 +65,23 @@ func TestUpdateUserSettingsHandler_NewSettings(t *testing.T) {
 		return nil
 	})
 
-	bus.AddHandler(func(ctx context.Context, c *cmd.UploadImage) error {
-		Expect(c.Image.Upload).IsNil()
-		Expect(c.Image.Remove).IsFalse()
+	server := mock.NewServer()
+	code, _ := server.
+		OnTenant(mock.DemoTenant).
+		AsUser(mock.JonSnow).
+		ExecutePost(handlers.UpdateUserSettings(), `{ "settings": { "event_notification_new_post": "1" } }`)
+
+	Expect(code).Equals(http.StatusOK)
+	Expect(updateSettingsCmd).IsNotNil()
+	Expect(updateSettingsCmd.Settings[enum.NotificationEventNewPost.UserSettingsKeyName]).Equals("1")
+}
+
+func TestUpdateUserSettingsHandler_NewSettings(t *testing.T) {
+	RegisterT(t)
+
+	var updateSettingsCmd *cmd.UpdateCurrentUserSettings
+	bus.AddHandler(func(ctx context.Context, c *cmd.UpdateCurrentUserSettings) error {
+		updateSettingsCmd = c
 		return nil
 	})
 
@@ -103,8 +90,6 @@ func TestUpdateUserSettingsHandler_NewSettings(t *testing.T) {
 		OnTenant(mock.DemoTenant).
 		AsUser(mock.JonSnow).
 		ExecutePost(handlers.UpdateUserSettings(), `{
-			"name": "Jon Stark",
-			"avatarType": "gravatar",
 			"settings": {
 				"event_notification_new_post": "1",
 				"event_notification_new_comment": "2",
@@ -113,9 +98,6 @@ func TestUpdateUserSettingsHandler_NewSettings(t *testing.T) {
 		}`)
 
 	Expect(code).Equals(http.StatusOK)
-	Expect(updateCmd.Name).Equals("Jon Stark")
-	Expect(updateCmd.AvatarType).Equals(enum.AvatarTypeGravatar)
-
 	Expect(updateSettingsCmd.Settings[enum.NotificationEventNewPost.UserSettingsKeyName]).Equals("1")
 	Expect(updateSettingsCmd.Settings[enum.NotificationEventNewComment.UserSettingsKeyName]).Equals("2")
 	Expect(updateSettingsCmd.Settings[enum.NotificationEventChangeStatus.UserSettingsKeyName]).Equals("3")

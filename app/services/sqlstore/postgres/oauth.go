@@ -81,18 +81,16 @@ func listCustomOAuthConfig(ctx context.Context, q *query.ListCustomOAuthConfig) 
 		}
 
 		configs := []*dbOAuthConfig{}
-		if tenant != nil {
-			err := trx.Select(&configs, `
-			SELECT id, provider, display_name, status, is_trusted, logo_bkey,
-						 client_id, client_secret, authorize_url,
-						 profile_url, token_url, scope, json_user_id_path,
-						 json_user_name_path, json_user_email_path
-			FROM oauth_providers
-			WHERE tenant_id = $1
-			ORDER BY id`, tenant.ID)
-			if err != nil {
-				return err
-			}
+		err := trx.Select(&configs, `
+		SELECT id, provider, display_name, status, is_trusted, logo_bkey,
+					 client_id, client_secret, authorize_url,
+					 profile_url, token_url, scope, json_user_id_path,
+					 json_user_name_path, json_user_email_path
+		FROM oauth_providers
+		WHERE tenant_id = $1
+		ORDER BY id`, tenant.ID)
+		if err != nil {
+			return err
 		}
 
 		q.Result = make([]*entity.OAuthConfig, len(configs))

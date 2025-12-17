@@ -2,9 +2,10 @@ import React, { useEffect, useCallback, useState } from "react"
 
 import { LockStatus } from "./components/LockStatus"
 import { ArchiveStatus } from "./components/ArchiveStatus"
+import { HiddenStatus } from "./components/HiddenStatus"
 import { PostLockingModal } from "./components/PostLockingModal"
-import { Comment, Post, Tag, Vote, PostStatus, isPostLocked, isPostArchived, ReportReason } from "@fider/models"
-import { actions, clearUrlHash, Fider, notify, formatDate, postPermissions } from "@fider/services"
+import { Comment, Post, Tag, Vote, PostStatus, isPostLocked, isPostArchived, isPostHidden, ReportReason } from "@fider/models"
+import { actions, Fider, notify, formatDate, postPermissions } from "@fider/services"
 import { heroiconsDotsHorizontal as IconDotsHorizontal, heroiconsChevronUp as IconChevronUp } from "@fider/icons.generated"
 
 import {
@@ -60,19 +61,13 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
     initialDescription: props.post.description,
   })
   
-  const [upvotes, setUpvotes] = useState(props.post.upvotes || 0)
-  const [downvotes, setDownvotes] = useState(props.post.downvotes || 0)
   const [lastActivityAt, setLastActivityAt] = useState(props.post.lastActivityAt)
   
   useEffect(() => {
-    setUpvotes(props.post.upvotes || 0)
-    setDownvotes(props.post.downvotes || 0)
     setLastActivityAt(props.post.lastActivityAt)
-  }, [props.post.upvotes, props.post.downvotes, props.post.lastActivityAt])
+  }, [props.post.lastActivityAt])
   
-  const handleVoteChange = useCallback((newUpvotes: number, newDownvotes: number) => {
-    setUpvotes(newUpvotes)
-    setDownvotes(newDownvotes)
+  const handleVoteChange = useCallback((_upvotes: number, _downvotes: number) => {
     setLastActivityAt(new Date().toISOString())
   }, [])
 
@@ -111,13 +106,12 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
         if (props.comments.map((comment) => comment.id).includes(id)) {
           newHighlightedComment = id
         } else {
-          if (e?.cancelable) {
-            e.preventDefault()
-          } else {
-            clearUrlHash(true)
-          }
-          notify.error(<Trans id="showpost.comment.unknownhighlighted">Unknown comment ID #{id}</Trans>)
-          newHighlightedComment = undefined
+          // TODO: quick fix, just reload if not found- change this later
+          // to handle more gracefully or something. This is just to make 
+          // it actually work if someone mentions you and you're already
+          // looking at the post, and thus the page needs updating
+          window.location.reload()
+          return
         }
       }
       state.setHighlightedComment(newHighlightedComment)
@@ -173,7 +167,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
   }, [props.post.status, props.post.user.role])
 
   const onActionSelected = useCallback(
-    (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report" | "archive" | "unarchive") => async () => {
+    (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report" | "archive" | "unarchive" | "hide" | "unhide") => async () => {
       if (action === "copy") {
         navigator.clipboard.writeText(window.location.href)
         notify.success(<Trans id="showpost.copylink.success">Link copied to clipboard</Trans>)
@@ -201,9 +195,21 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
           notify.success(<Trans id="showpost.unarchive.success">Post has been unarchived</Trans>)
           location.reload()
         }
+      } else if (action === "hide") {
+        const result = await actions.hidePost(props.post.id)
+        if (result.ok) {
+          notify.success(<Trans id="showpost.hide.success">Post has been hidden</Trans>)
+          location.reload()
+        }
+      } else if (action === "unhide") {
+        const result = await actions.unhidePost(props.post.id)
+        if (result.ok) {
+          notify.success(<Trans id="showpost.unhide.success">Post has been unhidden</Trans>)
+          location.reload()
+        }
       }
     },
-    [state.startEdit, state.openModal, props.post.number]
+    [state.startEdit, state.openModal, props.post.number, props.post.id]
   )
 
   return (
@@ -248,16 +254,16 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                         <Dropdown.ListItem onClick={onActionSelected("copy")}>
                           <Trans id="action.copylink">Copy link</Trans>
                         </Dropdown.ListItem>
+                        {postPermissions.canRespondAny() && (
+                          <Dropdown.ListItem onClick={onActionSelected("status")}>
+                            <Trans id="action.respond">Respond</Trans>
+                          </Dropdown.ListItem>
+                        )}
                         {postPermissions.canEdit(props.post) && (
                           <>
                             <Dropdown.ListItem onClick={onActionSelected("edit")}>
                               <Trans id="action.edit">Edit</Trans>
                             </Dropdown.ListItem>
-                            {postPermissions.canRespond() && (
-                              <Dropdown.ListItem onClick={onActionSelected("status")}>
-                                <Trans id="action.respond">Respond</Trans>
-                              </Dropdown.ListItem>
-                            )}
                             {postPermissions.canLock() && (
                               <>
                                 {!isPostLocked(props.post) ? (
@@ -284,6 +290,19 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                                 )}
                               </>
                             )}
+                            {postPermissions.canHide() && (
+                              <>
+                                {!isPostHidden(props.post) ? (
+                                  <Dropdown.ListItem onClick={onActionSelected("hide")}>
+                                    <Trans id="action.hide">Hide</Trans>
+                                  </Dropdown.ListItem>
+                                ) : (
+                                  <Dropdown.ListItem onClick={onActionSelected("unhide")}>
+                                    <Trans id="action.unhide">Unhide</Trans>
+                                  </Dropdown.ListItem>
+                                )}
+                              </>
+                            )}
                           </>
                         )}
                         {canDeletePost() && (
@@ -296,7 +315,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                   )}
                 </HStack>
 
-                <div className="flex-grow">
+                <div className="grow">
                   {state.editMode ? (
                     <Form error={state.error}>
                       <Input field="title" maxLength={100} value={state.newTitle} onChange={state.setNewTitle} />
@@ -306,6 +325,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                       <h1 className="text-large">{props.post.title}</h1>
                       {isPostLocked(props.post) && <LockStatus post={props.post} />}
                       {isPostArchived(props.post) && <ArchiveStatus post={props.post} />}
+                      {isPostHidden(props.post) && <HiddenStatus post={props.post} />}
                     </>
                   )}
                 </div>
@@ -315,16 +335,6 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                   showModal={state.isModalOpen("delete")}
                   post={props.post}
                 />
-                {postPermissions.canRespond() && (
-                  <ResponseModal
-                    onCloseModal={state.closeModal}
-                    showModal={state.isModalOpen("response")}
-                    post={props.post}
-                    tags={props.tags}
-                    attachments={props.attachments}
-                    hasCopiedContent={state.hasCopiedContent}
-                  />
-                )}
                 <VStack>
                   {state.editMode ? (
                     <Form error={state.error}>
@@ -405,6 +415,16 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
           </div>
         </div>
       </div>
+      {postPermissions.canRespondAny() && (
+        <ResponseModal
+          onCloseModal={state.closeModal}
+          showModal={state.isModalOpen("response")}
+          post={props.post}
+          tags={props.tags}
+          attachments={props.attachments}
+          hasCopiedContent={state.hasCopiedContent}
+        />
+      )}
       <PostLockingModal
         post={props.post}
         isOpen={state.isModalOpen("lock") || state.isModalOpen("unlock")}

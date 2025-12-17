@@ -26,9 +26,10 @@ export const VoteSection = (props: VoteSectionProps) => {
   const upvotePercentage = totalEngagement > 0 ? (upvotes / totalEngagement) * 100 : 50
 
   useEffect(() => {
+    setVoteType(props.post.voteType === 1 ? 'up' : props.post.voteType === -1 ? 'down' : 'none')
     setUpvotes(props.post.upvotes || 0)
     setDownvotes(props.post.downvotes || 0)
-  }, [props.post.upvotes, props.post.downvotes])
+  }, [props.post.id, props.post.voteType, props.post.upvotes, props.post.downvotes])
 
   const handleVote = async (type: 'up' | 'down') => {
     if (!fider.session.isAuthenticated) {
@@ -121,7 +122,7 @@ export const VoteSection = (props: VoteSectionProps) => {
             disabled={isDisabled}
             className={classSet({
               "flex-1 overflow-hidden whitespace-nowrap text-ellipsis md:max-w-[30%] max-md:text-sm": true,
-              "!bg-success !text-white !border-success": voteType === 'up',
+              "bg-success! text-white! border-success!": voteType === 'up',
               "text-success": voteType !== 'up',
             })}
           >
@@ -145,8 +146,8 @@ export const VoteSection = (props: VoteSectionProps) => {
             disabled={isDisabled}
             className={classSet({
               "flex-1 overflow-hidden whitespace-nowrap text-ellipsis md:max-w-[30%] max-md:text-sm": true,
-              "!bg-danger !text-white !border-danger": voteType === 'down',
-              "!text-danger": voteType !== 'down',
+              "bg-danger! text-white! border-danger!": voteType === 'down',
+              "text-danger!": voteType !== 'down',
             })}
           >
             <HStack spacing={2} justify="center" className="w-full">

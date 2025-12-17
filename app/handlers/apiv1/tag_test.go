@@ -31,6 +31,7 @@ func TestCreateTagHandler_ValidRequests(t *testing.T) {
 
 	server := mock.NewServer()
 	status, _ := server.
+		OnTenant(mock.DemoTenant).
 		AsUser(mock.JonSnow).
 		ExecutePost(
 			apiv1.CreateEditTag(),
@@ -142,6 +143,7 @@ func TestEditExistingTagHandler(t *testing.T) {
 	server := mock.NewServer()
 
 	status, _ := server.
+		OnTenant(mock.DemoTenant).
 		AsUser(mock.JonSnow).
 		AddParam("slug", "bug").
 		ExecutePost(
@@ -161,6 +163,10 @@ func TestDeleteInvalidTagHandler(t *testing.T) {
 
 	bus.AddHandler(func(ctx context.Context, q *query.GetTagBySlug) error {
 		return app.ErrNotFound
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
 	})
 
 	status, _ := mock.NewServer().
@@ -187,6 +193,7 @@ func TestDeleteExistingTagHandler(t *testing.T) {
 	})
 
 	status, _ := mock.NewServer().
+		OnTenant(mock.DemoTenant).
 		AsUser(mock.JonSnow).
 		AddParam("slug", "bug").
 		Execute(apiv1.DeleteTag())
@@ -201,6 +208,10 @@ func TestDeleteExistingTagHandler_Collaborator(t *testing.T) {
 	tag := &entity.Tag{ID: 5, Name: "Bug", Slug: "bug", Color: "0000FF", IsPublic: true}
 	bus.AddHandler(func(ctx context.Context, q *query.GetTagBySlug) error {
 		q.Result = tag
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
 		return nil
 	})
 
@@ -234,6 +245,7 @@ func TestAssignTagHandler_Success(t *testing.T) {
 	})
 
 	status, _ := mock.NewServer().
+		OnTenant(mock.DemoTenant).
 		AsUser(mock.JonSnow).
 		AddParam("slug", tag.Slug).
 		AddParam("number", post.Number).
@@ -257,7 +269,12 @@ func TestAssignTagHandler_UnknownTag(t *testing.T) {
 		return app.ErrNotFound
 	})
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
+	})
+
 	status, _ := mock.NewServer().
+		OnTenant(mock.DemoTenant).
 		AsUser(mock.JonSnow).
 		AddParam("slug", "bug").
 		AddParam("number", post.Number).
@@ -269,6 +286,10 @@ func TestAssignTagHandler_UnknownTag(t *testing.T) {
 func TestAssignOrUnassignTagHandler_Unauthorized(t *testing.T) {
 	RegisterT(t)
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
+	})
+
 	var testCases = []web.HandlerFunc{
 		apiv1.AssignTag(),
 		apiv1.UnassignTag(),
@@ -276,6 +297,7 @@ func TestAssignOrUnassignTagHandler_Unauthorized(t *testing.T) {
 
 	for _, handler := range testCases {
 		status, _ := mock.NewServer().
+			OnTenant(mock.DemoTenant).
 			AsUser(mock.AryaStark).
 			AddParam("slug", "feature-request").
 			AddParam("number", "500").
@@ -307,6 +329,7 @@ func TestUnassignTagHandler_Success(t *testing.T) {
 	})
 
 	status, _ := mock.NewServer().
+		OnTenant(mock.DemoTenant).
 		AsUser(mock.JonSnow).
 		AddParam("slug", tag.Slug).
 		AddParam("number", post.Number).

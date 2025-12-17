@@ -4,11 +4,8 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"fmt"
 	"image"
-	"path/filepath"
-	"strings"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -96,13 +93,7 @@ func uploadImage(ctx context.Context, c *cmd.UploadImage) error {
 
 	src, _, err := image.Decode(bytes.NewReader(c.Image.Upload.Content))
 	if err != nil {
-		fileBase := strings.TrimSuffix(
-			c.Image.Upload.FileName,
-			filepath.Ext(c.Image.Upload.FileName),
-		)
-
-		encodedName := base64.RawURLEncoding.EncodeToString([]byte(fileBase))
-		bkey := fmt.Sprintf("%s/%s-%s.webp", c.Folder, rand.String(64), encodedName)
+		bkey := fmt.Sprintf("%s/%s.webp", c.Folder, rand.String(32))
 
 		err = bus.Dispatch(ctx, &cmd.StoreBlob{
 			Key:         bkey,
@@ -129,14 +120,7 @@ func uploadImage(ctx context.Context, c *cmd.UploadImage) error {
 	c.Image.Upload.Content = buf.Bytes()
 	c.Image.Upload.ContentType = "image/webp"
 
-	fileBase := strings.TrimSuffix(
-		c.Image.Upload.FileName,
-		filepath.Ext(c.Image.Upload.FileName),
-	)
-
-	encodedName := base64.RawURLEncoding.EncodeToString([]byte(fileBase))
-
-	bkey := fmt.Sprintf("%s/%s-%s.webp", c.Folder, rand.String(64), encodedName)
+	bkey := fmt.Sprintf("%s/%s.webp", c.Folder, rand.String(32))
 
 	err = bus.Dispatch(ctx, &cmd.StoreBlob{
 		Key:         bkey,

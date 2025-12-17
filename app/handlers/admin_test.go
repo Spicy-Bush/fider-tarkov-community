@@ -168,9 +168,14 @@ func TestManageMembersHandler(t *testing.T) {
 		return nil
 	})
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
+	})
+
 	server := mock.NewServer()
 	code, _ := server.
 		OnTenant(mock.DemoTenant).
+		AsUser(mock.JonSnow).
 		Execute(
 			handlers.ManageMembers(),
 		)

@@ -14,9 +14,9 @@ migrate: ## Run all database migrations
 
 ##@ Building
 
-build: build-server build-ssr build-ui ## Build server and ui
+build: build-ssr build-ui build-server ## Build server and ui (frontend first for embedding)
 
-build-server: ## Build server
+build-server: ## Build server (embeds all assets)
 	go build -ldflags '-s -w $(LDFLAGS)' -o fider .
 
 build-ui: ## Build all UI assets
@@ -33,14 +33,14 @@ build-ssr: ## Build SSR script and locales
 
 test: test-server test-ui ## Test server and ui code
 
-test-server: build-server build-ssr ## Run all server tests
+test-server: build ## Run all server tests
 	godotenv -f .test.env ./fider migrate
 	godotenv -f .test.env go test ./... -race
 
 test-ui: ## Run all UI tests
 	TZ=GMT npx jest ./public
 
-coverage-server: build-server build-ssr ## Run all server tests (with code coverage)
+coverage-server: build ## Run all server tests (with code coverage)
 	godotenv -f .test.env ./fider migrate
 	godotenv -f .test.env go test ./... -coverprofile=cover.out -coverpkg=all -p=8 -race
 
@@ -58,10 +58,10 @@ test-e2e-ui: ## Run all E2E tests
 
 ##@ Running (Watch Mode)
 
-watch:
-	make -j4 watch-server watch-ui
+watch: build-ssr build-ui ## Build assets then run watchers
+	make -j2 watch-server watch-ui
 
-watch-server: migrate ## Build and run server in watch mode
+watch-server: ## Build and run server in watch mode
 	air -c air.conf
 
 watch-ui: ## Build UI in watch mode (rebuilds on changes)

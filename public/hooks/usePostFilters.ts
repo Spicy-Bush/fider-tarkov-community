@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { querystring, Fider, PAGINATION, filterStorage, StoredFilters } from "@fider/services"
+import { Tag } from "@fider/models"
 
 export interface FilterState extends StoredFilters {
   query: string
@@ -16,6 +17,10 @@ const DEFAULT_FILTERS: FilterState = {
   query: "",
   view: "trending",
   limit: PAGINATION.DEFAULT_LIMIT,
+}
+
+export interface UsePostFiltersOptions {
+  tags?: Tag[]
 }
 
 const getUrlParams = (): FilterState | null => {
@@ -62,57 +67,82 @@ const toStoredFilters = (filters: FilterState): StoredFilters => {
   return rest
 }
 
-export const usePostFilters = () => {
+const getStoredOrDefaultFilters = (): FilterState => {
+  const stored = filterStorage.get()
+  const metadata = filterStorage.getMetadata()
+
+  if (stored) {
+    let restoredFilters: FilterState = { ...stored, query: "" }
+
+    if (filterStorage.shouldEnableNotMyVotes(metadata)) {
+      restoredFilters = { ...restoredFilters, notMyVotes: true }
+    }
+
+    if (metadata && filterStorage.isExpired(metadata)) {
+      return { ...restoredFilters, view: "trending" }
+    }
+
+    return restoredFilters
+  }
+
+  if (Fider.session.isAuthenticated) {
+    return { ...DEFAULT_FILTERS, notMyVotes: true }
+  }
+
+  return DEFAULT_FILTERS
+}
+
+export const usePostFilters = (options?: UsePostFiltersOptions) => {
+  const tagsRef = useRef(options?.tags)
+  tagsRef.current = options?.tags
+
+  const isFromUrlRef = useRef(false)
+  const userChangedFiltersRef = useRef(false)
+
   const [filters, setFilters] = useState<FilterState>(() => {
     const urlParams = getUrlParams()
     if (urlParams) {
-      filterStorage.save(toStoredFilters(urlParams))
+      isFromUrlRef.current = true
       return urlParams
     }
 
-    const stored = filterStorage.get()
-    const metadata = filterStorage.getMetadata()
-
-    if (stored) {
-      let restoredFilters: FilterState = { ...stored, query: "" }
-
-      if (filterStorage.shouldEnableNotMyVotes(metadata)) {
-        restoredFilters = { ...restoredFilters, notMyVotes: true }
-      }
-
-      if (metadata && filterStorage.isExpired(metadata)) {
-        const updatedFilters = { ...restoredFilters, view: "trending" }
-        filterStorage.save(toStoredFilters(updatedFilters))
-        return updatedFilters
-      }
-
-      filterStorage.save(toStoredFilters(restoredFilters))
-      return restoredFilters
-    }
-
-    if (Fider.session.isAuthenticated) {
-      return { ...DEFAULT_FILTERS, notMyVotes: true }
-    }
-
-    return DEFAULT_FILTERS
+    const storedFilters = getStoredOrDefaultFilters()
+    filterStorage.save(toStoredFilters(storedFilters), tagsRef.current)
+    return storedFilters
   })
 
   const [offset, setOffset] = useState(0)
 
   useEffect(() => {
-    filterStorage.save(toStoredFilters(filters))
+    if (isFromUrlRef.current && !userChangedFiltersRef.current) {
+      updateUrl(filters)
+      return
+    }
+    filterStorage.save(toStoredFilters(filters), tagsRef.current)
     updateUrl(filters)
   }, [filters])
 
   const updateFilters = useCallback((newFilters: Partial<FilterState>) => {
+    userChangedFiltersRef.current = true
+    isFromUrlRef.current = false
     setFilters((prev) => ({ ...prev, ...newFilters }))
     setOffset(0)
   }, [])
 
   const resetFilters = useCallback(() => {
+    userChangedFiltersRef.current = true
+    isFromUrlRef.current = false
     setFilters(DEFAULT_FILTERS)
     setOffset(0)
     filterStorage.clear()
+  }, [])
+
+  const restoreSavedFilters = useCallback(() => {
+    userChangedFiltersRef.current = false
+    isFromUrlRef.current = false
+    const storedFilters = getStoredOrDefaultFilters()
+    setFilters(storedFilters)
+    setOffset(0)
   }, [])
 
   const hasActiveFilters = useCallback(() => {
@@ -129,12 +159,16 @@ export const usePostFilters = () => {
     )
   }, [filters])
 
+  const isUsingUrlFilters = isFromUrlRef.current && !userChangedFiltersRef.current
+
   return {
     filters,
     offset,
     setOffset,
     updateFilters,
     resetFilters,
+    restoreSavedFilters,
     hasActiveFilters,
+    isUsingUrlFilters,
   }
 }

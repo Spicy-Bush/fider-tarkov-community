@@ -1,12 +1,15 @@
 package middlewares_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/middlewares"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/mock"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
@@ -25,6 +28,10 @@ func TestIsAuthorized_WithAllowedRole(t *testing.T) {
 
 func TestIsAuthorized_WithForbiddenRole(t *testing.T) {
 	RegisterT(t)
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
+	})
 
 	server := mock.NewServer()
 	server.Use(middlewares.IsAuthorized(enum.RoleAdministrator, enum.RoleCollaborator))

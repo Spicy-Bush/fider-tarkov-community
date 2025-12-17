@@ -91,7 +91,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
 
       {showModal && createPortal(
         <div 
-          className="fixed inset-0 z-[10000] bg-black/90 flex items-center justify-center"
+          className="fixed inset-0 z-10000 bg-black/90 flex items-center justify-center"
           onClick={closeModal}
         >
           <button

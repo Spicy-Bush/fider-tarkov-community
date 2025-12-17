@@ -9,6 +9,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/services/moderation"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
@@ -131,12 +132,16 @@ func CompleteSignInProfile() web.HandlerFunc {
 
 		err = bus.Dispatch(c, &query.GetUserByEmail{Email: result.Email})
 		if errors.Cause(err) != app.ErrNotFound {
-			// Not possible to create user that already exists
 			return c.BadRequest(web.Map{})
 		}
 
+		nameToUse := action.Name
+		if flagged, _ := moderation.IsTextFlagged(c, action.Name); flagged {
+			nameToUse = generateRandomUsername()
+		}
+
 		user := &entity.User{
-			Name:   action.Name,
+			Name:   nameToUse,
 			Email:  result.Email,
 			Tenant: c.Tenant(),
 			Role:   enum.RoleVisitor,

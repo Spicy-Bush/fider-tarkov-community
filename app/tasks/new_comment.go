@@ -51,6 +51,19 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 			}
 		}
 
+		baseURL := web.BaseURL(c)
+		// push notification for new comment
+		pushUsers, err := getActiveSubscribers(c, post, enum.NotificationChannelPush, enum.NotificationEventNewComment)
+		if err != nil {
+			return c.Failure(err)
+		}
+		pushTitle := fmt.Sprintf("%s commented on #%d", author.Name, post.Number)
+		pushBody := truncateText(post.Title, 100)
+		pushIcon := baseURL + "/static/favicon?size=200"
+		pushURL := baseURL + link
+		pushTag := fmt.Sprintf("comment-%d", comment.ID)
+		sendPushNotifications(c, pushUsers, author.ID, pushTitle, pushBody, pushURL, pushIcon, pushTag)
+
 		// Web notification - mentions
 		if comment.Mentions != nil {
 			title = i18n.T(c, "web.new_mention.text", i18n.Params{
@@ -84,6 +97,36 @@ func NotifyAboutNewComment(comment *entity.Comment, post *entity.Post) worker.Ta
 						}
 					}
 				}
+			}
+
+			// push notification for mentions
+			pushMentionQ := &query.GetUsersToNotify{
+				Event:   enum.NotificationEventMention,
+				Channel: enum.NotificationChannelPush,
+			}
+			err = bus.Dispatch(c, pushMentionQ)
+			if err != nil {
+				return c.Failure(err)
+			}
+
+			userMap := make(map[int]*entity.User, len(pushMentionQ.Result))
+			for _, u := range pushMentionQ.Result {
+				userMap[u.ID] = u
+			}
+			pushMentionedUsers := make([]*entity.User, 0, len(comment.Mentions))
+			for _, mention := range comment.Mentions {
+				if mention.IsNew {
+					if u, ok := userMap[mention.ID]; ok {
+						pushMentionedUsers = append(pushMentionedUsers, u)
+					}
+				}
+			}
+
+			if len(pushMentionedUsers) > 0 {
+				mentionPushTitle := fmt.Sprintf("%s mentioned you", author.Name)
+				mentionPushBody := truncateText(post.Title, 100)
+				mentionPushTag := fmt.Sprintf("mention-%d", comment.ID)
+				sendPushNotifications(c, pushMentionedUsers, author.ID, mentionPushTitle, mentionPushBody, pushURL, pushIcon, mentionPushTag)
 			}
 		}
 

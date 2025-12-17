@@ -9,25 +9,27 @@ import (
 
 // Post represents an post on a tenant board
 type Post struct {
-	ID               int                   `json:"id"`
-	Number           int                   `json:"number"`
-	Title            string                `json:"title"`
-	Slug             string                `json:"slug"`
-	Description      string                `json:"description"`
-	CreatedAt        time.Time             `json:"createdAt"`
-	LastActivityAt   time.Time             `json:"lastActivityAt"`
-	User             *User                 `json:"user"`
-	VoteType         int                   `json:"voteType"`
-	VotesCount       int                   `json:"votesCount"`
-	CommentsCount    int                   `json:"commentsCount"`
-	Status           enum.PostStatus       `json:"status"`
-	Response         *PostResponse         `json:"response,omitempty"`
-	Tags             []string              `json:"tags"`
-	TagDates         string                `json:"tagDates,omitempty"`
-	LockedSettings   *PostLockedSettings   `json:"lockedSettings,omitempty"`
-	ArchivedSettings *PostArchivedSettings `json:"archivedSettings,omitempty"`
-	Upvotes          int                   `json:"upvotes"`
-	Downvotes        int                   `json:"downvotes"`
+	ID                int                   `json:"id"`
+	Number            int                   `json:"number"`
+	Title             string                `json:"title"`
+	Slug              string                `json:"slug"`
+	Description       string                `json:"description"`
+	CreatedAt         time.Time             `json:"createdAt"`
+	LastActivityAt    time.Time             `json:"lastActivityAt"`
+	User              *User                 `json:"user"`
+	VoteType          int                   `json:"voteType"`
+	VotesCount        int                   `json:"votesCount"`
+	CommentsCount     int                   `json:"commentsCount"`
+	Status            enum.PostStatus       `json:"status"`
+	Response          *PostResponse         `json:"response,omitempty"`
+	Tags              []string              `json:"tags"`
+	TagDates          string                `json:"tagDates,omitempty"`
+	LockedSettings    *PostLockedSettings   `json:"lockedSettings,omitempty"`
+	ArchivedSettings  *PostArchivedSettings `json:"archivedSettings,omitempty"`
+	Upvotes           int                   `json:"upvotes"`
+	Downvotes         int                   `json:"downvotes"`
+	ModerationPending bool                  `json:"moderationPending,omitempty"`
+	ModerationData    string                `json:"moderationData,omitempty"`
 }
 
 type PostLockedSettings struct {

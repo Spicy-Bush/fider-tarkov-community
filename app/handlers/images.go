@@ -5,25 +5,24 @@ import (
 	"fmt"
 	"image/color"
 	"image/png"
+	"io/fs"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/crypto"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/imagic"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/log"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	"github.com/goenning/letteravatar"
 )
 
-// LetterAvatar returns a letter gravatar picture based on given name
 func LetterAvatar() web.HandlerFunc {
 	return func(c *web.Context) error {
 		id := c.Param("id")
@@ -55,7 +54,6 @@ func LetterAvatar() web.HandlerFunc {
 	}
 }
 
-// Gravatar returns a gravatar picture of fallsback to letter avatar based on name
 func Gravatar() web.HandlerFunc {
 	return func(c *web.Context) error {
 		id, err := c.ParamAsInt("id")
@@ -78,7 +76,6 @@ func Gravatar() web.HandlerFunc {
 					url := fmt.Sprintf("https://www.gravatar.com/avatar/%s?s=%d&d=404", crypto.MD5(strings.ToLower(userByID.Result.Email)), size)
 					cacheKey := fmt.Sprintf("gravatar:%s", url)
 
-					//If gravatar was found in cache
 					if image, found := c.Engine().Cache().Get(cacheKey); found {
 						log.Debugf(c, "Gravatar found in cache: @{GravatarURL}", dto.Props{
 							"GravatarURL": cacheKey,
@@ -109,69 +106,89 @@ func Gravatar() web.HandlerFunc {
 	}
 }
 
-// Favicon returns the Fider favicon by given size
+var faviconSizeBuckets = []int{64, 100, 200, 512}
+
 func Favicon() web.HandlerFunc {
+	defaultFavicon, _ := fs.ReadFile(assets.FS, "favicon.png")
+
 	return func(c *web.Context) error {
+		bkey := c.Param("bkey")
+		bg := c.QueryParam("bg")
+
+		requestedSize, err := c.QueryParamAsInt("size")
+		if err != nil {
+			return c.BadRequest(web.Map{})
+		}
+
+		canonicalSize := snapToSize(requestedSize, faviconSizeBuckets)
+		if canonicalSize == 0 {
+			canonicalSize = 64
+		}
+
+		if requestedSize != canonicalSize {
+			redirectURL := "/static/favicon"
+			if bkey != "" {
+				redirectURL = fmt.Sprintf("/static/favicon/%s", bkey)
+			}
+			redirectURL = fmt.Sprintf("%s?size=%d", redirectURL, canonicalSize)
+			if bg != "" {
+				redirectURL += "&bg=white"
+			}
+			return c.PermanentRedirect(redirectURL)
+		}
+
 		var (
-			bytes       []byte
-			err         error
-			contentType string
+			faviconBytes []byte
+			contentType  string
 		)
 
-		bkey := c.Param("bkey")
 		if bkey != "" {
 			q := &query.GetBlobByKey{Key: bkey}
 			err := bus.Dispatch(c, q)
 			if err != nil {
 				return c.Failure(err)
 			}
-			bytes = q.Result.Content
+			faviconBytes = q.Result.Content
 			contentType = q.Result.ContentType
 		} else {
-			bytes, err = os.ReadFile(env.Path("favicon.png"))
+			faviconBytes = defaultFavicon
 			contentType = "image/png"
-			if err != nil {
-				return c.Failure(err)
-			}
 		}
 
-		size, err := c.QueryParamAsInt("size")
-		if err != nil {
-			return c.BadRequest(web.Map{})
+		opts := []imagic.ImageOperation{
+			imagic.Padding(canonicalSize * 10 / 100),
+			imagic.Resize(canonicalSize),
 		}
 
-		size = between(size, 50, 200)
-
-		opts := []imagic.ImageOperation{}
-		if size > 0 {
-			opts = append(opts, imagic.Padding(size*10/100))
-			opts = append(opts, imagic.Resize(size))
-		}
-
-		if c.QueryParam("bg") != "" {
+		if bg != "" {
 			opts = append(opts, imagic.ChangeBackground(color.White))
 		}
 
-		bytes, err = imagic.Apply(bytes, opts...)
+		faviconBytes, err = imagic.Apply(faviconBytes, opts...)
 		if err != nil {
 			return c.Failure(err)
 		}
 
-		return c.Image(contentType, bytes)
+		return c.Image(contentType, faviconBytes)
 	}
 }
 
-// ViewUploadedImage returns any uploaded image by given ID and size
 func ViewUploadedImage() web.HandlerFunc {
 	return func(c *web.Context) error {
 		bkey := c.Param("bkey")
 
-		size, err := c.QueryParamAsInt("size")
+		requestedSize, err := c.QueryParamAsInt("size")
 		if err != nil {
 			return c.BadRequest(web.Map{})
 		}
 
-		size = between(size, 0, 2000)
+		canonicalSize := snapToSize(requestedSize, imageSizeBuckets)
+		if requestedSize != canonicalSize {
+			if canonicalSize == 0 {
+				return c.PermanentRedirect(fmt.Sprintf("/static/images/%s", bkey))
+			}
+			return c.PermanentRedirect(fmt.Sprintf("/static/images/%s?size=%d", bkey, canonicalSize))
+		}
 
 		q := &query.GetBlobByKey{Key: bkey}
 		err = bus.Dispatch(c, q)
@@ -179,14 +196,14 @@ func ViewUploadedImage() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		bytes := q.Result.Content
-		if size > 0 {
-			bytes, err = imagic.Apply(bytes, imagic.Resize(size))
+		imgBytes := q.Result.Content
+		if canonicalSize > 0 {
+			imgBytes, err = imagic.Apply(imgBytes, imagic.Resize(canonicalSize))
 			if err != nil {
 				return c.Failure(err)
 			}
 		}
 
-		return c.Image(q.Result.ContentType, bytes)
+		return c.Image(q.Result.ContentType, imgBytes)
 	}
 }

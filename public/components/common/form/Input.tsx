@@ -15,6 +15,7 @@ interface InputProps {
   autoComplete?: string
   autoFocus?: boolean
   noTabFocus?: boolean
+  noMargin?: boolean
   afterLabel?: JSX.Element
   icon?: SpriteSymbol
   maxLength?: number
@@ -45,7 +46,7 @@ export const Input: React.FunctionComponent<InputProps> = (props) => {
   return (
     <ValidationContext.Consumer>
       {(ctx) => (
-        <div className={classSet({ "mb-4": true, [`${props.className}`]: props.className })}>
+        <div className={classSet({ "mb-4": !props.noMargin, [`${props.className}`]: props.className })}>
           {!!props.label && (
             <label htmlFor={`input-${props.field}`} className="block text-sm font-medium text-foreground mb-1">
               {props.label}

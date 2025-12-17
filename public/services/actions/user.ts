@@ -63,17 +63,17 @@ export const updateUserSettings = async (data: {
 export const updateUserAvatar = async (data: {
   avatarType: UserAvatarType
   avatar?: ImageUpload
-}, userID?: number): Promise<Result<void>> => {
+}, userID?: number): Promise<Result<{ avatarURL: string; avatarRejected?: boolean }>> => {
   if (userID && userID !== Fider.session.user?.id) {
-    return await http.post(`/_api/users/${userID}/avatar`, data)
+    return await http.post<{ avatarURL: string; avatarRejected?: boolean }>(`/_api/users/${userID}/avatar`, data)
   }
-  return await http.post("/_api/user/avatar", data)
+  return await http.post<{ avatarURL: string; avatarRejected?: boolean }>("/_api/user/avatar", data)
 }
 
 export const updateOtherUserAvatar = async (userID: number, data: {
   avatarType: UserAvatarType
   avatar?: ImageUpload
-}): Promise<Result<void>> => {
+}): Promise<Result<{ avatarURL: string; avatarRejected?: boolean }>> => {
   return await updateUserAvatar(data, userID)
 }
 

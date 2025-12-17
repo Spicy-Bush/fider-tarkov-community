@@ -132,12 +132,21 @@ func (r *dbReportReason) toModel() *entity.ReportReason {
 
 func createReport(ctx context.Context, c *cmd.CreateReport) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		var reporterID interface{}
+		if c.ReporterID != nil {
+			reporterID = *c.ReporterID
+		} else if user != nil {
+			reporterID = user.ID
+		} else {
+			reporterID = nil
+		}
+
 		var id int
 		err := trx.Scalar(&id, `
 			INSERT INTO reports (tenant_id, reporter_id, reported_type, reported_id, reason, details, status, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
 			RETURNING id
-		`, tenant.ID, user.ID, c.ReportedType.String(), c.ReportedID, c.Reason, nullIfEmpty(c.Details))
+		`, tenant.ID, reporterID, c.ReportedType.String(), c.ReportedID, c.Reason, nullIfEmpty(c.Details))
 		if err != nil {
 			return errors.Wrap(err, "failed to create report")
 		}

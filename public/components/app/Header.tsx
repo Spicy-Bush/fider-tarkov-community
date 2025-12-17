@@ -4,7 +4,13 @@ import { useFider } from "@fider/hooks"
 import { HStack } from "../layout"
 import { Trans } from "@lingui/react/macro"
 import { UnreadCountsProvider } from "@fider/contexts/UnreadCountsContext"
-import { heroiconsHome as IconHome } from "@fider/icons.generated"
+import { heroiconsHome as IconHome, heroiconsDocumentText as IconPages } from "@fider/icons.generated"
+
+const PagesButton = () => (
+  <a href="/pages" className="relative inline-flex items-center cursor-pointer group" title="Pages">
+    <Icon sprite={IconPages} className="h-6 text-muted group-hover:text-foreground" />
+  </a>
+)
 
 export const Header = () => {
   const fider = useFider()
@@ -19,7 +25,7 @@ export const Header = () => {
   const hideModal = () => setIsSignInModalOpen(false)
 
   return (
-    <div id="c-header" className="bg-elevated">
+    <div id="c-header" className="bg-elevated relative z-dropdown">
       <SignInModal isOpen={isSignInModalOpen} onClose={hideModal} />
       <HStack className="p-6 w-full">
         <div className="container">
@@ -41,6 +47,7 @@ export const Header = () => {
             {fider.session.isAuthenticated && (
               <UnreadCountsProvider>
                 <HStack spacing={4} className="shrink-0">
+                  <PagesButton />
                   <QueueIndicator />
                   <ModIndicator />
                   <NotificationIndicator />
@@ -49,9 +56,12 @@ export const Header = () => {
               </UnreadCountsProvider>
             )}
             {!fider.session.isAuthenticated && (
-              <a id="c-header-sign-in" href="#" className="uppercase text-sm text-foreground" onClick={showModal}>
-                <Trans id="action.signin">Sign in</Trans>
-              </a>
+              <HStack spacing={4} className="shrink-0">
+                <PagesButton />
+                <a id="c-header-sign-in" href="#" className="uppercase text-sm text-foreground" onClick={showModal}>
+                  <Trans id="action.signin">Sign in</Trans>
+                </a>
+              </HStack>
             )}
           </HStack>
         </div>

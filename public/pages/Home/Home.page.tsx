@@ -128,7 +128,7 @@ What can we do better? This is the place for you to vote, discuss and share idea
               rel="noreferrer" 
               className="kofi-button inline-flex items-center gap-2.5 px-4 py-2 rounded-button bg-[#ff5e5b]/10 border border-[#ff5e5b]/30 text-foreground no-underline transition-all duration-200 hover:bg-[#ff5e5b]/20 hover:border-[#ff5e5b]/50 hover:scale-[1.02]"
             >
-              <img src="/misc/Ko-fi_HEART.gif" alt="" className="h-7 w-7" />
+              <img src="/misc/Ko-fi_HEART.webp" alt="" className="h-7 w-7" />
               <span className="font-medium text-sm">Support us on Ko-fi</span>
             </a>
           </div>

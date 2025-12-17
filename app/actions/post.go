@@ -381,6 +381,10 @@ func (action *SetResponse) Validate(ctx context.Context, user *entity.User) *val
 		result.AddFieldFailure("status", propertyIsInvalid(ctx, "status"))
 	}
 
+	if user.IsModerator() && !user.IsAdministrator() && !user.IsCollaborator() && action.Status != enum.PostDuplicate {
+		result.AddFieldFailure("status", i18n.T(ctx, "validation.custom.moderatorduplicateonly"))
+	}
+
 	if action.Status == enum.PostDuplicate {
 		if action.OriginalNumber == action.Number {
 			result.AddFieldFailure("originalNumber", i18n.T(ctx, "validation.custom.selfduplicate"))

@@ -27,23 +27,36 @@ const untaggedTag: Tag = {
 }
 
 export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
-  const [loading, setLoading] = useState(true)
+  const initialPosts = props.posts || []
+  const hasInitialPosts = initialPosts.length > 0
+  
+  const [loading, setLoading] = useState(!hasInitialPosts)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [posts, setPosts] = useState<Post[]>([])
-  const [hasMore, setHasMore] = useState(true)
+  const [posts, setPosts] = useState<Post[]>(initialPosts)
+  const [hasMore, setHasMore] = useState(hasInitialPosts && initialPosts.length >= 20)
   const [isSwipeModeOpen, setIsSwipeModeOpen] = useState(false)
   const timerRef = useRef<number>()
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const seenPostIds = useRef(new Set<number>())
-  const { filters, offset, setOffset, updateFilters, resetFilters, hasActiveFilters } = usePostFilters()
+  const { filters, offset, setOffset, updateFilters, resetFilters, hasActiveFilters } = usePostFilters({ tags: props.tags })
+  
+  useEffect(() => {
+    if (hasInitialPosts) {
+      for (let i = 0; i < initialPosts.length; i++) {
+        seenPostIds.current.add(initialPosts[i].id)
+      }
+    }
+  }, [])
 
-  const searchPosts = useCallback(() => {
+  const searchPosts = useCallback((resetOffset = true, immediate = false) => {
     if (timerRef.current) {
       clearTimeout(timerRef.current)
     }
     setLoading(true)
-    setOffset(0)
-    seenPostIds.current.clear()
+    if (resetOffset) {
+      setOffset(0)
+      seenPostIds.current.clear()
+    }
     
     timerRef.current = window.setTimeout(() => {
       actions
@@ -62,7 +75,8 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
           }
           setLoading(false)
         })
-    }, 500)
+        .catch(() => setLoading(false))
+    }, immediate ? 0 : 500)
   }, [filters, setOffset])
 
   const loadMore = useCallback(() => {
@@ -112,9 +126,43 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
     updateFilters({ query: "" })
   }, [updateFilters])
 
+  const prevFiltersRef = useRef(filters)
+
+  const arraysEqual = (a: string[] = [], b: string[] = []) => {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false
+    }
+    return true
+  }
+
   useEffect(() => {
-    searchPosts()
-  }, [searchPosts])
+    const prev = prevFiltersRef.current
+    const filtersChanged =
+      prev.view !== filters.view ||
+      !arraysEqual(prev.tags, filters.tags) ||
+      !arraysEqual(prev.statuses, filters.statuses) ||
+      prev.query !== filters.query ||
+      prev.myVotes !== filters.myVotes ||
+      prev.myPosts !== filters.myPosts ||
+      prev.notMyVotes !== filters.notMyVotes ||
+      prev.date !== filters.date ||
+      prev.tagLogic !== filters.tagLogic ||
+      prev.limit !== filters.limit
+
+    prevFiltersRef.current = filters
+
+    if (filtersChanged && offset === 0) {
+      searchPosts(true, !hasInitialPosts)
+    }
+  }, [filters, offset, searchPosts, hasInitialPosts])
+
+  useEffect(() => {
+    if (!hasInitialPosts) {
+      searchPosts(true, true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     return () => {

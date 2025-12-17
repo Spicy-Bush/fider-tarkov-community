@@ -39,6 +39,7 @@ import (
 // Returns an exitcode, 0 for OK and 1 for ERROR
 func RunServer() int {
 	svcs := bus.Init()
+	bus.Freeze()
 	ctx := log.WithProperty(context.Background(), log.PropertyKeyTag, "BOOTSTRAP")
 	for _, s := range svcs {
 		log.Debugf(ctx, "Service '@{ServiceCategory}.@{ServiceName}' has been initialized.", dto.Props{
@@ -72,6 +73,7 @@ func startJobs(ctx context.Context) {
 	_ = c.AddJob(jobs.NewJob(ctx, "EmailSupressionJob", jobs.EmailSupressionJobHandler{}))
 	_ = c.AddJob(jobs.NewJob(ctx, "RefreshPostStatsJob", jobs.RefreshPostStatsJobHandler{}))
 	_ = c.AddJob(jobs.NewJob(ctx, "RefreshCrawlerIPsJob", jobs.RefreshCrawlerIPsJobHandler{}))
+	_ = c.AddJob(jobs.NewJob(ctx, "PublishScheduledPagesJob", jobs.PublishScheduledPagesJobHandler{}))
 
 	if env.IsBillingEnabled() {
 		_ = c.AddJob(jobs.NewJob(ctx, "LockExpiredTenantsJob", jobs.LockExpiredTenantsJobHandler{}))

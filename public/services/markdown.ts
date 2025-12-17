@@ -4,7 +4,7 @@ import DOMPurify from "dompurify"
 if (DOMPurify.isSupported) {
   DOMPurify.setConfig({
     USE_PROFILES: { html: true },
-    ADD_TAGS: ["iframe"],
+    ADD_TAGS: ["iframe", "img"],
     ADD_ATTR: [
       "allow",
       "allowfullscreen",
@@ -16,6 +16,8 @@ if (DOMPurify.isSupported) {
       "title",
       "target",
       "href",
+      "alt",
+      "class",
     ]
   })
 }
@@ -84,50 +86,75 @@ const parseVKVideoLink = (href: string) => {
   return null;
 }
 
-const fullMarked = new Marked({
-  gfm: true,
-  breaks: true,
-})
+const createFullMarked = (embedImages: boolean) => {
+  const marked = new Marked({
+    gfm: true,
+    breaks: true,
+  })
 
-fullMarked.use({
-  renderer: {
-    image() {
-      return ""
-    },
-
-    link({ href, title, text }) {
-      if (!href) return text
-
-      if ((href.includes('youtube.com/watch') || href.includes('youtu.be/'))) {
-        const parsedLink = parseYouTubeLink(href)
-        
-        if (parsedLink) {
-          const { videoId, timestamp } = parsedLink
-          const embedUrl = `https://www.youtube.com/embed/${videoId}?start=${timestamp}`
-          
-          return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="YouTube video"></iframe>`
+  marked.use({
+    renderer: {
+      image({ href, title, text }) {
+        if (!href) return ""
+        if (!embedImages) {
+          const titleText = title || text || href
+          return defaultLink(href, title, titleText)
         }
-      }
-      
-      if (href.includes('vk.com/video') || href.includes('vkvideo.ru/video')) {
-        const parsedLink = parseVKVideoLink(href)
-        
-        if (parsedLink) {
-          const { oid, id, timestamp } = parsedLink
-          let embedUrl = `https://vk.com/video_ext.php?oid=${oid}&id=${id}`;
+        const titleAttr = title ? ` title="${title}"` : ""
+        const altAttr = text ? ` alt="${text}"` : ""
+        return `<img src="${href}"${titleAttr}${altAttr} class="max-w-full rounded-card" />`
+      },
+
+      link({ href, title, text }) {
+        if (!href) return text
+
+        if (embedImages) {
+          const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i
+          const isImageUrl = imageExtensions.test(href) ||
+            href.startsWith('/static/images/') ||
+            href.includes('/static/images/')
           
-          if (timestamp) {
-            embedUrl += `&t=${timestamp}`;
+          if (isImageUrl && href === text) {
+            return `<img src="${href}" class="max-w-full rounded-card my-4" />`
+          }
+
+          if ((href.includes('youtube.com/watch') || href.includes('youtu.be/'))) {
+            const parsedLink = parseYouTubeLink(href)
+            
+            if (parsedLink) {
+              const { videoId, timestamp } = parsedLink
+              const embedUrl = `https://www.youtube.com/embed/${videoId}?start=${timestamp}`
+              
+              return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="YouTube video"></iframe>`
+            }
           }
           
-          return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="VK video"></iframe>`
+          if (href.includes('vk.com/video') || href.includes('vkvideo.ru/video')) {
+            const parsedLink = parseVKVideoLink(href)
+            
+            if (parsedLink) {
+              const { oid, id, timestamp } = parsedLink
+              let embedUrl = `https://vk.com/video_ext.php?oid=${oid}&id=${id}`;
+              
+              if (timestamp) {
+                embedUrl += `&t=${timestamp}`;
+              }
+              
+              return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="VK video"></iframe>`
+            }
+          }
         }
-      }
-      
-      return defaultLink(href, title, text)
+        
+        return defaultLink(href, title, text)
+      },
     },
-  },
-})
+  })
+  
+  return marked
+}
+
+const fullMarked = createFullMarked(false)
+const fullMarkedWithEmbeds = createFullMarked(true)
 
 const processMentions = (html: string): string => {
   return html.replace(/@{([^}]+)}/g, (match) => {
@@ -195,8 +222,9 @@ const entities: { [key: string]: string } = {
 const encodeHTML = (s: string) => s.replace(/[<>]/g, (tag) => entities[tag] || tag)
 const sanitize = (input: string) => DOMPurify.isSupported ? DOMPurify.sanitize(input) : input
 
-export const full = (input: string): string => {
-  const parsed = fullMarked.parse(encodeHTML(input)) as string
+export const full = (input: string, embedImages = false): string => {
+  const marked = embedImages ? fullMarkedWithEmbeds : fullMarked
+  const parsed = marked.parse(encodeHTML(input)) as string
   return sanitize(processMentions(parsed)).trim()
 }
 

@@ -42,6 +42,11 @@ func TestCreateNewPost_ValidPostTitles(t *testing.T) {
 		return app.ErrNotFound
 	})
 
+	bus.AddHandler(func(ctx context.Context, q *query.GetTenantProfanityWords) error {
+		q.Result = ""
+		return nil
+	})
+
 	ctx := createTestContext()
 	user := &entity.User{
 		ID:   1,
@@ -101,10 +106,15 @@ func TestDeletePost_WhenIsBeingReferenced(t *testing.T) {
 	ctx := createTestContext()
 	action := &actions.DeletePost{}
 	action.Number = post1.Number
+	err := action.OnPreExecute(ctx)
+	Expect(err).IsNil()
 	ExpectSuccess(action.Validate(ctx, nil))
 
-	action.Number = post2.Number
-	ExpectFailed(action.Validate(ctx, nil))
+	action2 := &actions.DeletePost{}
+	action2.Number = post2.Number
+	err = action2.OnPreExecute(ctx)
+	Expect(err).IsNil()
+	ExpectFailed(action2.Validate(ctx, nil))
 }
 
 func TestDeleteComment(t *testing.T) {

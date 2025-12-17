@@ -31,3 +31,7 @@ type GetNameFromBlobKey struct {
 	BlobKey string
 	Result  string
 }
+
+type GetPrunableFiles struct {
+	Result []string
+}

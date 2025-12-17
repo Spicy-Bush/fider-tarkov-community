@@ -2,16 +2,12 @@ package postcache
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 )
-
-// if we ever run multiple instances, each
-// will have to have its own cache. This is
-// probably fine for the current use case,
-// but worth noting as reference for future
 
 type CachedRanking struct {
 	PostIDs   []int
@@ -20,10 +16,8 @@ type CachedRanking struct {
 
 type TenantCache struct {
 	rankings       sync.Map
-	tags           []*entity.Tag
-	tagsMu         sync.RWMutex
-	countPerStatus map[enum.PostStatus]int
-	countMu        sync.RWMutex
+	tags           atomic.Pointer[[]*entity.Tag]
+	countPerStatus atomic.Pointer[map[enum.PostStatus]int]
 }
 
 var (
@@ -97,48 +91,38 @@ func GetCacheKey(view string) string {
 
 func GetTags(tenantID int) ([]*entity.Tag, bool) {
 	tc := getTenantCache(tenantID)
-	tc.tagsMu.RLock()
-	defer tc.tagsMu.RUnlock()
-	if tc.tags != nil {
-		return tc.tags, true
+	tags := tc.tags.Load()
+	if tags != nil {
+		return *tags, true
 	}
 	return nil, false
 }
 
 func SetTags(tenantID int, tags []*entity.Tag) {
 	tc := getTenantCache(tenantID)
-	tc.tagsMu.Lock()
-	tc.tags = tags
-	tc.tagsMu.Unlock()
+	tc.tags.Store(&tags)
 }
 
 func InvalidateTags(tenantID int) {
 	tc := getTenantCache(tenantID)
-	tc.tagsMu.Lock()
-	tc.tags = nil
-	tc.tagsMu.Unlock()
+	tc.tags.Store(nil)
 }
 
 func GetCountPerStatus(tenantID int) (map[enum.PostStatus]int, bool) {
 	tc := getTenantCache(tenantID)
-	tc.countMu.RLock()
-	defer tc.countMu.RUnlock()
-	if tc.countPerStatus != nil {
-		return tc.countPerStatus, true
+	counts := tc.countPerStatus.Load()
+	if counts != nil {
+		return *counts, true
 	}
 	return nil, false
 }
 
 func SetCountPerStatus(tenantID int, counts map[enum.PostStatus]int) {
 	tc := getTenantCache(tenantID)
-	tc.countMu.Lock()
-	tc.countPerStatus = counts
-	tc.countMu.Unlock()
+	tc.countPerStatus.Store(&counts)
 }
 
 func InvalidateCountPerStatus(tenantID int) {
 	tc := getTenantCache(tenantID)
-	tc.countMu.Lock()
-	tc.countPerStatus = nil
-	tc.countMu.Unlock()
+	tc.countPerStatus.Store(nil)
 }
