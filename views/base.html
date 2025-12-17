@@ -29,11 +29,72 @@
   {{block "head" .}}{{end}}
   <title>{{ .public.title }}</title>
   <meta name="description" content="{{ .public.description }}" />
+  
+  {{ if and .public.props.data.page (eq .public.page "Page/ViewPage.page") }}
+  <meta property="og:title" content="{{ .public.props.data.page.title }}" />
+  <meta property="og:description" content="{{ .public.props.data.page.metaDescription }}" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="{{ .private.currentURL }}" />
+  {{ if .public.props.data.page.bannerImageBKey }}
+  <meta property="og:image" content="{{ .public.settings.baseURL }}/static/images/{{ .public.props.data.page.bannerImageBKey }}" />
+  {{ else }}
+  <meta property="og:image" content="https://tarkov.community/static/images/attachments/wssPjl8GHo6bGFQXuiB4vakHWMQnE8srDCLS21btPmndlcWpft6UZkrBzZXwayao-VGFya292Q29tbXVuaXR5X09HTUVUQQ.webp">
+  {{ end }}
+  <meta property="article:published_time" content="{{ .public.props.data.page.publishedAt }}" />
+  <meta property="article:modified_time" content="{{ .public.props.data.page.updatedAt }}" />
+  {{ range .public.props.data.page.authors }}
+  <meta property="article:author" content="{{ .name }}" />
+  {{ end }}
+  
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="{{ .public.props.data.page.title }}" />
+  <meta name="twitter:description" content="{{ .public.props.data.page.metaDescription }}" />
+  {{ if .public.props.data.page.bannerImageBKey }}
+  <meta name="twitter:image" content="{{ .public.settings.baseURL }}/static/images/{{ .public.props.data.page.bannerImageBKey }}" />
+  {{ end }}
+  
+  {{ if .public.props.data.page.canonicalUrl }}
+  <link rel="canonical" href="{{ .public.props.data.page.canonicalUrl }}" />
+  {{ else if not .private.canonicalURL }}
+  <link rel="canonical" href="{{ .private.currentURL }}" />
+  {{ end }}
+  
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "{{ escape .public.props.data.page.title }}",
+    "description": "{{ escape .public.props.data.page.metaDescription }}",
+    "datePublished": "{{ .public.props.data.page.publishedAt }}",
+    "dateModified": "{{ .public.props.data.page.updatedAt }}",
+    "author": [
+      {{ range $index, $author := .public.props.data.page.authors }}
+      {{ if $index }},{{ end }}
+      {
+        "@type": "Person",
+        "name": "{{ escape $author.name }}"
+      }
+      {{ end }}
+    ],
+    {{ if .public.props.data.page.bannerImageBKey }}"image": "{{ .public.settings.baseURL }}/static/images/{{ .public.props.data.page.bannerImageBKey }}",{{ end }}
+    "publisher": {
+      "@type": "Organization",
+      "name": "{{ escape .public.tenant.name }}",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "{{ .public.settings.baseURL }}/static/favicon/{{ .public.tenant.logoBlobKey }}"
+      }
+    }
+  }
+  </script>
+  {{ else }}
   <meta property="og:title" content="{{ .public.title }}" />
   <meta property="og:description" content="{{ .public.description }}" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="{{ .private.currentURL }}" />
   <meta property="og:image" content="https://tarkov.community/static/images/attachments/wssPjl8GHo6bGFQXuiB4vakHWMQnE8srDCLS21btPmndlcWpft6UZkrBzZXwayao-VGFya292Q29tbXVuaXR5X09HTUVUQQ.webp">
+  {{ end }}
+  
   {{ if eq .public.settings.environment "development" }}
   <meta name="robots" content="noindex">
   {{ end }}

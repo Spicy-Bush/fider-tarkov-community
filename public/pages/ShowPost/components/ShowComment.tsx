@@ -25,13 +25,14 @@ import { Trans } from "@lingui/react/macro"
 import { useUserStanding } from "@fider/contexts/UserStandingContext"
 
 interface ShowCommentProps {
-  post: Post
+  post?: Post
   comment: Comment
   highlighted?: boolean
   onToggleReaction?: () => void
-  hasReported: boolean
-  dailyLimitReached: boolean
+  hasReported?: boolean
+  dailyLimitReached?: boolean
   reportReasons?: ReportReason[]
+  customToggleReaction?: (emoji: string) => Promise<{ added: boolean } | undefined>
 }
 
 export const ShowComment = (props: ShowCommentProps) => {
@@ -49,6 +50,8 @@ export const ShowComment = (props: ShowCommentProps) => {
 
   const [error, setError] = useState<Failure>()
 
+  const isPostContext = !!props.post
+
   const handleClick = (e: MouseEvent) => {
     if (node.current == null || !node.current.contains(e.target as Node)) {
       clearUrlHash()
@@ -65,11 +68,13 @@ export const ShowComment = (props: ShowCommentProps) => {
   }, [props.highlighted])
 
   const canEditComment = () => {
+    if (!isPostContext) return false
     if (isMuted) return false
     return commentPermissions.canEdit(props.comment)
   }
 
   const canDeleteComment = () => {
+    if (!isPostContext) return false
     if (isMuted) return false
     return commentPermissions.canDelete(props.comment)
   }
@@ -83,6 +88,7 @@ export const ShowComment = (props: ShowCommentProps) => {
   }
 
   const saveEdit = async () => {
+    if (!props.post) return
     const response = await actions.updateComment(props.post.number, props.comment.id, newContent, attachments)
     if (response.ok) {
       location.reload()
@@ -92,6 +98,7 @@ export const ShowComment = (props: ShowCommentProps) => {
   }
 
   const handleDelete = async () => {
+    if (!props.post) return
     setIsDeleting(true)
     setError(undefined)
 
@@ -99,12 +106,33 @@ export const ShowComment = (props: ShowCommentProps) => {
     if (result.ok) {
       setShowDeleteModal(false)
       notify.success(t({ id: "action.deletecomment.success", message: "Comment deleted successfully" }))
-      // Reload the page to reflect the changes
       window.location.reload()
     } else {
       setError(result.error)
     }
     setIsDeleting(false)
+  }
+
+  const updateLocalReactions = (emoji: string, added: boolean) => {
+    setLocalReactionCounts((prevCounts) => {
+      const newCounts = [...(prevCounts ?? [])]
+      const reactionIndex = newCounts.findIndex((r) => r.emoji === emoji)
+      if (reactionIndex !== -1) {
+        const newCount = added ? newCounts[reactionIndex].count + 1 : newCounts[reactionIndex].count - 1
+        if (newCount === 0) {
+          newCounts.splice(reactionIndex, 1)
+        } else {
+          newCounts[reactionIndex] = {
+            ...newCounts[reactionIndex],
+            count: newCount,
+            includesMe: added,
+          }
+        }
+      } else if (added) {
+        newCounts.push({ emoji, count: 1, includesMe: true })
+      }
+      return newCounts
+    })
   }
 
   const toggleReaction = async (emoji: string) => {
@@ -113,6 +141,16 @@ export const ShowComment = (props: ShowCommentProps) => {
       return
     }
 
+    if (props.customToggleReaction) {
+      const result = await props.customToggleReaction(emoji)
+      if (result) {
+        updateLocalReactions(emoji, result.added)
+      }
+      return
+    }
+
+    if (!props.post) return
+
     if (isPostLocked(props.post)) {
       notify.error(t({ id: "showpost.comment.locked", message: "This post is locked and cannot be reacted to." }))
       return
@@ -120,27 +158,7 @@ export const ShowComment = (props: ShowCommentProps) => {
 
     const response = await actions.toggleCommentReaction(props.post.number, props.comment.id, emoji)
     if (response.ok) {
-      const added = response.data.added
-
-      setLocalReactionCounts((prevCounts) => {
-        const newCounts = [...(prevCounts ?? [])]
-        const reactionIndex = newCounts.findIndex((r) => r.emoji === emoji)
-        if (reactionIndex !== -1) {
-          const newCount = added ? newCounts[reactionIndex].count + 1 : newCounts[reactionIndex].count - 1
-          if (newCount === 0) {
-            newCounts.splice(reactionIndex, 1)
-          } else {
-            newCounts[reactionIndex] = {
-              ...newCounts[reactionIndex],
-              count: newCount,
-              includesMe: added,
-            }
-          }
-        } else if (added) {
-          newCounts.push({ emoji, count: 1, includesMe: true })
-        }
-        return newCounts
-      })
+      updateLocalReactions(emoji, response.data.added)
     }
   }
 
@@ -171,6 +189,7 @@ export const ShowComment = (props: ShowCommentProps) => {
   }
 
   const modal = () => {
+    if (!props.post) return null
     return (
       <Modal.Window isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)}>
         <Modal.Header>
@@ -215,16 +234,21 @@ export const ShowComment = (props: ShowCommentProps) => {
     "bg-danger-light border border-danger-medium": isCommentHidden(props.comment),
   })
 
+  const canReact = props.customToggleReaction || (props.post && !isPostLocked(props.post) && !isMuted)
+  const showActions = isPostContext
+
   return (
     <div id={`comment-${comment.id}`} className="mt-3">
       {modal()}
-      <ReportModal
-        isOpen={showReportModal}
-        onClose={() => setShowReportModal(false)}
-        postNumber={props.post.number}
-        commentId={comment.id}
-        reasons={props.reportReasons}
-      />
+      {isPostContext && props.post && (
+        <ReportModal
+          isOpen={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          postNumber={props.post.number}
+          commentId={comment.id}
+          reasons={props.reportReasons}
+        />
+      )}
       <div ref={node} className={classList}>
         {isCommentHidden(props.comment) && (
           <div className="text-xs font-medium text-danger mb-2">
@@ -240,13 +264,13 @@ export const ShowComment = (props: ShowCommentProps) => {
               {editedMetadata}
             </span>
           </div>
-          {!isEditing && (
+          {!isEditing && showActions && (
             <div className="flex items-center gap-1 shrink-0">
               <ReportButton
                 reportedUserId={comment.user.id}
                 size="small"
-                hasReported={props.hasReported}
-                dailyLimitReached={props.dailyLimitReached}
+                hasReported={props.hasReported || false}
+                dailyLimitReached={props.dailyLimitReached || false}
                 onReport={() => setShowReportModal(true)}
               />
               <Dropdown position="left" renderHandle={<Icon sprite={IconDotsHorizontal} width="16" height="16" className="cursor-pointer" />}>
@@ -303,7 +327,7 @@ export const ShowComment = (props: ShowCommentProps) => {
             <>
               <Markdown text={comment.content} style="full" />
               {comment.attachments && comment.attachments.length > 0 && <ImageGallery bkeys={comment.attachments} />}
-              {!isPostLocked(props.post) && !isMuted && (
+              {canReact && (
                 <Reactions reactions={localReactionCounts} emojiSelectorRef={emojiSelectorRef} toggleReaction={toggleReaction} />
               )}
             </>

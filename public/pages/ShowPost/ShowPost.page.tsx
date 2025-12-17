@@ -61,19 +61,13 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
     initialDescription: props.post.description,
   })
   
-  const [upvotes, setUpvotes] = useState(props.post.upvotes || 0)
-  const [downvotes, setDownvotes] = useState(props.post.downvotes || 0)
   const [lastActivityAt, setLastActivityAt] = useState(props.post.lastActivityAt)
   
   useEffect(() => {
-    setUpvotes(props.post.upvotes || 0)
-    setDownvotes(props.post.downvotes || 0)
     setLastActivityAt(props.post.lastActivityAt)
-  }, [props.post.upvotes, props.post.downvotes, props.post.lastActivityAt])
+  }, [props.post.lastActivityAt])
   
-  const handleVoteChange = useCallback((newUpvotes: number, newDownvotes: number) => {
-    setUpvotes(newUpvotes)
-    setDownvotes(newDownvotes)
+  const handleVoteChange = useCallback((_upvotes: number, _downvotes: number) => {
     setLastActivityAt(new Date().toISOString())
   }, [])
 
@@ -321,7 +315,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                   )}
                 </HStack>
 
-                <div className="flex-grow">
+                <div className="grow">
                   {state.editMode ? (
                     <Form error={state.error}>
                       <Input field="title" maxLength={100} value={state.newTitle} onChange={state.setNewTitle} />

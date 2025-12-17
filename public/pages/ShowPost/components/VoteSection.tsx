@@ -122,7 +122,7 @@ export const VoteSection = (props: VoteSectionProps) => {
             disabled={isDisabled}
             className={classSet({
               "flex-1 overflow-hidden whitespace-nowrap text-ellipsis md:max-w-[30%] max-md:text-sm": true,
-              "!bg-success !text-white !border-success": voteType === 'up',
+              "bg-success! text-white! border-success!": voteType === 'up',
               "text-success": voteType !== 'up',
             })}
           >
@@ -146,8 +146,8 @@ export const VoteSection = (props: VoteSectionProps) => {
             disabled={isDisabled}
             className={classSet({
               "flex-1 overflow-hidden whitespace-nowrap text-ellipsis md:max-w-[30%] max-md:text-sm": true,
-              "!bg-danger !text-white !border-danger": voteType === 'down',
-              "!text-danger": voteType !== 'down',
+              "bg-danger! text-white! border-danger!": voteType === 'down',
+              "text-danger!": voteType !== 'down',
             })}
           >
             <HStack spacing={2} justify="center" className="w-full">

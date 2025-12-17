@@ -120,6 +120,7 @@ export const AdminSidebar: React.FC = () => {
             <SidebarSection label="Site" collapsed={!sidebarOpen}>
               <SidebarItem title="General" href="/admin" isActive={activeItem === "general"} icon={IconCog} collapsed={!sidebarOpen} />
               <SidebarItem title="Content" href="/admin/content-settings" isActive={activeItem === "content"} icon={IconDocumentText} collapsed={!sidebarOpen} />
+              <SidebarItem title="Pages" href="/admin/pages" isActive={activeItem === "pages"} icon={IconDocumentText} collapsed={!sidebarOpen} />
               <SidebarItem title="Responses" href="/admin/responses" isActive={activeItem === "responses"} icon={IconChat} collapsed={!sidebarOpen} />
               <SidebarItem title="Tags" href="/admin/tags" isActive={activeItem === "tags"} icon={IconTag} collapsed={!sidebarOpen} />
               <SidebarItem title="Webhooks" href="/admin/webhooks" isActive={activeItem === "webhooks"} icon={IconLink} collapsed={!sidebarOpen} />

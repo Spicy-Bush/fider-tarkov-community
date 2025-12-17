@@ -1,3 +1,5 @@
+import { NavigationLink } from "./navigation"
+
 export interface OAuthProviderOption {
   provider: string
   displayName: string
@@ -20,6 +22,7 @@ export interface SystemSettings {
   baseURL: string
   assetsURL: string
   oauth: OAuthProviderOption[]
+  navigationLinks?: NavigationLink[]
 }
 
 export interface UserSettings {

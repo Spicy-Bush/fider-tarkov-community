@@ -12,6 +12,8 @@
   "validation.invalid": "{name} имеет некорректный формат.",
   "validation.invalidvalue": "{name} имеет некорректное значение '{value}'.",
   "validation.maxstringlen": "{name} должен быть не длиннее {len} символов.",
+  "validation.minlength": "{name} должен содержать не менее {min} символов.",
+  "validation.maxlength": "{name} должен содержать не более {max} символов.",
   "validation.custom.maxattachments": "Вы не можете прикрепить более {number} вложений.",
   "validation.custom.differentemail": "Выберите другой адрес электронной почты.",
   "validation.custom.emailtaken": "Этот адрес электронной почты уже занят",

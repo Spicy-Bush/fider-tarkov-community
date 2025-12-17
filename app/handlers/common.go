@@ -86,6 +86,11 @@ func Sitemap() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
+		allPages := &query.GetAllPublishedPages{}
+		if err := bus.Dispatch(c, allPages); err != nil {
+			return c.Failure(err)
+		}
+
 		baseURL := c.BaseURL()
 		text := strings.Builder{}
 		text.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
@@ -93,6 +98,12 @@ func Sitemap() web.HandlerFunc {
 		text.WriteString(fmt.Sprintf("<url> <loc>%s</loc> </url>", baseURL))
 		for _, post := range allPosts.Result {
 			text.WriteString(fmt.Sprintf("<url> <loc>%s/posts/%d/%s</loc> </url>", baseURL, post.Number, post.Slug))
+		}
+		for _, page := range allPages.Result {
+			if page.Visibility == entity.PageVisibilityPublic {
+				text.WriteString(fmt.Sprintf("<url> <loc>%s/pages/%s</loc> <lastmod>%s</lastmod> </url>",
+					baseURL, page.Slug, page.UpdatedAt.Format("2026-12-12")))
+			}
 		}
 		text.WriteString(`</urlset>`)
 

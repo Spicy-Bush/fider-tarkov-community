@@ -125,3 +125,14 @@ export interface CreateEditOAuthConfigRequest {
 export const saveOAuthConfig = async (request: CreateEditOAuthConfigRequest): Promise<Result> => {
   return await http.post("/_api/admin/oauth", request)
 }
+
+export interface NavigationLinkInput {
+  title: string
+  url: string
+  displayOrder: number
+  location: string
+}
+
+export const saveNavigationLinks = async (links: NavigationLinkInput[]): Promise<Result> => {
+  return await http.post("/_api/admin/navigation", { links })
+}

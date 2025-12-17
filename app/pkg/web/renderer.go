@@ -8,11 +8,13 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
@@ -174,9 +176,33 @@ type userStandingInfo struct {
 }
 
 var cachedOAuthProviders atomic.Pointer[[]*dto.OAuthProviderOption]
+var cachedNavigationLinks atomic.Pointer[sync.Map]
+
+func init() {
+	cachedNavigationLinks.Store(&sync.Map{})
+}
 
 func InvalidateOAuthCache() {
 	cachedOAuthProviders.Store(nil)
+}
+
+func InvalidateNavigationLinksCache() {
+	cachedNavigationLinks.Store(&sync.Map{})
+}
+
+func getNavigationLinks(ctx *Context, tenantID int) []*entity.NavigationLink {
+	cache := cachedNavigationLinks.Load()
+	if cached, ok := cache.Load(tenantID); ok {
+		return cached.([]*entity.NavigationLink)
+	}
+
+	navLinks := &query.GetNavigationLinks{}
+	if err := bus.Dispatch(ctx, navLinks); err != nil {
+		return nil
+	}
+
+	cache.Store(tenantID, navLinks.Result)
+	return navLinks.Result
 }
 
 func getOAuthProviders(ctx *Context) []*dto.OAuthProviderOption {
@@ -299,6 +325,11 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 		oauthProviders = getOAuthProviders(ctx)
 	}
 
+	var navigationLinks interface{}
+	if tenant != nil {
+		navigationLinks = getNavigationLinks(ctx, tenant.ID)
+	}
+
 	public["page"] = props.Page
 	public["contextID"] = ctx.ContextID()
 	public["sessionID"] = ctx.SessionID()
@@ -316,6 +347,7 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 		"baseURL":          ctx.BaseURL(),
 		"assetsURL":        AssetsURL(ctx, ""),
 		"oauth":            oauthProviders,
+		"navigationLinks":  navigationLinks,
 	}
 
 	if ctx.IsAuthenticated() {

@@ -133,6 +133,7 @@ func (s Service) Init() {
 	bus.AddHandler(getAllUserProviders)
 	bus.AddHandler(getAllUsers)
 	bus.AddHandler(getAllUsersNames)
+	bus.AddHandler(getUsersByIDs)
 	bus.AddHandler(getUserProfileStats)
 	bus.AddHandler(getUserProfileStanding)
 	bus.AddHandler(searchUserContent)
@@ -214,6 +215,39 @@ func (s Service) Init() {
 	bus.AddHandler(hasPushSubscription)
 
 	bus.AddHandler(setModerationPending)
+
+	bus.AddHandler(getPageBySlug)
+	bus.AddHandler(getPageByID)
+	bus.AddHandler(listPages)
+	bus.AddHandler(getAllPublishedPages)
+	bus.AddHandler(createPage)
+	bus.AddHandler(updatePage)
+	bus.AddHandler(deletePage)
+	bus.AddHandler(getPageDraft)
+	bus.AddHandler(savePageDraft)
+	bus.AddHandler(togglePageReaction)
+	bus.AddHandler(togglePageSubscription)
+	bus.AddHandler(userSubscribedToPage)
+	bus.AddHandler(getPageSubscribers)
+	bus.AddHandler(publishScheduledPages)
+	bus.AddHandler(getCommentsByPage)
+	bus.AddHandler(addPageComment)
+	bus.AddHandler(refreshPageEmbeddedData)
+
+	bus.AddHandler(getPageTopics)
+	bus.AddHandler(getPageTopicByID)
+	bus.AddHandler(createPageTopic)
+	bus.AddHandler(updatePageTopic)
+	bus.AddHandler(deletePageTopic)
+
+	bus.AddHandler(getPageTags)
+	bus.AddHandler(getPageTagByID)
+	bus.AddHandler(createPageTag)
+	bus.AddHandler(updatePageTag)
+	bus.AddHandler(deletePageTag)
+
+	bus.AddHandler(getNavigationLinks)
+	bus.AddHandler(saveNavigationLinks)
 }
 
 type SqlHandler func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error

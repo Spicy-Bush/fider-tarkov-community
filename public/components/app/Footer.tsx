@@ -1,10 +1,14 @@
 import React, { useEffect, useRef, useState } from "react"
 import { Icon } from "@fider/components/common"
 import { heroiconsChevronUp, heroiconsChevronDown } from "@fider/icons.generated"
+import { useFider } from "@fider/hooks"
+import { NavigationLink } from "@fider/models"
 
 type FooterState = "revealing" | "visible" | "freezing" | "hidden" | "unhiding"
 
 const Footer: React.FC = () => {
+  const fider = useFider()
+  const footerLinks = (fider.settings.navigationLinks || []).filter((l: NavigationLink) => l.location === "footer")
   const currentYear = new Date().getFullYear()
   const ref = useRef<HTMLElement>(null)
   const state = useRef<FooterState>("revealing")
@@ -97,49 +101,61 @@ const Footer: React.FC = () => {
       style={{ transform: "translateY(100%)" }}
     >
       <button 
-        className="hidden max-md:flex w-full items-center justify-between px-3 py-2 bg-transparent border-none cursor-pointer"
+        className="hidden max-md:flex w-full items-center justify-between px-4 py-3 bg-transparent border-none cursor-pointer"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
         aria-label={expanded ? "Collapse footer links" : "Expand footer links"}
       >
-        <span className="m-0 p-0 text-xs text-muted">© {currentYear} Spicy Bush Team</span>
-        <Icon className="hidden max-md:flex text-muted" sprite={expanded ? heroiconsChevronDown : heroiconsChevronUp} height="20" width="20" />
+        <span className="m-0 p-0 text-xs text-muted truncate mr-2">© {currentYear} Spicy Bush Team</span>
+        <Icon className="hidden max-md:flex text-muted shrink-0" sprite={expanded ? heroiconsChevronDown : heroiconsChevronUp} height="20" width="20" />
       </button>
-      <nav className={`max-md:max-h-0 max-md:overflow-hidden max-md:transition-[max-height] max-md:duration-300 ${expanded ? 'max-md:max-h-[60px] max-md:border-t max-md:border-border/50' : ''}`}>
-        <ul className="flex flex-wrap justify-center list-none p-0 m-0 mb-4 max-md:flex-row max-md:flex-nowrap max-md:gap-4 max-md:mb-0 max-md:px-3 max-md:py-2 max-md:overflow-x-auto max-md:scrollbar-none">
-          <li className="mx-2 max-md:mx-0 max-md:shrink-0">
-            <a href="/terms" className="no-underline hover:underline text-foreground max-md:text-sm max-md:whitespace-nowrap">
-              <span className="hidden max-md:inline">Terms</span>
-              <span className="inline max-md:hidden">Terms & Conditions</span>
-            </a>
-          </li>
-          <li className="mx-2 max-md:mx-0 max-md:shrink-0">
-            <a href="/privacy" className="no-underline hover:underline text-foreground max-md:text-sm max-md:whitespace-nowrap">
-              <span className="hidden max-md:inline">Privacy</span>
-              <span className="inline max-md:hidden">Privacy Policy</span>
-            </a>
-          </li>
-          <li className="mx-2 max-md:mx-0 max-md:shrink-0">
-            <a href="mailto:contact@tarkov.community" className="no-underline hover:underline text-foreground max-md:text-sm max-md:whitespace-nowrap">Contact</a>
-          </li>
-          <li className="mx-2 max-md:mx-0 max-md:shrink-0">
-            <a href="https://discord.gg/escapefromtarkovofficial" target="_blank" rel="noreferrer" className="no-underline hover:underline text-foreground max-md:text-sm max-md:whitespace-nowrap">
-              <span className="hidden max-md:inline">Discord</span>
-              <span className="inline max-md:hidden">Official Tarkov Discord</span>
-            </a>
-          </li>
-          <li className="mx-2 max-md:mx-0 max-md:shrink-0">
-            <a href="https://www.escapefromtarkov.com/support" target="_blank" rel="noreferrer" className="no-underline hover:underline text-foreground max-md:text-sm max-md:whitespace-nowrap">
-              <span className="hidden max-md:inline">Support</span>
-              <span className="inline max-md:hidden">Official Tarkov Support</span>
-            </a>
-          </li>
-          <li className="mx-2 max-md:mx-0 max-md:shrink-0">
-            <a href="https://ko-fi.com/tarkovcommunity" target="_blank" rel="noreferrer" className="no-underline hover:underline text-foreground max-md:text-sm max-md:whitespace-nowrap">
-              <span className="hidden max-md:inline">Ko-fi</span>
-              <span className="inline max-md:hidden">Support us on Ko-fi</span>
-            </a>
-          </li>
+      <nav className={`max-md:max-h-0 max-md:overflow-hidden max-md:transition-[max-height] max-md:duration-300 ${expanded ? 'max-md:max-h-[200px] max-md:border-t max-md:border-border/50' : ''}`}>
+        <ul className="flex flex-wrap justify-center list-none p-0 m-0 mb-4 max-md:flex-wrap max-md:gap-x-4 max-md:gap-y-2 max-md:mb-0 max-md:px-4 max-md:py-3 max-md:justify-start">
+          {footerLinks.length > 0 ? (
+            footerLinks.map((link) => (
+              <li key={link.id} className="mx-2 max-md:mx-0">
+                <a 
+                  href={link.url} 
+                  className="no-underline hover:underline text-foreground max-md:text-sm"
+                  target={link.url.startsWith("http") ? "_blank" : undefined}
+                  rel={link.url.startsWith("http") ? "noreferrer" : undefined}
+                >
+                  {link.title}
+                </a>
+              </li>
+            ))
+          ) : (
+            <>
+              <li className="mx-2 max-md:mx-0">
+                <a href="/terms" className="no-underline hover:underline text-foreground max-md:text-sm">
+                  Terms
+                </a>
+              </li>
+              <li className="mx-2 max-md:mx-0">
+                <a href="/privacy" className="no-underline hover:underline text-foreground max-md:text-sm">
+                  Privacy
+                </a>
+              </li>
+              <li className="mx-2 max-md:mx-0">
+                <a href="mailto:contact@tarkov.community" className="no-underline hover:underline text-foreground max-md:text-sm">Contact</a>
+              </li>
+              <li className="mx-2 max-md:mx-0">
+                <a href="https://discord.gg/escapefromtarkovofficial" target="_blank" rel="noreferrer" className="no-underline hover:underline text-foreground max-md:text-sm">
+                  Discord
+                </a>
+              </li>
+              <li className="mx-2 max-md:mx-0">
+                <a href="https://www.escapefromtarkov.com/support" target="_blank" rel="noreferrer" className="no-underline hover:underline text-foreground max-md:text-sm">
+                  Support
+                </a>
+              </li>
+              <li className="mx-2 max-md:mx-0">
+                <a href="https://ko-fi.com/tarkovcommunity" target="_blank" rel="noreferrer" className="no-underline hover:underline text-foreground max-md:text-sm">
+                  Ko-fi
+                </a>
+              </li>
+            </>
+          )}
         </ul>
       </nav>
       <p className="text-center m-0 px-4 text-sm max-md:hidden">© {currentYear} - This website is proudly made by the Spicy Bush Team.</p>

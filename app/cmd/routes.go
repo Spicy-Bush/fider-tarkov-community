@@ -123,6 +123,8 @@ func routes(r *web.Engine) *web.Engine {
 	r.Get("/", handlers.Index())
 	r.Get("/posts/:number", handlers.PostDetails())
 	r.Get("/posts/:number/:slug", handlers.PostDetails())
+	r.Get("/pages", handlers.ListPagesPage())
+	r.Get("/pages/:slug", handlers.ViewPage())
 
 	// Does not require authentication
 	publicApi := r.Group()
@@ -133,6 +135,8 @@ func routes(r *web.Engine) *web.Engine {
 		publicApi.Get("/api/v1/posts/:number/comments", apiv1.ListComments())
 		publicApi.Get("/api/v1/posts/:number/comments/:id", apiv1.GetComment())
 		publicApi.Get("/api/v1/posts/:number/attachments", apiv1.GetPostAttachments())
+		publicApi.Get("/api/v1/pages", apiv1.SearchPages())
+		publicApi.Get("/api/v1/pages/:id/comments", apiv1.GetPageComments())
 	}
 
 	// Available to any authenticated user
@@ -189,6 +193,11 @@ func routes(r *web.Engine) *web.Engine {
 		membersApi.Post("/api/v1/posts/:number/report", handlers.ReportPost())
 		membersApi.Post("/api/v1/posts/:number/comments/:id/report", handlers.ReportComment())
 		membersApi.Get("/api/v1/report-reasons", handlers.GetReportReasons())
+
+		membersApi.Post("/api/v1/pages/:id/reactions", apiv1.TogglePageReaction())
+		membersApi.Post("/api/v1/pages/:id/subscribe", apiv1.TogglePageSubscription())
+		membersApi.Post("/api/v1/pages/:id/comments", apiv1.AddPageComment())
+		membersApi.Post("/api/v1/pages/:id/comments/:commentId/reactions/:reaction", apiv1.TogglePageCommentReaction())
 	}
 
 	helper := r.Group()
@@ -280,6 +289,15 @@ func routes(r *web.Engine) *web.Engine {
 		collabAdmin.Get("/api/v1/archive/posts", handlers.ListArchivablePosts())
 		collabAdmin.Post("/api/v1/posts/:number/archive", handlers.ArchivePost())
 		collabAdmin.Post("/api/v1/posts/:number/unarchive", handlers.UnarchivePost())
+
+		collabAdmin.Get("/admin/pages", handlers.ManagePages())
+		collabAdmin.Get("/admin/pages/new", handlers.EditPagePage())
+		collabAdmin.Get("/admin/pages/edit/:id", handlers.EditPagePage())
+		collabAdmin.Post("/_api/pages", apiv1.CreatePage())
+		collabAdmin.Put("/_api/pages/:id", apiv1.UpdatePage())
+		collabAdmin.Delete("/_api/pages/:id", apiv1.DeletePage())
+		collabAdmin.Post("/_api/pages/:id/draft", apiv1.SavePageDraft())
+		collabAdmin.Get("/_api/pages/:id/draft", apiv1.GetPageDraft())
 		collabAdmin.Post("/api/v1/archive/bulk", handlers.BulkArchive())
 		collabAdmin.Put("/api/v1/report-reasons/:id", handlers.UpdateReportReason())
 		collabAdmin.Delete("/api/v1/report-reasons/:id", handlers.DeleteReportReason())
@@ -330,6 +348,14 @@ func routes(r *web.Engine) *web.Engine {
 
 		adminOnly.Get("/admin/advanced", handlers.AdvancedSettingsPage())
 		adminOnly.Post("/_api/admin/settings/advanced", handlers.UpdateAdvancedSettings())
+
+		adminOnly.Post("/_api/page-topics", apiv1.CreatePageTopic())
+		adminOnly.Put("/_api/page-topics/:id", apiv1.UpdatePageTopic())
+		adminOnly.Delete("/_api/page-topics/:id", apiv1.DeletePageTopic())
+		adminOnly.Post("/_api/page-tags", apiv1.CreatePageTag())
+		adminOnly.Put("/_api/page-tags/:id", apiv1.UpdatePageTag())
+		adminOnly.Delete("/_api/page-tags/:id", apiv1.DeletePageTag())
+		adminOnly.Post("/_api/admin/navigation", apiv1.SaveNavigationLinks())
 		adminOnly.Post("/_api/admin/settings/profanity", handlers.UpdateProfanityWords())
 
 		adminOnly.Get("/admin/invitations", handlers.Page("Invitations · Site Settings", "", "Administration/pages/Invitations.page"))

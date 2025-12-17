@@ -45,10 +45,14 @@ func (r VisualRole) String() string {
 }
 
 func (r VisualRole) MarshalText() ([]byte, error) {
-	return []byte(r.String()), nil
+	return []byte(strconv.Itoa(int(r))), nil
 }
 
 func (r *VisualRole) UnmarshalText(text []byte) error {
+	if len(text) == 0 || string(text) == "" {
+		*r = VisualRoleNone
+		return nil
+	}
 	val, err := strconv.Atoi(string(text))
 	if err != nil {
 		return err

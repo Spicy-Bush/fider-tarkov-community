@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { Tag, PostStatus } from "@fider/models"
 import { Input, Icon, ShowTag, Button } from "@fider/components"
 import { useFider } from "@fider/hooks"
@@ -38,9 +38,7 @@ export const FilterPanel = (props: FilterPanelProps) => {
     }
     
     document.addEventListener("mousedown", handleClickOutside)
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
+    return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [isExpanded, localFilter, props])
   
   const sortedTags = [...props.tags].sort((a, b) => {
@@ -134,8 +132,8 @@ export const FilterPanel = (props: FilterPanelProps) => {
   
   return (
     <div className="relative inline-block" ref={panelRef}>
-      <div 
-        className="flex items-center h-10 text-xs font-medium uppercase rounded-button border border-border text-foreground px-3 py-2 cursor-pointer transition-colors hover:bg-tertiary hover:border-border-strong"
+      <button 
+        className="flex items-center h-10 text-xs font-medium uppercase rounded-button border border-border text-foreground px-3 py-2 cursor-pointer transition-colors hover:bg-tertiary hover:border-border-strong bg-transparent"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <Icon sprite={HeroIconFilter} className="h-5 pr-1" />
@@ -145,10 +143,12 @@ export const FilterPanel = (props: FilterPanelProps) => {
             {activeFilterCount}
           </div>
         )}
-      </div>
-      
+      </button>
+
       {isExpanded && (
-        <div className="absolute top-[calc(100%+8px)] left-0 w-80 sm:w-[360px] max-h-[500px] bg-elevated border border-border rounded-card shadow-lg z-dropdown overflow-hidden">
+        <div 
+          className="absolute top-[calc(100%+8px)] left-0 w-80 sm:w-[360px] max-h-[500px] bg-elevated border border-border rounded-card shadow-lg z-dropdown overflow-hidden"
+        >
           <div className="flex border-b border-border">
             <div className={tabClass('tags')} onClick={() => setActiveTab('tags')}>
               <Trans id="filter.tab.tags">Tags</Trans>

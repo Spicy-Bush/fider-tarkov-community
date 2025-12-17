@@ -70,13 +70,37 @@ func UpdateContentSettings() web.HandlerFunc {
 // AdvancedSettingsPage is the advanced settings page
 func AdvancedSettingsPage() web.HandlerFunc {
 	return func(c *web.Context) error {
+		getLinks := &query.GetNavigationLinks{}
+		if err := bus.Dispatch(c, getLinks); err != nil {
+			return c.Failure(err)
+		}
+
+		headerLinks := make([]*entity.NavigationLink, 0, len(getLinks.Result))
+		footerLinks := make([]*entity.NavigationLink, 0, len(getLinks.Result))
+		subheaderLinks := make([]*entity.NavigationLink, 0, len(getLinks.Result))
+
+		for _, link := range getLinks.Result {
+			switch link.Location {
+			case "header":
+				headerLinks = append(headerLinks, link)
+			case "footer":
+				footerLinks = append(footerLinks, link)
+			case "subheader":
+				subheaderLinks = append(subheaderLinks, link)
+			}
+		}
+
 		return c.Page(http.StatusOK, web.Props{
 			Page:  "Administration/pages/AdvancedSettings.page",
 			Title: "Advanced · Site Settings",
 			Data: web.Map{
-				"customCSS": c.Tenant().CustomCSS,
-				// replace commas with newlines makes it easier to edit for the user, we convert it back to commas when saving
+				"customCSS":      c.Tenant().CustomCSS,
 				"profanityWords": strings.ReplaceAll(c.Tenant().ProfanityWords, ",", "\n"),
+				"navigationLinks": web.Map{
+					"header":    headerLinks,
+					"footer":    footerLinks,
+					"subheader": subheaderLinks,
+				},
 			},
 		})
 	}

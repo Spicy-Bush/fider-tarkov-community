@@ -138,7 +138,7 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
             </div>
           )}
         </div>
-        <div className="flex-grow flex flex-col gap-2 max-md:w-full max-md:items-center max-md:text-center">
+        <div className="grow flex flex-col gap-2 max-md:w-full max-md:items-center max-md:text-center">
           <div className="flex items-center gap-2">
             <UserName user={userForComponents} />
             {canEditName && (

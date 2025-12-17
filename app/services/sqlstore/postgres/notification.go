@@ -107,11 +107,12 @@ func getActiveNotifications(ctx context.Context, q *query.GetActiveNotifications
 		args := []interface{}{tenant.ID, user.ID}
 		argIndex := 3
 
-		if q.Type == "unread" {
+		switch q.Type {
+		case "unread":
 			conditions += " AND n.read = false"
-		} else if q.Type == "read" {
+		case "read":
 			conditions += " AND n.read = true AND n.updated_at > CURRENT_DATE - INTERVAL '30 days'"
-		} else {
+		default:
 			conditions += " AND (n.read = false OR n.updated_at > CURRENT_DATE - INTERVAL '30 days')"
 		}
 
