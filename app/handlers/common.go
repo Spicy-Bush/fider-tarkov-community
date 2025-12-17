@@ -102,7 +102,7 @@ func Sitemap() web.HandlerFunc {
 		for _, page := range allPages.Result {
 			if page.Visibility == entity.PageVisibilityPublic {
 				text.WriteString(fmt.Sprintf("<url> <loc>%s/pages/%s</loc> <lastmod>%s</lastmod> </url>",
-					baseURL, page.Slug, page.UpdatedAt.Format("2026-12-12")))
+					baseURL, page.Slug, page.UpdatedAt.Format("2006-01-02")))
 			}
 		}
 		text.WriteString(`</urlset>`)
