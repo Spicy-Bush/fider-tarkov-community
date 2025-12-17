@@ -15,7 +15,6 @@ create table if not exists pages (
     allow_comments          boolean not null default true,
     allow_reactions         boolean not null default true,
     show_toc                boolean not null default false,
-    view_count              int not null default 0,
     scheduled_for           timestamptz,
     published_at            timestamptz,
     created_at              timestamptz not null default now(),
