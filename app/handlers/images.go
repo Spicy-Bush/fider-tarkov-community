@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"image/color"
 	"image/png"
+	"io"
 	"io/fs"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 
@@ -55,6 +55,8 @@ func LetterAvatar() web.HandlerFunc {
 }
 
 func Gravatar() web.HandlerFunc {
+	gravatarClient := &http.Client{Timeout: 10 * time.Second}
+
 	return func(c *web.Context) error {
 		id, err := c.ParamAsInt("id")
 		if err != nil {
@@ -68,7 +70,7 @@ func Gravatar() web.HandlerFunc {
 
 		size = between(size, 50, 200)
 
-		if err == nil && id > 0 {
+		if id > 0 {
 			userByID := &query.GetUserByID{UserID: id}
 			err := bus.Dispatch(c, userByID)
 			if err == nil && userByID.Result.Tenant.ID == c.Tenant().ID {
@@ -88,15 +90,16 @@ func Gravatar() web.HandlerFunc {
 						"GravatarURL": url,
 					})
 
-					req := &cmd.HTTPRequest{
-						URL:    url,
-						Method: "GET",
-					}
-					err := bus.Dispatch(c, req)
-					if err == nil && req.ResponseStatusCode == http.StatusOK {
-						bytes := req.ResponseBody
-						c.Engine().Cache().Set(cacheKey, bytes, 24*time.Hour)
-						return c.Image(http.DetectContentType(bytes), bytes)
+					resp, err := gravatarClient.Get(url)
+					if err == nil {
+						defer resp.Body.Close()
+						if resp.StatusCode == http.StatusOK {
+							bytes, err := io.ReadAll(resp.Body)
+							if err == nil {
+								c.Engine().Cache().Set(cacheKey, bytes, 24*time.Hour)
+								return c.Image(http.DetectContentType(bytes), bytes)
+							}
+						}
 					}
 				}
 			}

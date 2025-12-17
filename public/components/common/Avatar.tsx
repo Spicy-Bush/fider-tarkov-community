@@ -29,9 +29,9 @@ const getAvatarColor = (name: string): { bg: string; text: string } => {
 }
 
 const isCustomAvatar = (avatarURL: string, avatarType?: UserAvatarType): boolean => {
-  if (avatarType === UserAvatarType.Custom) return true
-  if (avatarType === UserAvatarType.Letter || avatarType === UserAvatarType.Gravatar) return false
-  return avatarURL.includes("/static/images/")
+  if (avatarType === UserAvatarType.Custom || avatarType === UserAvatarType.Gravatar) return true
+  if (avatarType === UserAvatarType.Letter) return false
+  return avatarURL.includes("/static/images/") || avatarURL.includes("/static/avatars/gravatar/")
 }
 
 interface AvatarProps {
