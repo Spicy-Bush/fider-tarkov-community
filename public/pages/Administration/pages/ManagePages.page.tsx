@@ -153,14 +153,14 @@ const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initial
 
   return (
     <div className="container p-4">
-      <HStack justify="between" className="mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-display">Manage Pages</h1>
         {activeTab === "pages" && (
-          <Button variant="primary" href="/admin/pages/new">
+          <Button variant="primary" href="/admin/pages/new" size="small">
             Create New Page
           </Button>
         )}
-      </HStack>
+      </div>
 
       <div className="flex border-b border-border mb-6">
         <button className={tabClass("pages")} onClick={() => setActiveTab("pages")}>
@@ -183,7 +183,7 @@ const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initial
             />
           </div>
 
-          <div className="bg-elevated border border-border rounded-panel overflow-hidden">
+          <div className="hidden md:block bg-elevated border border-border rounded-panel overflow-hidden">
             <table className="min-w-full">
               <thead className="bg-tertiary">
                 <tr>
@@ -246,6 +246,44 @@ const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initial
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="md:hidden space-y-3">
+            {filteredPages.map((page) => (
+              <div key={page.id} className="bg-elevated border border-border rounded-card p-4">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-foreground truncate">{page.title}</div>
+                    <div className="text-xs text-muted truncate">{page.slug}</div>
+                  </div>
+                  <span
+                    className={`px-2 py-1 text-xs font-semibold rounded-badge border shrink-0 ${getStatusBadge(
+                      page.status
+                    )}`}
+                  >
+                    {page.status}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted mb-3">
+                  <span>{page.visibility}</span>
+                  <span>{new Date(page.updatedAt).toLocaleDateString()}</span>
+                </div>
+                <div className="flex items-center gap-4 pt-3 border-t border-border">
+                  <a href={`/admin/pages/edit/${page.id}`} className="text-sm text-link font-medium">
+                    Edit
+                  </a>
+                  <a href={`/pages/${page.slug}`} className="text-sm text-link" target="_blank">
+                    View
+                  </a>
+                  <button
+                    onClick={() => handleDelete(page.id)}
+                    className="text-sm text-danger hover:text-danger-dark cursor-pointer ml-auto"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
 
           {filteredPages.length === 0 && (

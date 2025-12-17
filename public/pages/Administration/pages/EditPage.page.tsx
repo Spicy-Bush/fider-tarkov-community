@@ -51,6 +51,7 @@ const EditPagePage = (props: EditPagePageProps) => {
   const [isSaving, setIsSaving] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showDocs, setShowDocs] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   
   const [availableTopics, setAvailableTopics] = useState<PageTopic[]>(props.topics || [])
   const [availableTags, setAvailableTags] = useState<PageTag[]>(props.tags || [])
@@ -188,7 +189,7 @@ const EditPagePage = (props: EditPagePageProps) => {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-border">
         <div className="flex items-center gap-4">
           {!isNew && (
             <a
@@ -201,28 +202,36 @@ const EditPagePage = (props: EditPagePageProps) => {
             </a>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="tertiary" onClick={() => setShowDocs(true)}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="tertiary" size="small" onClick={() => setShowDocs(true)}>
             Docs
           </Button>
-          <Button variant="tertiary" onClick={() => setShowSettings(true)}>
+          <Button variant="tertiary" size="small" onClick={() => setShowSettings(true)}>
             Settings
           </Button>
+          <Button 
+            variant="tertiary" 
+            size="small" 
+            onClick={() => setShowPreview(!showPreview)}
+            className="lg:hidden"
+          >
+            {showPreview ? "Edit" : "Preview"}
+          </Button>
           {status !== "published" && (
-            <Button variant="secondary" onClick={() => handleSave("draft")} disabled={isSaving}>
+            <Button variant="secondary" size="small" onClick={() => handleSave("draft")} disabled={isSaving}>
               Save Draft
             </Button>
           )}
-          <Button variant="primary" onClick={() => handleSave("published")} disabled={isSaving}>
+          <Button variant="primary" size="small" onClick={() => handleSave("published")} disabled={isSaving}>
             {status === "published" ? "Update" : "Publish"}
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-200px)] min-h-[500px]">
-        <div className="flex-1 flex flex-col border border-border rounded-card bg-surface overflow-hidden">
-          <div className="p-4 space-y-4 shrink-0">
-            <div className="flex gap-4">
+      <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-220px)] sm:h-[calc(100vh-200px)] min-h-[400px]">
+        <div className={`flex-1 flex flex-col border border-border rounded-card bg-surface overflow-hidden ${showPreview ? "hidden lg:flex" : "flex"}`}>
+          <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 shrink-0">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
               <div className="flex-2">
                 <Input
                   field="title"
@@ -253,7 +262,7 @@ const EditPagePage = (props: EditPagePageProps) => {
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col min-h-0 px-4">
+          <div className="flex-1 flex flex-col min-h-0 px-3 sm:px-4">
             <label className="text-sm font-medium mb-2 block shrink-0">Content</label>
             <textarea
               ref={editorRef}
@@ -261,11 +270,11 @@ const EditPagePage = (props: EditPagePageProps) => {
               onChange={(e) => setContent(e.target.value)}
               onScroll={handleEditorScroll}
               placeholder="Write your page content in Markdown..."
-              className="flex-1 w-full p-3 rounded-card border border-border bg-surface text-foreground resize-none font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="flex-1 w-full p-3 rounded-card border border-border bg-surface text-foreground resize-none font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[200px]"
             />
           </div>
 
-          <div className="px-4 pb-4 shrink-0">
+          <div className="px-3 sm:px-4 pb-3 sm:pb-4 shrink-0">
             <button
               type="button"
               onClick={() => setShowExcerpt(!showExcerpt)}
@@ -287,13 +296,13 @@ const EditPagePage = (props: EditPagePageProps) => {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col border border-border rounded-card bg-elevated overflow-hidden">
-          <div className="px-4 py-3 border-b border-border shrink-0 bg-surface flex items-center justify-between">
+        <div className={`flex-1 flex flex-col border border-border rounded-card bg-elevated overflow-hidden ${showPreview ? "flex" : "hidden lg:flex"}`}>
+          <div className="px-3 sm:px-4 py-3 border-b border-border shrink-0 bg-surface flex items-center justify-between">
             <h2 className="text-base font-medium">Preview</h2>
             <button
               type="button"
               onClick={() => setSyncScroll(!syncScroll)}
-              className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-button border transition-colors ${
+              className={`hidden lg:inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-button border transition-colors ${
                 syncScroll 
                   ? "bg-primary text-primary-foreground border-primary" 
                   : "bg-surface text-muted border-border hover:bg-tertiary hover:text-foreground"
@@ -304,7 +313,7 @@ const EditPagePage = (props: EditPagePageProps) => {
               Sync
             </button>
           </div>
-          <div ref={previewRef} onScroll={handlePreviewScroll} className="flex-1 overflow-y-auto p-6">
+          <div ref={previewRef} onScroll={handlePreviewScroll} className="flex-1 overflow-y-auto p-4 sm:p-6">
             <div className="relative mb-4">
               {bannerImage?.bkey && (
                 <img
