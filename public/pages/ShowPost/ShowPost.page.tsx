@@ -106,11 +106,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
         if (props.comments.map((comment) => comment.id).includes(id)) {
           newHighlightedComment = id
         } else {
-          // TODO: quick fix, just reload if not found- change this later
-          // to handle more gracefully or something. This is just to make 
-          // it actually work if someone mentions you and you're already
-          // looking at the post, and thus the page needs updating
-          window.location.reload()
+          window.location.href = window.location.pathname + window.location.search
           return
         }
       }

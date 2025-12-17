@@ -56,7 +56,6 @@ x-common-env: &fider-env
   OPENAI_MODERATION_SELFHARM_THRESHOLD: ${OPENAI_MODERATION_SELFHARM_THRESHOLD}
 
 
-
 x-common-build-args: &common-build-args
   DOCKER_USER_GID: ${DOCKER_USER_GID}
   DOCKER_USER_UID: ${DOCKER_USER_UID}
