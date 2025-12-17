@@ -47,6 +47,7 @@
   "validation.custom.cannotreportown": "You cannot report your own content.",
   "validation.custom.alreadyreported": "You have already reported this item.",
   "validation.custom.reportlimitreached": "You have reached the daily report limit.",
+  "validation.custom.moderatorduplicateonly": "You can only mark posts as duplicate.",
   "property.reportedType": "Report Type",
   "property.reportedId": "Reported Item",
   "property.reason": "Reason",

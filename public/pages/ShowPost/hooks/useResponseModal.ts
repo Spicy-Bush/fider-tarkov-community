@@ -7,6 +7,7 @@ interface UseResponseModalConfig {
   attachments: string[]
   showModal: boolean
   hasCopiedContent?: boolean
+  duplicateOnly?: boolean
 }
 
 interface UseResponseModalResult {
@@ -37,7 +38,7 @@ interface UseResponseModalResult {
 }
 
 export const useResponseModal = (config: UseResponseModalConfig): UseResponseModalResult => {
-  const { post, attachments, showModal, hasCopiedContent: initialCopiedContent } = config
+  const { post, attachments, showModal, hasCopiedContent: initialCopiedContent, duplicateOnly } = config
 
   const [status, setStatus] = useState(post.status)
   const [text, setText] = useState(post.response?.text || "")
@@ -148,10 +149,10 @@ export const useResponseModal = (config: UseResponseModalConfig): UseResponseMod
 
   const handleDuplicateCancel = useCallback(() => {
     setShowDuplicateSearch(false)
-    if (originalNumber === 0) {
+    if (originalNumber === 0 && !duplicateOnly) {
       setStatus(post.status)
     }
-  }, [originalNumber, post.status])
+  }, [originalNumber, post.status, duplicateOnly])
 
   const handleCopyContent = useCallback(async () => {
     try {

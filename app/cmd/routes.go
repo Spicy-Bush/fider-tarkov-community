@@ -241,6 +241,7 @@ func routes(r *web.Engine) *web.Engine {
 		// posts
 		staff.Get("/api/v1/posts/:number/votes", apiv1.ListVotes())
 		staff.Delete("/api/v1/posts/:number", apiv1.DeletePost())
+		staff.Put("/api/v1/posts/:number/status", apiv1.SetResponse())
 
 		// reports
 		staff.Get("/admin/reports", handlers.ManageReportsPage())
@@ -327,9 +328,6 @@ func routes(r *web.Engine) *web.Engine {
 
 		collabAdmin.Put("/api/v1/posts/:number/lock", apiv1.LockOrUnlockPost())
 		collabAdmin.Delete("/api/v1/posts/:number/lock", apiv1.LockOrUnlockPost())
-
-		// posts
-		collabAdmin.Put("/api/v1/posts/:number/status", apiv1.SetResponse())
 	}
 
 	// Only available to administrators

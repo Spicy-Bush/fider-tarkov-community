@@ -254,16 +254,16 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                         <Dropdown.ListItem onClick={onActionSelected("copy")}>
                           <Trans id="action.copylink">Copy link</Trans>
                         </Dropdown.ListItem>
+                        {postPermissions.canRespondAny() && (
+                          <Dropdown.ListItem onClick={onActionSelected("status")}>
+                            <Trans id="action.respond">Respond</Trans>
+                          </Dropdown.ListItem>
+                        )}
                         {postPermissions.canEdit(props.post) && (
                           <>
                             <Dropdown.ListItem onClick={onActionSelected("edit")}>
                               <Trans id="action.edit">Edit</Trans>
                             </Dropdown.ListItem>
-                            {postPermissions.canRespond() && (
-                              <Dropdown.ListItem onClick={onActionSelected("status")}>
-                                <Trans id="action.respond">Respond</Trans>
-                              </Dropdown.ListItem>
-                            )}
                             {postPermissions.canLock() && (
                               <>
                                 {!isPostLocked(props.post) ? (
@@ -415,7 +415,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
           </div>
         </div>
       </div>
-      {postPermissions.canRespond() && (
+      {postPermissions.canRespondAny() && (
         <ResponseModal
           onCloseModal={state.closeModal}
           showModal={state.isModalOpen("response")}

@@ -40,6 +40,7 @@
   "validation.custom.invalidemoji": "Некорректный эмодзи реакции.",
   "validation.custom.postinggloballydisabled": "Создание постов в настоящее время отключено на этом сайте",
   "validation.custom.commentinggloballydisabled": "Комментирование в настоящее время отключено на этом сайте",
+  "validation.custom.moderatorduplicateonly": "Вы можете только помечать посты как дубликаты.",
   "enum.poststatus.open": "Открыто",
   "enum.poststatus.started": "Начато",
   "enum.poststatus.completed": "Выполнено",

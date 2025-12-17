@@ -42,7 +42,7 @@ export const useShowPostActions = (config: UseShowPostActionsConfig): UseShowPos
     if (status.closed) return false
     return postPermissions.canDelete(post)
   })()
-  const canRespond = postPermissions.canRespond()
+  const canRespond = postPermissions.canRespondAny()
   const canLock = postPermissions.canLock()
   const canArchive = postPermissions.canArchive()
 

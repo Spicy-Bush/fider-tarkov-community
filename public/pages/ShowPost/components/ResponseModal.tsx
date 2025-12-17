@@ -1,4 +1,4 @@
-import React, { useMemo } from "react"
+import React, { useMemo, useEffect } from "react"
 import { Modal, Button, DisplayError, Select, Form, TextArea, Icon, EditOriginalPostPanel } from "@fider/components"
 import { Post, PostStatus, Tag } from "@fider/models"
 import { i18n } from "@lingui/core"
@@ -7,6 +7,7 @@ import { heroiconsCheck as IconCheck, heroiconsDuplicate as IconCopy } from "@fi
 import { HStack } from "@fider/components/layout"
 import { DuplicateSearchPanel } from "./DuplicateSearchPanel"
 import { useResponseModal } from "../hooks"
+import { postPermissions } from "@fider/services"
 
 interface ResponseModalProps {
   post: Post
@@ -25,22 +26,35 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
   onCloseModal,
   hasCopiedContent: initialCopiedContent,
 }) => {
+  const duplicateOnly = postPermissions.canRespondDuplicateOnly()
+  
   const modal = useResponseModal({
     post,
     attachments,
     showModal,
     hasCopiedContent: initialCopiedContent,
+    duplicateOnly,
   })
 
+  useEffect(() => {
+    if (showModal && duplicateOnly) {
+      modal.setStatus(PostStatus.Duplicate.value)
+      modal.setShowDuplicateSearch(true)
+    }
+  }, [showModal, duplicateOnly])
+
   const options = useMemo(() => {
-    return PostStatus.All.filter((s) => s.value !== PostStatus.Archived.value).map((s) => {
-      const id = `enum.poststatus.${s.value.toString()}`
-      return {
-        value: s.value.toString(),
-        label: i18n._(id, { message: s.title }),
-      }
-    })
-  }, [])
+    return PostStatus.All
+      .filter((s) => s.value !== PostStatus.Archived.value)
+      .filter((s) => !duplicateOnly || s.value === PostStatus.Duplicate.value)
+      .map((s) => {
+        const id = `enum.poststatus.${s.value.toString()}`
+        return {
+          value: s.value.toString(),
+          label: i18n._(id, { message: s.title }),
+        }
+      })
+  }, [duplicateOnly])
 
   const handleStatusChange = (opt?: { value: string }) => {
     if (opt) {
@@ -53,7 +67,13 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
       <Modal.Window isOpen={showModal} onClose={onCloseModal} center={false} size="large">
         <Modal.Content>
           <Form error={modal.error}>
-            <Select field="status" label="Status" defaultValue={modal.status} options={options} onChange={handleStatusChange} />
+            <Select 
+              field="status" 
+              label="Status" 
+              value={modal.status} 
+              options={options} 
+              onChange={handleStatusChange} 
+            />
             {modal.status === PostStatus.Duplicate.value ? (
               <>
                 {post.description && (
