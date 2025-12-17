@@ -1,12 +1,22 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { useFider } from "@fider/hooks"
 import { HStack } from "@fider/components/layout"
 import { NavigationLink } from "@fider/models"
 
+const STORAGE_KEY = "subheader_open"
+
 export const SubheaderBar = () => {
   const fider = useFider()
   const links = (fider.settings.navigationLinks || []).filter((l: NavigationLink) => l.location === "subheader")
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(() => {
+    if (typeof window === "undefined") return true
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored === null ? true : stored === "true"
+  })
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, String(isOpen))
+  }, [isOpen])
   
   if (links.length === 0) return null
 
@@ -50,7 +60,7 @@ export const SubheaderBar = () => {
         <div className="container relative">
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="absolute -right-12 top-0 bg-tertiary border border-t-0 border-border rounded-b px-3 py-1 hover:bg-tertiary-hover transition-colors z-40"
+            className="cursor-pointer absolute -right-12 top-0 bg-tertiary border border-t-0 border-border rounded-b px-3 py-1 hover:bg-tertiary-hover transition-colors z-40"
             aria-label={isOpen ? "Hide navigation" : "Show navigation"}
           >
             <svg
