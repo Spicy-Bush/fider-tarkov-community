@@ -15,7 +15,7 @@ RUN make build-ui
 #####################
 ### Server Build Step (Embeds all frontend assets)
 #####################
-FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.22-bookworm AS server-builder 
+FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.25.5-bookworm AS server-builder 
 
 RUN apt-get update && apt-get install -y \
     build-essential \

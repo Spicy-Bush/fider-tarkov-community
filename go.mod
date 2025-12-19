@@ -1,16 +1,16 @@
-// +heroku goVersion go1.22
+// +heroku goVersion go1.25
 
 module github.com/Spicy-Bush/fider-tarkov-community
 
-go 1.22.0
+go 1.25.5
 
 require (
-	github.com/aws/aws-sdk-go v1.41.14
+	github.com/aws/aws-sdk-go v1.55.8
 	github.com/chai2010/webp v1.1.1
 	github.com/cosmtrek/air v1.27.3
 	github.com/disintegration/imaging v1.6.2
 	github.com/goenning/letteravatar v0.0.0-20180605200324-553181ed4055
-	github.com/golang-jwt/jwt/v4 v4.1.0
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golangci/golangci-lint v1.59.1
 	github.com/gomarkdown/markdown v0.0.0-20240930133441-72d49d9543d8
 	github.com/gosimple/slug v1.11.0
@@ -24,10 +24,10 @@ require (
 	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/client_model v0.2.0
 	github.com/robfig/cron v1.2.0
-	golang.org/x/crypto v0.24.0
+	golang.org/x/crypto v0.45.0
 	golang.org/x/image v0.18.0
-	golang.org/x/net v0.26.0
-	golang.org/x/oauth2 v0.15.0
+	golang.org/x/net v0.47.0
+	golang.org/x/oauth2 v0.27.0
 	rogchap.com/v8go v0.7.1-0.20211222173054-943fcf9e74cc
 )
 
@@ -208,12 +208,13 @@ require (
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc // indirect
 	golang.org/x/exp/typeparams v0.0.0-20240314144324-c7f7c6466f7f // indirect
-	golang.org/x/mod v0.18.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
-	golang.org/x/tools v0.22.0 // indirect
-	google.golang.org/appengine v1.6.7 // indirect
+	golang.org/x/mod v0.29.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/tools v0.38.0 // indirect
+	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
+	golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
