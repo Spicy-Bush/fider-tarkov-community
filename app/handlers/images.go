@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
@@ -22,6 +23,22 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	"github.com/goenning/letteravatar"
 )
+
+func isValidBlobKey(key string) bool {
+	// Reject empty keys
+	if key == "" {
+		return false
+	}
+	// Reject invalid UTF-8
+	if !utf8.ValidString(key) {
+		return false
+	}
+	// Reject null bytes
+	if strings.ContainsRune(key, 0) {
+		return false
+	}
+	return true
+}
 
 func LetterAvatar() web.HandlerFunc {
 	return func(c *web.Context) error {
@@ -131,6 +148,9 @@ func Favicon() web.HandlerFunc {
 		if requestedSize != canonicalSize {
 			redirectURL := "/static/favicon"
 			if bkey != "" {
+				if !isValidBlobKey(bkey) {
+					return c.NotFound()
+				}
 				redirectURL = fmt.Sprintf("/static/favicon/%s", bkey)
 			}
 			redirectURL = fmt.Sprintf("%s?size=%d", redirectURL, canonicalSize)
@@ -146,6 +166,9 @@ func Favicon() web.HandlerFunc {
 		)
 
 		if bkey != "" {
+			if !isValidBlobKey(bkey) {
+				return c.NotFound()
+			}
 			q := &query.GetBlobByKey{Key: bkey}
 			err := bus.Dispatch(c, q)
 			if err != nil {
@@ -179,6 +202,10 @@ func Favicon() web.HandlerFunc {
 func ViewUploadedImage() web.HandlerFunc {
 	return func(c *web.Context) error {
 		bkey := c.Param("bkey")
+
+		if !isValidBlobKey(bkey) {
+			return c.NotFound()
+		}
 
 		requestedSize, err := c.QueryParamAsInt("size")
 		if err != nil {
