@@ -162,7 +162,7 @@ export const NotificationIndicator = () => {
       unreadContainer?.removeEventListener("scroll", handleUnreadScroll)
       readContainer?.removeEventListener("scroll", handleReadScroll)
     }
-  }, [handleScroll])
+  }, [handleScroll, showingNotifications, activeTab])
 
   const markAllAsRead = async (event: ButtonClickEvent) => {
     const response = await actions.markAllAsRead()
