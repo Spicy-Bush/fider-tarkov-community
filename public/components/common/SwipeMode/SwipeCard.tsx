@@ -227,7 +227,7 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
         </div>
 
         <div className="mb-4">
-          <ResponseDetails status={post.status} response={post.response} />
+          <ResponseDetails status={post.status} response={post.response} previousStatus={post.archivedSettings?.previousStatus} />
         </div>
 
         {comments && (

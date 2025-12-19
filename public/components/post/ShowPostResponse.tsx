@@ -9,6 +9,7 @@ interface PostResponseProps {
   status: string
   response: PostResponse | null
   small?: boolean
+  previousStatus?: string
 }
 
 const getResponseContainerStyles = (status: PostStatus): { bg: string; border: string; divider: string } => {
@@ -27,18 +28,21 @@ const getResponseContainerStyles = (status: PostStatus): { bg: string; border: s
 }
 
 export const ResponseDetails = (props: PostResponseProps): JSX.Element | null => {
-  const status = PostStatus.Get(props.status)
+  const currentStatus = PostStatus.Get(props.status)
+  const displayStatus = currentStatus === PostStatus.Archived && props.previousStatus 
+    ? PostStatus.Get(props.previousStatus) 
+    : currentStatus
 
-  if (!props.response || status === PostStatus.Open || status === PostStatus.Archived) {
+  if (!props.response || displayStatus === PostStatus.Open || displayStatus === PostStatus.Archived) {
     return null
   }
 
-  const { bg, border, divider } = getResponseContainerStyles(status)
+  const { bg, border, divider } = getResponseContainerStyles(displayStatus)
 
   return (
     <div className={`${bg} p-4 border ${border} rounded`}>
       <div className="flex items-start justify-between gap-4 mb-3">
-        <ResponseLozenge response={props.response} status={props.status} />
+        <ResponseLozenge response={props.response} status={displayStatus.value} />
         <span className="text-sm text-muted shrink-0">{timeSince("en", new Date(), props.response.respondedAt, "date")}</span>
       </div>
       {props.response?.text && (
@@ -47,7 +51,7 @@ export const ResponseDetails = (props: PostResponseProps): JSX.Element | null =>
         </div>
       )}
 
-      {status === PostStatus.Duplicate && props.response.original && (
+      {displayStatus === PostStatus.Duplicate && props.response.original && (
         <div className={`mt-3 pt-3 border-t ${divider}`}>
           <span className="text-muted text-sm">Original post: </span>
           <a className="text-link" href={`/posts/${props.response.original.number}/${props.response.original.slug}`}>

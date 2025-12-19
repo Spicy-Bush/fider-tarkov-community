@@ -383,7 +383,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                   )}
                 </VStack>
 
-                <ResponseDetails status={props.post.status} response={props.post.response} />
+                <ResponseDetails status={props.post.status} response={props.post.response} previousStatus={props.post.archivedSettings?.previousStatus} />
               </VStack>
 
               <DiscussionPanel
