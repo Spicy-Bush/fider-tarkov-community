@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -26,6 +27,10 @@ type gzipResponseWriter struct {
 }
 
 func Compress() web.MiddlewareFunc {
+	if !env.Config.HTTP.CompressResponses {
+		return nil
+	}
+
 	return func(next web.HandlerFunc) web.HandlerFunc {
 		return func(c *web.Context) error {
 			if strings.Contains(c.Request.GetHeader("Accept"), "text/event-stream") {
