@@ -16,8 +16,11 @@ migrate: ## Run all database migrations
 
 build: build-ssr build-ui build-server ## Build server and ui (frontend first for embedding)
 
-build-server: ## Build server (embeds all assets)
+build-server: generate ## Build server (embeds all assets)
 	go build -ldflags '-s -w $(LDFLAGS)' -o fider .
+
+generate: ## Generate typed bus dispatch code
+	go run scripts/generate-bus-dispatch.go
 
 build-ui: ## Build all UI assets
 	npm run build
