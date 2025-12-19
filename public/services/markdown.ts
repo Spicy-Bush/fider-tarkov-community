@@ -108,6 +108,32 @@ const createFullMarked = (embedImages: boolean) => {
       link({ href, title, text }) {
         if (!href) return text
 
+        if ((href.includes('youtube.com/watch') || href.includes('youtu.be/'))) {
+          const parsedLink = parseYouTubeLink(href)
+          
+          if (parsedLink) {
+            const { videoId, timestamp } = parsedLink
+            const embedUrl = `https://www.youtube.com/embed/${videoId}?start=${timestamp}`
+            
+            return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="YouTube video"></iframe>`
+          }
+        }
+        
+        if (href.includes('vk.com/video') || href.includes('vkvideo.ru/video')) {
+          const parsedLink = parseVKVideoLink(href)
+          
+          if (parsedLink) {
+            const { oid, id, timestamp } = parsedLink
+            let embedUrl = `https://vk.com/video_ext.php?oid=${oid}&id=${id}`;
+            
+            if (timestamp) {
+              embedUrl += `&t=${timestamp}`;
+            }
+            
+            return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="VK video"></iframe>`
+          }
+        }
+
         if (embedImages) {
           const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i
           const isImageUrl = imageExtensions.test(href) ||
@@ -116,32 +142,6 @@ const createFullMarked = (embedImages: boolean) => {
           
           if (isImageUrl && href === text) {
             return `<img src="${href}" class="max-w-full rounded-card my-4" />`
-          }
-
-          if ((href.includes('youtube.com/watch') || href.includes('youtu.be/'))) {
-            const parsedLink = parseYouTubeLink(href)
-            
-            if (parsedLink) {
-              const { videoId, timestamp } = parsedLink
-              const embedUrl = `https://www.youtube.com/embed/${videoId}?start=${timestamp}`
-              
-              return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="YouTube video"></iframe>`
-            }
-          }
-          
-          if (href.includes('vk.com/video') || href.includes('vkvideo.ru/video')) {
-            const parsedLink = parseVKVideoLink(href)
-            
-            if (parsedLink) {
-              const { oid, id, timestamp } = parsedLink
-              let embedUrl = `https://vk.com/video_ext.php?oid=${oid}&id=${id}`;
-              
-              if (timestamp) {
-                embedUrl += `&t=${timestamp}`;
-              }
-              
-              return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="VK video"></iframe>`
-            }
           }
         }
         
