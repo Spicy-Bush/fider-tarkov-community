@@ -43,6 +43,10 @@ export interface ReportAssignedEvent {
   assignedTo: {
     userId: number
     userName: string
+    avatarURL?: string
+    avatarType?: string
+    role?: string
+    status?: string
   }
 }
 

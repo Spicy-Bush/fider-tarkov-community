@@ -259,8 +259,12 @@ func AssignReport() web.HandlerFunc {
 			sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgReportAssigned, sse.ReportEventPayload{
 				ReportID: reportID,
 				AssignedTo: &sse.ClientInfo{
-					UserID:   c.User().ID,
-					UserName: c.User().Name,
+					UserID:     c.User().ID,
+					UserName:   c.User().Name,
+					AvatarURL:  c.User().AvatarURL,
+					AvatarType: c.User().AvatarType.String(),
+					Role:       c.User().Role.String(),
+					Status:     c.User().Status.String(),
 				},
 			})
 

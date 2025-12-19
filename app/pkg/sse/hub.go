@@ -26,8 +26,12 @@ type Message struct {
 }
 
 type ClientInfo struct {
-	UserID   int    `json:"userId"`
-	UserName string `json:"userName"`
+	UserID     int    `json:"userId"`
+	UserName   string `json:"userName"`
+	AvatarURL  string `json:"avatarURL,omitempty"`
+	AvatarType string `json:"avatarType,omitempty"`
+	Role       string `json:"role,omitempty"`
+	Status     string `json:"status,omitempty"`
 }
 
 type ReportEventPayload struct {
