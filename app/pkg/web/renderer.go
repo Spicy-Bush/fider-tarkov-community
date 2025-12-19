@@ -140,12 +140,21 @@ func (r *Renderer) collectAssetsRecursive(manifest viteManifest, key string, vis
 	}
 }
 
+func (r *Renderer) getMainImportsForPreload() *clientAssets {
+	if r.assets == nil || len(r.assets.JS) <= 1 {
+		return nil
+	}
+	return &clientAssets{
+		JS: r.assets.JS[:len(r.assets.JS)-1],
+	}
+}
+
 func convertSourceToChunkName(src string) string {
-	if strings.HasPrefix(src, "locale/") && strings.HasSuffix(src, "/client.json") {
+	if strings.HasPrefix(src, "locale/") && strings.HasSuffix(src, "/client.mjs") {
 		parts := strings.Split(src, "/")
 		if len(parts) >= 2 {
 			locale := parts[1]
-			return fmt.Sprintf("locale-%s-client-json", locale)
+			return fmt.Sprintf("locale-%s-client-mjs", locale)
 		}
 	}
 
@@ -214,10 +223,10 @@ func getOAuthProviders(ctx *Context) []*dto.OAuthProviderOption {
 		return *providers
 	}
 
-		providers := &query.ListActiveOAuthProviders{
-			Result: make([]*dto.OAuthProviderOption, 0),
-		}
-		if err := bus.Dispatch(ctx, providers); err != nil {
+	providers := &query.ListActiveOAuthProviders{
+		Result: make([]*dto.OAuthProviderOption, 0),
+	}
+	if err := bus.Dispatch(ctx, providers); err != nil {
 		return nil
 	}
 
@@ -301,10 +310,11 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 	private["logo"] = LogoURL(ctx)
 
 	locale := i18n.GetLocale(ctx)
-	localeChunkName := fmt.Sprintf("locale-%s-client-json", locale)
+	localeChunkName := fmt.Sprintf("locale-%s-client-mjs", locale)
 	pageChunkName := strings.ReplaceAll(strings.ReplaceAll(props.Page, ".", "-"), "/", "-")
 
 	private["preloadAssets"] = []*clientAssets{
+		r.getMainImportsForPreload(),
 		r.chunkedAssets[localeChunkName],
 		r.chunkedAssets[pageChunkName],
 	}
