@@ -4,7 +4,7 @@ import { actions, Failure, classSet } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { CollapsiblePanel } from "@fider/components/common/CollapsiblePanel"
 import { HStack } from "@fider/components/layout"
-import { PageConfig } from "@fider/components/layouts"
+import { PageConfig, useAdminLayout } from "@fider/components/layouts"
 
 
 export const pageConfig: PageConfig = {
@@ -66,7 +66,7 @@ const ContentSettingsPage: React.FC = () => {
   const [error, setError] = useState<Failure | undefined>(undefined)
   const [activeTab, setActiveTab] = useState<'global' | 'post' | 'comment' | 'report'>('global')
 
-  const roles = (fider.session.props.roles as string[]) || []
+  const { roles } = useAdminLayout()
   
   const canEdit = (fider.session.user.isAdministrator || fider.session.user.isCollaborator)
 
