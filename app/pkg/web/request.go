@@ -32,7 +32,7 @@ func WrapRequest(request *http.Request) Request {
 	}
 
 	host := request.Host
-	if request.Header.Get("X-Forwarded-Host") != "" {
+	if !env.IsSingleHostMode() && request.Header.Get("X-Forwarded-Host") != "" {
 		host = request.Header.Get("X-Forwarded-Host")
 	}
 
