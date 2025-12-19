@@ -24,6 +24,7 @@ func Secure() web.MiddlewareFunc {
 			c.Response.Header().Set("X-XSS-Protection", "1; mode=block")
 			c.Response.Header().Set("X-Content-Type-Options", "nosniff")
 			c.Response.Header().Set("Referrer-Policy", "no-referrer-when-downgrade")
+			c.Response.Header().Set("X-Frame-Options", "DENY")
 			return next(c)
 		}
 	}
