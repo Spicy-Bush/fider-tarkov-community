@@ -21,6 +21,43 @@ var strictHtmlPolicy = bluemonday.NewPolicy()
 var cssURLRegex = regexp.MustCompile(`url\s*\(\s*['"]?([^'")\s]+)['"]?\s*\)`)
 
 var cssImageCache sync.Map
+var cssFontCache sync.Map
+
+// matches on @font-face blocks and extracts woff2 URLs for preloading
+var fontFaceRegex = regexp.MustCompile(`@font-face\s*\{[^}]*src:[^}]*url\s*\(\s*['"]?([^'")\s]+\.woff2[^'")\s]*)['"]?\s*\)[^}]*\}`)
+
+func extractCSSFonts(css string) []string {
+	if css == "" {
+		return nil
+	}
+
+	cacheKey := crypto.MD5(css)
+
+	if cached, ok := cssFontCache.Load(cacheKey); ok {
+		return cached.([]string)
+	}
+
+	matches := fontFaceRegex.FindAllStringSubmatch(css, -1)
+	if len(matches) == 0 {
+		cssFontCache.Store(cacheKey, []string{})
+		return nil
+	}
+
+	urls := make([]string, 0, len(matches))
+	seen := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		if len(match) > 1 {
+			url := match[1]
+			if _, exists := seen[url]; !exists {
+				seen[url] = struct{}{}
+				urls = append(urls, url)
+			}
+		}
+	}
+
+	cssFontCache.Store(cacheKey, urls)
+	return urls
+}
 
 func extractCSSImages(css string) []string {
 	if css == "" {
@@ -65,6 +102,7 @@ var templateFunctions = map[string]any{
 		return template.CSS(minifyCSS(input))
 	},
 	"extractCSSImages": extractCSSImages,
+	"extractCSSFonts":  extractCSSFonts,
 	"md5": func(input string) string {
 		return crypto.MD5(input)
 	},
