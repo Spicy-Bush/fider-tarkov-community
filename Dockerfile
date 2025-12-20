@@ -48,6 +48,9 @@ WORKDIR /app
 COPY --from=server-builder /server/fider /app/fider
 COPY --from=server-builder /server/LICENSE /app/LICENSE
 
+# Copy origin certs for HTTP/2
+COPY etc/ /app/etc/
+
 EXPOSE 3000
 
 HEALTHCHECK --timeout=5s CMD ./fider ping

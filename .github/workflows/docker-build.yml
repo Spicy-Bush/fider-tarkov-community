@@ -68,6 +68,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
+      - name: Write origin certs
+        run: |
+          mkdir -p etc
+          if [ -n "${{ secrets.ORIGIN_CERT }}" ]; then
+            echo "${{ secrets.ORIGIN_CERT }}" > etc/origin.pem
+            echo "${{ secrets.ORIGIN_KEY }}" > etc/origin-key.pem
+          else
+            touch etc/.keep
+          fi
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
