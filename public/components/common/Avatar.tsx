@@ -28,9 +28,9 @@ const getAvatarColor = (name: string): { bg: string; text: string } => {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 }
 
-const isCustomAvatar = (avatarURL: string, avatarType?: UserAvatarType): boolean => {
+const isCustomAvatar = (avatarURL: string | undefined, avatarType?: UserAvatarType): boolean => {
   if (avatarType === UserAvatarType.Custom || avatarType === UserAvatarType.Gravatar) return true
-  if (avatarType === UserAvatarType.Letter) return false
+  if (avatarType === UserAvatarType.Letter || !avatarURL) return false
   return avatarURL.includes("/static/images/") || avatarURL.includes("/static/avatars/gravatar/")
 }
 
@@ -38,7 +38,7 @@ interface AvatarProps {
   user: {
     id?: number
     role?: UserRole
-    avatarURL: string
+    avatarURL?: string
     avatarType?: UserAvatarType
     name: string
   }

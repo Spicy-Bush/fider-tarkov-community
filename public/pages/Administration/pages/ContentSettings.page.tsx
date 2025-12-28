@@ -4,7 +4,7 @@ import { actions, Failure, classSet } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { CollapsiblePanel } from "@fider/components/common/CollapsiblePanel"
 import { HStack } from "@fider/components/layout"
-import { PageConfig } from "@fider/components/layouts"
+import { PageConfig, useAdminLayout } from "@fider/components/layouts"
 
 
 export const pageConfig: PageConfig = {
@@ -66,7 +66,7 @@ const ContentSettingsPage: React.FC = () => {
   const [error, setError] = useState<Failure | undefined>(undefined)
   const [activeTab, setActiveTab] = useState<'global' | 'post' | 'comment' | 'report'>('global')
 
-  const roles = (fider.session.props.roles as string[]) || []
+  const { roles } = useAdminLayout()
   
   const canEdit = (fider.session.user.isAdministrator || fider.session.user.isCollaborator)
 
@@ -150,7 +150,7 @@ const ContentSettingsPage: React.FC = () => {
               type="button"
               className={classSet({
                 "px-2 py-1 bg-transparent border-none border-b-2 border-transparent cursor-pointer font-medium text-sm text-muted hover:bg-tertiary hover:text-foreground": true,
-                "!border-b-2 !border-primary !text-primary !bg-tertiary": activeTab === tab.key
+                "border-b-2! border-primary! text-primary! bg-tertiary!": activeTab === tab.key
               })}
               onClick={(e) => {
                 e.preventDefault();
@@ -326,7 +326,7 @@ const ContentSettingsPage: React.FC = () => {
                     checked={(settings.postingDisabledFor || []).includes(role)}
                     disabled={!canEdit}
                     onChange={() => toggleDisabledRole('postingDisabledFor', role)}
-                    className="m-0 h-4 w-4 min-h-4 min-w-4 flex-shrink-0 appearance-none border border-border rounded-sm bg-elevated cursor-pointer checked:border-transparent checked:bg-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="m-0 h-4 w-4 min-h-4 min-w-4 shrink-0 appearance-none border border-border rounded-sm bg-elevated cursor-pointer checked:border-transparent checked:bg-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
                       backgroundImage: (settings.postingDisabledFor || []).includes(role) ? "url(\"data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e\")" : "none",
                       backgroundSize: "contain",
@@ -411,7 +411,7 @@ const ContentSettingsPage: React.FC = () => {
                     checked={(settings.commentingDisabledFor || []).includes(role)}
                     disabled={!canEdit}
                     onChange={() => toggleDisabledRole('commentingDisabledFor', role)}
-                    className="m-0 h-4 w-4 min-h-4 min-w-4 flex-shrink-0 appearance-none border border-border rounded-sm bg-elevated cursor-pointer checked:border-transparent checked:bg-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="m-0 h-4 w-4 min-h-4 min-w-4 shrink-0 appearance-none border border-border rounded-sm bg-elevated cursor-pointer checked:border-transparent checked:bg-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
                       backgroundImage: (settings.commentingDisabledFor || []).includes(role) ? "url(\"data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e\")" : "none",
                       backgroundSize: "contain",

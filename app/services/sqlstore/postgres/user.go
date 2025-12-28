@@ -359,13 +359,18 @@ func registerUserProvider(ctx context.Context, c *cmd.RegisterUserProvider) erro
 
 func updateCurrentUser(ctx context.Context, c *cmd.UpdateCurrentUser) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		if c.Avatar.Remove {
-			c.Avatar.BlobKey = ""
+		blobKey := ""
+		if c.Avatar != nil {
+			if c.Avatar.Remove {
+				blobKey = ""
+			} else {
+				blobKey = c.Avatar.BlobKey
+			}
 		}
 
 		if c.Name == "" {
 			cmd := "UPDATE users SET avatar_type = $3, avatar_bkey = $4 WHERE id = $1 AND tenant_id = $2"
-			_, err := trx.Execute(cmd, user.ID, tenant.ID, c.AvatarType, c.Avatar.BlobKey)
+			_, err := trx.Execute(cmd, user.ID, tenant.ID, c.AvatarType, blobKey)
 			if err != nil {
 				return errors.Wrap(err, "failed to update user avatar")
 			}
@@ -373,7 +378,7 @@ func updateCurrentUser(ctx context.Context, c *cmd.UpdateCurrentUser) error {
 		}
 
 		cmd := "UPDATE users SET name = $3, avatar_type = $4, avatar_bkey = $5 WHERE id = $1 AND tenant_id = $2"
-		_, err := trx.Execute(cmd, user.ID, tenant.ID, c.Name, c.AvatarType, c.Avatar.BlobKey)
+		_, err := trx.Execute(cmd, user.ID, tenant.ID, c.Name, c.AvatarType, blobKey)
 		if err != nil {
 			return errors.Wrap(err, "failed to update user")
 		}
@@ -891,11 +896,16 @@ func warnUser(ctx context.Context, c *cmd.WarnUser) error {
 
 func updateUserAvatar(ctx context.Context, c *cmd.UpdateUserAvatar) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, _ *entity.User) error {
-		if c.Avatar.Remove {
-			c.Avatar.BlobKey = ""
+		blobKey := ""
+		if c.Avatar != nil {
+			if c.Avatar.Remove {
+				blobKey = ""
+			} else {
+				blobKey = c.Avatar.BlobKey
+			}
 		}
 		cmd := "UPDATE users SET avatar_type = $3, avatar_bkey = $4 WHERE id = $1 AND tenant_id = $2"
-		_, err := trx.Execute(cmd, c.UserID, tenant.ID, c.AvatarType, c.Avatar.BlobKey)
+		_, err := trx.Execute(cmd, c.UserID, tenant.ID, c.AvatarType, blobKey)
 		if err != nil {
 			return errors.Wrap(err, "failed to update user avatar")
 		}

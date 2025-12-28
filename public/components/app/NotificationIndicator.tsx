@@ -16,7 +16,7 @@ const NotificationSkeleton = () => {
   return (
     <HStack spacing={4} className="px-3 pr-5 py-4">
       <div className="skeleton h-10 w-10 rounded-full"></div>
-      <div className="flex-grow">
+      <div className="grow">
         <div className="skeleton h-4 w-3/4 mb-2"></div>
         <div className="skeleton h-3 w-1/4"></div>
       </div>
@@ -162,7 +162,7 @@ export const NotificationIndicator = () => {
       unreadContainer?.removeEventListener("scroll", handleUnreadScroll)
       readContainer?.removeEventListener("scroll", handleReadScroll)
     }
-  }, [handleScroll])
+  }, [handleScroll, showingNotifications, activeTab])
 
   const markAllAsRead = async (event: ButtonClickEvent) => {
     const response = await actions.markAllAsRead()

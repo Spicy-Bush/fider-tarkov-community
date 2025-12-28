@@ -2,7 +2,7 @@
 
 import React, { ReactNode, useEffect, useState } from "react"
 import { useLayout, LayoutVariant } from "@fider/contexts/LayoutContext"
-import { AdminLayoutContext } from "./context"
+import { AdminLayoutContext, USER_ROLES } from "./context"
 import { AdminSidebar } from "./AdminSidebar"
 import { AdminHeader } from "./AdminHeader"
 import { AdminContent } from "./AdminContent"
@@ -90,7 +90,7 @@ const AdminLayoutRoot: React.FC<AdminLayoutProps> = ({
   }
 
   return (
-    <AdminLayoutContext.Provider value={{ title, subtitle, sidebarItem, layoutVariant }}>
+    <AdminLayoutContext.Provider value={{ title, subtitle, sidebarItem, layoutVariant, roles: USER_ROLES }}>
       <div className="flex min-h-screen">
         {/* Overlay for mobile only */}
         <div

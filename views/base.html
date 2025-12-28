@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preload" href="{{ .public.settings.assetsURL }}/assets/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="icon" href="{{ .private.favicon }}?size=64" sizes="64x64" type="image/png">
   <link rel="icon" href="{{ .private.favicon }}?size=200" sizes="200x200" type="image/png">
   <link rel="apple-touch-icon" href="{{ .private.favicon }}?size=200&bg=white" sizes="200x200" type="image/png">
@@ -15,7 +16,8 @@
     <link rel="canonical" href="{{ .private.canonicalURL }}" />
   {{ end }}
   <!-- Preload images from custom CSS for faster LCP -->
-  {{ if .public.tenant }}{{ if .public.tenant.CustomCSS }}{{ range extractCSSImages .public.tenant.CustomCSS }}<link rel="preload" href="{{ . }}" as="image" fetchpriority="high">
+  {{ if .public.tenant }}{{ if .public.tenant.CustomCSS }}{{ range extractCSSFonts .public.tenant.CustomCSS }}<link rel="preload" href="{{ . }}" as="font" type="font/woff2" crossorigin>
+  {{ end }}{{ range extractCSSImages .public.tenant.CustomCSS }}<link rel="preload" href="{{ . }}" as="image" fetchpriority="high">
   {{ end }}<style>{{ $.public.tenant.CustomCSS | safeCSS }}</style>{{ end }}{{ end }}
   {{ if .private.assets }}
     {{range .private.assets.CSS}}
@@ -116,13 +118,16 @@
   </script>
 
   {{ if ne .public.settings.googleAnalytics "" }}
-  <script async nonce="{{ .public.contextID }}" src="https://www.googletagmanager.com/gtag/js?id={{ .public.settings.googleAnalytics }}"></script>
   <script nonce="{{ .public.contextID }}">
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-
     gtag('config', '{{ .public.settings.googleAnalytics }}');
+    requestIdleCallback(function(){
+      var s = document.createElement('script');
+      s.src = 'https://www.googletagmanager.com/gtag/js?id={{ .public.settings.googleAnalytics }}';
+      document.head.appendChild(s);
+    }, {timeout: 2000});
   </script>
   {{ end }}
 

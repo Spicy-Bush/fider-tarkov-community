@@ -1,72 +1,20 @@
-<img src="etc/homepage.png">
-
-<br/>
-<hr/>
-<br/>
-
 <p align="center">
-  <img style="height:60px;display:inline-block;" src="etc/logo-small.png" />
+  <img style="height:60px;display:inline-block;" src="favicon.png" width="60" height="60" />
   <div align="center">
-    <strong>Fider is a feedback portal for feature requests and suggestions.</strong>
+    <strong>Tarkov.community is a feedback portal for feature requests and suggestions related to Escape from Tarkov and Escape From Tarkov: Arena, forked from Fider.</strong>
+  <br/>
+  <sub>Special thanks to the original maintainers of <a href="https://github.com/getfider/fider">Fider</a></sub>
   </div>
-  <div align="center">Give your customers a voice and let them tell you what they need. Spend less time guessing and more time building the right product.</div>
 </p>
 
-<div align="center">
-  <h3>
-    <a href="https://feedback.fider.io/">
-      See it in action
-    </a>
-    <span> &middot; </span>
-    <a href="https://fider.io">
-      Learn more »
-    </a>
-  </h3>
-</div>
+## About Tarkov Community
 
-<div align="center">
-  <sub>Created with ❤️ by <a href="https://github.com/goenning">Guilherme Oenning</a>, now maintained by <a href="https://github.com/mattwoberts">Matt Roberts</a> and supported by <a href="https://github.com/getfider/fider/graphs/contributors">contributors</a></sub>
-</div>
+**Tarkov.community** is a feedback portal for submitting feature requests and suggestions related to _Escape from Tarkov_ and _Escape From Tarkov: Arena_. This project is a fork of Fider and exists to serve the community of these games by providing a centralized place for feedback and discussion.
 
-<br/>
-<br/>
+> This repository (Tarkov.community) is **not** designed to be self-hosted or installed independently. 
+> To use the platform, simply visit [https://tarkov.community/](https://tarkov.community/).
 
-# Getting Started
+## Contributions
 
-## ☁️ **Fider Cloud**
+We are **not currently seeking active contributors** or feature pull requests. However, if you find a bug and want to help out by submitting a fix via a pull request, we'd appreciate it!
 
-The easiest and quickest way to get started. A fully managed services by the creators of Fider to help you get started in minutes. Forget about managing software updates and patches, we do it all for you! [Sign up now](https://fider.io/#get-started)
-
-## 🏢 **Self-Hosted**
-
-You can also install Fider yourself. It's free, but you are responsible for managing it. [Learn how](https://docs.fider.io/self-hosted/)
-
-If you do self-host and enjoy Fider, please [let us know where you're using it](https://github.com/getfider/fider/issues/899) - we really appreciate it 🙏
-
-<br/>
-<br/>
-
-# Sponsors
-
-<a href="https://browserstack.com" target="_blank">
-  <img src="etc/browserstack.png">
-</a>
-
-<br />
-<br />
-
-> Does your organization use Fider? [Become a sponsor](https://opencollective.com/fider) and get your logo and link on our README!
-
-<br/>
-<br/>
-
-# Contributors
-
-This project exists thanks to all the amazing people who contribute!
-
-<a href="https://github.com/getfider/fider/graphs/contributors"><img src="https://opencollective.com/fider/contributors.svg?width=890&button=false" /></a>
-
-Read our [CONTRIBUTING](CONTRIBUTING.md) guide to learn how you can contribute to Fider.
-
-<br/>
-<br/>

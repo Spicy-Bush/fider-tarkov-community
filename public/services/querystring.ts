@@ -53,7 +53,7 @@ export const stringify = (object: QueryString | undefined): string => {
     const value = object[key]
     if (value instanceof Array) {
       if (value.length > 0) {
-        qs += `${symbol}${key}=${value.join(",")}`
+        qs += `${symbol}${key}=${value.map(v => encodeURIComponent(String(v))).join(",")}`
       }
     } else if (value) {
       qs += `${symbol}${key}=${encodeURIComponent(value.toString()).replace(/%20/g, "+")}`

@@ -34,6 +34,10 @@ export const useReportsEvents = (config: UseReportsEventsConfig): void => {
       const assignedUser = {
         id: data.assignedTo.userId,
         name: data.assignedTo.userName,
+        avatarURL: data.assignedTo.avatarURL,
+        avatarType: data.assignedTo.avatarType,
+        role: data.assignedTo.role,
+        status: data.assignedTo.status,
       } as Report["assignedTo"]
 
       setReports((prev) =>

@@ -108,6 +108,15 @@ func Index() web.HandlerFunc {
 			}
 			posts = searchPosts.Result
 			pf = decoded
+		} else {
+			searchPosts := &query.SearchPosts{
+				View:  "trending",
+				Limit: "20",
+			}
+			if err := bus.Dispatch(c, searchPosts); err != nil {
+				return c.Failure(err)
+			}
+			posts = searchPosts.Result
 		}
 
 		description := ""

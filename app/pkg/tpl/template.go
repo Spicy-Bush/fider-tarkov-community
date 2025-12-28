@@ -6,13 +6,22 @@ import (
 	"io"
 	"path"
 	"strings"
+	"sync"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/i18n"
 )
 
+var templateCache sync.Map
+
 func GetTemplate(baseFileName, templateFileName string) *template.Template {
+	cacheKey := baseFileName + "|" + templateFileName
+
+	if cached, ok := templateCache.Load(cacheKey); ok {
+		return cached.(*template.Template)
+	}
+
 	baseFile := strings.TrimPrefix(baseFileName, "/")
 	templateFile := strings.TrimPrefix(templateFileName, "/")
 
@@ -21,6 +30,7 @@ func GetTemplate(baseFileName, templateFileName string) *template.Template {
 		panic(errors.Wrap(err, "failed to parse template %s", templateFileName))
 	}
 
+	templateCache.Store(cacheKey, tpl)
 	return tpl
 }
 

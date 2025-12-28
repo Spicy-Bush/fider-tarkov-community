@@ -1,42 +1,163 @@
 # Server Development
 
-**Models Naming**
+## Models Naming
 
-- `app/models/action.<something>`: actions are based on user interaction for POST/PUT/PATCH requests. Actions map 1-to-1 with an Command. E.g: `action.CreateNewUser`;
-- `app/models/dto.<something>`: A simple object used for data transfer between various packages/services. E.g: `dto.NewUserInfo`;
-- `app/models/entity.<something>`: An object that is mapped to a database table. E.g: `entity.User`;
-- `app/models/cmd.<something>` something that must be done and potentially return some value. E.g.: `cmd.HttpRequest`, `cmd.LogDebug`, `cmd.SendMail`, `cmd.CreateNewUser`;
-- `app/models/query.<something>` get some information from somewhere. E.g.: `query.GetUserById`, `query.GetAllPosts`;
+- `app/models/cmd.<something>`: Commands that perform actions and potentially return values. E.g.: `cmd.CreateNewUser`, `cmd.SendMail`
+- `app/models/query.<something>`: Queries to retrieve data. E.g.: `query.GetUserById`, `query.GetAllPosts`
+- `app/models/entity.<something>`: Objects mapped to database tables. E.g.: `entity.User`, `entity.Post`
+- `app/models/dto.<something>`: Data transfer objects between packages/services. E.g.: `dto.NewUserInfo`
+- `app/models/enum.<something>`: Enumerated types and constants. E.g.: `enum.UserRole`, `enum.PostStatus`
+
+## Actions
+
+Actions in `app/actions/` validate user input for POST/PUT/PATCH requests. Each action maps to a command.
 
 # UI Development
 
-## React / CSS / HTML Convention
+## Build System (Vite)
 
-**Folder Structure**
+We use **Vite** for frontend bundling and development.
 
-```javascript
-public/components // Shared/Basic Components
+### Key Configuration
 
-public/pages // Pages
+- **Entry point**: `public/index.tsx`
+- **Output**: `dist/` directory
+- **Public files**: `misc/` folder (copied to `dist/assets/` during build)
+- **Base path**: `/assets/` (all JS/CSS served from this path)
 
-public/pages/Home // Home page component folder
-	-> index.ts // exporter
-	-> Home.page.scss // Page specific styles
-	-> Home.page.spec.tsx // Page Component unit tests
-	-> Home.page.tsx // Page Component
-	-> ./components // Inner components of home page
+The Vite development server is never used, as vite is only there to compile and split the code for the Go backend to serve.
+
+## Folder Structure
+
+```
+public/
+  assets/styles/       # Global styles (tailwind.css)
+  components/          # Shared/reusable components
+    common/            # Basic UI components (Button, Input, Modal, etc.)
+    app/               # App level components (Header, Footer)
+    layouts/           # Layout components (PublicLayout, AdminLayout)
+    post/              # Post related components
+    moderation/        # Moderation components
+  contexts/            # React context providers
+  hooks/               # Custom React hooks
+  models/              # TypeScript interfaces/types
+  pages/               # Page components
+  services/            # Business logic, API calls, utilities
+    actions/           # API action functions
 ```
 
-**CSS Naming**
+## Page Structure
 
-Fider uses a combination of BEM and Utility Classes.
+```
+public/pages/Home/
+  index.ts             # Exporter
+  Home.page.tsx        # Page component
+  components/          # Page specific components
+```
 
-- `p-<page_name>` is the HTML ID of each page component. This is truly unique and should be used to provide page isolated style. E.g.: `p-home`, `p-user-settings`;
+## Styling
 
-- `c-<component_name>` is the "Block" class for each component. Elements should follow its parent component name as such `c-<component_name>__<element>`. E.g: `c-toggle` and `c-toggle__label`;
+We use **Tailwind CSS** with utility classes.
 
-- `{block}--<state>` is used to alter the style of its. . E.g: `c-toggle` and `c-toggle--checked`;
+### CSS Variables
 
-- `is-<state>`, `has-<state>` are global style modifiers that have a broader impact.
+Theme colors are defined in `public/assets/styles/tailwind.css`:
 
-- Utility classes do not have a preffix.
+```css
+--color-surface: #131415;
+--color-foreground: #dbe8e9;
+--color-primary: #86b0bc;
+--color-danger: #c45a5a;
+/* etc. */
+```
+
+### Conditional Classes
+
+Use the `classSet` utility for conditional class names:
+
+```tsx
+import { classSet } from "@fider/services"
+
+<div className={classSet({
+  "bg-primary": isActive,
+  "bg-secondary": !isActive,
+  "p-4": true,
+})} />
+```
+
+### Component Styling Pattern
+
+Components use Tailwind classes directly. Variant/size classes are defined as objects:
+
+```tsx
+const variantClasses = {
+  primary: "text-white bg-primary border border-primary hover:bg-primary-hover",
+  secondary: "text-foreground bg-secondary border border-border hover:bg-secondary-hover",
+}
+
+const sizeClasses = {
+  small: "px-2.5 py-1.5 text-xs",
+  default: "px-3 py-2 text-sm",
+}
+```
+
+## Hooks
+
+Custom hooks live in `public/hooks/` with `use-` or `use` prefix:
+
+- `useFider()` - Access Fider context (session, tenant, settings)
+- `usePostFilters()` - Post filtering state and URL sync
+- `useNavigate()` - Navigation utilities
+- `useCache()` - Client side caching
+
+## Services
+
+Services in `public/services/` handle business logic:
+
+- `services/actions/`       - API calls (e.g., `actions.searchPosts()`)
+- `services/http.ts`        - HTTP client wrapper
+- `services/fider.ts`       - Fider instance and session
+- `services/querystring.ts` - URL query string utilities
+
+## Contexts
+
+React contexts in `public/contexts/` for global state:
+
+- `LayoutContext`       - Layout state management
+- `UserStandingContext` - User standing/reputation data
+- `UnreadCountsContext` - Notification counts
+
+## Icons
+
+Icons use an SVG sprite system built from individual SVG files.
+
+### Adding a New Icon
+
+1. Add your SVG file to `public/assets/images/` with a descriptive name:
+   ```
+   public/assets/images/heroicons-my-icon.svg
+   ```
+
+2. Run the sprite build script:
+   ```bash
+   npm run build:sprites
+   ```
+
+3. This generates:
+   - `misc/sprite.svg` - Combined sprite sheet with all icons as `<symbol>` elements
+   - `public/icons.generated.ts` - TypeScript exports for each icon
+
+### Using Icons
+
+```tsx
+import { heroiconsCheck as IconCheck } from "@fider/icons.generated"
+import { Icon } from "@fider/components"
+
+<Icon sprite={IconCheck} className="h-4 w-4" />
+```
+
+## TypeScript
+
+- Interfaces specific to a component stay in the component file
+- Shared interfaces go in `public/models/`
+- Use strict typing - avoid `any`

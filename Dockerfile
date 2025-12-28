@@ -15,7 +15,7 @@ RUN make build-ui
 #####################
 ### Server Build Step (Embeds all frontend assets)
 #####################
-FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.22-bookworm AS server-builder 
+FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.25.5-bookworm AS server-builder 
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -47,6 +47,9 @@ WORKDIR /app
 
 COPY --from=server-builder /server/fider /app/fider
 COPY --from=server-builder /server/LICENSE /app/LICENSE
+
+# Copy origin certs for HTTP/2
+COPY etc/ /app/etc/
 
 EXPOSE 3000
 

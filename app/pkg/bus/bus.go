@@ -97,6 +97,7 @@ func AddHandler(handler HandlerFunc) {
 	handlerType := reflect.TypeOf(handler)
 	elem := handlerType.In(1).Elem()
 	handlers[keyForElement(elem)] = handler
+	registerTypedHandler(handler)
 }
 
 func AddListener(handler HandlerFunc) {
@@ -122,6 +123,15 @@ func MustDispatch(ctx context.Context, msgs ...Msg) {
 
 func Dispatch(ctx context.Context, msgs ...Msg) error {
 	if len(msgs) == 0 {
+		return nil
+	}
+
+	if useTypedDispatch {
+		for _, msg := range msgs {
+			if err := dispatchTyped(ctx, msg); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 
