@@ -124,18 +124,16 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
     handleHashChange()
     window.addEventListener("hashchange", handleHashChange)
     document.addEventListener("copy", handleCopyEvent)
-    const currentPath = window.location.pathname
-
-    if (!currentPath.includes(props.post.slug)) {
-      const newPath = `${currentPath}/${props.post.slug}`
-      window.history.replaceState({}, document.title, newPath)
+    const canonicalPath = `/posts/${props.post.number}/${props.post.slug}`
+    if (window.location.pathname !== canonicalPath) {
+      window.history.replaceState({}, document.title, canonicalPath)
     }
 
     return () => {
       window.removeEventListener("hashchange", handleHashChange)
       document.removeEventListener("copy", handleCopyEvent)
     }
-  }, [handleHashChange, handleCopyEvent, props.post.slug])
+  }, [handleHashChange, handleCopyEvent, props.post.number, props.post.slug])
 
   useEffect(() => {
     scrollToHighlightedComment()
