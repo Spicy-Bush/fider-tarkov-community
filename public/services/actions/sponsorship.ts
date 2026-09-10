@@ -108,7 +108,7 @@ export type CreateCreativeVersionResult = {
 
 export const createCreativeVersion = (
   campaignId: number,
-  body: { kind: string; imageUrl: string; html: string; clickUrl: string; configVersion: number }
+  body: { imageUrl: string; html: string; clickUrl: string; configVersion: number }
 ): Promise<Result<CreateCreativeVersionResult>> => {
   return http.post<CreateCreativeVersionResult>(`/api/v1/sponsorship/campaigns/${campaignId}/versions`, body)
 }

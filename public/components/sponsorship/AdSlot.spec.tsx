@@ -13,7 +13,6 @@ const houseAd: PublicAd = {
   advertiser: "Acme Corp",
   placementId: "sidebar_top",
   creativeVersionId: 3,
-  kind: "image",
   imageUrl: "https://example.com/ad.png",
   html: "",
   clickPath: "/ads/click/7?v=3",

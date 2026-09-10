@@ -12,8 +12,6 @@ import {
   SPONSORSHIP_SLOT_SPECS,
   deriveCampaignStatus,
   CampaignDerivedStatus,
-  creativeKindFromSurfaces,
-  CreativeVersionKind,
 } from "@fider/models"
 import { actions, Failure, notify } from "@fider/services"
 import { AdSlot } from "@fider/components/sponsorship"
@@ -122,7 +120,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
 
   const [versions, setVersions] = useState<CreativeVersion[]>([])
   const [assignments, setAssignments] = useState<CampaignAssignment[]>([])
-  const [versionForm, setVersionForm] = useState<{ imageUrl: string; html: string; clickUrl: string; kind: CreativeVersionKind }>({ imageUrl: "", html: "", clickUrl: "https://", kind: "image" })
+  const [versionForm, setVersionForm] = useState({ imageUrl: "", html: "", clickUrl: "https://" })
   const [assignPlacementId, setAssignPlacementId] = useState("")
   const [assignVersionId, setAssignVersionId] = useState<number | "">("")
   const [assignmentsDirty, setAssignmentsDirty] = useState(false)
@@ -168,13 +166,11 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     const html = (versionForm.html || "").trim()
     const clickUrl = (versionForm.clickUrl || "").trim()
     if (!imageUrl && !html) return null
-    const kind = creativeKindFromSurfaces(imageUrl, html) || versionForm.kind
     return {
       campaignId: editingCampId || 0,
       advertiser,
       placementId: assignPlacementId || slots[0] || "sidebar_top",
       creativeVersionId: 0,
-      kind,
       imageUrl,
       html,
       clickPath: clickUrl || "#",
@@ -313,9 +309,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       /^https?:\/\//i.test(clickUrl) &&
       (!!(versionForm.imageUrl || "").trim() || !!(versionForm.html || "").trim())
     if (hasDraftVersion && assignments.length > 0) {
-      const kind = creativeKindFromSurfaces(versionForm.imageUrl, versionForm.html) || versionForm.kind
       body.version = {
-        kind,
         imageUrl: versionForm.imageUrl.trim(),
         html: versionForm.html.trim(),
         clickUrl,
@@ -338,7 +332,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
           setVersions(result.data.versions || [])
           setAssignments(result.data.assignments || [])
           setAssignmentsDirty(false)
-          setVersionForm({ imageUrl: "", html: "", clickUrl: "https://", kind: "image" })
+          setVersionForm({ imageUrl: "", html: "", clickUrl: "https://" })
           notify.success("Campaign created with assignments")
         } else {
           const camp = result.data as SponsorshipCampaign
@@ -402,6 +396,10 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       notify.error("clickUrl must be an http(s) URL")
       return
     }
+    if (!(versionForm.imageUrl || "").trim() && !(versionForm.html || "").trim()) {
+      notify.error("Provide imageUrl and/or html")
+      return
+    }
     let configVersion: number
     try {
       configVersion = requireConfigVersion(campForm.configVersion)
@@ -410,50 +408,47 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       return
     }
     setBusy(true)
-    const kind = creativeKindFromSurfaces(versionForm.imageUrl, versionForm.html)
-    if (!kind) {
-      notify.error("Provide imageUrl and/or html and set kind")
-      return
-    }
-    const result = await actions.createCreativeVersion(editingCampId, {
-      kind,
-      imageUrl: versionForm.imageUrl.trim(),
-      html: versionForm.html.trim(),
-      clickUrl,
-      configVersion,
-    })
-    setBusy(false)
-    if (result.ok) {
-      try {
-        const cfg = requireConfigVersion(result.data.configVersion)
-        setVersionForm({ imageUrl: "", html: "", clickUrl: "https://", kind: "image" })
-        setCampForm((prev) => ({ ...prev, configVersion: cfg }))
-        if (result.data.version) {
-          setVersions((prev) => {
-            const next = [result.data.version, ...prev.filter((v) => v.id !== result.data.version.id)]
-            next.sort((a, b) => b.versionNo - a.versionNo)
-            return next
-          })
+    try {
+      const result = await actions.createCreativeVersion(editingCampId, {
+        imageUrl: versionForm.imageUrl.trim(),
+        html: versionForm.html.trim(),
+        clickUrl,
+        configVersion,
+      })
+      if (result.ok) {
+        try {
+          const cfg = requireConfigVersion(result.data.configVersion)
+          setVersionForm({ imageUrl: "", html: "", clickUrl: "https://" })
+          setCampForm((prev) => ({ ...prev, configVersion: cfg }))
+          if (result.data.version) {
+            setVersions((prev) => {
+              const next = [result.data.version, ...prev.filter((v) => v.id !== result.data.version.id)]
+              next.sort((a, b) => b.versionNo - a.versionNo)
+              return next
+            })
+          }
+          await reloadCampaigns()
+          // Preserve staged assignment removals/adds (dirty guard).
+          await loadGraph(editingCampId)
+          notify.success(`Creative v${result.data.version.versionNo} created`)
+        } catch {
+          notify.error("Version created but configVersion missing - reloading")
+          await reloadCampaigns()
+          await loadGraph(editingCampId, { forceAssignments: true })
         }
-        await reloadCampaigns()
-        // Preserve staged assignment removals/adds (dirty guard).
-        await loadGraph(editingCampId)
-        notify.success(`Creative v${result.data.version.versionNo} created`)
-      } catch {
-        notify.error("Version created but configVersion missing - reloading")
-        await reloadCampaigns()
-        await loadGraph(editingCampId, { forceAssignments: true })
-      }
-    } else {
-      const msg = (result.data as { message?: string } | undefined)?.message
-      if (msg === "Conflict") {
-        notify.error("Campaign was modified elsewhere - reloading")
-        await reloadCampaigns()
-        await loadGraph(editingCampId, { forceAssignments: true })
       } else {
-        notify.error("Failed to create creative version")
-        setError(result.error)
+        const msg = (result.data as { message?: string } | undefined)?.message
+        if (msg === "Conflict") {
+          notify.error("Campaign was modified elsewhere - reloading")
+          await reloadCampaigns()
+          await loadGraph(editingCampId, { forceAssignments: true })
+        } else {
+          notify.error("Failed to create creative version")
+          setError(result.error)
+        }
       }
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -603,29 +598,8 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               </p>
 
               <div className="text-sm font-medium">Create version</div>
-              <Input field="ver.imageUrl" label="Image URL" value={versionForm.imageUrl} onChange={(v) => {
-                const imageUrl = v
-                const kind = creativeKindFromSurfaces(imageUrl, versionForm.html) || versionForm.kind
-                setVersionForm({ ...versionForm, imageUrl, kind })
-              }} />
-              <TextArea field="ver.html" label="HTML (sandboxed iframe - never innerHTML)" value={versionForm.html} onChange={(v) => {
-                const html = v
-                const kind = creativeKindFromSurfaces(versionForm.imageUrl, html) || versionForm.kind
-                setVersionForm({ ...versionForm, html, kind })
-              }} />
-              <label className="block text-sm mb-4">
-                Kind (explicit)
-                <select
-                  className="block mt-1 border border-border rounded px-2 py-1"
-                  value={versionForm.kind}
-                  onChange={(e) => setVersionForm({ ...versionForm, kind: e.target.value as CreativeVersionKind })}
-                >
-                  <option value="image">image</option>
-                  <option value="html">html</option>
-                  <option value="image+html">image+html</option>
-                </select>
-              </label>
-              <p className="text-xs text-muted -mt-3 mb-2">Derived from surfaces when possible; must match image/html payloads.</p>
+              <Input field="ver.imageUrl" label="Image URL" value={versionForm.imageUrl} onChange={(v) => setVersionForm({ ...versionForm, imageUrl: v })} />
+              <TextArea field="ver.html" label="HTML (sandboxed iframe - never innerHTML)" value={versionForm.html} onChange={(v) => setVersionForm({ ...versionForm, html: v })} />
               <Input field="ver.clickUrl" label="Click URL" value={versionForm.clickUrl} onChange={(v) => setVersionForm({ ...versionForm, clickUrl: v })} />
               <Button variant="primary" onClick={createVersion} disabled={busy}>
                 Create immutable version
@@ -642,7 +616,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               <VStack spacing={1} divide>
                 {versions.map((v) => (
                   <div key={v.id} className="text-sm py-1">
-                    <strong>v{v.versionNo}</strong> (id {v.id}) | kind={v.kind} | img={v.imageUrl ? "yes" : "no"} | html={v.html ? "yes" : "no"} | {v.clickUrl}
+                    <strong>v{v.versionNo}</strong> (id {v.id}) | img={v.imageUrl ? "yes" : "no"} | html={v.html ? "yes" : "no"} | {v.clickUrl}
                   </div>
                 ))}
                 {versions.length === 0 && <p className="text-muted text-sm">No versions yet - create one above, then assign placements.</p>}
@@ -723,6 +697,74 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
             })}
             {campaigns.length === 0 && <p className="text-muted">No campaigns yet.</p>}
           </VStack>
+        </VStack>
+      )}
+
+      {tab === "placements" && (
+        <VStack spacing={4}>
+          <p className="text-muted text-sm">
+            Catalog AdSense fallback per placement. Publisher id stays in GOOGLE_ADSENSE env; set unit slot ids / format / empty policy here (PUT /api/v1/ads/placements/:id).
+          </p>
+          <Form error={error}>
+            <VStack spacing={4} divide>
+              {placements.map((p) => (
+                <VStack key={p.id} spacing={2} className="py-3">
+                  <div className="font-medium">
+                    {p.name || SPONSORSHIP_SLOT_SPECS[p.id]?.label || p.id}{" "}
+                    <span className="text-muted text-sm">({p.id})</span>
+                    {!p.enabled && <span className="text-xs ml-2 text-amber-700">disabled</span>}
+                  </div>
+                  {!!p.description && <p className="text-xs text-muted">{p.description}</p>}
+                  <Input
+                    field={`adsenseSlotId.${p.id}`}
+                    label="AdSense slot id"
+                    value={p.adsenseSlotId || ""}
+                    onChange={(v) =>
+                      setPlacements((prev) => prev.map((row) => (row.id === p.id ? { ...row, adsenseSlotId: v } : row)))
+                    }
+                  />
+                  <Input
+                    field={`adsenseFormat.${p.id}`}
+                    label="AdSense format"
+                    value={p.adsenseFormat || ""}
+                    onChange={(v) =>
+                      setPlacements((prev) => prev.map((row) => (row.id === p.id ? { ...row, adsenseFormat: v } : row)))
+                    }
+                  />
+                  <label className="block text-sm mb-2">
+                    Empty policy
+                    <select
+                      className="block mt-1 border border-border rounded px-2 py-1"
+                      value={p.emptyPolicy === "reserve" ? "reserve" : "collapse"}
+                      onChange={(e) =>
+                        setPlacements((prev) =>
+                          prev.map((row) =>
+                            row.id === p.id
+                              ? { ...row, emptyPolicy: e.target.value === "reserve" ? "reserve" : "collapse" }
+                              : row
+                          )
+                        )
+                      }
+                    >
+                      <option value="collapse">collapse</option>
+                      <option value="reserve">reserve</option>
+                    </select>
+                  </label>
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      const latest = placements.find((row) => row.id === p.id) || p
+                      void savePlacement(latest)
+                    }}
+                    disabled={busy}
+                  >
+                    Save {p.id}
+                  </Button>
+                </VStack>
+              ))}
+              {placements.length === 0 && <p className="text-muted">No placements in catalog.</p>}
+            </VStack>
+          </Form>
         </VStack>
       )}
     </VStack>
