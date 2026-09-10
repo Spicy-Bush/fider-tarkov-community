@@ -608,7 +608,18 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               {previewAd && (
                 <div className="mb-2 p-3 border border-border rounded bg-elevated">
                   <div className="text-sm font-medium mb-2">Draft version preview</div>
-                  <AdSlot instanceId="admin-preview" placementId={previewAd.placementId} ad={previewAd} allowAdSense={false} />
+                  <AdSlot
+                    instanceId="admin-preview"
+                    placementId={previewAd.placementId}
+                    ad={previewAd}
+                    allowAdSense={false}
+                    placement={(() => {
+                      const pl = placements.find((row) => row.id === previewAd.placementId)
+                      return pl
+                        ? { kind: pl.kind, maxWidth: pl.maxWidth, maxHeight: pl.maxHeight, label: pl.name }
+                        : undefined
+                    })()}
+                  />
                 </div>
               )}
 
@@ -632,8 +643,11 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                     onChange={(e) => setAssignPlacementId(e.target.value)}
                   >
                     <option value="">Select...</option>
-                    {slots.map((s) => (
-                      <option key={s} value={s}>{SPONSORSHIP_SLOT_SPECS[s]?.label || s}</option>
+                    {placements.filter((pl) => pl.enabled).map((pl) => (
+                      <option key={pl.id} value={pl.id}>
+                        {pl.name || SPONSORSHIP_SLOT_SPECS[pl.id]?.label || pl.id}
+                        {pl.kind ? ` (${pl.kind})` : ""}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -714,6 +728,10 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                     <span className="text-muted text-sm">({p.id})</span>
                     {!p.enabled && <span className="text-xs ml-2 text-amber-700">disabled</span>}
                   </div>
+                  <p className="text-xs text-muted">
+                    kind: {p.kind || "frame"} (catalog; drives native vs frame renderer)
+                    {p.maxWidth ? ` | max ${p.maxWidth}x${p.maxHeight || "?"}` : ""}
+                  </p>
                   {!!p.description && <p className="text-xs text-muted">{p.description}</p>}
                   <Input
                     field={`adsenseSlotId.${p.id}`}

@@ -47,6 +47,7 @@ export function resolvePlacementAdConfig(
     emptyPolicy: api?.emptyPolicy || spec?.emptyPolicy || "collapse",
     maxWidth: api?.maxWidth,
     maxHeight: api?.maxHeight,
+    kind: api?.kind || spec?.kind,
   }
 }
 

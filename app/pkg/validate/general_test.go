@@ -142,8 +142,11 @@ func TestIsHTTPOrHTTPSURL(t *testing.T) {
 	RegisterT(t)
 	Expect(validate.IsHTTPOrHTTPSURL("https://example.com/x")).IsTrue()
 	Expect(validate.IsHTTPOrHTTPSURL("http://example.com")).IsTrue()
+	Expect(validate.IsHTTPOrHTTPSURL("https://example.com:8443/path?q=1")).IsTrue()
 	Expect(validate.IsHTTPOrHTTPSURL("javascript:alert(1)")).IsFalse()
 	Expect(validate.IsHTTPOrHTTPSURL("ftp://example.com")).IsFalse()
 	Expect(validate.IsHTTPOrHTTPSURL("/relative")).IsFalse()
 	Expect(validate.IsHTTPOrHTTPSURL("")).IsFalse()
+	Expect(validate.IsHTTPOrHTTPSURL("https://user:pass@example.com/x")).IsFalse()
+	Expect(validate.IsHTTPOrHTTPSURL("http://user@example.com")).IsFalse()
 }

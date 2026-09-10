@@ -63,13 +63,15 @@ export const Input: React.FunctionComponent<InputProps> = (props) => {
                 "opacity-50 cursor-not-allowed": props.disabled,
               })}
               id={`input-${props.field}`}
-              type="text"
+              type={props.type || "text"}
               autoComplete={props.autoComplete}
               tabIndex={props.noTabFocus ? -1 : undefined}
               ref={props.inputRef}
               autoFocus={props.autoFocus}
               onFocus={props.onFocus}
               maxLength={props.maxLength}
+              min={props.min}
+              max={props.max}
               disabled={props.disabled}
               value={props.value}
               placeholder={props.placeholder}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react"
-import { SPONSORSHIP_SLOT_SPECS } from "@fider/models"
+import { resolvePlacementRenderMeta } from "@fider/models"
 
 export interface AdSenseSlotProps {
   client: string
@@ -8,12 +8,14 @@ export interface AdSenseSlotProps {
   placementId: string
   instanceId?: string
   className?: string
+  maxWidth?: number
+  maxHeight?: number
 }
 
 /**
  * Presentational Google AdSense unit. Clicks stay with Google (no /ads/click).
  * Script tag is boot-injected from GOOGLE_ADSENSE; this only pushes adsbygoogle once per mount.
- * No TC "Sponsored" disclosure — Google provides its own labeling; bare Sponsored is #38/#39.
+ * No TC "Sponsored" disclosure -- Google provides its own labeling; bare Sponsored is #38/#39.
  */
 export const AdSenseSlot: React.FC<AdSenseSlotProps> = ({
   client,
@@ -22,10 +24,19 @@ export const AdSenseSlot: React.FC<AdSenseSlotProps> = ({
   placementId,
   instanceId,
   className,
+  maxWidth,
+  maxHeight,
 }) => {
   const pushed = useRef(false)
-  const spec = SPONSORSHIP_SLOT_SPECS[placementId] || SPONSORSHIP_SLOT_SPECS.sidebar_top
-  const frameClassName = spec.frameClassName
+  const meta = resolvePlacementRenderMeta(placementId, { maxWidth, maxHeight })
+  const frameClassName = meta.frameClassName
+  const sizeStyle =
+    meta.maxWidth || meta.maxHeight
+      ? {
+          ...(meta.maxWidth ? { maxWidth: meta.maxWidth } : {}),
+          ...(meta.maxHeight ? { maxHeight: meta.maxHeight } : {}),
+        }
+      : undefined
 
   useEffect(() => {
     if (pushed.current) return
@@ -37,7 +48,7 @@ export const AdSenseSlot: React.FC<AdSenseSlotProps> = ({
       ;(w.adsbygoogle as any[]).push({})
       pushed.current = true
     } catch {
-      // Ad blockers / missing script — leave reserved frame empty.
+      // Ad blockers / missing script -- leave reserved frame empty.
     }
   }, [client, slotId])
 
@@ -52,7 +63,7 @@ export const AdSenseSlot: React.FC<AdSenseSlotProps> = ({
       data-ad-placement={placementId}
       data-ad-network="adsense"
     >
-      <div className={frameClassName}>
+      <div className={frameClassName} style={sizeStyle}>
         <ins
           className="adsbygoogle"
           style={{ display: "block", width: "100%", height: "100%" }}

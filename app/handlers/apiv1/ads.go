@@ -202,6 +202,7 @@ func PublicAdPlacementConfig() web.HandlerFunc {
 				"adsenseSlotId": p.AdSenseSlotID,
 				"adsenseFormat": p.AdSenseFormat,
 				"emptyPolicy":   policy,
+				"kind":          p.Kind,
 			}
 			if p.MaxWidth != nil {
 				entry["maxWidth"] = *p.MaxWidth

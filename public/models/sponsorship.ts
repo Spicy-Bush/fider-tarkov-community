@@ -64,6 +64,8 @@ export interface PlacementAdConfig {
   emptyPolicy?: EmptyAdPolicy
   maxWidth?: number
   maxHeight?: number
+  /** native | frame from ad_placements.kind */
+  kind?: string
 }
 
 export interface CreativeVersion {
@@ -96,6 +98,8 @@ export const SPONSORSHIP_SLOT_SPECS: Record<
     frameClassName: string
     /** Fallback only when placement-config has not loaded; prefer DB catalog. */
     emptyPolicy?: EmptyAdPolicy
+    /** Fallback kind when catalog/props absent. Catalog ad_placements.kind is source of truth. */
+    kind?: "native" | "frame"
   }
 > = {
   feed_native: {
@@ -104,6 +108,7 @@ export const SPONSORSHIP_SLOT_SPECS: Record<
     imgClassName: "w-full h-full object-cover",
     frameClassName: "w-full aspect-video overflow-hidden rounded bg-surface-alt",
     emptyPolicy: "collapse",
+    kind: "native",
   },
   sidebar_top: {
     label: "Sidebar",
@@ -111,6 +116,7 @@ export const SPONSORSHIP_SLOT_SPECS: Record<
     imgClassName: "w-full h-auto block",
     frameClassName: "w-full overflow-hidden rounded bg-surface-alt",
     emptyPolicy: "collapse",
+    kind: "frame",
   },
   post_below_title: {
     label: "Below post title",
@@ -118,6 +124,7 @@ export const SPONSORSHIP_SLOT_SPECS: Record<
     imgClassName: "w-full h-full object-cover",
     frameClassName: "w-full aspect-[3/1] overflow-hidden rounded bg-surface-alt",
     emptyPolicy: "collapse",
+    kind: "frame",
   },
   pages_header: {
     label: "Pages header",
@@ -125,7 +132,46 @@ export const SPONSORSHIP_SLOT_SPECS: Record<
     imgClassName: "w-full h-full object-cover",
     frameClassName: "w-full aspect-[4/1] overflow-hidden rounded bg-surface-alt",
     emptyPolicy: "collapse",
+    kind: "frame",
   },
+}
+
+/** Optional catalog/props override for renderers (kind + dims). */
+export interface PlacementRenderMeta {
+  kind?: string
+  maxWidth?: number
+  maxHeight?: number
+  label?: string
+}
+
+export interface ResolvedPlacementRenderMeta {
+  kind: "native" | "frame"
+  label: string
+  imgClassName: string
+  frameClassName: string
+  maxWidth?: number
+  maxHeight?: number
+}
+
+/**
+ * Prefer live catalog/props; fall back to SPONSORSHIP_SLOT_SPECS (and feed_native id) for SSR safety.
+ * Placement.kind is the chosen model -- not CreativeVersionKind.
+ */
+export function resolvePlacementRenderMeta(
+  placementId: string,
+  override?: PlacementRenderMeta | null
+): ResolvedPlacementRenderMeta {
+  const spec = SPONSORSHIP_SLOT_SPECS[placementId] || SPONSORSHIP_SLOT_SPECS.sidebar_top
+  const rawKind = (override?.kind || spec.kind || (placementId === "feed_native" ? "native" : "frame")).toLowerCase()
+  const kind: "native" | "frame" = rawKind === "native" ? "native" : "frame"
+  return {
+    kind,
+    label: override?.label || spec.label || placementId,
+    imgClassName: spec.imgClassName,
+    frameClassName: spec.frameClassName,
+    maxWidth: override?.maxWidth,
+    maxHeight: override?.maxHeight,
+  }
 }
 
 export const FEED_AD_EVERY = 5

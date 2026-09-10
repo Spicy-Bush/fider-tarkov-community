@@ -168,4 +168,40 @@ describe("<AdSlot /> AdSense empty-placement fallback", () => {
     expect(container.textContent || "").not.toMatch(/Sponsored/)
   })
 
+
+  test("kind native (props) uses FeedNativeAd even when placementId is not feed_native", () => {
+    setClient("")
+    const ad: PublicAd = { ...houseAd, placementId: "sidebar_top", html: "<p>hi</p>" }
+    const { container } = render(
+      <AdSlot instanceId="x" placementId="sidebar_top" ad={ad} placement={{ kind: "native" }} />
+    )
+    expect(container.querySelector('[data-ad-kind="native"]')).not.toBeNull()
+    expect(container.querySelector('[data-ad-kind="frame"]')).toBeNull()
+  })
+
+  test("house frame shows image and html together when both set", () => {
+    setClient("")
+    const ad: PublicAd = {
+      ...houseAd,
+      imageUrl: "https://example.com/ad.png",
+      html: "<p>extra</p>",
+    }
+    const { container } = render(
+      <AdSlot instanceId="sidebar" placementId="sidebar_top" ad={ad} />
+    )
+    expect(container.querySelector("img")?.getAttribute("src")).toBe("https://example.com/ad.png")
+    expect(container.querySelector("iframe")).not.toBeNull()
+    expect(container.querySelector("a")?.getAttribute("href")).toBe("/ads/click/7?v=3")
+  })
+
+  test("empty advertiser renders null (no bare Sponsored)", () => {
+    setClient("")
+    const ad: PublicAd = { ...houseAd, advertiser: "  " }
+    const { container } = render(
+      <AdSlot instanceId="sidebar" placementId="sidebar_top" ad={ad} />
+    )
+    expect(container.innerHTML).toBe("")
+  })
+
+
 })
