@@ -1,5 +1,5 @@
 import React from "react"
-import { PublicSponsorshipCampaign } from "@fider/models"
+import { PublicSponsorshipCampaign, SPONSORSHIP_SLOT_SPECS } from "@fider/models"
 import { HStack, VStack } from "@fider/components/layout"
 
 interface FeedNativeAdProps {
@@ -9,13 +9,14 @@ interface FeedNativeAdProps {
 
 /** Post-like native feed creative (Zaddish). */
 export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ campaign, className }) => {
+  const spec = SPONSORSHIP_SLOT_SPECS.feed_native
   const hasImage = Boolean(campaign.creativeImageUrl)
   const hasHtml = Boolean(campaign.creativeHtml)
 
   return (
     <a
       href={campaign.clickPath}
-      className={`block no-underline text-inherit ${className || ""}`}
+      className={lock no-underline text-inherit }
       rel="sponsored noopener"
       target="_blank"
     >
@@ -25,7 +26,14 @@ export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ campaign, className 
           <div className="text-[10px] uppercase tracking-wide text-muted">Sponsored</div>
           <div className="text-lg font-medium text-primary wrap-anywhere">{campaign.name}</div>
           {hasImage && (
-            <img src={campaign.creativeImageUrl!} alt="" className="max-w-full h-auto rounded" />
+            <div className={spec.frameClassName}>
+              <img
+                src={campaign.creativeImageUrl!}
+                alt=""
+                className={spec.imgClassName}
+                loading="lazy"
+              />
+            </div>
           )}
           {hasHtml && (
             <div className="text-muted text-sm sponsorship-html" dangerouslySetInnerHTML={{ __html: campaign.creativeHtml! }} />
