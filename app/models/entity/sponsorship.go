@@ -18,12 +18,14 @@ type SponsorshipPackage struct {
 }
 
 // SponsorshipCampaign is a scheduled house ad for one or more slots.
+// Name is internal (billing/reference). Advertiser is the public company label for disclosure.
 // Slots is a comma-separated list (e.g. "feed_native,sidebar_top").
 // CreativeImageURLs maps slot_id → image URL (optional per placement).
 // CreativeImageURL is the legacy single-image fallback when a slot key is missing.
 type SponsorshipCampaign struct {
 	ID                int               `json:"id" db:"id"`
 	Name              string            `json:"name" db:"name"`
+	Advertiser        string            `json:"advertiser" db:"advertiser"`
 	Slots             string            `json:"slots" db:"slots"`
 	CreativeImageURL  string            `json:"creativeImageUrl" db:"creative_image_url"`
 	CreativeImageURLs map[string]string `json:"creativeImageUrls,omitempty"`
@@ -55,10 +57,11 @@ func (c *SponsorshipCampaign) ImageURLForSlot(slotID string) string {
 }
 
 // PublicSponsorshipCampaign is the safe public payload for rendering a slot.
+// Advertiser is the public company label (never internal campaign name).
 // CreativeImageURL is already resolved for SlotID (per-slot map or legacy fallback).
 type PublicSponsorshipCampaign struct {
 	ID               int    `json:"id"`
-	Name             string `json:"name"`
+	Advertiser       string `json:"advertiser"`
 	SlotID           string `json:"slotId"`
 	CreativeImageURL string `json:"creativeImageUrl,omitempty"`
 	CreativeHTML     string `json:"creativeHtml,omitempty"`

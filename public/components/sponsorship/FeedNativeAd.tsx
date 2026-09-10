@@ -7,11 +7,13 @@ interface FeedNativeAdProps {
   className?: string
 }
 
-/** Post-like native feed creative (Zaddish). */
+/** Post-like native feed creative (Zaddish). Visible Sponsored · advertiser disclosure outside creative. */
 export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ campaign, className }) => {
   const spec = SPONSORSHIP_SLOT_SPECS.feed_native
   const hasImage = Boolean(campaign.creativeImageUrl)
   const hasHtml = Boolean(campaign.creativeHtml)
+  const advertiser = (campaign.advertiser || "").trim()
+  const disclosure = advertiser ? `Sponsored · ${advertiser}` : "Sponsored"
   const rootClassName = ["block", "no-underline", "text-inherit", className].filter(Boolean).join(" ")
 
   return (
@@ -20,12 +22,13 @@ export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ campaign, className 
       className={rootClassName}
       rel="sponsored noopener"
       target="_blank"
+      aria-label={disclosure}
     >
       <HStack spacing={4} align="start" className="min-w-0 opacity-95">
         <div className="shrink-0 w-10 text-center text-[10px] uppercase text-muted leading-tight pt-1">Ad</div>
         <VStack className="flex-1 min-w-0" spacing={2}>
-          <div className="text-[10px] uppercase tracking-wide text-muted">Sponsored</div>
-          <div className="text-lg font-medium text-primary wrap-anywhere">{campaign.name}</div>
+          <div className="text-[10px] uppercase tracking-wide text-muted">{disclosure}</div>
+          <div className="text-lg font-medium text-primary wrap-anywhere">{advertiser}</div>
           {hasImage && (
             <div className={spec.frameClassName}>
               <img

@@ -33,6 +33,7 @@ type DeleteSponsorshipPackage struct {
 
 type CreateSponsorshipCampaign struct {
 	Name              string
+	Advertiser        string
 	Slots             string
 	CreativeImageURL  string
 	CreativeImageURLs map[string]string
@@ -50,6 +51,7 @@ type CreateSponsorshipCampaign struct {
 type UpdateSponsorshipCampaign struct {
 	ID                int
 	Name              string
+	Advertiser        string
 	Slots             string
 	CreativeImageURL  string
 	CreativeImageURLs map[string]string

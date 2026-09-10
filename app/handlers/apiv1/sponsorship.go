@@ -107,7 +107,7 @@ func CreateSponsorshipCampaign() web.HandlerFunc {
 		}
 		return c.WithTransaction(func() error {
 			create := &cmd.CreateSponsorshipCampaign{
-				Name: action.Name, Slots: action.Slots,
+				Name: action.Name, Advertiser: action.Advertiser, Slots: action.Slots,
 				CreativeImageURL: action.CreativeImageURL, CreativeImageURLs: action.CreativeImageURLs,
 				CreativeHTML: action.CreativeHTML,
 				ClickURL:     action.ClickURL, StartAt: action.StartAt.UTC(), EndAt: action.EndAt.UTC(),
@@ -138,7 +138,7 @@ func UpdateSponsorshipCampaign() web.HandlerFunc {
 		}
 		return c.WithTransaction(func() error {
 			update := &cmd.UpdateSponsorshipCampaign{
-				ID: id, Name: action.Name, Slots: action.Slots,
+				ID: id, Name: action.Name, Advertiser: action.Advertiser, Slots: action.Slots,
 				CreativeImageURL: action.CreativeImageURL, CreativeImageURLs: action.CreativeImageURLs,
 				CreativeHTML: action.CreativeHTML,
 				ClickURL:     action.ClickURL, StartAt: action.StartAt.UTC(), EndAt: action.EndAt.UTC(),
@@ -170,7 +170,7 @@ func DeleteSponsorshipCampaign() web.HandlerFunc {
 
 func publicCampaign(slot string, camp *entity.SponsorshipCampaign) entity.PublicSponsorshipCampaign {
 	return entity.PublicSponsorshipCampaign{
-		ID: camp.ID, Name: camp.Name, SlotID: slot,
+		ID: camp.ID, Advertiser: camp.Advertiser, SlotID: slot,
 		CreativeImageURL: camp.ImageURLForSlot(slot), CreativeHTML: camp.CreativeHTML,
 		ClickPath: fmt.Sprintf("/ads/click/%d", camp.ID),
 	}

@@ -94,6 +94,7 @@ func deleteSponsorshipPackage(ctx context.Context, c *cmd.DeleteSponsorshipPacka
 type dbCampaign struct {
 	ID                   int           `db:"id"`
 	Name                 string        `db:"name"`
+	Advertiser           string        `db:"advertiser"`
 	Slots                string        `db:"slots"`
 	CreativeImageURL     string        `db:"creative_image_url"`
 	CreativeImageURLsRaw string        `db:"creative_image_urls"`
@@ -144,7 +145,7 @@ func marshalCreativeImageURLs(m map[string]string) (string, error) {
 
 func (r *dbCampaign) toModel() *entity.SponsorshipCampaign {
 	c := &entity.SponsorshipCampaign{
-		ID: r.ID, Name: r.Name, Slots: r.Slots,
+		ID: r.ID, Name: r.Name, Advertiser: r.Advertiser, Slots: r.Slots,
 		CreativeImageURL:  r.CreativeImageURL,
 		CreativeImageURLs: parseCreativeImageURLs(r.CreativeImageURLsRaw),
 		CreativeHTML:      r.CreativeHTML,
@@ -160,7 +161,7 @@ func (r *dbCampaign) toModel() *entity.SponsorshipCampaign {
 }
 
 const campaignSelect = `
-	SELECT id, name, slots, creative_image_url, creative_image_urls, creative_html, click_url,
+	SELECT id, name, advertiser, slots, creative_image_url, creative_image_urls, creative_html, click_url,
 	       start_at, end_at, weight, locale, enabled, clicks, package_id, created_at, updated_at
 	FROM sponsorship_campaigns`
 
@@ -203,16 +204,16 @@ func createSponsorshipCampaign(ctx context.Context, c *cmd.CreateSponsorshipCamp
 		}
 		err = trx.Get(&id, `
 			INSERT INTO sponsorship_campaigns (
-				tenant_id, name, slots, creative_image_url, creative_image_urls, creative_html, click_url,
+				tenant_id, name, advertiser, slots, creative_image_url, creative_image_urls, creative_html, click_url,
 				start_at, end_at, weight, locale, enabled, clicks, package_id, created_at, updated_at
-			) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,0,$13,$14,$14) RETURNING id`,
-			tenant.ID, c.Name, c.Slots, c.CreativeImageURL, urlsJSON, c.CreativeHTML, c.ClickURL,
+			) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,0,$14,$15,$15) RETURNING id`,
+			tenant.ID, c.Name, c.Advertiser, c.Slots, c.CreativeImageURL, urlsJSON, c.CreativeHTML, c.ClickURL,
 			start, end, c.Weight, c.Locale, c.Enabled, c.PackageID, now)
 		if err != nil {
 			return errors.Wrap(err, "failed to create sponsorship campaign")
 		}
 		c.Result = &entity.SponsorshipCampaign{
-			ID: id, Name: c.Name, Slots: c.Slots,
+			ID: id, Name: c.Name, Advertiser: c.Advertiser, Slots: c.Slots,
 			CreativeImageURL: c.CreativeImageURL, CreativeImageURLs: parseCreativeImageURLs(urlsJSON),
 			CreativeHTML: c.CreativeHTML,
 			ClickURL:     c.ClickURL, StartAt: start, EndAt: end,
@@ -234,16 +235,16 @@ func updateSponsorshipCampaign(ctx context.Context, c *cmd.UpdateSponsorshipCamp
 		}
 		_, err = trx.Execute(`
 			UPDATE sponsorship_campaigns SET
-				name=$1, slots=$2, creative_image_url=$3, creative_image_urls=$4::jsonb, creative_html=$5, click_url=$6,
-				start_at=$7, end_at=$8, weight=$9, locale=$10, enabled=$11, package_id=$12, updated_at=$13
-			WHERE id=$14 AND tenant_id=$15`,
-			c.Name, c.Slots, c.CreativeImageURL, urlsJSON, c.CreativeHTML, c.ClickURL,
+				name=$1, advertiser=$2, slots=$3, creative_image_url=$4, creative_image_urls=$5::jsonb, creative_html=$6, click_url=$7,
+				start_at=$8, end_at=$9, weight=$10, locale=$11, enabled=$12, package_id=$13, updated_at=$14
+			WHERE id=$15 AND tenant_id=$16`,
+			c.Name, c.Advertiser, c.Slots, c.CreativeImageURL, urlsJSON, c.CreativeHTML, c.ClickURL,
 			start, end, c.Weight, c.Locale, c.Enabled, c.PackageID, now, c.ID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to update sponsorship campaign")
 		}
 		c.Result = &entity.SponsorshipCampaign{
-			ID: c.ID, Name: c.Name, Slots: c.Slots,
+			ID: c.ID, Name: c.Name, Advertiser: c.Advertiser, Slots: c.Slots,
 			CreativeImageURL: c.CreativeImageURL, CreativeImageURLs: parseCreativeImageURLs(urlsJSON),
 			CreativeHTML: c.CreativeHTML,
 			ClickURL:     c.ClickURL, StartAt: start, EndAt: end,
