@@ -13,6 +13,7 @@ const houseAd: PublicAd = {
   advertiser: "Acme Corp",
   placementId: "sidebar_top",
   creativeVersionId: 3,
+  kind: "image",
   imageUrl: "https://example.com/ad.png",
   html: "",
   clickPath: "/ads/click/7?v=3",
@@ -151,4 +152,21 @@ describe("<AdSlot /> AdSense empty-placement fallback", () => {
 
     expect(container.querySelector("ins.adsbygoogle")).toBeNull()
   })
+
+  test("AdSense unit never renders bare Sponsored disclosure (#38/#39)", () => {
+    setClient("ca-pub-test")
+    __setPlacementAdConfigCacheForTests({
+      sidebar_top: { adsenseSlotId: "999001", adsenseFormat: "auto", emptyPolicy: "collapse" },
+    })
+
+    const { container } = render(
+      <AdSlot instanceId="sidebar" placementId="sidebar_top" ad={null} />
+    )
+
+    expect(container.querySelector('[data-ad-network="adsense"]')).not.toBeNull()
+    expect(container.querySelector("ins.adsbygoogle")).not.toBeNull()
+    // Must not claim TC Sponsored without an advertiser name (Google has its own labeling).
+    expect(container.textContent || "").not.toMatch(/Sponsored/)
+  })
+
 })

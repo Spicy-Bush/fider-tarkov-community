@@ -373,3 +373,43 @@ func SaveCampaignGraph() web.HandlerFunc {
 		})
 	}
 }
+
+type updateAdPlacementRequest struct {
+	AdSenseSlotID string `json:"adsenseSlotId"`
+	AdSenseFormat string `json:"adsenseFormat"`
+	EmptyPolicy   string `json:"emptyPolicy"`
+}
+
+// UpdateAdPlacement patches AdSense slot/format/empty_policy on a catalog placement (collab/admin).
+// Does not hardcode publisher or slot ids — ops supply slot ids after AdSense unit creation.
+func UpdateAdPlacement() web.HandlerFunc {
+	return func(c *web.Context) error {
+		id := strings.TrimSpace(c.Param("id"))
+		if id == "" {
+			return c.BadRequest(web.Map{"message": "Invalid placement ID"})
+		}
+		req := updateAdPlacementRequest{}
+		if err := c.Bind(&req); err != nil {
+			return c.BadRequest(web.Map{"message": "Invalid request body"})
+		}
+		policy := strings.TrimSpace(req.EmptyPolicy)
+		if policy == "" {
+			policy = "collapse"
+		}
+		if policy != "collapse" && policy != "reserve" {
+			return c.BadRequest(web.Map{"message": "emptyPolicy must be collapse or reserve"})
+		}
+		return c.WithTransaction(func() error {
+			update := &cmd.UpdateAdPlacement{
+				ID:            id,
+				AdSenseSlotID: strings.TrimSpace(req.AdSenseSlotID),
+				AdSenseFormat: strings.TrimSpace(req.AdSenseFormat),
+				EmptyPolicy:   policy,
+			}
+			if err := bus.Dispatch(c, update); err != nil {
+				return c.Failure(err)
+			}
+			return c.Ok(update.Result)
+		})
+	}
+}

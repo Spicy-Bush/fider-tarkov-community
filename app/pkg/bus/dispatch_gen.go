@@ -109,6 +109,7 @@ var cUnassignReportHandler func(context.Context, *cmd.UnassignReport) error
 var cUnassignTagHandler func(context.Context, *cmd.UnassignTag) error
 var cUnblockUserHandler func(context.Context, *cmd.UnblockUser) error
 var cUnlockPostHandler func(context.Context, *cmd.UnlockPost) error
+var cUpdateAdPlacementHandler func(context.Context, *cmd.UpdateAdPlacement) error
 var cUpdateCannedResponseHandler func(context.Context, *cmd.UpdateCannedResponse) error
 var cUpdateCommentHandler func(context.Context, *cmd.UpdateComment) error
 var cUpdateContentSettingsHandler func(context.Context, *cmd.UpdateContentSettings) error
@@ -449,6 +450,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cUnblockUserHandler = fn
 	case func(context.Context, *cmd.UnlockPost) error:
 		cUnlockPostHandler = fn
+	case func(context.Context, *cmd.UpdateAdPlacement) error:
+		cUpdateAdPlacementHandler = fn
 	case func(context.Context, *cmd.UpdateCannedResponse) error:
 		cUpdateCannedResponseHandler = fn
 	case func(context.Context, *cmd.UpdateComment) error:
@@ -1216,6 +1219,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.UnlockPost")
 		}
 		return cUnlockPostHandler(ctx, m)
+	case *cmd.UpdateAdPlacement:
+		if cUpdateAdPlacementHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.UpdateAdPlacement")
+		}
+		return cUpdateAdPlacementHandler(ctx, m)
 	case *cmd.UpdateCannedResponse:
 		if cUpdateCannedResponseHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.UpdateCannedResponse")

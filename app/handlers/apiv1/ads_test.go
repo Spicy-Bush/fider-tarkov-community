@@ -265,3 +265,46 @@ func TestCreateSponsorshipCampaign_WithVersionAssignments_RealJSON(t *testing.T)
 	Expect(resp.Body.String()).ContainsSubstring(`"feed_native"`)
 	Expect(resp.Body.String()).ContainsSubstring(`"campaign"`)
 }
+
+func TestUpdateAdPlacement_PatchesFields(t *testing.T) {
+	RegisterT(t)
+	bus.AddHandler(func(ctx context.Context, c *cmd.UpdateAdPlacement) error {
+		c.Result = &entity.AdPlacement{
+			ID:            c.ID,
+			Name:          "Sidebar",
+			Enabled:       true,
+			AdSenseSlotID: c.AdSenseSlotID,
+			AdSenseFormat: c.AdSenseFormat,
+			EmptyPolicy:   c.EmptyPolicy,
+		}
+		return nil
+	})
+
+	server := mock.NewServer()
+	status, resp := server.
+		OnTenant(mock.DemoTenant).
+		AsUser(mock.JonSnow).
+		AddParam("id", "sidebar_top").
+		ExecutePost(
+			apiv1.UpdateAdPlacement(),
+			`{"adsenseSlotId":"999001","adsenseFormat":"rectangle","emptyPolicy":"reserve"}`,
+		)
+	Expect(status).Equals(http.StatusOK)
+	Expect(resp.Body.String()).ContainsSubstring(`"adsenseSlotId":"999001"`)
+	Expect(resp.Body.String()).ContainsSubstring(`"emptyPolicy":"reserve"`)
+}
+
+func TestUpdateAdPlacement_RejectsBadPolicy(t *testing.T) {
+	RegisterT(t)
+	server := mock.NewServer()
+	status, _ := server.
+		OnTenant(mock.DemoTenant).
+		AsUser(mock.JonSnow).
+		AddParam("id", "sidebar_top").
+		ExecutePost(
+			apiv1.UpdateAdPlacement(),
+			`{"adsenseSlotId":"1","adsenseFormat":"auto","emptyPolicy":"nope"}`,
+		)
+	Expect(status).Equals(http.StatusBadRequest)
+}
+

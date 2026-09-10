@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"strings"
 	"database/sql"
 	"time"
 
@@ -343,6 +344,39 @@ func listCampaignAssignmentsByCampaign(ctx context.Context, q *query.ListCampaig
 				CreativeVersionID: r.CreativeVersionID,
 			}
 		}
+		return nil
+	})
+}
+
+func updateAdPlacement(ctx context.Context, c *cmd.UpdateAdPlacement) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		policy := strings.TrimSpace(c.EmptyPolicy)
+		if policy == "" {
+			policy = "collapse"
+		}
+		if policy != "collapse" && policy != "reserve" {
+			return errors.New("empty_policy must be collapse or reserve")
+		}
+		slotID := strings.TrimSpace(c.AdSenseSlotID)
+		format := strings.TrimSpace(c.AdSenseFormat)
+
+		var row dbAdPlacement
+		err := trx.Get(&row, `
+			UPDATE ad_placements
+			SET adsense_slot_id = $2,
+			    adsense_format = $3,
+			    empty_policy = $4
+			WHERE id = $1
+			RETURNING id, name, description, kind, max_width, max_height, sort, enabled,
+			          adsense_slot_id, adsense_format, empty_policy`,
+			c.ID, slotID, format, policy)
+		if err != nil {
+			if errors.Cause(err) == app.ErrNotFound {
+				return app.ErrNotFound
+			}
+			return errors.Wrap(err, "failed to update ad placement")
+		}
+		c.Result = row.toModel()
 		return nil
 	})
 }

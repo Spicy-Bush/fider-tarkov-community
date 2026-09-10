@@ -12,6 +12,8 @@ import {
   SPONSORSHIP_SLOT_SPECS,
   deriveCampaignStatus,
   CampaignDerivedStatus,
+  creativeKindFromSurfaces,
+  CreativeVersionKind,
 } from "@fider/models"
 import { actions, Failure, notify } from "@fider/services"
 import { AdSlot } from "@fider/components/sponsorship"
@@ -34,7 +36,7 @@ interface ManageSponsorshipPageProps {
   placements?: AdPlacement[]
 }
 
-type Tab = "campaigns" | "packages"
+type Tab = "campaigns" | "packages" | "placements"
 
 const emptyPkg = () => ({
   slug: "",
@@ -105,11 +107,12 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
         sort: 0,
         enabled: true,
       }))
-  const slots = placementCatalog.filter((p) => p.enabled).map((p) => p.id)
-
   const [tab, setTab] = useState<Tab>("campaigns")
   const [packages, setPackages] = useState<SponsorshipPackage[]>(props.packages || [])
+  const [placements, setPlacements] = useState<AdPlacement[]>(placementCatalog)
   const [campaigns, setCampaigns] = useState<SponsorshipCampaign[]>(props.campaigns || [])
+  const slots = placements.filter((p) => p.enabled).map((p) => p.id)
+
   const [pkgForm, setPkgForm] = useState(emptyPkg())
   const [editingPkgId, setEditingPkgId] = useState<number | null>(null)
   const [campForm, setCampForm] = useState(emptyCamp())
@@ -119,7 +122,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
 
   const [versions, setVersions] = useState<CreativeVersion[]>([])
   const [assignments, setAssignments] = useState<CampaignAssignment[]>([])
-  const [versionForm, setVersionForm] = useState({ imageUrl: "", html: "", clickUrl: "https://" })
+  const [versionForm, setVersionForm] = useState<{ imageUrl: string; html: string; clickUrl: string; kind: CreativeVersionKind }>({ imageUrl: "", html: "", clickUrl: "https://", kind: "image" })
   const [assignPlacementId, setAssignPlacementId] = useState("")
   const [assignVersionId, setAssignVersionId] = useState<number | "">("")
   const [assignmentsDirty, setAssignmentsDirty] = useState(false)
@@ -165,11 +168,13 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     const html = (versionForm.html || "").trim()
     const clickUrl = (versionForm.clickUrl || "").trim()
     if (!imageUrl && !html) return null
+    const kind = creativeKindFromSurfaces(imageUrl, html) || versionForm.kind
     return {
       campaignId: editingCampId || 0,
       advertiser,
       placementId: assignPlacementId || slots[0] || "sidebar_top",
       creativeVersionId: 0,
+      kind,
       imageUrl,
       html,
       clickPath: clickUrl || "#",
@@ -308,7 +313,9 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       /^https?:\/\//i.test(clickUrl) &&
       (!!(versionForm.imageUrl || "").trim() || !!(versionForm.html || "").trim())
     if (hasDraftVersion && assignments.length > 0) {
+      const kind = creativeKindFromSurfaces(versionForm.imageUrl, versionForm.html) || versionForm.kind
       body.version = {
+        kind,
         imageUrl: versionForm.imageUrl.trim(),
         html: versionForm.html.trim(),
         clickUrl,
@@ -331,7 +338,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
           setVersions(result.data.versions || [])
           setAssignments(result.data.assignments || [])
           setAssignmentsDirty(false)
-          setVersionForm({ imageUrl: "", html: "", clickUrl: "https://" })
+          setVersionForm({ imageUrl: "", html: "", clickUrl: "https://", kind: "image" })
           notify.success("Campaign created with assignments")
         } else {
           const camp = result.data as SponsorshipCampaign
@@ -403,7 +410,13 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       return
     }
     setBusy(true)
+    const kind = creativeKindFromSurfaces(versionForm.imageUrl, versionForm.html)
+    if (!kind) {
+      notify.error("Provide imageUrl and/or html and set kind")
+      return
+    }
     const result = await actions.createCreativeVersion(editingCampId, {
+      kind,
       imageUrl: versionForm.imageUrl.trim(),
       html: versionForm.html.trim(),
       clickUrl,
@@ -413,7 +426,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     if (result.ok) {
       try {
         const cfg = requireConfigVersion(result.data.configVersion)
-        setVersionForm({ imageUrl: "", html: "", clickUrl: "https://" })
+        setVersionForm({ imageUrl: "", html: "", clickUrl: "https://", kind: "image" })
         setCampForm((prev) => ({ ...prev, configVersion: cfg }))
         if (result.data.version) {
           setVersions((prev) => {
@@ -470,6 +483,25 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     notify.success("Assignment removed from draft - click Save campaign to persist")
   }
 
+
+  const savePlacement = async (p: AdPlacement) => {
+    setBusy(true)
+    setError(undefined)
+    const result = await actions.updateAdPlacement(p.id, {
+      adsenseSlotId: p.adsenseSlotId || "",
+      adsenseFormat: p.adsenseFormat || "",
+      emptyPolicy: p.emptyPolicy === "reserve" ? "reserve" : "collapse",
+    })
+    setBusy(false)
+    if (result.ok && result.data) {
+      setPlacements((prev) => prev.map((row) => (row.id === result.data!.id ? result.data! : row)))
+      notify.success(`Placement ${p.id} saved`)
+    } else {
+      setError(result.error)
+      notify.error("Could not save placement")
+    }
+  }
+
   const versionById = (id: number) => versions.find((v) => v.id === id)
 
   return (
@@ -481,17 +513,20 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
         <Button variant={tab === "packages" ? "primary" : "tertiary"} onClick={() => setTab("packages")}>
           Packages
         </Button>
+        <Button variant={tab === "placements" ? "primary" : "tertiary"} onClick={() => setTab("placements")}>
+          Placements
+        </Button>
       </HStack>
 
       {tab === "packages" && (
         <VStack spacing={4}>
-          <p className="text-muted text-sm">Packages on /advertise. Slot CSV is advisory marketing against the placement catalog.</p>
+          <p className="text-muted text-sm">Packages on /advertise. Slot CSV is marketing-only (advisory placement ids). Selection never parses package slots.</p>
           <Form error={error}>
             <Input field="slug" label="Slug" value={pkgForm.slug} onChange={(v) => setPkgForm({ ...pkgForm, slug: v })} />
             <Input field="name" label="Name" value={pkgForm.name} onChange={(v) => setPkgForm({ ...pkgForm, name: v })} />
             <TextArea field="description" label="Description" value={pkgForm.description} onChange={(v) => setPkgForm({ ...pkgForm, description: v })} />
-            <Input field="slots" label="Slots (comma-separated placement ids)" value={pkgForm.slots} onChange={(v) => setPkgForm({ ...pkgForm, slots: v })} />
-            <p className="text-xs text-muted -mt-2 mb-1">Known: {slots.join(", ")}</p>
+            <Input field="slots" label="Slots CSV (marketing only)" value={pkgForm.slots} onChange={(v) => setPkgForm({ ...pkgForm, slots: v })} />
+            <p className="text-xs text-muted -mt-2 mb-1">Advisory vs catalog: {slots.join(", ")}. Not used for live ad selection.</p>
             <Input field="durationDays" label="Duration days" value={String(pkgForm.durationDays)} onChange={(v) => setPkgForm({ ...pkgForm, durationDays: Number(v) || 0 })} />
             <Input field="sort" label="Sort" value={String(pkgForm.sort)} onChange={(v) => setPkgForm({ ...pkgForm, sort: Number(v) || 0 })} />
             <HStack spacing={2}>
@@ -568,8 +603,29 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               </p>
 
               <div className="text-sm font-medium">Create version</div>
-              <Input field="ver.imageUrl" label="Image URL" value={versionForm.imageUrl} onChange={(v) => setVersionForm({ ...versionForm, imageUrl: v })} />
-              <TextArea field="ver.html" label="HTML (sandboxed iframe - never innerHTML)" value={versionForm.html} onChange={(v) => setVersionForm({ ...versionForm, html: v })} />
+              <Input field="ver.imageUrl" label="Image URL" value={versionForm.imageUrl} onChange={(v) => {
+                const imageUrl = v
+                const kind = creativeKindFromSurfaces(imageUrl, versionForm.html) || versionForm.kind
+                setVersionForm({ ...versionForm, imageUrl, kind })
+              }} />
+              <TextArea field="ver.html" label="HTML (sandboxed iframe - never innerHTML)" value={versionForm.html} onChange={(v) => {
+                const html = v
+                const kind = creativeKindFromSurfaces(versionForm.imageUrl, html) || versionForm.kind
+                setVersionForm({ ...versionForm, html, kind })
+              }} />
+              <label className="block text-sm mb-4">
+                Kind (explicit)
+                <select
+                  className="block mt-1 border border-border rounded px-2 py-1"
+                  value={versionForm.kind}
+                  onChange={(e) => setVersionForm({ ...versionForm, kind: e.target.value as CreativeVersionKind })}
+                >
+                  <option value="image">image</option>
+                  <option value="html">html</option>
+                  <option value="image+html">image+html</option>
+                </select>
+              </label>
+              <p className="text-xs text-muted -mt-3 mb-2">Derived from surfaces when possible; must match image/html payloads.</p>
               <Input field="ver.clickUrl" label="Click URL" value={versionForm.clickUrl} onChange={(v) => setVersionForm({ ...versionForm, clickUrl: v })} />
               <Button variant="primary" onClick={createVersion} disabled={busy}>
                 Create immutable version
@@ -586,7 +642,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               <VStack spacing={1} divide>
                 {versions.map((v) => (
                   <div key={v.id} className="text-sm py-1">
-                    <strong>v{v.versionNo}</strong> (id {v.id}) | img={v.imageUrl ? "yes" : "no"} | html={v.html ? "yes" : "no"} | {v.clickUrl}
+                    <strong>v{v.versionNo}</strong> (id {v.id}) | kind={v.kind} | img={v.imageUrl ? "yes" : "no"} | html={v.html ? "yes" : "no"} | {v.clickUrl}
                   </div>
                 ))}
                 {versions.length === 0 && <p className="text-muted text-sm">No versions yet - create one above, then assign placements.</p>}

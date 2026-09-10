@@ -90,6 +90,13 @@ export const listAdPlacements = (): Promise<Result<AdPlacement[]>> => {
   return http.get<AdPlacement[]>("/api/v1/ads/placements")
 }
 
+export const updateAdPlacement = (
+  id: string,
+  body: { adsenseSlotId?: string; adsenseFormat?: string; emptyPolicy?: "collapse" | "reserve" }
+): Promise<Result<AdPlacement>> => {
+  return http.put<AdPlacement>(`/api/v1/ads/placements/${encodeURIComponent(id)}`, body)
+}
+
 export const listCreativeVersions = (campaignId: number): Promise<Result<CreativeVersion[]>> => {
   return http.get<CreativeVersion[]>(`/api/v1/sponsorship/campaigns/${campaignId}/versions`)
 }
@@ -101,7 +108,7 @@ export type CreateCreativeVersionResult = {
 
 export const createCreativeVersion = (
   campaignId: number,
-  body: { imageUrl: string; html: string; clickUrl: string; configVersion: number }
+  body: { kind: string; imageUrl: string; html: string; clickUrl: string; configVersion: number }
 ): Promise<Result<CreateCreativeVersionResult>> => {
   return http.post<CreateCreativeVersionResult>(`/api/v1/sponsorship/campaigns/${campaignId}/versions`, body)
 }

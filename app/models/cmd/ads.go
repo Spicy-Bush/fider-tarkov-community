@@ -42,3 +42,13 @@ type SaveSponsorshipCampaignGraph struct {
 	Result            *entity.SponsorshipCampaign
 	AssignmentResults []*entity.CampaignAssignment
 }
+
+// UpdateAdPlacement patches AdSense / empty-policy fields on a catalog row (global).
+// Slot IDs are never hardcoded; ops set them via this command / admin UI / API.
+type UpdateAdPlacement struct {
+	ID            string
+	AdSenseSlotID string
+	AdSenseFormat string
+	EmptyPolicy   string // collapse | reserve
+	Result        *entity.AdPlacement
+}

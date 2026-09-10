@@ -13,6 +13,7 @@ export interface AdSenseSlotProps {
 /**
  * Presentational Google AdSense unit. Clicks stay with Google (no /ads/click).
  * Script tag is boot-injected from GOOGLE_ADSENSE; this only pushes adsbygoogle once per mount.
+ * No TC "Sponsored" disclosure — Google provides its own labeling; bare Sponsored is #38/#39.
  */
 export const AdSenseSlot: React.FC<AdSenseSlotProps> = ({
   client,
@@ -51,7 +52,6 @@ export const AdSenseSlot: React.FC<AdSenseSlotProps> = ({
       data-ad-placement={placementId}
       data-ad-network="adsense"
     >
-      <div className="text-[10px] uppercase tracking-wide text-muted mb-1">Sponsored</div>
       <div className={frameClassName}>
         <ins
           className="adsbygoogle"

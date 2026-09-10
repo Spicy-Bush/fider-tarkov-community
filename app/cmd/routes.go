@@ -320,6 +320,7 @@ func routes(r *web.Engine) *web.Engine {
 		collabAdmin.Put("/api/v1/sponsorship/campaigns/:id/graph", apiv1.SaveCampaignGraph())
 		collabAdmin.Delete("/api/v1/sponsorship/campaigns/:id", apiv1.DeleteSponsorshipCampaign())
 		collabAdmin.Get("/api/v1/ads/placements", apiv1.ListAdPlacements())
+		collabAdmin.Put("/api/v1/ads/placements/:id", apiv1.UpdateAdPlacement())
 		collabAdmin.Get("/api/v1/sponsorship/campaigns/:id/versions", apiv1.ListCreativeVersions())
 		collabAdmin.Post("/api/v1/sponsorship/campaigns/:id/versions", apiv1.CreateCreativeVersion())
 		collabAdmin.Get("/api/v1/sponsorship/campaigns/:id/assignments", apiv1.ListCampaignAssignments())
