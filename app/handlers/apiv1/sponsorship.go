@@ -108,8 +108,9 @@ func CreateSponsorshipCampaign() web.HandlerFunc {
 		return c.WithTransaction(func() error {
 			create := &cmd.CreateSponsorshipCampaign{
 				Name: action.Name, Slots: action.Slots,
-				CreativeImageURL: action.CreativeImageURL, CreativeHTML: action.CreativeHTML,
-				ClickURL: action.ClickURL, StartAt: action.StartAt.UTC(), EndAt: action.EndAt.UTC(),
+				CreativeImageURL: action.CreativeImageURL, CreativeImageURLs: action.CreativeImageURLs,
+				CreativeHTML: action.CreativeHTML,
+				ClickURL:     action.ClickURL, StartAt: action.StartAt.UTC(), EndAt: action.EndAt.UTC(),
 				Weight: action.Weight, Locale: action.Locale, Enabled: action.Enabled,
 				PackageID: action.PackageID,
 			}
@@ -138,8 +139,9 @@ func UpdateSponsorshipCampaign() web.HandlerFunc {
 		return c.WithTransaction(func() error {
 			update := &cmd.UpdateSponsorshipCampaign{
 				ID: id, Name: action.Name, Slots: action.Slots,
-				CreativeImageURL: action.CreativeImageURL, CreativeHTML: action.CreativeHTML,
-				ClickURL: action.ClickURL, StartAt: action.StartAt.UTC(), EndAt: action.EndAt.UTC(),
+				CreativeImageURL: action.CreativeImageURL, CreativeImageURLs: action.CreativeImageURLs,
+				CreativeHTML: action.CreativeHTML,
+				ClickURL:     action.ClickURL, StartAt: action.StartAt.UTC(), EndAt: action.EndAt.UTC(),
 				Weight: action.Weight, Locale: action.Locale, Enabled: action.Enabled,
 				PackageID: action.PackageID,
 			}
@@ -169,14 +171,15 @@ func DeleteSponsorshipCampaign() web.HandlerFunc {
 func publicCampaign(slot string, camp *entity.SponsorshipCampaign) entity.PublicSponsorshipCampaign {
 	return entity.PublicSponsorshipCampaign{
 		ID: camp.ID, Name: camp.Name, SlotID: slot,
-		CreativeImageURL: camp.CreativeImageURL, CreativeHTML: camp.CreativeHTML,
+		CreativeImageURL: camp.ImageURLForSlot(slot), CreativeHTML: camp.CreativeHTML,
 		ClickPath: fmt.Sprintf("/ads/click/%d", camp.ID),
 	}
 }
 
 // GetActiveSponsorship:
-//   ?slot=feed_native&locale=en  -> single campaign or {}
-//   ?slots=feed_native,sidebar_top&locale=en -> { "feed_native": {...}|null, ... }
+//
+//	?slot=feed_native&locale=en  -> single campaign or {}
+//	?slots=feed_native,sidebar_top&locale=en -> { "feed_native": {...}|null, ... }
 func GetActiveSponsorship() web.HandlerFunc {
 	return func(c *web.Context) error {
 		locale := c.QueryParam("locale")

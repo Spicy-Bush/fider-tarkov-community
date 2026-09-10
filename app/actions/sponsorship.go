@@ -42,6 +42,23 @@ func NormalizeSlotsCSV(raw string) (string, bool) {
 	return strings.Join(out, ","), true
 }
 
+// NormalizeCreativeImageURLs keeps only allowed non-empty slot → URL entries.
+func NormalizeCreativeImageURLs(raw map[string]string) map[string]string {
+	out := map[string]string{}
+	if raw == nil {
+		return out
+	}
+	for k, v := range raw {
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" || v == "" || !allowedSlots[k] {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
 type CreateSponsorshipPackage struct {
 	Slug         string `json:"slug"`
 	Name         string `json:"name"`
@@ -117,19 +134,20 @@ func (a *DeleteSponsorshipPackage) Validate(ctx context.Context, user *entity.Us
 }
 
 type CreateSponsorshipCampaign struct {
-	Name             string   `json:"name"`
-	Slots            string   `json:"slots"`
-	SlotID           string   `json:"slotId"` // legacy single-slot clients
-	SlotList         []string `json:"slotList"`
-	CreativeImageURL string   `json:"creativeImageUrl"`
-	CreativeHTML     string   `json:"creativeHtml"`
-	ClickURL         string   `json:"clickUrl"`
-	StartAt          time.Time `json:"startAt"`
-	EndAt            time.Time `json:"endAt"`
-	Weight           int      `json:"weight"`
-	Locale           string   `json:"locale"`
-	Enabled          bool     `json:"enabled"`
-	PackageID        *int     `json:"packageId"`
+	Name              string            `json:"name"`
+	Slots             string            `json:"slots"`
+	SlotID            string            `json:"slotId"` // legacy single-slot clients
+	SlotList          []string          `json:"slotList"`
+	CreativeImageURL  string            `json:"creativeImageUrl"`
+	CreativeImageURLs map[string]string `json:"creativeImageUrls"`
+	CreativeHTML      string            `json:"creativeHtml"`
+	ClickURL          string            `json:"clickUrl"`
+	StartAt           time.Time         `json:"startAt"`
+	EndAt             time.Time         `json:"endAt"`
+	Weight            int               `json:"weight"`
+	Locale            string            `json:"locale"`
+	Enabled           bool              `json:"enabled"`
+	PackageID         *int              `json:"packageId"`
 }
 
 func (a *CreateSponsorshipCampaign) IsAuthorized(ctx context.Context, user *entity.User) bool {
@@ -138,28 +156,50 @@ func (a *CreateSponsorshipCampaign) IsAuthorized(ctx context.Context, user *enti
 
 func (a *CreateSponsorshipCampaign) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	a.Slots = coalesceSlots(a.Slots, a.SlotID, a.SlotList)
-	result := validateCampaignFields(validate.Success(), a.Name, a.Slots, a.CreativeImageURL, a.CreativeHTML, a.ClickURL, a.StartAt, a.EndAt, a.Weight, a.Locale)
+	a.CreativeImageURLs = NormalizeCreativeImageURLs(a.CreativeImageURLs)
+	a.seedSlotImagesFromLegacy()
+	result := validateCampaignFields(validate.Success(), a.Name, a.Slots, a.CreativeImageURL, a.CreativeImageURLs, a.CreativeHTML, a.ClickURL, a.StartAt, a.EndAt, a.Weight, a.Locale)
 	if normalized, ok := NormalizeSlotsCSV(a.Slots); ok {
 		a.Slots = normalized
+	}
+	if a.Locale == "" {
+		a.Locale = "all"
 	}
 	return result
 }
 
+// seedSlotImagesFromLegacy: old clients send only creativeImageUrl — copy into map for selected slots when map empty.
+func (a *CreateSponsorshipCampaign) seedSlotImagesFromLegacy() {
+	legacy := strings.TrimSpace(a.CreativeImageURL)
+	if legacy == "" || len(a.CreativeImageURLs) > 0 {
+		return
+	}
+	normalized, ok := NormalizeSlotsCSV(a.Slots)
+	if !ok {
+		return
+	}
+	a.CreativeImageURLs = map[string]string{}
+	for _, s := range strings.Split(normalized, ",") {
+		a.CreativeImageURLs[s] = legacy
+	}
+}
+
 type UpdateSponsorshipCampaign struct {
-	ID               int      `json:"id"`
-	Name             string   `json:"name"`
-	Slots            string   `json:"slots"`
-	SlotID           string   `json:"slotId"`
-	SlotList         []string `json:"slotList"`
-	CreativeImageURL string   `json:"creativeImageUrl"`
-	CreativeHTML     string   `json:"creativeHtml"`
-	ClickURL         string   `json:"clickUrl"`
-	StartAt          time.Time `json:"startAt"`
-	EndAt            time.Time `json:"endAt"`
-	Weight           int      `json:"weight"`
-	Locale           string   `json:"locale"`
-	Enabled          bool     `json:"enabled"`
-	PackageID        *int     `json:"packageId"`
+	ID                int               `json:"id"`
+	Name              string            `json:"name"`
+	Slots             string            `json:"slots"`
+	SlotID            string            `json:"slotId"`
+	SlotList          []string          `json:"slotList"`
+	CreativeImageURL  string            `json:"creativeImageUrl"`
+	CreativeImageURLs map[string]string `json:"creativeImageUrls"`
+	CreativeHTML      string            `json:"creativeHtml"`
+	ClickURL          string            `json:"clickUrl"`
+	StartAt           time.Time         `json:"startAt"`
+	EndAt             time.Time         `json:"endAt"`
+	Weight            int               `json:"weight"`
+	Locale            string            `json:"locale"`
+	Enabled           bool              `json:"enabled"`
+	PackageID         *int              `json:"packageId"`
 }
 
 func (a *UpdateSponsorshipCampaign) IsAuthorized(ctx context.Context, user *entity.User) bool {
@@ -172,11 +212,31 @@ func (a *UpdateSponsorshipCampaign) Validate(ctx context.Context, user *entity.U
 		result.AddFieldFailure("id", "Invalid ID")
 	}
 	a.Slots = coalesceSlots(a.Slots, a.SlotID, a.SlotList)
-	result = validateCampaignFields(result, a.Name, a.Slots, a.CreativeImageURL, a.CreativeHTML, a.ClickURL, a.StartAt, a.EndAt, a.Weight, a.Locale)
+	a.CreativeImageURLs = NormalizeCreativeImageURLs(a.CreativeImageURLs)
+	a.seedSlotImagesFromLegacy()
+	result = validateCampaignFields(result, a.Name, a.Slots, a.CreativeImageURL, a.CreativeImageURLs, a.CreativeHTML, a.ClickURL, a.StartAt, a.EndAt, a.Weight, a.Locale)
 	if normalized, ok := NormalizeSlotsCSV(a.Slots); ok {
 		a.Slots = normalized
 	}
+	if a.Locale == "" {
+		a.Locale = "all"
+	}
 	return result
+}
+
+func (a *UpdateSponsorshipCampaign) seedSlotImagesFromLegacy() {
+	legacy := strings.TrimSpace(a.CreativeImageURL)
+	if legacy == "" || len(a.CreativeImageURLs) > 0 {
+		return
+	}
+	normalized, ok := NormalizeSlotsCSV(a.Slots)
+	if !ok {
+		return
+	}
+	a.CreativeImageURLs = map[string]string{}
+	for _, s := range strings.Split(normalized, ",") {
+		a.CreativeImageURLs[s] = legacy
+	}
 }
 
 type DeleteSponsorshipCampaign struct {
@@ -205,7 +265,19 @@ func coalesceSlots(slotsCSV, slotID string, slotList []string) string {
 	return slotID
 }
 
-func validateCampaignFields(result *validate.Result, name, slotsCSV, imageURL, html, clickURL string, startAt, endAt time.Time, weight int, locale string) *validate.Result {
+func hasAnyCreativeImage(legacy string, urls map[string]string) bool {
+	if strings.TrimSpace(legacy) != "" {
+		return true
+	}
+	for _, v := range urls {
+		if strings.TrimSpace(v) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func validateCampaignFields(result *validate.Result, name, slotsCSV, imageURL string, imageURLs map[string]string, html, clickURL string, startAt, endAt time.Time, weight int, locale string) *validate.Result {
 	if strings.TrimSpace(name) == "" {
 		result.AddFieldFailure("name", "Name is required")
 	}
@@ -213,10 +285,9 @@ func validateCampaignFields(result *validate.Result, name, slotsCSV, imageURL, h
 	if !ok {
 		result.AddFieldFailure("slots", "Select at least one valid slot")
 	} else {
-		// write-back via pointer not available; callers use Normalize after validate
 		_ = normalized
 	}
-	if strings.TrimSpace(imageURL) == "" && strings.TrimSpace(html) == "" {
+	if !hasAnyCreativeImage(imageURL, imageURLs) && strings.TrimSpace(html) == "" {
 		result.AddFieldFailure("creativeImageUrl", "Provide an image URL or HTML creative")
 	}
 	if strings.TrimSpace(clickURL) == "" {

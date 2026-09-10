@@ -14,7 +14,10 @@ export interface SponsorshipCampaign {
   name: string
   /** Comma-separated slot ids — one campaign may cover many placements. */
   slots: string
+  /** Legacy single image; used as fallback when a slot key is missing from creativeImageUrls. */
   creativeImageUrl: string
+  /** Optional per-slot image URLs (slot_id → url). */
+  creativeImageUrls?: Record<string, string>
   creativeHtml: string
   clickUrl: string
   /** ISO-8601 UTC from API */
@@ -33,6 +36,7 @@ export interface PublicSponsorshipCampaign {
   id: number
   name: string
   slotId: string
+  /** Already resolved for this slotId (map entry or legacy fallback). */
   creativeImageUrl?: string
   creativeHtml?: string
   clickPath: string
@@ -71,4 +75,3 @@ export const SPONSORSHIP_SLOT_SPECS: Record<
     frameClassName: "w-full aspect-[4/1] max-h-36 overflow-hidden rounded bg-surface-alt",
   },
 }
-
