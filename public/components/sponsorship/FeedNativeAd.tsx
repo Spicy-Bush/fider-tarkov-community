@@ -12,7 +12,7 @@ export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ campaign, className 
   const spec = SPONSORSHIP_SLOT_SPECS.feed_native
   const hasImage = Boolean(campaign.creativeImageUrl)
   const hasHtml = Boolean(campaign.creativeHtml)
-  const advertiser = (campaign.advertiser || "").trim() || campaign.name
+  const advertiser = (campaign.advertiser || "").trim()
   const disclosure = advertiser ? `Sponsored · ${advertiser}` : "Sponsored"
   const rootClassName = ["block", "no-underline", "text-inherit", className].filter(Boolean).join(" ")
 

@@ -57,10 +57,10 @@ func (c *SponsorshipCampaign) ImageURLForSlot(slotID string) string {
 }
 
 // PublicSponsorshipCampaign is the safe public payload for rendering a slot.
+// Advertiser is the public company label (never internal campaign name).
 // CreativeImageURL is already resolved for SlotID (per-slot map or legacy fallback).
 type PublicSponsorshipCampaign struct {
 	ID               int    `json:"id"`
-	Name             string `json:"name"`
 	Advertiser       string `json:"advertiser"`
 	SlotID           string `json:"slotId"`
 	CreativeImageURL string `json:"creativeImageUrl,omitempty"`

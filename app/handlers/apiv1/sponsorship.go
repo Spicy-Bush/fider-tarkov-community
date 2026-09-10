@@ -170,7 +170,7 @@ func DeleteSponsorshipCampaign() web.HandlerFunc {
 
 func publicCampaign(slot string, camp *entity.SponsorshipCampaign) entity.PublicSponsorshipCampaign {
 	return entity.PublicSponsorshipCampaign{
-		ID: camp.ID, Name: camp.Name, Advertiser: camp.Advertiser, SlotID: slot,
+		ID: camp.ID, Advertiser: camp.Advertiser, SlotID: slot,
 		CreativeImageURL: camp.ImageURLForSlot(slot), CreativeHTML: camp.CreativeHTML,
 		ClickPath: fmt.Sprintf("/ads/click/%d", camp.ID),
 	}

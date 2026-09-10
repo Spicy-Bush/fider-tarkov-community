@@ -30,7 +30,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({ slot, className }) => {
   const spec = SPONSORSHIP_SLOT_SPECS[slot]
   const hasImage = Boolean(campaign.creativeImageUrl)
   const hasHtml = Boolean(campaign.creativeHtml)
-  const advertiser = (campaign.advertiser || "").trim() || campaign.name
+  const advertiser = (campaign.advertiser || "").trim()
   const disclosure = advertiser ? `Sponsored · ${advertiser}` : "Sponsored"
 
   return (

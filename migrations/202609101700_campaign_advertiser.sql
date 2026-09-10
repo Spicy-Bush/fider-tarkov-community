@@ -7,4 +7,15 @@ alter table sponsorship_campaigns
 -- Backfill from internal name so existing UAT campaigns keep a public label.
 update sponsorship_campaigns
 set advertiser = name
-where advertiser = '' or advertiser is null;
+where btrim(advertiser) = '' or advertiser is null;
+
+-- Reject empty advertiser at DB layer (after backfill).
+alter table sponsorship_campaigns
+  alter column advertiser drop default;
+
+alter table sponsorship_campaigns
+  drop constraint if exists sponsorship_campaigns_advertiser_nonempty;
+
+alter table sponsorship_campaigns
+  add constraint sponsorship_campaigns_advertiser_nonempty
+  check (btrim(advertiser) <> '');

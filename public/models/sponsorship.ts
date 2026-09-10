@@ -37,7 +37,6 @@ export interface SponsorshipCampaign {
 
 export interface PublicSponsorshipCampaign {
   id: number
-  name: string
   /** Public advertiser / company name for EU-style disclosure. */
   advertiser: string
   slotId: string
