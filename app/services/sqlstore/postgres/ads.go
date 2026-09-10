@@ -3,9 +3,11 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/lib/pq"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -90,10 +92,12 @@ func getActiveAdCandidates(ctx context.Context, q *query.GetActiveAdCandidates) 
 			INNER JOIN campaign_assignments a
 			  ON a.tenant_id = c.tenant_id AND a.campaign_id = c.id
 			WHERE c.tenant_id = $1
+			  AND c.deleted_at IS NULL
 			  AND c.enabled = true
 			  AND c.start_at <= $2
 			  AND c.end_at > $2
 			  AND (c.locale = 'all' OR c.locale = $3)
+			  AND btrim(c.advertiser) <> ''
 			  AND a.placement_id = ANY($4)
 			ORDER BY c.weight DESC, c.id ASC`,
 			tenant.ID, now, locale, pq.Array(q.PlacementIDs))
@@ -157,8 +161,29 @@ func getCreativeVersionsByIDs(ctx context.Context, q *query.GetCreativeVersionsB
 	})
 }
 
+func bumpCampaignConfigVersion(trx *dbx.Trx, tenantID, campaignID, configVersion int) error {
+	if configVersion <= 0 {
+		return app.ErrConflict
+	}
+	rows, err := trx.Execute(`
+		UPDATE sponsorship_campaigns
+		SET config_version = config_version + 1, updated_at = $4
+		WHERE id = $1 AND tenant_id = $2 AND config_version = $3 AND deleted_at IS NULL`,
+		campaignID, tenantID, configVersion, time.Now().UTC())
+	if err != nil {
+		return errors.Wrap(err, "failed to bump campaign config_version")
+	}
+	if rows == 0 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
 func createCreativeVersion(ctx context.Context, c *cmd.CreateCreativeVersion) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if err := bumpCampaignConfigVersion(trx, tenant.ID, c.CampaignID, c.ConfigVersion); err != nil {
+			return err
+		}
 		row := &dbCreativeVersion{}
 		err := trx.Get(row, `
 			INSERT INTO creative_versions (tenant_id, campaign_id, version_no, image_url, html, click_url)
@@ -177,23 +202,80 @@ func createCreativeVersion(ctx context.Context, c *cmd.CreateCreativeVersion) er
 	})
 }
 
-func upsertCampaignAssignment(ctx context.Context, c *cmd.UpsertCampaignAssignment) error {
+func saveSponsorshipCampaignGraph(ctx context.Context, c *cmd.SaveSponsorshipCampaignGraph) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		var id int
-		err := trx.Get(&id, `
-			INSERT INTO campaign_assignments (tenant_id, campaign_id, placement_id, creative_version_id)
-			VALUES ($1, $2, $3, $4)
-			ON CONFLICT (tenant_id, campaign_id, placement_id)
-			DO UPDATE SET creative_version_id = EXCLUDED.creative_version_id
-			RETURNING id`,
-			tenant.ID, c.CampaignID, c.PlacementID, c.CreativeVersionID)
+		now := time.Now().UTC()
+		start := c.StartAt.UTC()
+		end := c.EndAt.UTC()
+		if c.ConfigVersion <= 0 {
+			return app.ErrConflict
+		}
+
+		// Ownership: every assignment version must belong to this campaign (same tenant).
+		for _, a := range c.Assignments {
+			if a.PlacementID == "" || a.CreativeVersionID <= 0 {
+				return app.ErrNotFound
+			}
+			var verCampaignID int
+			err := trx.Get(&verCampaignID, `
+				SELECT campaign_id FROM creative_versions
+				WHERE tenant_id = $1 AND id = $2`,
+				tenant.ID, a.CreativeVersionID)
+			if err != nil {
+				return errors.Wrap(err, "assignment creative version not found")
+			}
+			if verCampaignID != c.ID {
+				return app.ErrNotFound
+			}
+		}
+
+		row := &dbCampaign{}
+		err := trx.Get(row, `
+			UPDATE sponsorship_campaigns SET
+				name=$1, advertiser=$2,
+				start_at=$3, end_at=$4, weight=$5, locale=$6, enabled=$7, package_id=$8, updated_at=$9,
+				config_version = config_version + 1
+			WHERE id=$10 AND tenant_id=$11 AND config_version=$12 AND deleted_at IS NULL
+			RETURNING id, name, advertiser, start_at, end_at, weight, locale, enabled, clicks,
+			          package_id, config_version, created_at, updated_at`,
+			c.Name, c.Advertiser,
+			start, end, c.Weight, c.Locale, c.Enabled, c.PackageID, now,
+			c.ID, tenant.ID, c.ConfigVersion)
 		if err != nil {
-			return errors.Wrap(err, "failed to upsert campaign assignment")
+			if errors.Cause(err) == app.ErrNotFound {
+				return app.ErrConflict
+			}
+			return errors.Wrap(err, "failed to update sponsorship campaign graph")
 		}
-		c.Result = &entity.CampaignAssignment{
-			ID: id, CampaignID: c.CampaignID, PlacementID: c.PlacementID,
-			CreativeVersionID: c.CreativeVersionID,
+
+		_, err = trx.Execute(`
+			DELETE FROM campaign_assignments
+			WHERE tenant_id = $1 AND campaign_id = $2`,
+			tenant.ID, c.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to clear campaign assignments")
 		}
+
+		c.AssignmentResults = []*entity.CampaignAssignment{}
+		for _, a := range c.Assignments {
+			var id int
+			err := trx.Get(&id, `
+				INSERT INTO campaign_assignments (tenant_id, campaign_id, placement_id, creative_version_id)
+				SELECT $1, $2, $3, cv.id
+				FROM creative_versions cv
+				WHERE cv.tenant_id = $1 AND cv.id = $4 AND cv.campaign_id = $2
+				RETURNING id`,
+				tenant.ID, c.ID, a.PlacementID, a.CreativeVersionID)
+			if err != nil {
+				return errors.Wrap(err, "failed to insert campaign assignment (ownership mismatch?)")
+			}
+			c.AssignmentResults = append(c.AssignmentResults, &entity.CampaignAssignment{
+				ID: id, CampaignID: c.ID, PlacementID: a.PlacementID,
+				CreativeVersionID: a.CreativeVersionID,
+			})
+		}
+
+		c.Result = row.toModel()
 		return nil
 	})
 }
@@ -244,19 +326,6 @@ func listCampaignAssignmentsByCampaign(ctx context.Context, q *query.ListCampaig
 				ID: r.ID, CampaignID: r.CampaignID, PlacementID: r.PlacementID,
 				CreativeVersionID: r.CreativeVersionID,
 			}
-		}
-		return nil
-	})
-}
-
-func deleteCampaignAssignment(ctx context.Context, c *cmd.DeleteCampaignAssignment) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		_, err := trx.Execute(`
-			DELETE FROM campaign_assignments
-			WHERE tenant_id = $1 AND campaign_id = $2 AND placement_id = $3`,
-			tenant.ID, c.CampaignID, c.PlacementID)
-		if err != nil {
-			return errors.Wrap(err, "failed to delete campaign assignment")
 		}
 		return nil
 	})

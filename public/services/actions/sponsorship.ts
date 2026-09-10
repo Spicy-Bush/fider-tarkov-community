@@ -81,7 +81,7 @@ export const listCreativeVersions = (campaignId: number): Promise<Result<Creativ
 
 export const createCreativeVersion = (
   campaignId: number,
-  body: { imageUrl: string; html: string; clickUrl: string }
+  body: { imageUrl: string; html: string; clickUrl: string; configVersion: number }
 ): Promise<Result<CreativeVersion>> => {
   return http.post<CreativeVersion>(`/api/v1/sponsorship/campaigns/${campaignId}/versions`, body)
 }
@@ -90,15 +90,28 @@ export const listCampaignAssignments = (campaignId: number): Promise<Result<Camp
   return http.get<CampaignAssignment[]>(`/api/v1/sponsorship/campaigns/${campaignId}/assignments`)
 }
 
-export const upsertCampaignAssignment = (
-  campaignId: number,
-  body: { placementId: string; creativeVersionId: number }
-): Promise<Result<CampaignAssignment>> => {
-  return http.put<CampaignAssignment>(`/api/v1/sponsorship/campaigns/${campaignId}/assignments`, body)
+export type CampaignGraphSaveBody = {
+  name: string
+  advertiser: string
+  startAt: string
+  endAt: string
+  weight: number
+  locale: string
+  enabled: boolean
+  packageId?: number
+  configVersion: number
+  assignments: { placementId: string; creativeVersionId: number }[]
 }
 
-export const deleteCampaignAssignment = (campaignId: number, placementId: string): Promise<Result> => {
-  return http.delete(
-    `/api/v1/sponsorship/campaigns/${campaignId}/assignments/${encodeURIComponent(placementId)}`
-  )
+export type CampaignGraphSaveResult = {
+  campaign: SponsorshipCampaign
+  assignments: CampaignAssignment[]
+}
+
+/** Atomic OCC save: campaign fields + full assignment set in one txn. */
+export const saveSponsorshipCampaignGraph = (
+  campaignId: number,
+  body: CampaignGraphSaveBody
+): Promise<Result<CampaignGraphSaveResult>> => {
+  return http.put<CampaignGraphSaveResult>(`/api/v1/sponsorship/campaigns/${campaignId}/graph`, body)
 }

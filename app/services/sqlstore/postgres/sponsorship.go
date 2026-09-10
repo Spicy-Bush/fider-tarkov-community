@@ -128,7 +128,7 @@ const campaignSelect = `
 func listSponsorshipCampaigns(ctx context.Context, q *query.ListSponsorshipCampaigns) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		rows := []*dbCampaign{}
-		err := trx.Select(&rows, campaignSelect+` WHERE tenant_id = $1 ORDER BY start_at DESC, id DESC`, tenant.ID)
+		err := trx.Select(&rows, campaignSelect+` WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY start_at DESC, id DESC`, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to list sponsorship campaigns")
 		}
@@ -186,35 +186,38 @@ func updateSponsorshipCampaign(ctx context.Context, c *cmd.UpdateSponsorshipCamp
 		if c.ConfigVersion <= 0 {
 			return app.ErrConflict
 		}
-		rows, err := trx.Execute(`
+		row := &dbCampaign{}
+		err := trx.Get(row, `
 			UPDATE sponsorship_campaigns SET
 				name=$1, advertiser=$2,
 				start_at=$3, end_at=$4, weight=$5, locale=$6, enabled=$7, package_id=$8, updated_at=$9,
 				config_version = config_version + 1
-			WHERE id=$10 AND tenant_id=$11 AND config_version=$12`,
+			WHERE id=$10 AND tenant_id=$11 AND config_version=$12 AND deleted_at IS NULL
+			RETURNING id, name, advertiser, start_at, end_at, weight, locale, enabled, clicks,
+			          package_id, config_version, created_at, updated_at`,
 			c.Name, c.Advertiser,
 			start, end, c.Weight, c.Locale, c.Enabled, c.PackageID, now, c.ID, tenant.ID, c.ConfigVersion)
 		if err != nil {
+			if errors.Cause(err) == app.ErrNotFound {
+				return app.ErrConflict
+			}
 			return errors.Wrap(err, "failed to update sponsorship campaign")
 		}
-		if rows == 0 {
-			return app.ErrConflict
-		}
-		c.Result = &entity.SponsorshipCampaign{
-			ID: c.ID, Name: c.Name, Advertiser: c.Advertiser,
-			StartAt: start, EndAt: end,
-			Weight: c.Weight, Locale: c.Locale, Enabled: c.Enabled,
-			PackageID: c.PackageID, ConfigVersion: c.ConfigVersion + 1, UpdatedAt: now,
-		}
+		c.Result = row.toModel()
 		return nil
 	})
 }
 
 func deleteSponsorshipCampaign(ctx context.Context, c *cmd.DeleteSponsorshipCampaign) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		_, err := trx.Execute(`DELETE FROM sponsorship_campaigns WHERE id=$1 AND tenant_id=$2`, c.ID, tenant.ID)
+		// Soft-delete: keep creative_versions (RESTRICT FK). Selection skips deleted_at.
+		_, err := trx.Execute(`
+			UPDATE sponsorship_campaigns
+			SET deleted_at = $3, enabled = false, updated_at = $3
+			WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`,
+			c.ID, tenant.ID, time.Now().UTC())
 		if err != nil {
-			return errors.Wrap(err, "failed to delete sponsorship campaign")
+			return errors.Wrap(err, "failed to soft-delete sponsorship campaign")
 		}
 		return nil
 	})

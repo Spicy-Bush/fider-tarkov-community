@@ -204,6 +204,43 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       setError({ errors: [{ message: "Invalid start/end datetime" }] })
       return
     }
+    if (editingCampId) {
+      // Atomic OCC graph save: campaign fields + full assignment set
+      const result = await actions.saveSponsorshipCampaignGraph(editingCampId, {
+        name: campForm.name,
+        advertiser: campForm.advertiser,
+        startAt,
+        endAt,
+        weight: Number(campForm.weight),
+        locale: campForm.locale || "all",
+        enabled: campForm.enabled,
+        packageId: campForm.packageId || undefined,
+        configVersion: campForm.configVersion,
+        assignments: assignments.map((a) => ({
+          placementId: a.placementId,
+          creativeVersionId: a.creativeVersionId,
+        })),
+      })
+      setBusy(false)
+      if (result.ok) {
+        const camp = result.data.campaign
+        setCampaigns((prev) => prev.map((c) => (c.id === editingCampId ? camp : c)))
+        setCampForm((prev) => ({ ...prev, configVersion: camp.configVersion || prev.configVersion + 1 }))
+        setAssignments(result.data.assignments || [])
+        notify.success("Campaign + assignments saved")
+      } else {
+        const msg = (result.data as { message?: string } | undefined)?.message
+        if (msg === "Conflict") {
+          notify.error("Campaign was modified elsewhere — reloading")
+          await reloadCampaigns()
+          await loadGraph(editingCampId)
+        } else {
+          setError(result.error)
+        }
+      }
+      return
+    }
+
     const body: Record<string, unknown> = {
       name: campForm.name,
       advertiser: campForm.advertiser,
@@ -214,37 +251,19 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       enabled: campForm.enabled,
       packageId: campForm.packageId || undefined,
     }
-    if (editingCampId) {
-      body.configVersion = campForm.configVersion
-    }
-    const result = editingCampId
-      ? await actions.updateSponsorshipCampaign(editingCampId, body)
-      : await actions.createSponsorshipCampaign(body)
+    const result = await actions.createSponsorshipCampaign(body)
     setBusy(false)
     if (result.ok) {
-      if (editingCampId) {
-        setCampaigns((prev) => prev.map((c) => (c.id === editingCampId ? result.data : c)))
-        setCampForm((prev) => ({ ...prev, configVersion: result.data.configVersion || prev.configVersion + 1 }))
-        await loadGraph(editingCampId)
-      } else {
-        setCampaigns((prev) => [...prev, result.data])
-        setEditingCampId(result.data.id)
-        setCampForm({
-          ...campForm,
-          configVersion: result.data.configVersion || 1,
-        })
-        await loadGraph(result.data.id)
-      }
-      notify.success("Campaign saved — bind creatives via versions + assignments below")
+      setCampaigns((prev) => [...prev, result.data])
+      setEditingCampId(result.data.id)
+      setCampForm({
+        ...campForm,
+        configVersion: result.data.configVersion || 1,
+      })
+      await loadGraph(result.data.id)
+      notify.success("Campaign created — add versions, then Save to bind assignments")
     } else {
-      const msg = (result.data as { message?: string } | undefined)?.message
-      if (msg === "Conflict") {
-        notify.error("Campaign was modified elsewhere — reloading")
-        await reloadCampaigns()
-        if (editingCampId) await loadGraph(editingCampId)
-      } else {
-        setError(result.error)
-      }
+      setError(result.error)
     }
   }
 
@@ -279,47 +298,60 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
 
   const createVersion = async () => {
     if (!editingCampId) return
+    const clickUrl = versionForm.clickUrl.trim()
+    if (!/^https?:\/\//i.test(clickUrl)) {
+      notify.error("clickUrl must be an http(s) URL")
+      return
+    }
     setBusy(true)
     const result = await actions.createCreativeVersion(editingCampId, {
       imageUrl: versionForm.imageUrl.trim(),
       html: versionForm.html.trim(),
-      clickUrl: versionForm.clickUrl.trim(),
+      clickUrl,
+      configVersion: campForm.configVersion,
     })
     setBusy(false)
     if (result.ok) {
       setVersionForm({ imageUrl: "", html: "", clickUrl: "https://" })
+      setCampForm((prev) => ({ ...prev, configVersion: prev.configVersion + 1 }))
+      await reloadCampaigns()
       await loadGraph(editingCampId)
       notify.success(`Creative v${result.data.versionNo} created`)
     } else {
-      notify.error("Failed to create creative version")
-      setError(result.error)
+      const msg = (result.data as { message?: string } | undefined)?.message
+      if (msg === "Conflict") {
+        notify.error("Campaign was modified elsewhere — reloading")
+        await reloadCampaigns()
+        await loadGraph(editingCampId)
+      } else {
+        notify.error("Failed to create creative version")
+        setError(result.error)
+      }
     }
   }
 
-  const upsertAssignment = async () => {
+  const upsertAssignment = () => {
     if (!editingCampId || !assignPlacementId || !assignVersionId) return
-    setBusy(true)
-    const result = await actions.upsertCampaignAssignment(editingCampId, {
-      placementId: assignPlacementId,
-      creativeVersionId: Number(assignVersionId),
+    const creativeVersionId = Number(assignVersionId)
+    setAssignments((prev) => {
+      const next = prev.filter((a) => a.placementId !== assignPlacementId)
+      next.push({
+        id: 0,
+        campaignId: editingCampId,
+        placementId: assignPlacementId,
+        creativeVersionId,
+      })
+      next.sort((a, b) => a.placementId.localeCompare(b.placementId))
+      return next
     })
-    setBusy(false)
-    if (result.ok) {
-      await loadGraph(editingCampId)
-      notify.success("Assignment saved")
-    } else {
-      notify.error("Failed to save assignment")
-    }
+    notify.success("Assignment staged — click Save campaign to persist")
   }
 
-  const removeAssignment = async (placementId: string) => {
+  const removeAssignment = (placementId: string) => {
     if (!editingCampId) return
     if (!confirm(`Remove assignment for ${placementId}?`)) return
-    const result = await actions.deleteCampaignAssignment(editingCampId, placementId)
-    if (result.ok) {
-      await loadGraph(editingCampId)
-      notify.success("Assignment removed")
-    }
+    setAssignments((prev) => prev.filter((a) => a.placementId !== placementId))
+    notify.success("Assignment removed from draft — click Save campaign to persist")
   }
 
   const versionById = (id: number) => versions.find((v) => v.id === id)
@@ -378,7 +410,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       {tab === "campaigns" && (
         <VStack spacing={4}>
           <p className="text-muted text-sm">
-            Campaigns are schedule/weight umbrellas. Creatives are immutable versions bound via assignments — campaigns no longer own creatives.
+            Campaigns are schedule/weight umbrellas. Creatives are immutable versions. Assignments are staged locally and persisted with Save (one OCC transaction). Soft-delete keeps creative versions.
             Dates are entered in your local timezone (<strong>{tzLabel}</strong>) and stored as UTC.
             {editingCampId ? ` OCC config_version=${campForm.configVersion}.` : ""}
           </p>
@@ -402,7 +434,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
 
             <HStack spacing={2}>
               <Button variant="primary" onClick={saveCampaign} disabled={busy}>
-                {editingCampId ? "Update campaign" : "Add campaign"}
+                {editingCampId ? "Save campaign + assignments" : "Add campaign"}
               </Button>
               {editingCampId && (
                 <Button variant="tertiary" onClick={() => { setEditingCampId(null); setCampForm(emptyCamp()) }}>

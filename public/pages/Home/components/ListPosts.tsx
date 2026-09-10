@@ -5,7 +5,7 @@ import { ResponseLozenge } from "@fider/components/post/ShowPostResponse"
 import { heroiconsChatAlt2 as IconChatAlt2 } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 import { getVotePosition } from "@fider/components/UserProfile/UserProfileSettings"
-import { AdSlot, useAdSelection } from "@fider/components/sponsorship"
+import { AdSlot } from "@fider/components/sponsorship"
 import { FEED_AD_EVERY, PublicAd } from "@fider/models"
 
 interface ListPostsProps {
@@ -13,6 +13,11 @@ interface ListPostsProps {
   tags: Tag[]
   emptyText: string
   loading?: boolean
+  /** When true, insert feed_native AdSlots every FEED_AD_EVERY posts. Default off so SimilarPosts stays clean. */
+  insertFeedAds?: boolean
+  /** Page-owned selection map keyed by feed-{i}. Required when insertFeedAds. */
+  feedAds?: Record<string, PublicAd | null>
+  feedAdsLoaded?: boolean
 }
 
 interface PostWithTags {
@@ -117,16 +122,6 @@ export const ListPosts = (props: ListPostsProps) => {
     }))
   }, [props.posts, props.tags])
 
-  const feedSlots = useMemo(() => {
-    const n = Math.floor(postsWithTags.length / FEED_AD_EVERY)
-    return Array.from({ length: n }, (_, i) => ({
-      instanceId: `feed-${i}`,
-      placementId: "feed_native",
-    }))
-  }, [postsWithTags.length])
-
-  const { ads: feedAds, loaded: feedLoaded } = useAdSelection(feedSlots)
-
   if (!props.posts && !props.loading) {
     return null
   }
@@ -145,15 +140,17 @@ export const ListPosts = (props: ListPostsProps) => {
     return <p className="text-center">{props.emptyText}</p>
   }
 
+  const insertFeedAds = !!props.insertFeedAds
+
   return (
     <VStack spacing={4} divide>
       {postsWithTags.map(({ post, tags }, index) => {
-        const showAd = (index + 1) % FEED_AD_EVERY === 0
+        const showAd = insertFeedAds && (index + 1) % FEED_AD_EVERY === 0
         const feedIndex = Math.floor((index + 1) / FEED_AD_EVERY) - 1
         const instanceId = `feed-${feedIndex}`
         const ad: PublicAd | null | undefined = showAd
-          ? feedLoaded
-            ? feedAds[instanceId] ?? null
+          ? props.feedAdsLoaded
+            ? props.feedAds?.[instanceId] ?? null
             : undefined
           : undefined
         return (

@@ -11,8 +11,12 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/adsselect"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
+
+// MaxSelectAdsSlots is the hard cap on POST /api/v1/ads/select batch size.
+const MaxSelectAdsSlots = 32
 
 type selectAdsSlot struct {
 	InstanceID  string `json:"instanceId"`
@@ -24,7 +28,7 @@ type selectAdsRequest struct {
 }
 
 // SelectAds handles POST /api/v1/ads/select?locale=
-// Pipeline: candidates SQL → adsselect → batch creatives → PublicAd map.
+// Pipeline: validate → candidates SQL → adsselect → batch creatives → PublicAd map.
 // Blank advertiser → null (#39).
 func SelectAds() web.HandlerFunc {
 	return func(c *web.Context) error {
@@ -36,15 +40,39 @@ func SelectAds() web.HandlerFunc {
 		if err := c.Bind(&req); err != nil {
 			return c.BadRequest(web.Map{"message": "Invalid request body"})
 		}
+		if len(req.Slots) > MaxSelectAdsSlots {
+			return c.BadRequest(web.Map{"message": fmt.Sprintf("Too many slots (max %d)", MaxSelectAdsSlots)})
+		}
+
+		placementsQ := &query.ListAdPlacements{}
+		if err := bus.Dispatch(c, placementsQ); err != nil {
+			return c.Failure(err)
+		}
+		known := map[string]bool{}
+		for _, p := range placementsQ.Result {
+			if p != nil {
+				known[p.ID] = true
+			}
+		}
+
+		seenInstance := map[string]bool{}
 		instances := make([]adsselect.InstanceReq, 0, len(req.Slots))
 		for _, s := range req.Slots {
 			iid := strings.TrimSpace(s.InstanceID)
 			pid := strings.TrimSpace(s.PlacementID)
 			if iid == "" || pid == "" {
-				continue
+				return c.BadRequest(web.Map{"message": "instanceId and placementId are required for every slot"})
+			}
+			if seenInstance[iid] {
+				return c.BadRequest(web.Map{"message": "duplicate instanceId: " + iid})
+			}
+			seenInstance[iid] = true
+			if !known[pid] {
+				return c.BadRequest(web.Map{"message": "unknown placementId: " + pid})
 			}
 			instances = append(instances, adsselect.InstanceReq{InstanceID: iid, PlacementID: pid})
 		}
+
 		out, err := runAdSelection(c, instances, locale, time.Now().UTC(), rand.New(rand.NewSource(time.Now().UnixNano())))
 		if err != nil {
 			return c.Failure(err)
@@ -172,12 +200,13 @@ func ListCreativeVersions() web.HandlerFunc {
 }
 
 type createCreativeVersionRequest struct {
-	ImageURL string `json:"imageUrl"`
-	HTML     string `json:"html"`
-	ClickURL string `json:"clickUrl"`
+	ImageURL      string `json:"imageUrl"`
+	HTML          string `json:"html"`
+	ClickURL      string `json:"clickUrl"`
+	ConfigVersion int    `json:"configVersion"`
 }
 
-// CreateCreativeVersion appends an immutable version under a campaign.
+// CreateCreativeVersion appends an immutable version under a campaign (OCC).
 func CreateCreativeVersion() web.HandlerFunc {
 	return func(c *web.Context) error {
 		campaignID, err := c.ParamAsInt("id")
@@ -191,18 +220,25 @@ func CreateCreativeVersion() web.HandlerFunc {
 		req.ImageURL = strings.TrimSpace(req.ImageURL)
 		req.HTML = strings.TrimSpace(req.HTML)
 		req.ClickURL = strings.TrimSpace(req.ClickURL)
+		if req.ConfigVersion <= 0 {
+			return c.BadRequest(web.Map{"message": "configVersion is required"})
+		}
 		if req.ClickURL == "" {
 			return c.BadRequest(web.Map{"message": "clickUrl is required"})
+		}
+		if !validate.IsHTTPOrHTTPSURL(req.ClickURL) {
+			return c.BadRequest(web.Map{"message": "clickUrl must be an http(s) URL"})
 		}
 		if req.ImageURL == "" && req.HTML == "" {
 			return c.BadRequest(web.Map{"message": "Provide imageUrl or html"})
 		}
 		return c.WithTransaction(func() error {
 			create := &cmd.CreateCreativeVersion{
-				CampaignID: campaignID,
-				ImageURL:   req.ImageURL,
-				HTML:       req.HTML,
-				ClickURL:   req.ClickURL,
+				CampaignID:    campaignID,
+				ImageURL:      req.ImageURL,
+				HTML:          req.HTML,
+				ClickURL:      req.ClickURL,
+				ConfigVersion: req.ConfigVersion,
 			}
 			if err := bus.Dispatch(c, create); err != nil {
 				return c.Failure(err)
@@ -230,58 +266,79 @@ func ListCampaignAssignments() web.HandlerFunc {
 	}
 }
 
-type upsertAssignmentRequest struct {
+type graphAssignmentInput struct {
 	PlacementID       string `json:"placementId"`
 	CreativeVersionID int    `json:"creativeVersionId"`
 }
 
-// UpsertCampaignAssignment sets placement → creative version for a campaign.
-func UpsertCampaignAssignment() web.HandlerFunc {
+type saveCampaignGraphRequest struct {
+	Name          string                  `json:"name"`
+	Advertiser    string                  `json:"advertiser"`
+	StartAt       time.Time               `json:"startAt"`
+	EndAt         time.Time               `json:"endAt"`
+	Weight        int                     `json:"weight"`
+	Locale        string                  `json:"locale"`
+	Enabled       bool                    `json:"enabled"`
+	PackageID     *int                    `json:"packageId"`
+	ConfigVersion int                     `json:"configVersion"`
+	Assignments   []graphAssignmentInput  `json:"assignments"`
+}
+
+// SaveCampaignGraph updates campaign fields + replaces assignments in one OCC txn.
+func SaveCampaignGraph() web.HandlerFunc {
 	return func(c *web.Context) error {
 		campaignID, err := c.ParamAsInt("id")
 		if err != nil {
 			return c.BadRequest(web.Map{"message": "Invalid campaign ID"})
 		}
-		req := upsertAssignmentRequest{}
+		req := saveCampaignGraphRequest{}
 		if err := c.Bind(&req); err != nil {
 			return c.BadRequest(web.Map{"message": "Invalid request body"})
 		}
-		req.PlacementID = strings.TrimSpace(req.PlacementID)
-		if req.PlacementID == "" || req.CreativeVersionID <= 0 {
-			return c.BadRequest(web.Map{"message": "placementId and creativeVersionId are required"})
+		req.Name = strings.TrimSpace(req.Name)
+		req.Advertiser = strings.TrimSpace(req.Advertiser)
+		if req.Locale == "" {
+			req.Locale = "all"
+		}
+		if req.ConfigVersion <= 0 {
+			return c.BadRequest(web.Map{"message": "configVersion is required"})
+		}
+		if req.Name == "" || req.Advertiser == "" {
+			return c.BadRequest(web.Map{"message": "name and advertiser are required"})
+		}
+		if req.Assignments == nil {
+			req.Assignments = []graphAssignmentInput{}
+		}
+		seenPlacement := map[string]bool{}
+		inputs := make([]cmd.CampaignAssignmentInput, 0, len(req.Assignments))
+		for _, a := range req.Assignments {
+			pid := strings.TrimSpace(a.PlacementID)
+			if pid == "" || a.CreativeVersionID <= 0 {
+				return c.BadRequest(web.Map{"message": "each assignment needs placementId and creativeVersionId"})
+			}
+			if seenPlacement[pid] {
+				return c.BadRequest(web.Map{"message": "duplicate placementId in assignments: " + pid})
+			}
+			seenPlacement[pid] = true
+			inputs = append(inputs, cmd.CampaignAssignmentInput{
+				PlacementID: pid, CreativeVersionID: a.CreativeVersionID,
+			})
 		}
 		return c.WithTransaction(func() error {
-			up := &cmd.UpsertCampaignAssignment{
-				CampaignID:        campaignID,
-				PlacementID:       req.PlacementID,
-				CreativeVersionID: req.CreativeVersionID,
+			save := &cmd.SaveSponsorshipCampaignGraph{
+				ID: campaignID, Name: req.Name, Advertiser: req.Advertiser,
+				StartAt: req.StartAt.UTC(), EndAt: req.EndAt.UTC(),
+				Weight: req.Weight, Locale: req.Locale, Enabled: req.Enabled,
+				PackageID: req.PackageID, ConfigVersion: req.ConfigVersion,
+				Assignments: inputs,
 			}
-			if err := bus.Dispatch(c, up); err != nil {
+			if err := bus.Dispatch(c, save); err != nil {
 				return c.Failure(err)
 			}
-			return c.Ok(up.Result)
-		})
-	}
-}
-
-// DeleteCampaignAssignment removes a placement binding.
-func DeleteCampaignAssignment() web.HandlerFunc {
-	return func(c *web.Context) error {
-		campaignID, err := c.ParamAsInt("id")
-		if err != nil {
-			return c.BadRequest(web.Map{"message": "Invalid campaign ID"})
-		}
-		placementID := strings.TrimSpace(c.Param("placementId"))
-		if placementID == "" {
-			return c.BadRequest(web.Map{"message": "placementId is required"})
-		}
-		return c.WithTransaction(func() error {
-			if err := bus.Dispatch(c, &cmd.DeleteCampaignAssignment{
-				CampaignID: campaignID, PlacementID: placementID,
-			}); err != nil {
-				return c.Failure(err)
-			}
-			return c.Ok(web.Map{})
+			return c.Ok(web.Map{
+				"campaign":    save.Result,
+				"assignments": save.AssignmentResults,
+			})
 		})
 	}
 }

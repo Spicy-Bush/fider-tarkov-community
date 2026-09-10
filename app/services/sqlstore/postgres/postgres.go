@@ -54,10 +54,9 @@ func (s Service) Init() {
 	bus.AddHandler(getActiveAdCandidates)
 	bus.AddHandler(getCreativeVersionsByIDs)
 	bus.AddHandler(createCreativeVersion)
-	bus.AddHandler(upsertCampaignAssignment)
+	bus.AddHandler(saveSponsorshipCampaignGraph)
 	bus.AddHandler(listCreativeVersionsByCampaign)
 	bus.AddHandler(listCampaignAssignmentsByCampaign)
-	bus.AddHandler(deleteCampaignAssignment)
 
 	bus.AddHandler(markAllNotificationsAsRead)
 	bus.AddHandler(markNotificationAsRead)

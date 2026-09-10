@@ -71,8 +71,9 @@ CREATE TABLE IF NOT EXISTS creative_versions (
   created_at  timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (tenant_id, id),
   UNIQUE (tenant_id, campaign_id, version_no),
+  UNIQUE (tenant_id, id, campaign_id),
   FOREIGN KEY (tenant_id, campaign_id)
-    REFERENCES sponsorship_campaigns (tenant_id, id) ON DELETE CASCADE,
+    REFERENCES sponsorship_campaigns (tenant_id, id) ON DELETE RESTRICT,
   CONSTRAINT chk_creative_versions_click_url CHECK (click_url <> ''),
   CONSTRAINT chk_creative_versions_surface CHECK (image_url <> '' OR html <> '')
 );
@@ -93,8 +94,8 @@ CREATE TABLE IF NOT EXISTS campaign_assignments (
   UNIQUE (tenant_id, campaign_id, placement_id),
   FOREIGN KEY (tenant_id, campaign_id)
     REFERENCES sponsorship_campaigns (tenant_id, id) ON DELETE CASCADE,
-  FOREIGN KEY (tenant_id, creative_version_id)
-    REFERENCES creative_versions (tenant_id, id)
+  FOREIGN KEY (tenant_id, creative_version_id, campaign_id)
+    REFERENCES creative_versions (tenant_id, id, campaign_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_campaign_assignments_placement

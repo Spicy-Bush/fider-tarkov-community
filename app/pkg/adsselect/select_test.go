@@ -22,7 +22,7 @@ func TestPickWeighted_EmptyOrNilRNG(t *testing.T) {
 
 func TestPickWeighted_SingleAlwaysWins(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))
-	cands := []adsselect.Candidate{{CampaignID: 7, PlacementID: "sidebar_top", CreativeVersionID: 3, Weight: 0, Advertiser: "Acme"}}
+	cands := []adsselect.Candidate{{CampaignID: 7, PlacementID: "sidebar_top", CreativeVersionID: 3, Weight: 5, Advertiser: "Acme"}}
 	for i := 0; i < 20; i++ {
 		got := adsselect.PickWeighted(cands, rng)
 		if got == nil || got.CampaignID != 7 {
@@ -31,10 +31,36 @@ func TestPickWeighted_SingleAlwaysWins(t *testing.T) {
 	}
 }
 
-func TestPickWeighted_WeightFloorAndDistribution(t *testing.T) {
-	// weight 0 floors to 1; weight 99 → almost always B
+func TestPickWeighted_ZeroWeightReturnsNil(t *testing.T) {
+	rng := rand.New(rand.NewSource(1))
 	cands := []adsselect.Candidate{
 		{CampaignID: 1, Weight: 0, Advertiser: "A"},
+		{CampaignID: 2, Weight: -3, Advertiser: "B"},
+	}
+	if got := adsselect.PickWeighted(cands, rng); got != nil {
+		t.Fatalf("total weight 0 must return nil, got %+v", got)
+	}
+}
+
+func TestPickWeighted_ZeroDoesNotFloorToPositive(t *testing.T) {
+	// weight 0 must never win against a positive weight
+	cands := []adsselect.Candidate{
+		{CampaignID: 1, Weight: 0, Advertiser: "A"},
+		{CampaignID: 2, Weight: 10, Advertiser: "B"},
+	}
+	rng := rand.New(rand.NewSource(12345))
+	const n = 200
+	for i := 0; i < n; i++ {
+		got := adsselect.PickWeighted(cands, rng)
+		if got == nil || got.CampaignID != 2 {
+			t.Fatalf("iter %d: expected campaign 2 only, got %+v", i, got)
+		}
+	}
+}
+
+func TestPickWeighted_DistributionAmongPositive(t *testing.T) {
+	cands := []adsselect.Candidate{
+		{CampaignID: 1, Weight: 1, Advertiser: "A"},
 		{CampaignID: 2, Weight: 99, Advertiser: "B"},
 	}
 	counts := map[int]int{}
@@ -51,7 +77,7 @@ func TestPickWeighted_WeightFloorAndDistribution(t *testing.T) {
 		t.Fatalf("expected campaign 2 to dominate, counts=%v", counts)
 	}
 	if counts[1] == 0 {
-		t.Fatalf("weight floor should still give campaign 1 some wins, counts=%v", counts)
+		t.Fatalf("weight 1 should still give campaign 1 some wins, counts=%v", counts)
 	}
 }
 
@@ -85,7 +111,6 @@ func TestSelectForInstances_IndependentPicksPerInstance(t *testing.T) {
 	if got["home-feed-1"] == nil || got["home-feed-2"] == nil {
 		t.Fatalf("feed picks missing: %+v", got)
 	}
-	// Both feed instances independently pick from same pool (may or may not match).
 	if got["home-feed-1"].PlacementID != "feed_native" {
 		t.Fatalf("feed-1 placement: %+v", got["home-feed-1"])
 	}

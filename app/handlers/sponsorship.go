@@ -6,6 +6,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -82,7 +83,7 @@ func SponsorshipClick() web.HandlerFunc {
 				clickURL = list.Result[0].ClickURL
 			}
 		}
-		if clickURL == "" {
+		if clickURL == "" || !validate.IsHTTPOrHTTPSURL(clickURL) {
 			return c.NotFound()
 		}
 		_ = bus.Dispatch(c, &cmd.IncrementSponsorshipClick{ID: id})
