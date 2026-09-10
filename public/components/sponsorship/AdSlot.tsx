@@ -9,17 +9,19 @@ interface AdSlotProps {
 }
 
 /**
- * Renders a house ad for slot from SponsorshipProvider (no per-slot fetch).
- * Must be under a SponsorshipProvider that requested this slot.
- * Image + HTML both render when present. creativeImageUrl is already resolved for this slot by the API.
- * Always shows visible "Sponsored · {advertiser}" disclosure outside the creative.
- * No swipe-mode / AdSense wiring here (house creatives only).
+ * House ad for slot from SponsorshipProvider.
+ * Requires non-empty advertiser — empty means do not render (no bare "Sponsored").
  */
 export const AdSlot: React.FC<AdSlotProps> = ({ slot, className }) => {
   const loaded = useSponsorshipLoaded()
   const campaign = useSponsorshipAd(slot)
 
   if (!loaded || !campaign) {
+    return null
+  }
+
+  const advertiser = (campaign.advertiser || "").trim()
+  if (!advertiser) {
     return null
   }
 
@@ -30,8 +32,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({ slot, className }) => {
   const spec = SPONSORSHIP_SLOT_SPECS[slot]
   const hasImage = Boolean(campaign.creativeImageUrl)
   const hasHtml = Boolean(campaign.creativeHtml)
-  const advertiser = (campaign.advertiser || "").trim()
-  const disclosure = advertiser ? `Sponsored · ${advertiser}` : "Sponsored"
+  const disclosure = `Sponsored · ${advertiser}`
 
   return (
     <a

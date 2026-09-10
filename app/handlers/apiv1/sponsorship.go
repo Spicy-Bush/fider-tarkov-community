@@ -168,12 +168,20 @@ func DeleteSponsorshipCampaign() web.HandlerFunc {
 	}
 }
 
-func publicCampaign(slot string, camp *entity.SponsorshipCampaign) entity.PublicSponsorshipCampaign {
+func publicCampaign(slot string, camp *entity.SponsorshipCampaign) (entity.PublicSponsorshipCampaign, bool) {
+	if camp == nil {
+		return entity.PublicSponsorshipCampaign{}, false
+	}
+	advertiser := strings.TrimSpace(camp.Advertiser)
+	if advertiser == "" {
+		// Required public disclosure - never ship creatives without advertiser.
+		return entity.PublicSponsorshipCampaign{}, false
+	}
 	return entity.PublicSponsorshipCampaign{
-		ID: camp.ID, Advertiser: camp.Advertiser, SlotID: slot,
+		ID: camp.ID, Advertiser: advertiser, SlotID: slot,
 		CreativeImageURL: camp.ImageURLForSlot(slot), CreativeHTML: camp.CreativeHTML,
 		ClickPath: fmt.Sprintf("/ads/click/%d", camp.ID),
-	}
+	}, true
 }
 
 // GetActiveSponsorship:
@@ -206,10 +214,10 @@ func GetActiveSponsorship() web.HandlerFunc {
 			out := web.Map{}
 			for _, slot := range slotIDs {
 				camp := q.Result[slot]
-				if camp == nil {
-					out[slot] = nil
+				if pc, ok := publicCampaign(slot, camp); ok {
+					out[slot] = pc
 				} else {
-					out[slot] = publicCampaign(slot, camp)
+					out[slot] = nil
 				}
 			}
 			return c.Ok(out)
@@ -223,6 +231,10 @@ func GetActiveSponsorship() web.HandlerFunc {
 		if q.Result == nil {
 			return c.Ok(web.Map{})
 		}
-		return c.Ok(publicCampaign(slotID, q.Result))
+		pc, ok := publicCampaign(slotID, q.Result)
+		if !ok {
+			return c.Ok(web.Map{})
+		}
+		return c.Ok(pc)
 	}
 }

@@ -7,13 +7,17 @@ interface FeedNativeAdProps {
   className?: string
 }
 
-/** Post-like native feed creative (Zaddish). Visible Sponsored · advertiser disclosure outside creative. */
+/** Native feed creative. Requires advertiser; returns null if missing. */
 export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ campaign, className }) => {
+  const advertiser = (campaign.advertiser || "").trim()
+  if (!advertiser) {
+    return null
+  }
+
   const spec = SPONSORSHIP_SLOT_SPECS.feed_native
   const hasImage = Boolean(campaign.creativeImageUrl)
   const hasHtml = Boolean(campaign.creativeHtml)
-  const advertiser = (campaign.advertiser || "").trim()
-  const disclosure = advertiser ? `Sponsored · ${advertiser}` : "Sponsored"
+  const disclosure = `Sponsored · ${advertiser}`
   const rootClassName = ["block", "no-underline", "text-inherit", className].filter(Boolean).join(" ")
 
   return (
