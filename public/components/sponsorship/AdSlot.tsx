@@ -23,6 +23,9 @@ export const AdSlot: React.FC<AdSlotProps> = ({ slot, className }) => {
     return <FeedNativeAd campaign={campaign} className={className} />
   }
 
+  const hasImage = Boolean(campaign.creativeImageUrl)
+  const hasHtml = Boolean(campaign.creativeHtml)
+
   return (
     <a
       href={campaign.clickPath}
@@ -31,13 +34,13 @@ export const AdSlot: React.FC<AdSlotProps> = ({ slot, className }) => {
       target="_blank"
       aria-label={campaign.name}
     >
-      {campaign.creativeHtml ? (
-        <div className="sponsorship-html" dangerouslySetInnerHTML={{ __html: campaign.creativeHtml }} />
-      ) : campaign.creativeImageUrl ? (
-        <img src={campaign.creativeImageUrl} alt={campaign.name} className="max-w-full h-auto rounded" />
-      ) : (
-        <span className="text-sm text-muted">{campaign.name}</span>
+      {hasImage && (
+        <img src={campaign.creativeImageUrl!} alt={campaign.name} className="max-w-full h-auto rounded" />
       )}
+      {hasHtml && (
+        <div className="sponsorship-html" dangerouslySetInnerHTML={{ __html: campaign.creativeHtml! }} />
+      )}
+      {!hasImage && !hasHtml && <span className="text-sm text-muted">{campaign.name}</span>}
       <div className="text-[10px] uppercase tracking-wide text-muted mt-1">Sponsored</div>
     </a>
   )
