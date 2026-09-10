@@ -116,6 +116,18 @@ func TestSelectForInstances_IndependentPicksPerInstance(t *testing.T) {
 	}
 }
 
+func TestPickWeighted_CapsTotalWithoutPanic(t *testing.T) {
+	cands := make([]adsselect.Candidate, 0, 5)
+	for i := 0; i < 5; i++ {
+		cands = append(cands, adsselect.Candidate{CampaignID: i + 1, Weight: 2_000_000_000})
+	}
+	rng := rand.New(rand.NewSource(1))
+	got := adsselect.PickWeighted(cands, rng)
+	if got == nil {
+		t.Fatal("expected a pick from capped positive weights")
+	}
+}
+
 func TestSelectForInstances_PreservesInstanceKeys(t *testing.T) {
 	rng := rand.New(rand.NewSource(1))
 	got := adsselect.SelectForInstances(

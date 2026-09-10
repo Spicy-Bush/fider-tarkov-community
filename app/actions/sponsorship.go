@@ -143,6 +143,10 @@ func (a *CreateSponsorshipCampaign) Validate(ctx context.Context, user *entity.U
 			result.AddFieldFailure("assignments", "placementId is required")
 			break
 		}
+		if !entity.IsCatalogPlacementID(pid) {
+			result.AddFieldFailure("assignments", "unknown placementId")
+			break
+		}
 		if seen[pid] {
 			result.AddFieldFailure("assignments", "duplicate placementId")
 			break
