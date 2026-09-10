@@ -1,24 +1,29 @@
 import React from "react"
-import { PublicSponsorshipCampaign, SPONSORSHIP_SLOT_SPECS } from "@fider/models"
+import { PublicAd, SPONSORSHIP_SLOT_SPECS } from "@fider/models"
 import { HStack, VStack } from "@fider/components/layout"
+import { HtmlCreativeFrame } from "./HtmlCreativeFrame"
 
 interface FeedNativeAdProps {
-  campaign: PublicSponsorshipCampaign
+  ad: PublicAd
   className?: string
 }
 
-/** Post-like native feed creative (Zaddish). Visible Sponsored · advertiser disclosure outside creative. */
-export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ campaign, className }) => {
+/** Post-like native feed creative. Props only; empty advertiser → null (#39). */
+export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ ad, className }) => {
+  const advertiser = (ad.advertiser || "").trim()
+  if (!advertiser) {
+    return null
+  }
+
   const spec = SPONSORSHIP_SLOT_SPECS.feed_native
-  const hasImage = Boolean(campaign.creativeImageUrl)
-  const hasHtml = Boolean(campaign.creativeHtml)
-  const advertiser = (campaign.advertiser || "").trim()
-  const disclosure = advertiser ? `Sponsored · ${advertiser}` : "Sponsored"
+  const hasImage = Boolean(ad.imageUrl)
+  const hasHtml = Boolean(ad.html)
+  const disclosure = `Sponsored · ${advertiser}`
   const rootClassName = ["block", "no-underline", "text-inherit", className].filter(Boolean).join(" ")
 
   return (
     <a
-      href={campaign.clickPath}
+      href={ad.clickPath}
       className={rootClassName}
       rel="sponsored noopener"
       target="_blank"
@@ -31,16 +36,13 @@ export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ campaign, className 
           <div className="text-lg font-medium text-primary wrap-anywhere">{advertiser}</div>
           {hasImage && (
             <div className={spec.frameClassName}>
-              <img
-                src={campaign.creativeImageUrl!}
-                alt=""
-                className={spec.imgClassName}
-                loading="lazy"
-              />
+              <img src={ad.imageUrl} alt="" className={spec.imgClassName} loading="lazy" />
             </div>
           )}
           {hasHtml && (
-            <div className="text-muted text-sm sponsorship-html" dangerouslySetInnerHTML={{ __html: campaign.creativeHtml! }} />
+            <div onClick={(e) => e.preventDefault()}>
+              <HtmlCreativeFrame html={ad.html} title={disclosure} className="sponsorship-html-frame w-full border-0 rounded bg-surface-alt min-h-[60px] text-muted text-sm" />
+            </div>
           )}
         </VStack>
       </HStack>

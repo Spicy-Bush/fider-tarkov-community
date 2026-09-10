@@ -202,6 +202,7 @@ type UpdateSponsorshipCampaign struct {
 	Locale            string            `json:"locale"`
 	Enabled           bool              `json:"enabled"`
 	PackageID         *int              `json:"packageId"`
+	ConfigVersion     int               `json:"configVersion"`
 }
 
 func (a *UpdateSponsorshipCampaign) IsAuthorized(ctx context.Context, user *entity.User) bool {

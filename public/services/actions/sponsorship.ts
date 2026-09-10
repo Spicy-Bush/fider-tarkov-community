@@ -1,5 +1,12 @@
 import { http, Result } from "@fider/services/http"
-import { PublicSponsorshipCampaign, SponsorshipCampaign, SponsorshipPackage } from "@fider/models"
+import {
+  AdPlacement,
+  CampaignAssignment,
+  CreativeVersion,
+  PublicAd,
+  SponsorshipCampaign,
+  SponsorshipPackage,
+} from "@fider/models"
 
 export const listSponsorshipPackages = (): Promise<Result<SponsorshipPackage[]>> => {
   return http.get<SponsorshipPackage[]>("/api/v1/sponsorship/packages")
@@ -53,11 +60,45 @@ export const deleteSponsorshipCampaign = (id: number): Promise<Result> => {
   return http.delete(`/api/v1/sponsorship/campaigns/${id}`)
 }
 
-/** One request for many slots. Missing/empty slots are null. */
-export const getActiveSponsorshipMap = (
-  slots: string[],
+export type AdSelectRequestSlot = { instanceId: string; placementId: string }
+
+/** Page-owned selection. Response keyed by instanceId; missing fills are null. */
+export const selectAds = (
+  slots: AdSelectRequestSlot[],
   locale: string
-): Promise<Result<Record<string, PublicSponsorshipCampaign | null>>> => {
-  const q = new URLSearchParams({ slots: slots.join(","), locale })
-  return http.get(`/api/v1/sponsorship/active?${q.toString()}`)
+): Promise<Result<Record<string, PublicAd | null>>> => {
+  const q = new URLSearchParams({ locale })
+  return http.post(`/api/v1/ads/select?${q.toString()}`, { slots })
+}
+
+export const listAdPlacements = (): Promise<Result<AdPlacement[]>> => {
+  return http.get<AdPlacement[]>("/api/v1/ads/placements")
+}
+
+export const listCreativeVersions = (campaignId: number): Promise<Result<CreativeVersion[]>> => {
+  return http.get<CreativeVersion[]>(`/api/v1/sponsorship/campaigns/${campaignId}/versions`)
+}
+
+export const createCreativeVersion = (
+  campaignId: number,
+  body: { imageUrl: string; html: string; clickUrl: string }
+): Promise<Result<CreativeVersion>> => {
+  return http.post<CreativeVersion>(`/api/v1/sponsorship/campaigns/${campaignId}/versions`, body)
+}
+
+export const listCampaignAssignments = (campaignId: number): Promise<Result<CampaignAssignment[]>> => {
+  return http.get<CampaignAssignment[]>(`/api/v1/sponsorship/campaigns/${campaignId}/assignments`)
+}
+
+export const upsertCampaignAssignment = (
+  campaignId: number,
+  body: { placementId: string; creativeVersionId: number }
+): Promise<Result<CampaignAssignment>> => {
+  return http.put<CampaignAssignment>(`/api/v1/sponsorship/campaigns/${campaignId}/assignments`, body)
+}
+
+export const deleteCampaignAssignment = (campaignId: number, placementId: string): Promise<Result> => {
+  return http.delete(
+    `/api/v1/sponsorship/campaigns/${campaignId}/assignments/${encodeURIComponent(placementId)}`
+  )
 }

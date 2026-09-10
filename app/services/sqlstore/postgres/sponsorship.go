@@ -215,9 +215,13 @@ func createSponsorshipCampaign(ctx context.Context, c *cmd.CreateSponsorshipCamp
 		if err != nil {
 			return errors.Wrap(err, "failed to create sponsorship campaign")
 		}
+		urlsMap := parseCreativeImageURLs(urlsJSON)
+		if err := syncCampaignGraphFromLegacy(trx, tenant.ID, id, c.Slots, c.CreativeImageURL, urlsMap, c.CreativeHTML, c.ClickURL); err != nil {
+			return err
+		}
 		c.Result = &entity.SponsorshipCampaign{
 			ID: id, Name: c.Name, Advertiser: c.Advertiser, Slots: c.Slots,
-			CreativeImageURL: c.CreativeImageURL, CreativeImageURLs: parseCreativeImageURLs(urlsJSON),
+			CreativeImageURL: c.CreativeImageURL, CreativeImageURLs: urlsMap,
 			CreativeHTML: c.CreativeHTML,
 			ClickURL:     c.ClickURL, StartAt: start, EndAt: end,
 			Weight: c.Weight, Locale: c.Locale, Enabled: c.Enabled, Clicks: 0,
@@ -252,9 +256,13 @@ func updateSponsorshipCampaign(ctx context.Context, c *cmd.UpdateSponsorshipCamp
 			if rows == 0 {
 				return app.ErrConflict
 			}
+			urlsMap := parseCreativeImageURLs(urlsJSON)
+			if err := syncCampaignGraphFromLegacy(trx, tenant.ID, c.ID, c.Slots, c.CreativeImageURL, urlsMap, c.CreativeHTML, c.ClickURL); err != nil {
+				return err
+			}
 			c.Result = &entity.SponsorshipCampaign{
 				ID: c.ID, Name: c.Name, Advertiser: c.Advertiser, Slots: c.Slots,
-				CreativeImageURL: c.CreativeImageURL, CreativeImageURLs: parseCreativeImageURLs(urlsJSON),
+				CreativeImageURL: c.CreativeImageURL, CreativeImageURLs: urlsMap,
 				CreativeHTML: c.CreativeHTML,
 				ClickURL:     c.ClickURL, StartAt: start, EndAt: end,
 				Weight: c.Weight, Locale: c.Locale, Enabled: c.Enabled,
@@ -277,13 +285,19 @@ func updateSponsorshipCampaign(ctx context.Context, c *cmd.UpdateSponsorshipCamp
 		if rows == 0 {
 			return app.ErrNotFound
 		}
+		urlsMap := parseCreativeImageURLs(urlsJSON)
+		if err := syncCampaignGraphFromLegacy(trx, tenant.ID, c.ID, c.Slots, c.CreativeImageURL, urlsMap, c.CreativeHTML, c.ClickURL); err != nil {
+			return err
+		}
+		var cfgVer int
+		_ = trx.Get(&cfgVer, `SELECT config_version FROM sponsorship_campaigns WHERE id=$1 AND tenant_id=$2`, c.ID, tenant.ID)
 		c.Result = &entity.SponsorshipCampaign{
 			ID: c.ID, Name: c.Name, Advertiser: c.Advertiser, Slots: c.Slots,
-			CreativeImageURL: c.CreativeImageURL, CreativeImageURLs: parseCreativeImageURLs(urlsJSON),
+			CreativeImageURL: c.CreativeImageURL, CreativeImageURLs: urlsMap,
 			CreativeHTML: c.CreativeHTML,
 			ClickURL:     c.ClickURL, StartAt: start, EndAt: end,
 			Weight: c.Weight, Locale: c.Locale, Enabled: c.Enabled,
-			PackageID: c.PackageID, UpdatedAt: now,
+			PackageID: c.PackageID, ConfigVersion: cfgVer, UpdatedAt: now,
 		}
 		return nil
 	})

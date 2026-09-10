@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/adsselect"
@@ -136,4 +137,151 @@ func runAdSelection(
 		}
 	}
 	return out, nil
+}
+
+// ListAdPlacements returns the global placement catalog (admin + editor).
+func ListAdPlacements() web.HandlerFunc {
+	return func(c *web.Context) error {
+		q := &query.ListAdPlacements{}
+		if err := bus.Dispatch(c, q); err != nil {
+			return c.Failure(err)
+		}
+		if q.Result == nil {
+			q.Result = []*entity.AdPlacement{}
+		}
+		return c.Ok(q.Result)
+	}
+}
+
+// ListCreativeVersions lists versions for a campaign.
+func ListCreativeVersions() web.HandlerFunc {
+	return func(c *web.Context) error {
+		campaignID, err := c.ParamAsInt("id")
+		if err != nil {
+			return c.BadRequest(web.Map{"message": "Invalid campaign ID"})
+		}
+		q := &query.ListCreativeVersionsByCampaign{CampaignID: campaignID}
+		if err := bus.Dispatch(c, q); err != nil {
+			return c.Failure(err)
+		}
+		if q.Result == nil {
+			q.Result = []*entity.CreativeVersion{}
+		}
+		return c.Ok(q.Result)
+	}
+}
+
+type createCreativeVersionRequest struct {
+	ImageURL string `json:"imageUrl"`
+	HTML     string `json:"html"`
+	ClickURL string `json:"clickUrl"`
+}
+
+// CreateCreativeVersion appends an immutable version under a campaign.
+func CreateCreativeVersion() web.HandlerFunc {
+	return func(c *web.Context) error {
+		campaignID, err := c.ParamAsInt("id")
+		if err != nil {
+			return c.BadRequest(web.Map{"message": "Invalid campaign ID"})
+		}
+		req := createCreativeVersionRequest{}
+		if err := c.Bind(&req); err != nil {
+			return c.BadRequest(web.Map{"message": "Invalid request body"})
+		}
+		req.ImageURL = strings.TrimSpace(req.ImageURL)
+		req.HTML = strings.TrimSpace(req.HTML)
+		req.ClickURL = strings.TrimSpace(req.ClickURL)
+		if req.ClickURL == "" {
+			return c.BadRequest(web.Map{"message": "clickUrl is required"})
+		}
+		if req.ImageURL == "" && req.HTML == "" {
+			return c.BadRequest(web.Map{"message": "Provide imageUrl or html"})
+		}
+		return c.WithTransaction(func() error {
+			create := &cmd.CreateCreativeVersion{
+				CampaignID: campaignID,
+				ImageURL:   req.ImageURL,
+				HTML:       req.HTML,
+				ClickURL:   req.ClickURL,
+			}
+			if err := bus.Dispatch(c, create); err != nil {
+				return c.Failure(err)
+			}
+			return c.Ok(create.Result)
+		})
+	}
+}
+
+// ListCampaignAssignments lists placement bindings for a campaign.
+func ListCampaignAssignments() web.HandlerFunc {
+	return func(c *web.Context) error {
+		campaignID, err := c.ParamAsInt("id")
+		if err != nil {
+			return c.BadRequest(web.Map{"message": "Invalid campaign ID"})
+		}
+		q := &query.ListCampaignAssignmentsByCampaign{CampaignID: campaignID}
+		if err := bus.Dispatch(c, q); err != nil {
+			return c.Failure(err)
+		}
+		if q.Result == nil {
+			q.Result = []*entity.CampaignAssignment{}
+		}
+		return c.Ok(q.Result)
+	}
+}
+
+type upsertAssignmentRequest struct {
+	PlacementID       string `json:"placementId"`
+	CreativeVersionID int    `json:"creativeVersionId"`
+}
+
+// UpsertCampaignAssignment sets placement → creative version for a campaign.
+func UpsertCampaignAssignment() web.HandlerFunc {
+	return func(c *web.Context) error {
+		campaignID, err := c.ParamAsInt("id")
+		if err != nil {
+			return c.BadRequest(web.Map{"message": "Invalid campaign ID"})
+		}
+		req := upsertAssignmentRequest{}
+		if err := c.Bind(&req); err != nil {
+			return c.BadRequest(web.Map{"message": "Invalid request body"})
+		}
+		req.PlacementID = strings.TrimSpace(req.PlacementID)
+		if req.PlacementID == "" || req.CreativeVersionID <= 0 {
+			return c.BadRequest(web.Map{"message": "placementId and creativeVersionId are required"})
+		}
+		return c.WithTransaction(func() error {
+			up := &cmd.UpsertCampaignAssignment{
+				CampaignID:        campaignID,
+				PlacementID:       req.PlacementID,
+				CreativeVersionID: req.CreativeVersionID,
+			}
+			if err := bus.Dispatch(c, up); err != nil {
+				return c.Failure(err)
+			}
+			return c.Ok(up.Result)
+		})
+	}
+}
+
+// DeleteCampaignAssignment removes a placement binding.
+func DeleteCampaignAssignment() web.HandlerFunc {
+	return func(c *web.Context) error {
+		campaignID, err := c.ParamAsInt("id")
+		if err != nil {
+			return c.BadRequest(web.Map{"message": "Invalid campaign ID"})
+		}
+		placementID := strings.TrimSpace(c.Param("placementId"))
+		if placementID == "" {
+			return c.BadRequest(web.Map{"message": "placementId is required"})
+		}
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.DeleteCampaignAssignment{
+				CampaignID: campaignID, PlacementID: placementID,
+			}); err != nil {
+				return c.Failure(err)
+			}
+			return c.Ok(web.Map{})
+		})
+	}
 }

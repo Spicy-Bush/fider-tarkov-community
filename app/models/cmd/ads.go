@@ -18,3 +18,9 @@ type UpsertCampaignAssignment struct {
 	CreativeVersionID int
 	Result            *entity.CampaignAssignment
 }
+
+// DeleteCampaignAssignment removes a placement binding under a campaign.
+type DeleteCampaignAssignment struct {
+	CampaignID  int
+	PlacementID string
+}

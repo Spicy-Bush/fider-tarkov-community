@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strings"
 
 	"github.com/lib/pq"
 
@@ -196,4 +197,156 @@ func upsertCampaignAssignment(ctx context.Context, c *cmd.UpsertCampaignAssignme
 		}
 		return nil
 	})
+}
+
+func listCreativeVersionsByCampaign(ctx context.Context, q *query.ListCreativeVersionsByCampaign) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		q.Result = []*entity.CreativeVersion{}
+		rows := []*dbCreativeVersion{}
+		err := trx.Select(&rows, `
+			SELECT id, campaign_id, version_no, image_url, html, click_url, created_at
+			FROM creative_versions
+			WHERE tenant_id = $1 AND campaign_id = $2
+			ORDER BY version_no DESC`,
+			tenant.ID, q.CampaignID)
+		if err != nil {
+			return errors.Wrap(err, "failed to list creative versions")
+		}
+		q.Result = make([]*entity.CreativeVersion, len(rows))
+		for i, row := range rows {
+			q.Result[i] = row.toModel()
+		}
+		return nil
+	})
+}
+
+func listCampaignAssignmentsByCampaign(ctx context.Context, q *query.ListCampaignAssignmentsByCampaign) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		q.Result = []*entity.CampaignAssignment{}
+		type row struct {
+			ID                int    `db:"id"`
+			CampaignID        int    `db:"campaign_id"`
+			PlacementID       string `db:"placement_id"`
+			CreativeVersionID int    `db:"creative_version_id"`
+		}
+		rows := []*row{}
+		err := trx.Select(&rows, `
+			SELECT id, campaign_id, placement_id, creative_version_id
+			FROM campaign_assignments
+			WHERE tenant_id = $1 AND campaign_id = $2
+			ORDER BY placement_id ASC`,
+			tenant.ID, q.CampaignID)
+		if err != nil {
+			return errors.Wrap(err, "failed to list campaign assignments")
+		}
+		q.Result = make([]*entity.CampaignAssignment, len(rows))
+		for i, r := range rows {
+			q.Result[i] = &entity.CampaignAssignment{
+				ID: r.ID, CampaignID: r.CampaignID, PlacementID: r.PlacementID,
+				CreativeVersionID: r.CreativeVersionID,
+			}
+		}
+		return nil
+	})
+}
+
+func deleteCampaignAssignment(ctx context.Context, c *cmd.DeleteCampaignAssignment) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		_, err := trx.Execute(`
+			DELETE FROM campaign_assignments
+			WHERE tenant_id = $1 AND campaign_id = $2 AND placement_id = $3`,
+			tenant.ID, c.CampaignID, c.PlacementID)
+		if err != nil {
+			return errors.Wrap(err, "failed to delete campaign assignment")
+		}
+		return nil
+	})
+}
+
+// syncCampaignGraphFromLegacy dual-writes fat campaign creative fields into
+// creative_versions + campaign_assignments so selection (assignments-only) stays filled.
+func syncCampaignGraphFromLegacy(
+	trx *dbx.Trx,
+	tenantID, campaignID int,
+	slotsCSV, imageURL string,
+	imageURLs map[string]string,
+	html, clickURL string,
+) error {
+	clickURL = strings.TrimSpace(clickURL)
+	html = strings.TrimSpace(html)
+	if clickURL == "" {
+		return nil
+	}
+	slots := []string{}
+	seen := map[string]bool{}
+	for _, s := range strings.Split(slotsCSV, ",") {
+		s = strings.TrimSpace(s)
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		slots = append(slots, s)
+	}
+	if len(slots) == 0 {
+		return nil
+	}
+
+	type slotCreative struct {
+		placement string
+		image     string
+	}
+	creatives := make([]slotCreative, 0, len(slots))
+	legacy := strings.TrimSpace(imageURL)
+	for _, slot := range slots {
+		img := ""
+		if imageURLs != nil {
+			img = strings.TrimSpace(imageURLs[slot])
+		}
+		if img == "" {
+			img = legacy
+		}
+		if img == "" && html == "" {
+			continue
+		}
+		creatives = append(creatives, slotCreative{placement: slot, image: img})
+	}
+	if len(creatives) == 0 {
+		return nil
+	}
+
+	// Group identical payloads to reuse one version across placements when possible.
+	type payloadKey struct{ image, html, click string }
+	versionByPayload := map[payloadKey]int{}
+
+	for _, sc := range creatives {
+		key := payloadKey{image: sc.image, html: html, click: clickURL}
+		vid, ok := versionByPayload[key]
+		if !ok {
+			row := &dbCreativeVersion{}
+			err := trx.Get(row, `
+				INSERT INTO creative_versions (tenant_id, campaign_id, version_no, image_url, html, click_url)
+				VALUES (
+					$1, $2,
+					(SELECT COALESCE(MAX(version_no), 0) + 1 FROM creative_versions WHERE tenant_id = $1 AND campaign_id = $2),
+					$3, $4, $5
+				)
+				RETURNING id, campaign_id, version_no, image_url, html, click_url, created_at`,
+				tenantID, campaignID, sc.image, html, clickURL)
+			if err != nil {
+				return errors.Wrap(err, "failed to dual-write creative version")
+			}
+			vid = row.ID
+			versionByPayload[key] = vid
+		}
+		_, err := trx.Execute(`
+			INSERT INTO campaign_assignments (tenant_id, campaign_id, placement_id, creative_version_id)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (tenant_id, campaign_id, placement_id)
+			DO UPDATE SET creative_version_id = EXCLUDED.creative_version_id`,
+			tenantID, campaignID, sc.placement, vid)
+		if err != nil {
+			return errors.Wrap(err, "failed to dual-write campaign assignment")
+		}
+	}
+	return nil
 }

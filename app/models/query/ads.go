@@ -26,3 +26,15 @@ type GetCreativeVersionsByIDs struct {
 	IDs    []int
 	Result map[int]*entity.CreativeVersion
 }
+
+// ListCreativeVersionsByCampaign returns all versions for a campaign (newest first).
+type ListCreativeVersionsByCampaign struct {
+	CampaignID int
+	Result     []*entity.CreativeVersion
+}
+
+// ListCampaignAssignmentsByCampaign returns placement bindings for a campaign.
+type ListCampaignAssignmentsByCampaign struct {
+	CampaignID int
+	Result     []*entity.CampaignAssignment
+}

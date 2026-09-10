@@ -1,3 +1,5 @@
 export * from "./AdSlot"
 export * from "./FeedNativeAd"
-export * from "./SponsorshipProvider"
+export * from "./HtmlCreativeFrame"
+export * from "./useAdSelection"
+export * from "./datetime"

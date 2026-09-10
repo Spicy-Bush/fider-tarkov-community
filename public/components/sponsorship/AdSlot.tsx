@@ -1,59 +1,59 @@
 import React from "react"
 import { FeedNativeAd } from "./FeedNativeAd"
-import { useSponsorshipAd, useSponsorshipLoaded } from "./SponsorshipProvider"
-import { SPONSORSHIP_SLOT_SPECS, SponsorshipSlot } from "@fider/models"
+import { HtmlCreativeFrame } from "./HtmlCreativeFrame"
+import { PublicAd, SPONSORSHIP_SLOT_SPECS } from "@fider/models"
 
-interface AdSlotProps {
-  slot: SponsorshipSlot
+export interface AdSlotProps {
+  instanceId: string
+  placementId: string
+  /** undefined = parent still loading; null = no fill; PublicAd = render */
+  ad: PublicAd | null | undefined
   className?: string
 }
 
 /**
- * Renders a house ad for slot from SponsorshipProvider (no per-slot fetch).
- * Must be under a SponsorshipProvider that requested this slot.
- * Image + HTML both render when present. creativeImageUrl is already resolved for this slot by the API.
- * Always shows visible "Sponsored · {advertiser}" disclosure outside the creative.
- * No swipe-mode / AdSense wiring here (house creatives only).
+ * Props-only house ad renderer. No fetch, no SponsorshipContext.
+ * Empty advertiser → null (#39). HTML via sandboxed iframe only.
  */
-export const AdSlot: React.FC<AdSlotProps> = ({ slot, className }) => {
-  const loaded = useSponsorshipLoaded()
-  const campaign = useSponsorshipAd(slot)
-
-  if (!loaded || !campaign) {
+export const AdSlot: React.FC<AdSlotProps> = ({ instanceId, placementId, ad, className }) => {
+  if (ad === undefined || ad === null) {
     return null
   }
 
-  if (slot === "feed_native") {
-    return <FeedNativeAd campaign={campaign} className={className} />
+  const advertiser = (ad.advertiser || "").trim()
+  if (!advertiser) {
+    return null // #39 belt-and-suspenders
   }
 
-  const spec = SPONSORSHIP_SLOT_SPECS[slot]
-  const hasImage = Boolean(campaign.creativeImageUrl)
-  const hasHtml = Boolean(campaign.creativeHtml)
-  const advertiser = (campaign.advertiser || "").trim()
-  const disclosure = advertiser ? `Sponsored · ${advertiser}` : "Sponsored"
+  if (placementId === "feed_native") {
+    return <FeedNativeAd ad={ad} className={className} />
+  }
+
+  const spec = SPONSORSHIP_SLOT_SPECS[placementId] || SPONSORSHIP_SLOT_SPECS.sidebar_top
+  const hasImage = Boolean(ad.imageUrl)
+  const hasHtml = Boolean(ad.html)
+  const disclosure = `Sponsored · ${advertiser}`
 
   return (
     <a
-      href={campaign.clickPath}
+      href={ad.clickPath}
       className={className || "block my-3 no-underline"}
       rel="sponsored noopener"
       target="_blank"
       aria-label={disclosure}
+      data-ad-instance={instanceId}
+      data-ad-placement={placementId}
     >
       <div className="text-[10px] uppercase tracking-wide text-muted mb-1">{disclosure}</div>
       {hasImage && (
         <div className={spec.frameClassName}>
-          <img
-            src={campaign.creativeImageUrl!}
-            alt={advertiser}
-            className={spec.imgClassName}
-            loading="lazy"
-          />
+          <img src={ad.imageUrl} alt={advertiser} className={spec.imgClassName} loading="lazy" />
         </div>
       )}
       {hasHtml && (
-        <div className="sponsorship-html mt-2" dangerouslySetInnerHTML={{ __html: campaign.creativeHtml! }} />
+        <div className="mt-2" onClick={(e) => e.preventDefault()}>
+          <HtmlCreativeFrame html={ad.html} title={disclosure} />
+        </div>
       )}
       {!hasImage && !hasHtml && <span className="text-sm text-muted">{advertiser}</span>}
     </a>

@@ -5,7 +5,8 @@ import { ResponseLozenge } from "@fider/components/post/ShowPostResponse"
 import { heroiconsChatAlt2 as IconChatAlt2 } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 import { getVotePosition } from "@fider/components/UserProfile/UserProfileSettings"
-import { AdSlot } from "@fider/components/sponsorship"
+import { AdSlot, useAdSelection } from "@fider/components/sponsorship"
+import { FEED_AD_EVERY, PublicAd } from "@fider/models"
 
 interface ListPostsProps {
   posts?: Post[]
@@ -116,6 +117,16 @@ export const ListPosts = (props: ListPostsProps) => {
     }))
   }, [props.posts, props.tags])
 
+  const feedSlots = useMemo(() => {
+    const n = Math.floor(postsWithTags.length / FEED_AD_EVERY)
+    return Array.from({ length: n }, (_, i) => ({
+      instanceId: `feed-${i}`,
+      placementId: "feed_native",
+    }))
+  }, [postsWithTags.length])
+
+  const { ads: feedAds, loaded: feedLoaded } = useAdSelection(feedSlots)
+
   if (!props.posts && !props.loading) {
     return null
   }
@@ -134,16 +145,26 @@ export const ListPosts = (props: ListPostsProps) => {
     return <p className="text-center">{props.emptyText}</p>
   }
 
-  const FEED_AD_EVERY = 5
-
   return (
     <VStack spacing={4} divide>
-      {postsWithTags.map(({ post, tags }, index) => (
-        <React.Fragment key={post.id}>
-          <ListPostItem post={post} tags={tags} votePosition={votePosition} />
-          {(index + 1) % FEED_AD_EVERY === 0 && <AdSlot slot="feed_native" />}
-        </React.Fragment>
-      ))}
+      {postsWithTags.map(({ post, tags }, index) => {
+        const showAd = (index + 1) % FEED_AD_EVERY === 0
+        const feedIndex = Math.floor((index + 1) / FEED_AD_EVERY) - 1
+        const instanceId = `feed-${feedIndex}`
+        const ad: PublicAd | null | undefined = showAd
+          ? feedLoaded
+            ? feedAds[instanceId] ?? null
+            : undefined
+          : undefined
+        return (
+          <React.Fragment key={post.id}>
+            <ListPostItem post={post} tags={tags} votePosition={votePosition} />
+            {showAd && (
+              <AdSlot instanceId={instanceId} placementId="feed_native" ad={ad} />
+            )}
+          </React.Fragment>
+        )
+      })}
     </VStack>
   )
 }

@@ -145,7 +145,7 @@ func UpdateSponsorshipCampaign() web.HandlerFunc {
 				CreativeHTML: action.CreativeHTML,
 				ClickURL:     action.ClickURL, StartAt: action.StartAt.UTC(), EndAt: action.EndAt.UTC(),
 				Weight: action.Weight, Locale: action.Locale, Enabled: action.Enabled,
-				PackageID: action.PackageID,
+				PackageID: action.PackageID, ConfigVersion: action.ConfigVersion,
 			}
 			if err := bus.Dispatch(c, update); err != nil {
 				return c.Failure(err)

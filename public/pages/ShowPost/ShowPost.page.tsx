@@ -36,7 +36,7 @@ import { VoteSection } from "./components/VoteSection"
 import { DeletePostModal } from "./components/DeletePostModal"
 import { ResponseModal } from "./components/ResponseModal"
 import { VotesPanel } from "./components/VotesPanel"
-import { AdSlot, SponsorshipProvider } from "@fider/components/sponsorship"
+import { AdSlot, useAdSelection } from "@fider/components/sponsorship"
 import { useShowPostState } from "./hooks"
 
 interface ReportStatus {
@@ -63,6 +63,9 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
   })
   
   const [lastActivityAt, setLastActivityAt] = useState(props.post.lastActivityAt)
+  const { ads: postAds, loaded: postAdLoaded } = useAdSelection([
+    { instanceId: "post-below-title", placementId: "post_below_title" },
+  ])
   
   useEffect(() => {
     setLastActivityAt(props.post.lastActivityAt)
@@ -382,7 +385,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                   )}
                 </VStack>
 
-                <SponsorshipProvider slots={["post_below_title"]}><AdSlot slot="post_below_title" className="my-3" /></SponsorshipProvider>
+                <AdSlot instanceId="post-below-title" placementId="post_below_title" ad={postAdLoaded ? (postAds["post-below-title"] ?? null) : undefined} className="my-3" />
 
                 <ResponseDetails status={props.post.status} response={props.post.response} previousStatus={props.post.archivedSettings?.previousStatus} />
               </VStack>

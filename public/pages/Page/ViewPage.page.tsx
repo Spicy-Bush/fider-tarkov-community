@@ -9,7 +9,7 @@ import { EmbeddedPostsList } from "@fider/components/page/EmbeddedPostsList"
 import { ShowComment } from "@fider/pages/ShowPost/components/ShowComment"
 import { PageCommentInput } from "@fider/components/page/PageCommentInput"
 import { Reactions } from "@fider/components/post/Reactions"
-import { AdSlot, SponsorshipProvider } from "@fider/components/sponsorship"
+import { AdSlot, useAdSelection } from "@fider/components/sponsorship"
 
 interface ViewPageProps {
   page: Page
@@ -26,6 +26,9 @@ const ViewPage = ({ page, comments: initialComments }: ViewPageProps) => {
   const { toc, activeId, scrollTo } = useTableOfContents(contentRef, page.title, "page-title")
   const [comments, setComments] = useState<Comment[]>(initialComments)
   const [reactionCounts, setReactionCounts] = useState(page.reactionCounts || [])
+  const { ads: pageAds, loaded: pageAdLoaded } = useAdSelection([
+    { instanceId: "pages-header", placementId: "pages_header" },
+  ])
 
   const readingTime = useMemo(() => Math.max(1, Math.ceil(page.content.split(/\s+/).length / 250)), [page.content])
 
@@ -222,7 +225,7 @@ const ViewPage = ({ page, comments: initialComments }: ViewPageProps) => {
             {page.authors && page.authors.length > 0 && <span>By {page.authors.map((author) => author.name).join(", ")}</span>}
           </HStack>
 
-          <SponsorshipProvider slots={["pages_header"]}><AdSlot slot="pages_header" className="mb-6" /></SponsorshipProvider>
+          <AdSlot instanceId="pages-header" placementId="pages_header" ad={pageAdLoaded ? (pageAds["pages-header"] ?? null) : undefined} className="mb-6" />
 
           <div ref={contentRef} className="c-markdown mb-8 min-w-0 max-w-full">
             {contentParts.map((part, index) => {
