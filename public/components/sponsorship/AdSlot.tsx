@@ -4,7 +4,7 @@ import { HtmlCreativeFrame } from "./HtmlCreativeFrame"
 import { AdSenseSlot } from "./AdSenseSlot"
 import { getAdSenseClient } from "./adsenseClient"
 import { resolvePlacementAdConfig, usePlacementAdConfig } from "./usePlacementAdConfig"
-import { PublicAd, SPONSORSHIP_SLOT_SPECS } from "@fider/models"
+import { PlacementRenderMeta, PublicAd, resolvePlacementRenderMeta } from "@fider/models"
 
 export interface AdSlotProps {
   instanceId: string
@@ -14,17 +14,28 @@ export interface AdSlotProps {
   className?: string
   /**
    * When true (default on public pages), null house fill may show AdSense if client+slot configured.
-   * Admin preview must pass false — house creatives only, never live AdSense.
+   * Admin preview must pass false -- house creatives only, never live AdSense.
    */
   allowAdSense?: boolean
-  /** When select HTTP failed — never swap AdSense for that load. */
+  /** When select HTTP failed -- never swap AdSense for that load. */
   selectFailed?: boolean
+  /** Optional catalog meta (kind/dims/label). Falls back to SPONSORSHIP_SLOT_SPECS. */
+  placement?: PlacementRenderMeta
+}
+
+function frameSizeStyle(meta: { maxWidth?: number; maxHeight?: number }): React.CSSProperties | undefined {
+  if (!meta.maxWidth && !meta.maxHeight) return undefined
+  return {
+    ...(meta.maxWidth ? { maxWidth: meta.maxWidth } : {}),
+    ...(meta.maxHeight ? { maxHeight: meta.maxHeight } : {}),
+  }
 }
 
 /**
  * Props-only renderer. House fill from select takes precedence (never also AdSense).
- * null + client + placement adsense slot → AdSenseSlot; else emptyPolicy collapse|reserve.
+ * null + client + placement adsense slot -> AdSenseSlot; else emptyPolicy collapse|reserve.
  * HTML via sandboxed iframe only. No dangerouslySetInnerHTML.
+ * When both image and html are set, show both.
  */
 export const AdSlot: React.FC<AdSlotProps> = ({
   instanceId,
@@ -33,6 +44,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({
   className,
   allowAdSense = true,
   selectFailed = false,
+  placement,
 }) => {
   const wantConfig = allowAdSense && !selectFailed && ad === null
   const { config: placementConfig, loaded: configLoaded } = usePlacementAdConfig(wantConfig)
@@ -42,21 +54,24 @@ export const AdSlot: React.FC<AdSlotProps> = ({
     return null
   }
 
-  // House fill — never also AdSense for this instance.
+  // House fill -- never also AdSense for this instance.
   if (ad !== null) {
     const advertiser = (ad.advertiser || "").trim()
     if (!advertiser) {
       return null // #39 belt-and-suspenders
     }
 
-    if (placementId === "feed_native") {
-      return <FeedNativeAd ad={ad} className={className} />
+    // House path: prefer explicit placement props, else SPECS/feed_native fallback (no forced catalog fetch).
+    const meta = resolvePlacementRenderMeta(placementId, placement)
+
+    if (meta.kind === "native") {
+      return <FeedNativeAd ad={ad} className={className} placement={meta} />
     }
 
-    const spec = SPONSORSHIP_SLOT_SPECS[placementId] || SPONSORSHIP_SLOT_SPECS.sidebar_top
     const hasImage = Boolean(ad.imageUrl)
     const hasHtml = Boolean(ad.html)
     const disclosure = `Sponsored - ${advertiser}`
+    const sizeStyle = frameSizeStyle(meta)
 
     return (
       <a
@@ -68,15 +83,16 @@ export const AdSlot: React.FC<AdSlotProps> = ({
         data-ad-instance={instanceId}
         data-ad-placement={placementId}
         data-ad-network="house"
+        data-ad-kind="frame"
       >
         <div className="text-[10px] uppercase tracking-wide text-muted mb-1">{disclosure}</div>
         {hasImage && (
-          <div className={spec.frameClassName}>
-            <img src={ad.imageUrl} alt={advertiser} className={spec.imgClassName} loading="lazy" />
+          <div className={meta.frameClassName} style={sizeStyle}>
+            <img src={ad.imageUrl} alt={advertiser} className={meta.imgClassName} loading="lazy" />
           </div>
         )}
         {hasHtml && (
-          <div className="mt-2" onClick={(e) => e.preventDefault()}>
+          <div className="mt-2" onClick={(e) => e.preventDefault()} style={sizeStyle}>
             <HtmlCreativeFrame html={ad.html} title={disclosure} />
           </div>
         )}
@@ -85,7 +101,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({
     )
   }
 
-  // ad === null: empty house fill → optional AdSense / emptyPolicy
+  // ad === null: empty house fill -> optional AdSense / emptyPolicy
   if (!allowAdSense) {
     return null
   }
@@ -97,6 +113,12 @@ export const AdSlot: React.FC<AdSlotProps> = ({
   const cfg = resolvePlacementAdConfig(placementId, placementConfig)
   const client = getAdSenseClient()
   const slotId = (cfg.adsenseSlotId || "").trim()
+  const meta = resolvePlacementRenderMeta(placementId, {
+    kind: placement?.kind || cfg.kind,
+    maxWidth: placement?.maxWidth ?? cfg.maxWidth,
+    maxHeight: placement?.maxHeight ?? cfg.maxHeight,
+    label: placement?.label,
+  })
 
   if (client && slotId) {
     return (
@@ -107,12 +129,13 @@ export const AdSlot: React.FC<AdSlotProps> = ({
         placementId={placementId}
         instanceId={instanceId}
         className={className}
+        maxWidth={meta.maxWidth}
+        maxHeight={meta.maxHeight}
       />
     )
   }
 
   if (cfg.emptyPolicy === "reserve") {
-    const spec = SPONSORSHIP_SLOT_SPECS[placementId] || SPONSORSHIP_SLOT_SPECS.sidebar_top
     return (
       <div
         className={className || "block my-3"}
@@ -121,7 +144,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({
         data-ad-empty="reserve"
         aria-hidden
       >
-        <div className={spec.frameClassName} />
+        <div className={meta.frameClassName} style={frameSizeStyle(meta)} />
       </div>
     )
   }
