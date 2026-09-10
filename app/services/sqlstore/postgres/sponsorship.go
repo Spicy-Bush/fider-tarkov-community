@@ -143,7 +143,7 @@ func listSponsorshipCampaigns(ctx context.Context, q *query.ListSponsorshipCampa
 func getSponsorshipCampaignByID(ctx context.Context, q *query.GetSponsorshipCampaignByID) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		row := &dbCampaign{}
-		err := trx.Get(row, campaignSelect+` WHERE id = $1 AND tenant_id = $2`, q.ID, tenant.ID)
+		err := trx.Get(row, campaignSelect+` WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, q.ID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get sponsorship campaign")
 		}
@@ -264,11 +264,19 @@ func deleteSponsorshipCampaign(ctx context.Context, c *cmd.DeleteSponsorshipCamp
 
 func incrementSponsorshipClick(ctx context.Context, c *cmd.IncrementSponsorshipClick) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		_, err := trx.Execute(`
+		now := time.Now().UTC()
+		rows, err := trx.Execute(`
 			UPDATE sponsorship_campaigns SET clicks = clicks + 1, updated_at = $3
-			WHERE id=$1 AND tenant_id=$2`, c.ID, tenant.ID, time.Now().UTC())
+			WHERE id=$1 AND tenant_id=$2
+			  AND deleted_at IS NULL
+			  AND enabled = true
+			  AND start_at <= $3
+			  AND end_at > $3`, c.ID, tenant.ID, now)
 		if err != nil {
 			return errors.Wrap(err, "failed to increment sponsorship click")
+		}
+		if rows == 0 {
+			return app.ErrNotFound
 		}
 		return nil
 	})
