@@ -83,6 +83,8 @@ func routes(r *web.Engine) *web.Engine {
 
 	r.Get("/terms", handlers.LegalPage("Terms of Service", "terms.md"))
 	r.Get("/privacy", handlers.LegalPage("Privacy Policy", "privacy.md"))
+	r.Get("/advertise", handlers.AdvertisePage())
+	r.Get("/ads/click/:id", handlers.SponsorshipClick())
 
 	r.Post("/_api/tenants", handlers.CreateTenant())
 	r.Get("/_api/tenants/:subdomain/availability", handlers.CheckAvailability())
@@ -137,6 +139,7 @@ func routes(r *web.Engine) *web.Engine {
 		publicApi.Get("/api/v1/posts/:number/attachments", apiv1.GetPostAttachments())
 		publicApi.Get("/api/v1/pages", apiv1.SearchPages())
 		publicApi.Get("/api/v1/pages/:id/comments", apiv1.GetPageComments())
+		publicApi.Get("/api/v1/sponsorship/active", apiv1.GetActiveSponsorship())
 	}
 
 	// Available to any authenticated user
@@ -305,6 +308,15 @@ func routes(r *web.Engine) *web.Engine {
 		collabAdmin.Put("/api/v1/admin/report-reasons-order", handlers.ReorderReportReasons())
 
 		collabAdmin.Get("/admin/tags", handlers.ManageTags())
+		collabAdmin.Get("/admin/sponsorship", handlers.ManageSponsorshipPage())
+		collabAdmin.Get("/api/v1/sponsorship/packages", apiv1.ListSponsorshipPackages())
+		collabAdmin.Post("/api/v1/sponsorship/packages", apiv1.CreateSponsorshipPackage())
+		collabAdmin.Put("/api/v1/sponsorship/packages/:id", apiv1.UpdateSponsorshipPackage())
+		collabAdmin.Delete("/api/v1/sponsorship/packages/:id", apiv1.DeleteSponsorshipPackage())
+		collabAdmin.Get("/api/v1/sponsorship/campaigns", apiv1.ListSponsorshipCampaigns())
+		collabAdmin.Post("/api/v1/sponsorship/campaigns", apiv1.CreateSponsorshipCampaign())
+		collabAdmin.Put("/api/v1/sponsorship/campaigns/:id", apiv1.UpdateSponsorshipCampaign())
+		collabAdmin.Delete("/api/v1/sponsorship/campaigns/:id", apiv1.DeleteSponsorshipCampaign())
 		collabAdmin.Post("/api/v1/tags", apiv1.CreateEditTag())
 		collabAdmin.Put("/api/v1/tags/:slug", apiv1.CreateEditTag())
 		collabAdmin.Delete("/api/v1/tags/:slug", apiv1.DeleteTag())

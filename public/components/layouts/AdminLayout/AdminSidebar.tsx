@@ -26,6 +26,7 @@ import {
   heroiconsPhotograph as IconPhoto,
   heroiconsDownload as IconDownload,
   heroiconsArchive as IconArchive,
+  heroiconsSpeakerphone as IconSpeaker,
 } from "@fider/icons.generated"
 
 interface SidebarItemProps {
@@ -123,6 +124,7 @@ export const AdminSidebar: React.FC = () => {
               <SidebarItem title="Pages" href="/admin/pages" isActive={activeItem === "pages"} icon={IconDocumentText} collapsed={!sidebarOpen} />
               <SidebarItem title="Responses" href="/admin/responses" isActive={activeItem === "responses"} icon={IconChat} collapsed={!sidebarOpen} />
               <SidebarItem title="Tags" href="/admin/tags" isActive={activeItem === "tags"} icon={IconTag} collapsed={!sidebarOpen} />
+              <SidebarItem title="Sponsorship" href="/admin/sponsorship" isActive={activeItem === "sponsorship"} icon={IconSpeaker} collapsed={!sidebarOpen} />
               <SidebarItem title="Webhooks" href="/admin/webhooks" isActive={activeItem === "webhooks"} icon={IconLink} collapsed={!sidebarOpen} />
             </SidebarSection>
           )}

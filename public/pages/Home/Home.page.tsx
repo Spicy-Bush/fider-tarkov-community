@@ -9,6 +9,7 @@ import { PostInput } from "./components/PostInput"
 import { PostsContainer } from "./components/PostsContainer"
 import { useFider } from "@fider/hooks"
 import { VStack } from "@fider/components/layout"
+import { AdSlot } from "@fider/components/sponsorship"
 import { isContentDismissed, dismissContentByValue, DismissableContentTypes } from "@fider/services/device"
 
 import { i18n } from "@lingui/core"
@@ -132,6 +133,7 @@ What can we do better? This is the place for you to vote, discuss and share idea
               <span className="font-medium text-sm">Support us on Ko-fi</span>
             </a>
           </div>
+          <AdSlot slot="sidebar_top" className="mt-4" />
         </VStack>
       </div>
       {/* Posts column - 2 columns on lg */}

@@ -5,6 +5,7 @@ import { ResponseLozenge } from "@fider/components/post/ShowPostResponse"
 import { heroiconsChatAlt2 as IconChatAlt2 } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 import { getVotePosition } from "@fider/components/UserProfile/UserProfileSettings"
+import { AdSlot } from "@fider/components/sponsorship"
 
 interface ListPostsProps {
   posts?: Post[]
@@ -133,10 +134,15 @@ export const ListPosts = (props: ListPostsProps) => {
     return <p className="text-center">{props.emptyText}</p>
   }
 
+  const FEED_AD_EVERY = 5
+
   return (
     <VStack spacing={4} divide>
-      {postsWithTags.map(({ post, tags }) => (
-        <ListPostItem key={post.id} post={post} tags={tags} votePosition={votePosition} />
+      {postsWithTags.map(({ post, tags }, index) => (
+        <React.Fragment key={post.id}>
+          <ListPostItem post={post} tags={tags} votePosition={votePosition} />
+          {(index + 1) % FEED_AD_EVERY === 0 && <AdSlot slot="feed_native" />}
+        </React.Fragment>
       ))}
     </VStack>
   )

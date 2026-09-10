@@ -4,7 +4,15 @@ import { useFider } from "@fider/hooks"
 import { HStack } from "../layout"
 import { Trans } from "@lingui/react/macro"
 import { UnreadCountsProvider } from "@fider/contexts/UnreadCountsContext"
-import { heroiconsHome as IconHome, heroiconsDocumentText as IconPages } from "@fider/icons.generated"
+import { heroiconsHome as IconHome, heroiconsDocumentText as IconPages, heroiconsSpeakerphone as IconSpeaker } from "@fider/icons.generated"
+
+
+const AdvertiseButton = () => (
+  <a href="/advertise" className="relative inline-flex items-center cursor-pointer group" title="Advertise">
+    <Icon sprite={IconSpeaker} className="h-6 text-muted group-hover:text-foreground" />
+    <span className="ml-1 text-sm text-muted group-hover:text-foreground max-sm:hidden">Advertise</span>
+  </a>
+)
 
 const PagesButton = () => (
   <a href="/pages" className="relative inline-flex items-center cursor-pointer group" title="Pages">
@@ -47,6 +55,7 @@ export const Header = () => {
             {fider.session.isAuthenticated && (
               <UnreadCountsProvider>
                 <HStack spacing={4} className="shrink-0">
+                  <AdvertiseButton />
                   <PagesButton />
                   <QueueIndicator />
                   <ModIndicator />
@@ -57,6 +66,7 @@ export const Header = () => {
             )}
             {!fider.session.isAuthenticated && (
               <HStack spacing={4} className="shrink-0">
+                <AdvertiseButton />
                 <PagesButton />
                 <a id="c-header-sign-in" href="#" className="uppercase text-sm text-foreground" onClick={showModal}>
                   <Trans id="action.signin">Sign in</Trans>
