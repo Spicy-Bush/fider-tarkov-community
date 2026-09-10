@@ -28,8 +28,8 @@ type selectAdsRequest struct {
 }
 
 // SelectAds handles POST /api/v1/ads/select?locale=
-// Pipeline: validate → candidates SQL → adsselect → batch creatives → PublicAd map.
-// Blank advertiser → null (#39).
+// Pipeline: validate -> candidates SQL -> adsselect -> batch creatives -> PublicAd map.
+// Blank advertiser -> null (#39).
 func SelectAds() web.HandlerFunc {
 	return func(c *web.Context) error {
 		locale := c.QueryParam("locale")

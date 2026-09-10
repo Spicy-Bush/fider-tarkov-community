@@ -13,7 +13,7 @@ export interface AdSlotProps {
 
 /**
  * Props-only house ad renderer. No fetch, no SponsorshipContext.
- * Empty advertiser → null (#39). HTML via sandboxed iframe only.
+ * Empty advertiser -> null (#39). HTML via sandboxed iframe only.
  */
 export const AdSlot: React.FC<AdSlotProps> = ({ instanceId, placementId, ad, className }) => {
   if (ad === undefined || ad === null) {
@@ -32,7 +32,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({ instanceId, placementId, ad, cla
   const spec = SPONSORSHIP_SLOT_SPECS[placementId] || SPONSORSHIP_SLOT_SPECS.sidebar_top
   const hasImage = Boolean(ad.imageUrl)
   const hasHtml = Boolean(ad.html)
-  const disclosure = `Sponsored · ${advertiser}`
+  const disclosure = `Sponsored - ${advertiser}`
 
   return (
     <a

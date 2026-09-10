@@ -82,7 +82,7 @@ CREATE INDEX IF NOT EXISTS idx_creative_versions_campaign
   ON creative_versions (tenant_id, campaign_id);
 
 -- ---------------------------------------------------------------------------
--- 5. campaign_assignments (placement → creative_version under a campaign)
+-- 5. campaign_assignments (placement -> creative_version under a campaign)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS campaign_assignments (
   id                  serial,

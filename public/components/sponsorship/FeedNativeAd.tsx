@@ -8,7 +8,7 @@ interface FeedNativeAdProps {
   className?: string
 }
 
-/** Post-like native feed creative. Props only; empty advertiser → null (#39). */
+/** Post-like native feed creative. Props only; empty advertiser -> null (#39). */
 export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ ad, className }) => {
   const advertiser = (ad.advertiser || "").trim()
   if (!advertiser) {
@@ -18,7 +18,7 @@ export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ ad, className }) => 
   const spec = SPONSORSHIP_SLOT_SPECS.feed_native
   const hasImage = Boolean(ad.imageUrl)
   const hasHtml = Boolean(ad.html)
-  const disclosure = `Sponsored · ${advertiser}`
+  const disclosure = `Sponsored - ${advertiser}`
   const rootClassName = ["block", "no-underline", "text-inherit", className].filter(Boolean).join(" ")
 
   return (
