@@ -9,6 +9,9 @@ interface FeedNativeAdProps {
 
 /** Post-like native feed creative (Zaddish). */
 export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ campaign, className }) => {
+  const hasImage = Boolean(campaign.creativeImageUrl)
+  const hasHtml = Boolean(campaign.creativeHtml)
+
   return (
     <a
       href={campaign.clickPath}
@@ -21,11 +24,12 @@ export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ campaign, className 
         <VStack className="flex-1 min-w-0" spacing={2}>
           <div className="text-[10px] uppercase tracking-wide text-muted">Sponsored</div>
           <div className="text-lg font-medium text-primary wrap-anywhere">{campaign.name}</div>
-          {campaign.creativeHtml ? (
-            <div className="text-muted text-sm sponsorship-html" dangerouslySetInnerHTML={{ __html: campaign.creativeHtml }} />
-          ) : campaign.creativeImageUrl ? (
-            <img src={campaign.creativeImageUrl} alt="" className="max-w-full h-auto rounded" />
-          ) : null}
+          {hasImage && (
+            <img src={campaign.creativeImageUrl!} alt="" className="max-w-full h-auto rounded" />
+          )}
+          {hasHtml && (
+            <div className="text-muted text-sm sponsorship-html" dangerouslySetInnerHTML={{ __html: campaign.creativeHtml! }} />
+          )}
         </VStack>
       </HStack>
     </a>
