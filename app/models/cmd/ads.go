@@ -8,13 +8,15 @@ import (
 
 // CreateCreativeVersion appends an immutable creative version (next version_no).
 // ConfigVersion is required OCC token; store rejects mismatch and bumps campaign version.
+// NewConfigVersion is the persisted token after a successful bump (server is OCC source).
 type CreateCreativeVersion struct {
-	CampaignID    int
-	ImageURL      string
-	HTML          string
-	ClickURL      string
-	ConfigVersion int
-	Result        *entity.CreativeVersion
+	CampaignID       int
+	ImageURL         string
+	HTML             string
+	ClickURL         string
+	ConfigVersion    int
+	Result           *entity.CreativeVersion
+	NewConfigVersion int
 }
 
 // CampaignAssignmentInput is one desired placement binding for a graph save.

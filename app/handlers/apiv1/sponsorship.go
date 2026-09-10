@@ -109,8 +109,40 @@ func CreateSponsorshipCampaign() web.HandlerFunc {
 				Weight: action.Weight, Locale: action.Locale, Enabled: action.Enabled,
 				PackageID: action.PackageID,
 			}
+			if action.Version != nil {
+				create.Version = &cmd.CreateCampaignVersionInput{
+					ImageURL: action.Version.ImageURL,
+					HTML:     action.Version.HTML,
+					ClickURL: action.Version.ClickURL,
+				}
+			}
+			if len(action.Assignments) > 0 {
+				create.Assignments = make([]cmd.CampaignAssignmentInput, 0, len(action.Assignments))
+				for _, a := range action.Assignments {
+					create.Assignments = append(create.Assignments, cmd.CampaignAssignmentInput{
+						PlacementID:       a.PlacementID,
+						CreativeVersionID: a.CreativeVersionID,
+					})
+				}
+			}
 			if err := bus.Dispatch(c, create); err != nil {
 				return c.Failure(err)
+			}
+			if create.Version != nil {
+				versions := []*entity.CreativeVersion{}
+				if create.VersionResult != nil {
+					versions = []*entity.CreativeVersion{create.VersionResult}
+				}
+				assignments := create.AssignmentResults
+				if assignments == nil {
+					assignments = []*entity.CampaignAssignment{}
+				}
+				return c.Ok(web.Map{
+					"campaign":      create.Result,
+					"versions":      versions,
+					"assignments":   assignments,
+					"configVersion": create.Result.ConfigVersion,
+				})
 			}
 			return c.Ok(create.Result)
 		})

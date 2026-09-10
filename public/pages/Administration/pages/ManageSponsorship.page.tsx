@@ -61,6 +61,24 @@ const emptyCamp = () => {
   }
 }
 
+
+/** Server is the only OCC source. Missing/invalid token is a hard fail (no || 1, no local +1). */
+function requireConfigVersion(v: unknown): number {
+  if (typeof v !== "number" || !Number.isInteger(v) || v <= 0) {
+    throw new Error("missing configVersion from server")
+  }
+  return v
+}
+
+function isCreateGraphResult(data: unknown): data is {
+  campaign: SponsorshipCampaign
+  versions: CreativeVersion[]
+  assignments: CampaignAssignment[]
+  configVersion: number
+} {
+  return !!data && typeof data === "object" && "campaign" in (data as object) && "configVersion" in (data as object)
+}
+
 function statusBadge(status: CampaignDerivedStatus): { label: string; className: string } {
   switch (status) {
     case "active":
@@ -104,6 +122,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
   const [versionForm, setVersionForm] = useState({ imageUrl: "", html: "", clickUrl: "https://" })
   const [assignPlacementId, setAssignPlacementId] = useState("")
   const [assignVersionId, setAssignVersionId] = useState<number | "">("")
+  const [assignmentsDirty, setAssignmentsDirty] = useState(false)
 
   const localeOptions: SelectOption[] = [
     { value: "all", label: "all" },
@@ -111,22 +130,32 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     { value: "ru", label: "ru" },
   ]
 
-  const loadGraph = async (campaignId: number) => {
+  const loadGraph = async (campaignId: number, opts?: { forceAssignments?: boolean }) => {
     const [vRes, aRes] = await Promise.all([
       actions.listCreativeVersions(campaignId),
       actions.listCampaignAssignments(campaignId),
     ])
     setVersions(vRes.ok && vRes.data ? vRes.data : [])
-    setAssignments(aRes.ok && aRes.data ? aRes.data : [])
+    // Dirty guard: staged assignment edits must not be wiped by incidental reloads
+    // (e.g. after version create). forceAssignments after Save / Edit / Conflict reload.
+    if (opts?.forceAssignments || !assignmentsDirty) {
+      setAssignments(aRes.ok && aRes.data ? aRes.data : [])
+      if (opts?.forceAssignments) {
+        setAssignmentsDirty(false)
+      }
+    }
   }
 
   useEffect(() => {
     if (editingCampId) {
-      void loadGraph(editingCampId)
+      setAssignmentsDirty(false)
+      void loadGraph(editingCampId, { forceAssignments: true })
     } else {
       setVersions([])
       setAssignments([])
+      setAssignmentsDirty(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingCampId])
 
   const previewAd: PublicAd | null = useMemo(() => {
@@ -185,7 +214,12 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       if (editingCampId) {
         const fresh = result.data.find((c) => c.id === editingCampId)
         if (fresh) {
-          setCampForm((prev) => ({ ...prev, configVersion: fresh.configVersion || 1 }))
+          try {
+            const cfg = requireConfigVersion(fresh.configVersion)
+            setCampForm((prev) => ({ ...prev, configVersion: cfg }))
+          } catch {
+            notify.error("Server response missing configVersion - reload the page")
+          }
         }
       }
     }
@@ -205,7 +239,15 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       return
     }
     if (editingCampId) {
-      // Atomic OCC graph save: campaign fields + full assignment set
+      let configVersion: number
+      try {
+        configVersion = requireConfigVersion(campForm.configVersion)
+      } catch {
+        setBusy(false)
+        notify.error("Missing configVersion - reload the campaign before saving")
+        return
+      }
+      // Assignment changes ONLY via graph PUT (never slim PUT).
       const result = await actions.saveSponsorshipCampaignGraph(editingCampId, {
         name: campForm.name,
         advertiser: campForm.advertiser,
@@ -215,7 +257,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
         locale: campForm.locale || "all",
         enabled: campForm.enabled,
         packageId: campForm.packageId || undefined,
-        configVersion: campForm.configVersion,
+        configVersion,
         assignments: assignments.map((a) => ({
           placementId: a.placementId,
           creativeVersionId: a.creativeVersionId,
@@ -224,16 +266,24 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       setBusy(false)
       if (result.ok) {
         const camp = result.data.campaign
-        setCampaigns((prev) => prev.map((c) => (c.id === editingCampId ? camp : c)))
-        setCampForm((prev) => ({ ...prev, configVersion: camp.configVersion || prev.configVersion + 1 }))
-        setAssignments(result.data.assignments || [])
-        notify.success("Campaign + assignments saved")
+        try {
+          const cfg = requireConfigVersion(camp.configVersion)
+          setCampaigns((prev) => prev.map((c) => (c.id === editingCampId ? camp : c)))
+          setCampForm((prev) => ({ ...prev, configVersion: cfg }))
+          setAssignments(result.data.assignments || [])
+          setAssignmentsDirty(false)
+          notify.success("Campaign + assignments saved")
+        } catch {
+          notify.error("Save succeeded but configVersion missing - reloading")
+          await reloadCampaigns()
+          await loadGraph(editingCampId, { forceAssignments: true })
+        }
       } else {
         const msg = (result.data as { message?: string } | undefined)?.message
         if (msg === "Conflict") {
           notify.error("Campaign was modified elsewhere - reloading")
           await reloadCampaigns()
-          await loadGraph(editingCampId)
+          await loadGraph(editingCampId, { forceAssignments: true })
         } else {
           setError(result.error)
         }
@@ -251,17 +301,51 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       enabled: campForm.enabled,
       packageId: campForm.packageId || undefined,
     }
+    // Optional first version + assignments in one txn when draft creative is ready.
+    const clickUrl = versionForm.clickUrl.trim()
+    const hasDraftVersion =
+      !!clickUrl &&
+      /^https?:\/\//i.test(clickUrl) &&
+      (!!(versionForm.imageUrl || "").trim() || !!(versionForm.html || "").trim())
+    if (hasDraftVersion && assignments.length > 0) {
+      body.version = {
+        imageUrl: versionForm.imageUrl.trim(),
+        html: versionForm.html.trim(),
+        clickUrl,
+      }
+      body.assignments = assignments.map((a) => ({
+        placementId: a.placementId,
+        creativeVersionId: 0,
+      }))
+    }
     const result = await actions.createSponsorshipCampaign(body)
     setBusy(false)
     if (result.ok) {
-      setCampaigns((prev) => [...prev, result.data])
-      setEditingCampId(result.data.id)
-      setCampForm({
-        ...campForm,
-        configVersion: result.data.configVersion || 1,
-      })
-      await loadGraph(result.data.id)
-      notify.success("Campaign created - add versions, then Save to bind assignments")
+      try {
+        if (isCreateGraphResult(result.data)) {
+          const camp = result.data.campaign
+          const cfg = requireConfigVersion(result.data.configVersion ?? camp.configVersion)
+          setCampaigns((prev) => [...prev, camp])
+          setEditingCampId(camp.id)
+          setCampForm({ ...campForm, configVersion: cfg })
+          setVersions(result.data.versions || [])
+          setAssignments(result.data.assignments || [])
+          setAssignmentsDirty(false)
+          setVersionForm({ imageUrl: "", html: "", clickUrl: "https://" })
+          notify.success("Campaign created with assignments")
+        } else {
+          const camp = result.data as SponsorshipCampaign
+          const cfg = requireConfigVersion(camp.configVersion)
+          setCampaigns((prev) => [...prev, camp])
+          setEditingCampId(camp.id)
+          setCampForm({ ...campForm, configVersion: cfg })
+          setAssignmentsDirty(false)
+          await loadGraph(camp.id, { forceAssignments: true })
+          notify.success("Campaign created - add versions, then Save to bind assignments")
+        }
+      } catch {
+        notify.error("Create succeeded but configVersion missing - reload the page")
+      }
     } else {
       setError(result.error)
     }
@@ -281,6 +365,14 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
   }
 
   const startEditCampaign = (c: SponsorshipCampaign) => {
+    let cfg: number
+    try {
+      cfg = requireConfigVersion(c.configVersion)
+    } catch {
+      notify.error("Campaign missing configVersion from server")
+      return
+    }
+    setAssignmentsDirty(false)
     setEditingCampId(c.id)
     setCampForm({
       name: c.name,
@@ -291,7 +383,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       locale: c.locale || "all",
       enabled: c.enabled,
       packageId: c.packageId,
-      configVersion: c.configVersion || 1,
+      configVersion: cfg,
     })
     setTab("campaigns")
   }
@@ -303,26 +395,48 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       notify.error("clickUrl must be an http(s) URL")
       return
     }
+    let configVersion: number
+    try {
+      configVersion = requireConfigVersion(campForm.configVersion)
+    } catch {
+      notify.error("Missing configVersion - reload the campaign before creating a version")
+      return
+    }
     setBusy(true)
     const result = await actions.createCreativeVersion(editingCampId, {
       imageUrl: versionForm.imageUrl.trim(),
       html: versionForm.html.trim(),
       clickUrl,
-      configVersion: campForm.configVersion,
+      configVersion,
     })
     setBusy(false)
     if (result.ok) {
-      setVersionForm({ imageUrl: "", html: "", clickUrl: "https://" })
-      setCampForm((prev) => ({ ...prev, configVersion: prev.configVersion + 1 }))
-      await reloadCampaigns()
-      await loadGraph(editingCampId)
-      notify.success(`Creative v${result.data.versionNo} created`)
+      try {
+        const cfg = requireConfigVersion(result.data.configVersion)
+        setVersionForm({ imageUrl: "", html: "", clickUrl: "https://" })
+        setCampForm((prev) => ({ ...prev, configVersion: cfg }))
+        if (result.data.version) {
+          setVersions((prev) => {
+            const next = [result.data.version, ...prev.filter((v) => v.id !== result.data.version.id)]
+            next.sort((a, b) => b.versionNo - a.versionNo)
+            return next
+          })
+        }
+        await reloadCampaigns()
+        // Preserve staged assignment removals/adds (dirty guard).
+        await loadGraph(editingCampId)
+        notify.success(`Creative v${result.data.version.versionNo} created`)
+      } catch {
+        notify.error("Version created but configVersion missing - reloading")
+        await reloadCampaigns()
+        await loadGraph(editingCampId, { forceAssignments: true })
+      }
     } else {
       const msg = (result.data as { message?: string } | undefined)?.message
       if (msg === "Conflict") {
         notify.error("Campaign was modified elsewhere - reloading")
         await reloadCampaigns()
-        await loadGraph(editingCampId)
+        await loadGraph(editingCampId, { forceAssignments: true })
       } else {
         notify.error("Failed to create creative version")
         setError(result.error)
@@ -344,6 +458,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       next.sort((a, b) => a.placementId.localeCompare(b.placementId))
       return next
     })
+    setAssignmentsDirty(true)
     notify.success("Assignment staged - click Save campaign to persist")
   }
 
@@ -351,6 +466,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     if (!editingCampId) return
     if (!confirm(`Remove assignment for ${placementId}?`)) return
     setAssignments((prev) => prev.filter((a) => a.placementId !== placementId))
+    setAssignmentsDirty(true)
     notify.success("Assignment removed from draft - click Save campaign to persist")
   }
 
@@ -539,7 +655,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                       <span className={`text-xs px-1.5 py-0.5 rounded ${badge.className}`}>{badge.label}</span>
                     </div>
                     <div className="text-muted text-sm">
-                      {c.advertiser} | {c.locale} | clicks {c.clicks} | cfg v{c.configVersion || 1}
+                      {c.advertiser} | {c.locale} | clicks {c.clicks} | cfg v{c.configVersion}
                     </div>
                   </div>
                   <HStack spacing={2}>

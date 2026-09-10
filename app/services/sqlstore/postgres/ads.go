@@ -197,7 +197,15 @@ func createCreativeVersion(ctx context.Context, c *cmd.CreateCreativeVersion) er
 		if err != nil {
 			return errors.Wrap(err, "failed to create creative version")
 		}
+		var cfg int
+		if err := trx.Get(&cfg, `
+			SELECT config_version FROM sponsorship_campaigns
+			WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+			tenant.ID, c.CampaignID); err != nil {
+			return errors.Wrap(err, "failed to read campaign config_version after version create")
+		}
 		c.Result = row.toModel()
+		c.NewConfigVersion = cfg
 		return nil
 	})
 }

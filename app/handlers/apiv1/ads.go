@@ -220,9 +220,6 @@ func CreateCreativeVersion() web.HandlerFunc {
 		req.ImageURL = strings.TrimSpace(req.ImageURL)
 		req.HTML = strings.TrimSpace(req.HTML)
 		req.ClickURL = strings.TrimSpace(req.ClickURL)
-		if req.ConfigVersion <= 0 {
-			return c.BadRequest(web.Map{"message": "configVersion is required"})
-		}
 		if req.ClickURL == "" {
 			return c.BadRequest(web.Map{"message": "clickUrl is required"})
 		}
@@ -243,7 +240,10 @@ func CreateCreativeVersion() web.HandlerFunc {
 			if err := bus.Dispatch(c, create); err != nil {
 				return c.Failure(err)
 			}
-			return c.Ok(create.Result)
+			return c.Ok(web.Map{
+				"version":       create.Result,
+				"configVersion": create.NewConfigVersion,
+			})
 		})
 	}
 }
@@ -272,16 +272,16 @@ type graphAssignmentInput struct {
 }
 
 type saveCampaignGraphRequest struct {
-	Name          string                  `json:"name"`
-	Advertiser    string                  `json:"advertiser"`
-	StartAt       time.Time               `json:"startAt"`
-	EndAt         time.Time               `json:"endAt"`
-	Weight        int                     `json:"weight"`
-	Locale        string                  `json:"locale"`
-	Enabled       bool                    `json:"enabled"`
-	PackageID     *int                    `json:"packageId"`
-	ConfigVersion int                     `json:"configVersion"`
-	Assignments   []graphAssignmentInput  `json:"assignments"`
+	Name          string                 `json:"name"`
+	Advertiser    string                 `json:"advertiser"`
+	StartAt       time.Time              `json:"startAt"`
+	EndAt         time.Time              `json:"endAt"`
+	Weight        int                    `json:"weight"`
+	Locale        string                 `json:"locale"`
+	Enabled       bool                   `json:"enabled"`
+	PackageID     *int                   `json:"packageId"`
+	ConfigVersion int                    `json:"configVersion"`
+	Assignments   []graphAssignmentInput `json:"assignments"`
 }
 
 // SaveCampaignGraph updates campaign fields + replaces assignments in one OCC txn.
@@ -299,9 +299,6 @@ func SaveCampaignGraph() web.HandlerFunc {
 		req.Advertiser = strings.TrimSpace(req.Advertiser)
 		if req.Locale == "" {
 			req.Locale = "all"
-		}
-		if req.ConfigVersion <= 0 {
-			return c.BadRequest(web.Map{"message": "configVersion is required"})
 		}
 		if req.Name == "" || req.Advertiser == "" {
 			return c.BadRequest(web.Map{"message": "name and advertiser are required"})

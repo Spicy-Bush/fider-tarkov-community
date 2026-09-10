@@ -45,8 +45,22 @@ export const listSponsorshipCampaigns = (): Promise<Result<SponsorshipCampaign[]
   return http.get<SponsorshipCampaign[]>("/api/v1/sponsorship/campaigns")
 }
 
-export const createSponsorshipCampaign = (body: Record<string, unknown>): Promise<Result<SponsorshipCampaign>> => {
-  return http.post<SponsorshipCampaign>("/api/v1/sponsorship/campaigns", body)
+export type CreateCampaignWithGraphBody = Record<string, unknown> & {
+  version?: { imageUrl: string; html: string; clickUrl: string }
+  assignments?: { placementId: string; creativeVersionId?: number }[]
+}
+
+export type CreateCampaignGraphResult = {
+  campaign: SponsorshipCampaign
+  versions: CreativeVersion[]
+  assignments: CampaignAssignment[]
+  configVersion: number
+}
+
+export const createSponsorshipCampaign = (
+  body: CreateCampaignWithGraphBody
+): Promise<Result<SponsorshipCampaign | CreateCampaignGraphResult>> => {
+  return http.post<SponsorshipCampaign | CreateCampaignGraphResult>("/api/v1/sponsorship/campaigns", body)
 }
 
 export const updateSponsorshipCampaign = (
@@ -79,11 +93,16 @@ export const listCreativeVersions = (campaignId: number): Promise<Result<Creativ
   return http.get<CreativeVersion[]>(`/api/v1/sponsorship/campaigns/${campaignId}/versions`)
 }
 
+export type CreateCreativeVersionResult = {
+  version: CreativeVersion
+  configVersion: number
+}
+
 export const createCreativeVersion = (
   campaignId: number,
   body: { imageUrl: string; html: string; clickUrl: string; configVersion: number }
-): Promise<Result<CreativeVersion>> => {
-  return http.post<CreativeVersion>(`/api/v1/sponsorship/campaigns/${campaignId}/versions`, body)
+): Promise<Result<CreateCreativeVersionResult>> => {
+  return http.post<CreateCreativeVersionResult>(`/api/v1/sponsorship/campaigns/${campaignId}/versions`, body)
 }
 
 export const listCampaignAssignments = (campaignId: number): Promise<Result<CampaignAssignment[]>> => {
