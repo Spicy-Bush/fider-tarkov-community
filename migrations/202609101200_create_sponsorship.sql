@@ -1,4 +1,4 @@
-﻿create table if not exists sponsorship_packages (
+create table if not exists sponsorship_packages (
     id              serial primary key,
     tenant_id       int not null references tenants(id) on delete cascade,
     slug            varchar(50) not null,
