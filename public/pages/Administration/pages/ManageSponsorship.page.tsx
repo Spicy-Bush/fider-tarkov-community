@@ -35,7 +35,7 @@ const emptyCamp = () => {
   return {
     name: "",
     slotList: ["feed_native"] as string[],
-    creativeImageUrl: "",
+    creativeImageUrls: {} as Record<string, string>,
     creativeHtml: "",
     clickUrl: "https://",
     startAtLocal: utcToDatetimeLocalValue(start.toISOString()),
@@ -45,6 +45,19 @@ const emptyCamp = () => {
     enabled: true,
     packageId: undefined as number | undefined,
   }
+}
+
+/** Resolve per-slot URLs for the edit form (map first, legacy fallback). */
+function slotImagesFromCampaign(c: SponsorshipCampaign): Record<string, string> {
+  const slots = (c.slots || "").split(",").map((s) => s.trim()).filter(Boolean)
+  const map = { ...(c.creativeImageUrls || {}) }
+  const legacy = (c.creativeImageUrl || "").trim()
+  for (const slot of slots) {
+    if (!(map[slot] || "").trim() && legacy) {
+      map[slot] = legacy
+    }
+  }
+  return map
 }
 
 const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
@@ -69,8 +82,19 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     setCampForm((prev) => {
       const has = prev.slotList.includes(slot)
       const slotList = has ? prev.slotList.filter((s) => s !== slot) : [...prev.slotList, slot]
-      return { ...prev, slotList }
+      const creativeImageUrls = { ...prev.creativeImageUrls }
+      if (has) {
+        delete creativeImageUrls[slot]
+      }
+      return { ...prev, slotList, creativeImageUrls }
     })
+  }
+
+  const setSlotImage = (slot: string, url: string) => {
+    setCampForm((prev) => ({
+      ...prev,
+      creativeImageUrls: { ...prev.creativeImageUrls, [slot]: url },
+    }))
   }
 
   const savePackage = async () => {
@@ -117,11 +141,19 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       setError({ errors: [{ message: "Invalid start/end datetime" }] })
       return
     }
+    const creativeImageUrls: Record<string, string> = {}
+    for (const slot of campForm.slotList) {
+      const u = (campForm.creativeImageUrls[slot] || "").trim()
+      if (u) creativeImageUrls[slot] = u
+    }
+    // Keep legacy column as first non-empty slot image for older readers / fallback.
+    const creativeImageUrl = Object.values(creativeImageUrls)[0] || ""
     const body = {
       name: campForm.name,
       slotList: campForm.slotList,
       slots: campForm.slotList.join(","),
-      creativeImageUrl: campForm.creativeImageUrl,
+      creativeImageUrl,
+      creativeImageUrls,
       creativeHtml: campForm.creativeHtml,
       clickUrl: campForm.clickUrl,
       startAt,
@@ -163,7 +195,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     setCampForm({
       name: c.name,
       slotList: (c.slots || "").split(",").map((s) => s.trim()).filter(Boolean),
-      creativeImageUrl: c.creativeImageUrl || "",
+      creativeImageUrls: slotImagesFromCampaign(c),
       creativeHtml: c.creativeHtml || "",
       clickUrl: c.clickUrl,
       startAtLocal: utcToDatetimeLocalValue(c.startAt),
@@ -229,7 +261,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       {tab === "campaigns" && (
         <VStack spacing={4}>
           <p className="text-muted text-sm">
-            One campaign can target multiple placements. Dates are entered in your local time and stored as UTC.
+            One campaign can target multiple placements with an optional image URL per slot. Dates are entered in your local time and stored as UTC.
           </p>
           <Form error={error}>
             <Input field="name" label="Name" value={campForm.name} onChange={(v) => setCampForm({ ...campForm, name: v })} />
@@ -247,25 +279,43 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                   </label>
                 ))}
               </HStack>
-              <ul className="mt-2 text-xs text-muted space-y-1">
-                {campForm.slotList.map((slot) => {
-                  const spec = SPONSORSHIP_SLOT_SPECS[slot as SponsorshipSlot]
-                  if (!spec) {
-                    return null
-                  }
-                  return (
-                    <li key={slot}>
-                      <span className="font-medium">{spec.label}</span>: recommended {spec.recommended}
-                    </li>
-                  )
-                })}
-              </ul>
             </div>
-            <Select field="locale" label="Locale" defaultValue={campForm.locale} options={localeOptions} onChange={(o) => o && setCampForm({ ...campForm, locale: o.value })} />
-            <Input field="creativeImageUrl" label="Creative image URL" value={campForm.creativeImageUrl} onChange={(v) => setCampForm({ ...campForm, creativeImageUrl: v })} />
-            <p className="text-xs text-muted -mt-2 mb-3">
-              Images are cropped to each placement's aspect box (object-cover). Prefer the recommended sizes listed under Placements.
-            </p>
+            <Select
+              key={`locale-${editingCampId ?? "new"}-${campForm.locale}`}
+              field="locale"
+              label="Locale"
+              defaultValue={campForm.locale}
+              options={localeOptions}
+              onChange={(o) => o && setCampForm({ ...campForm, locale: o.value })}
+            />
+            <div className="mb-3">
+              <div className="text-sm font-medium mb-2">Creative images (optional per placement)</div>
+              <p className="text-xs text-muted mb-2">
+                Images are cropped to each placement&apos;s aspect box (object-cover). Leave a slot blank to fall back to HTML-only or omit that creative.
+              </p>
+              {campForm.slotList.length === 0 ? (
+                <p className="text-xs text-muted">Select at least one placement to set image URLs.</p>
+              ) : (
+                <VStack spacing={3}>
+                  {campForm.slotList.map((slot) => {
+                    const spec = SPONSORSHIP_SLOT_SPECS[slot as SponsorshipSlot]
+                    const label = spec ? `${spec.label} image URL` : `${slot} image URL`
+                    const hint = spec ? `Recommended: ${spec.recommended}` : undefined
+                    return (
+                      <div key={slot}>
+                        <Input
+                          field={`creativeImageUrls.${slot}`}
+                          label={label}
+                          value={campForm.creativeImageUrls[slot] || ""}
+                          onChange={(v) => setSlotImage(slot, v)}
+                        />
+                        {hint && <p className="text-xs text-muted -mt-2 mb-1">{hint}</p>}
+                      </div>
+                    )
+                  })}
+                </VStack>
+              )}
+            </div>
             <TextArea field="creativeHtml" label="Creative HTML (optional)" value={campForm.creativeHtml} onChange={(v) => setCampForm({ ...campForm, creativeHtml: v })} />
             <Input field="clickUrl" label="Click URL" value={campForm.clickUrl} onChange={(v) => setCampForm({ ...campForm, clickUrl: v })} />
             <Input field="startAt" label="Start (local time)" type="datetime-local" value={campForm.startAtLocal} onChange={(v) => setCampForm({ ...campForm, startAtLocal: v })} />

@@ -11,7 +11,8 @@ interface AdSlotProps {
 /**
  * Renders a house ad for slot from SponsorshipProvider (no per-slot fetch).
  * Must be under a SponsorshipProvider that requested this slot.
- * Image + HTML both render when present. No swipe-mode wiring (by design).
+ * Image + HTML both render when present. creativeImageUrl is already resolved for this slot by the API.
+ * No swipe-mode / AdSense wiring here (house creatives only).
  */
 export const AdSlot: React.FC<AdSlotProps> = ({ slot, className }) => {
   const loaded = useSponsorshipLoaded()
