@@ -8,13 +8,15 @@ import (
 
 // CreateCreativeVersion appends an immutable creative version (next version_no).
 // ConfigVersion is required OCC token; store rejects mismatch and bumps campaign version.
+// NewConfigVersion is the persisted token after a successful bump (server is OCC source).
 type CreateCreativeVersion struct {
-	CampaignID    int
-	ImageURL      string
-	HTML          string
-	ClickURL      string
-	ConfigVersion int
-	Result        *entity.CreativeVersion
+	CampaignID       int
+	ImageURL         string
+	HTML             string
+	ClickURL         string
+	ConfigVersion    int
+	Result           *entity.CreativeVersion
+	NewConfigVersion int
 }
 
 // CampaignAssignmentInput is one desired placement binding for a graph save.
@@ -39,4 +41,14 @@ type SaveSponsorshipCampaignGraph struct {
 	Assignments       []CampaignAssignmentInput
 	Result            *entity.SponsorshipCampaign
 	AssignmentResults []*entity.CampaignAssignment
+}
+
+// UpdateAdPlacement patches AdSense / empty-policy fields on a catalog row (global).
+// Slot IDs are never hardcoded; ops set them via this command / admin UI / API.
+type UpdateAdPlacement struct {
+	ID            string
+	AdSenseSlotID string
+	AdSenseFormat string
+	EmptyPolicy   string // collapse | reserve
+	Result        *entity.AdPlacement
 }

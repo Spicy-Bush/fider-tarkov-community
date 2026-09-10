@@ -181,6 +181,40 @@ func ListAdPlacements() web.HandlerFunc {
 	}
 }
 
+// PublicAdPlacementConfig returns enabled placement AdSense/empty fallback metadata (public).
+// Used by the client when select returns no house fill — not part of ads/select.
+func PublicAdPlacementConfig() web.HandlerFunc {
+	return func(c *web.Context) error {
+		q := &query.ListAdPlacements{}
+		if err := bus.Dispatch(c, q); err != nil {
+			return c.Failure(err)
+		}
+		out := web.Map{}
+		for _, p := range q.Result {
+			if p == nil || !p.Enabled {
+				continue
+			}
+			policy := p.EmptyPolicy
+			if policy == "" {
+				policy = "collapse"
+			}
+			entry := web.Map{
+				"adsenseSlotId": p.AdSenseSlotID,
+				"adsenseFormat": p.AdSenseFormat,
+				"emptyPolicy":   policy,
+			}
+			if p.MaxWidth != nil {
+				entry["maxWidth"] = *p.MaxWidth
+			}
+			if p.MaxHeight != nil {
+				entry["maxHeight"] = *p.MaxHeight
+			}
+			out[p.ID] = entry
+		}
+		return c.Ok(out)
+	}
+}
+
 // ListCreativeVersions lists versions for a campaign.
 func ListCreativeVersions() web.HandlerFunc {
 	return func(c *web.Context) error {
@@ -220,9 +254,6 @@ func CreateCreativeVersion() web.HandlerFunc {
 		req.ImageURL = strings.TrimSpace(req.ImageURL)
 		req.HTML = strings.TrimSpace(req.HTML)
 		req.ClickURL = strings.TrimSpace(req.ClickURL)
-		if req.ConfigVersion <= 0 {
-			return c.BadRequest(web.Map{"message": "configVersion is required"})
-		}
 		if req.ClickURL == "" {
 			return c.BadRequest(web.Map{"message": "clickUrl is required"})
 		}
@@ -243,7 +274,10 @@ func CreateCreativeVersion() web.HandlerFunc {
 			if err := bus.Dispatch(c, create); err != nil {
 				return c.Failure(err)
 			}
-			return c.Ok(create.Result)
+			return c.Ok(web.Map{
+				"version":       create.Result,
+				"configVersion": create.NewConfigVersion,
+			})
 		})
 	}
 }
@@ -272,16 +306,16 @@ type graphAssignmentInput struct {
 }
 
 type saveCampaignGraphRequest struct {
-	Name          string                  `json:"name"`
-	Advertiser    string                  `json:"advertiser"`
-	StartAt       time.Time               `json:"startAt"`
-	EndAt         time.Time               `json:"endAt"`
-	Weight        int                     `json:"weight"`
-	Locale        string                  `json:"locale"`
-	Enabled       bool                    `json:"enabled"`
-	PackageID     *int                    `json:"packageId"`
-	ConfigVersion int                     `json:"configVersion"`
-	Assignments   []graphAssignmentInput  `json:"assignments"`
+	Name          string                 `json:"name"`
+	Advertiser    string                 `json:"advertiser"`
+	StartAt       time.Time              `json:"startAt"`
+	EndAt         time.Time              `json:"endAt"`
+	Weight        int                    `json:"weight"`
+	Locale        string                 `json:"locale"`
+	Enabled       bool                   `json:"enabled"`
+	PackageID     *int                   `json:"packageId"`
+	ConfigVersion int                    `json:"configVersion"`
+	Assignments   []graphAssignmentInput `json:"assignments"`
 }
 
 // SaveCampaignGraph updates campaign fields + replaces assignments in one OCC txn.
@@ -299,9 +333,6 @@ func SaveCampaignGraph() web.HandlerFunc {
 		req.Advertiser = strings.TrimSpace(req.Advertiser)
 		if req.Locale == "" {
 			req.Locale = "all"
-		}
-		if req.ConfigVersion <= 0 {
-			return c.BadRequest(web.Map{"message": "configVersion is required"})
 		}
 		if req.Name == "" || req.Advertiser == "" {
 			return c.BadRequest(web.Map{"message": "name and advertiser are required"})
@@ -339,6 +370,46 @@ func SaveCampaignGraph() web.HandlerFunc {
 				"campaign":    save.Result,
 				"assignments": save.AssignmentResults,
 			})
+		})
+	}
+}
+
+type updateAdPlacementRequest struct {
+	AdSenseSlotID string `json:"adsenseSlotId"`
+	AdSenseFormat string `json:"adsenseFormat"`
+	EmptyPolicy   string `json:"emptyPolicy"`
+}
+
+// UpdateAdPlacement patches AdSense slot/format/empty_policy on a catalog placement (collab/admin).
+// Does not hardcode publisher or slot ids — ops supply slot ids after AdSense unit creation.
+func UpdateAdPlacement() web.HandlerFunc {
+	return func(c *web.Context) error {
+		id := strings.TrimSpace(c.Param("id"))
+		if id == "" {
+			return c.BadRequest(web.Map{"message": "Invalid placement ID"})
+		}
+		req := updateAdPlacementRequest{}
+		if err := c.Bind(&req); err != nil {
+			return c.BadRequest(web.Map{"message": "Invalid request body"})
+		}
+		policy := strings.TrimSpace(req.EmptyPolicy)
+		if policy == "" {
+			policy = "collapse"
+		}
+		if policy != "collapse" && policy != "reserve" {
+			return c.BadRequest(web.Map{"message": "emptyPolicy must be collapse or reserve"})
+		}
+		return c.WithTransaction(func() error {
+			update := &cmd.UpdateAdPlacement{
+				ID:            id,
+				AdSenseSlotID: strings.TrimSpace(req.AdSenseSlotID),
+				AdSenseFormat: strings.TrimSpace(req.AdSenseFormat),
+				EmptyPolicy:   policy,
+			}
+			if err := bus.Dispatch(c, update); err != nil {
+				return c.Failure(err)
+			}
+			return c.Ok(update.Result)
 		})
 	}
 }

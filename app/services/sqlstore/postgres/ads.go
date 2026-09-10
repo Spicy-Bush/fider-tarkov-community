@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"strings"
 	"database/sql"
 	"time"
 
@@ -17,20 +18,27 @@ import (
 )
 
 type dbAdPlacement struct {
-	ID          string        `db:"id"`
-	Name        string        `db:"name"`
-	Description string        `db:"description"`
-	Kind        string        `db:"kind"`
-	MaxWidth    sql.NullInt64 `db:"max_width"`
-	MaxHeight   sql.NullInt64 `db:"max_height"`
-	Sort        int           `db:"sort"`
-	Enabled     bool          `db:"enabled"`
+	ID            string        `db:"id"`
+	Name          string        `db:"name"`
+	Description   string        `db:"description"`
+	Kind          string        `db:"kind"`
+	MaxWidth      sql.NullInt64 `db:"max_width"`
+	MaxHeight     sql.NullInt64 `db:"max_height"`
+	Sort          int           `db:"sort"`
+	Enabled       bool          `db:"enabled"`
+	AdSenseSlotID string        `db:"adsense_slot_id"`
+	AdSenseFormat string        `db:"adsense_format"`
+	EmptyPolicy   string        `db:"empty_policy"`
 }
 
 func (r *dbAdPlacement) toModel() *entity.AdPlacement {
 	p := &entity.AdPlacement{
 		ID: r.ID, Name: r.Name, Description: r.Description, Kind: r.Kind,
 		Sort: r.Sort, Enabled: r.Enabled,
+		AdSenseSlotID: r.AdSenseSlotID, AdSenseFormat: r.AdSenseFormat, EmptyPolicy: r.EmptyPolicy,
+	}
+	if p.EmptyPolicy == "" {
+		p.EmptyPolicy = "collapse"
 	}
 	if r.MaxWidth.Valid {
 		v := int(r.MaxWidth.Int64)
@@ -48,7 +56,8 @@ func listAdPlacements(ctx context.Context, q *query.ListAdPlacements) error {
 		q.Result = []*entity.AdPlacement{}
 		rows := []*dbAdPlacement{}
 		err := trx.Select(&rows, `
-			SELECT id, name, description, kind, max_width, max_height, sort, enabled
+			SELECT id, name, description, kind, max_width, max_height, sort, enabled,
+			       adsense_slot_id, adsense_format, empty_policy
 			FROM ad_placements
 			ORDER BY sort ASC, id ASC`)
 		if err != nil {
@@ -197,7 +206,15 @@ func createCreativeVersion(ctx context.Context, c *cmd.CreateCreativeVersion) er
 		if err != nil {
 			return errors.Wrap(err, "failed to create creative version")
 		}
+		var cfg int
+		if err := trx.Get(&cfg, `
+			SELECT config_version FROM sponsorship_campaigns
+			WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+			tenant.ID, c.CampaignID); err != nil {
+			return errors.Wrap(err, "failed to read campaign config_version after version create")
+		}
 		c.Result = row.toModel()
+		c.NewConfigVersion = cfg
 		return nil
 	})
 }
@@ -327,6 +344,39 @@ func listCampaignAssignmentsByCampaign(ctx context.Context, q *query.ListCampaig
 				CreativeVersionID: r.CreativeVersionID,
 			}
 		}
+		return nil
+	})
+}
+
+func updateAdPlacement(ctx context.Context, c *cmd.UpdateAdPlacement) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		policy := strings.TrimSpace(c.EmptyPolicy)
+		if policy == "" {
+			policy = "collapse"
+		}
+		if policy != "collapse" && policy != "reserve" {
+			return errors.New("empty_policy must be collapse or reserve")
+		}
+		slotID := strings.TrimSpace(c.AdSenseSlotID)
+		format := strings.TrimSpace(c.AdSenseFormat)
+
+		var row dbAdPlacement
+		err := trx.Get(&row, `
+			UPDATE ad_placements
+			SET adsense_slot_id = $2,
+			    adsense_format = $3,
+			    empty_policy = $4
+			WHERE id = $1
+			RETURNING id, name, description, kind, max_width, max_height, sort, enabled,
+			          adsense_slot_id, adsense_format, empty_policy`,
+			c.ID, slotID, format, policy)
+		if err != nil {
+			if errors.Cause(err) == app.ErrNotFound {
+				return app.ErrNotFound
+			}
+			return errors.Wrap(err, "failed to update ad placement")
+		}
+		c.Result = row.toModel()
 		return nil
 	})
 }

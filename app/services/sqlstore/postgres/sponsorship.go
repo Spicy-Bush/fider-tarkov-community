@@ -154,25 +154,64 @@ func getSponsorshipCampaignByID(ctx context.Context, q *query.GetSponsorshipCamp
 
 func createSponsorshipCampaign(ctx context.Context, c *cmd.CreateSponsorshipCampaign) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		var id int
 		now := time.Now().UTC()
 		start := c.StartAt.UTC()
 		end := c.EndAt.UTC()
-		err := trx.Get(&id, `
+		row := &dbCampaign{}
+		err := trx.Get(row, `
 			INSERT INTO sponsorship_campaigns (
 				tenant_id, name, advertiser,
 				start_at, end_at, weight, locale, enabled, clicks, package_id, created_at, updated_at
-			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$10) RETURNING id`,
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$10)
+			RETURNING id, name, advertiser, start_at, end_at, weight, locale, enabled, clicks,
+			          package_id, config_version, created_at, updated_at`,
 			tenant.ID, c.Name, c.Advertiser,
 			start, end, c.Weight, c.Locale, c.Enabled, c.PackageID, now)
 		if err != nil {
 			return errors.Wrap(err, "failed to create sponsorship campaign")
 		}
-		c.Result = &entity.SponsorshipCampaign{
-			ID: id, Name: c.Name, Advertiser: c.Advertiser,
-			StartAt: start, EndAt: end,
-			Weight: c.Weight, Locale: c.Locale, Enabled: c.Enabled, Clicks: 0,
-			PackageID: c.PackageID, ConfigVersion: 1, CreatedAt: now, UpdatedAt: now,
+		c.Result = row.toModel()
+		c.AssignmentResults = []*entity.CampaignAssignment{}
+
+		if c.Version == nil {
+			if len(c.Assignments) > 0 {
+				return errors.New("assignments require an initial version on create")
+			}
+			return nil
+		}
+
+		verRow := &dbCreativeVersion{}
+		err = trx.Get(verRow, `
+			INSERT INTO creative_versions (tenant_id, campaign_id, version_no, image_url, html, click_url)
+			VALUES ($1, $2, 1, $3, $4, $5)
+			RETURNING id, campaign_id, version_no, image_url, html, click_url, created_at`,
+			tenant.ID, c.Result.ID, c.Version.ImageURL, c.Version.HTML, c.Version.ClickURL)
+		if err != nil {
+			return errors.Wrap(err, "failed to create initial creative version")
+		}
+		c.VersionResult = verRow.toModel()
+
+		for _, a := range c.Assignments {
+			vid := a.CreativeVersionID
+			if vid <= 0 {
+				vid = c.VersionResult.ID
+			}
+			if vid != c.VersionResult.ID {
+				return app.ErrNotFound
+			}
+			var id int
+			err := trx.Get(&id, `
+				INSERT INTO campaign_assignments (tenant_id, campaign_id, placement_id, creative_version_id)
+				VALUES ($1, $2, $3, $4)
+				RETURNING id`,
+				tenant.ID, c.Result.ID, a.PlacementID, vid)
+			if err != nil {
+				return errors.Wrap(err, "failed to insert initial campaign assignment")
+			}
+			c.AssignmentResults = append(c.AssignmentResults, &entity.CampaignAssignment{
+				ID: id, CampaignID: c.Result.ID, PlacementID: a.PlacementID,
+				CreativeVersionID: vid,
+			})
 		}
 		return nil
 	})

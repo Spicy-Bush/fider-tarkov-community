@@ -89,15 +89,28 @@ func (a *DeleteSponsorshipPackage) Validate(ctx context.Context, user *entity.Us
 	return result
 }
 
+type createCampaignVersionJSON struct {
+	ImageURL string `json:"imageUrl"`
+	HTML     string `json:"html"`
+	ClickURL string `json:"clickUrl"`
+}
+
+type createCampaignAssignmentJSON struct {
+	PlacementID       string `json:"placementId"`
+	CreativeVersionID int    `json:"creativeVersionId"`
+}
+
 type CreateSponsorshipCampaign struct {
-	Name       string    `json:"name"`
-	Advertiser string    `json:"advertiser"`
-	StartAt    time.Time `json:"startAt"`
-	EndAt      time.Time `json:"endAt"`
-	Weight     int       `json:"weight"`
-	Locale     string    `json:"locale"`
-	Enabled    bool      `json:"enabled"`
-	PackageID  *int      `json:"packageId"`
+	Name        string                         `json:"name"`
+	Advertiser  string                         `json:"advertiser"`
+	StartAt     time.Time                      `json:"startAt"`
+	EndAt       time.Time                      `json:"endAt"`
+	Weight      int                            `json:"weight"`
+	Locale      string                         `json:"locale"`
+	Enabled     bool                           `json:"enabled"`
+	PackageID   *int                           `json:"packageId"`
+	Version     *createCampaignVersionJSON     `json:"version"`
+	Assignments []createCampaignAssignmentJSON `json:"assignments"`
 }
 
 func (a *CreateSponsorshipCampaign) IsAuthorized(ctx context.Context, user *entity.User) bool {
@@ -108,6 +121,33 @@ func (a *CreateSponsorshipCampaign) Validate(ctx context.Context, user *entity.U
 	result := validateCampaignFields(validate.Success(), a.Name, a.Advertiser, a.StartAt, a.EndAt, a.Weight, a.Locale)
 	if a.Locale == "" {
 		a.Locale = "all"
+	}
+	if a.Version != nil {
+		a.Version.ImageURL = strings.TrimSpace(a.Version.ImageURL)
+		a.Version.HTML = strings.TrimSpace(a.Version.HTML)
+		a.Version.ClickURL = strings.TrimSpace(a.Version.ClickURL)
+		if a.Version.ClickURL == "" || !validate.IsHTTPOrHTTPSURL(a.Version.ClickURL) {
+			result.AddFieldFailure("version.clickUrl", "clickUrl must be an http(s) URL")
+		}
+		if a.Version.ImageURL == "" && a.Version.HTML == "" {
+			result.AddFieldFailure("version", "Provide imageUrl or html")
+		}
+	}
+	if len(a.Assignments) > 0 && a.Version == nil {
+		result.AddFieldFailure("assignments", "assignments require version on create")
+	}
+	seen := map[string]bool{}
+	for _, asg := range a.Assignments {
+		pid := strings.TrimSpace(asg.PlacementID)
+		if pid == "" {
+			result.AddFieldFailure("assignments", "placementId is required")
+			break
+		}
+		if seen[pid] {
+			result.AddFieldFailure("assignments", "duplicate placementId")
+			break
+		}
+		seen[pid] = true
 	}
 	return result
 }
@@ -133,9 +173,6 @@ func (a *UpdateSponsorshipCampaign) Validate(ctx context.Context, user *entity.U
 	result := validate.Success()
 	if a.ID <= 0 {
 		result.AddFieldFailure("id", "Invalid ID")
-	}
-	if a.ConfigVersion <= 0 {
-		result.AddFieldFailure("configVersion", "Config version is required")
 	}
 	result = validateCampaignFields(result, a.Name, a.Advertiser, a.StartAt, a.EndAt, a.Weight, a.Locale)
 	if a.Locale == "" {

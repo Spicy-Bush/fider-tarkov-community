@@ -10,6 +10,7 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#1a202c">
   {{ if ne .public.settings.googleAdSense "" }}
+  <script>window.__adsense_client={{ printf "%q" .public.settings.googleAdSense }};</script>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ .public.settings.googleAdSense }}" crossorigin="anonymous"></script>
   {{ end }}
   {{ if .private.canonicalURL }}

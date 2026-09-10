@@ -63,7 +63,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
   })
   
   const [lastActivityAt, setLastActivityAt] = useState(props.post.lastActivityAt)
-  const { ads: postAds, loaded: postAdLoaded } = useAdSelection([
+  const { ads: postAds, loaded: postAdLoaded, error: postAdError } = useAdSelection([
     { instanceId: "post-below-title", placementId: "post_below_title" },
   ])
   
@@ -385,7 +385,13 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                   )}
                 </VStack>
 
-                <AdSlot instanceId="post-below-title" placementId="post_below_title" ad={postAdLoaded ? (postAds["post-below-title"] ?? null) : undefined} className="my-3" />
+                <AdSlot
+                  instanceId="post-below-title"
+                  placementId="post_below_title"
+                  ad={postAdLoaded && !postAdError ? (postAds["post-below-title"] ?? null) : undefined}
+                  selectFailed={postAdError}
+                  className="my-3"
+                />
 
                 <ResponseDetails status={props.post.status} response={props.post.response} previousStatus={props.post.archivedSettings?.previousStatus} />
               </VStack>

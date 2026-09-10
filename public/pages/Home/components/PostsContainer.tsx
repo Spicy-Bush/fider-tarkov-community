@@ -48,7 +48,7 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
       placementId: "feed_native",
     }))
   }, [posts.length])
-  const { ads: feedAds, loaded: feedAdsLoaded } = useAdSelection(feedSlots)
+  const { ads: feedAds, loaded: feedAdsLoaded, error: feedAdsError } = useAdSelection(feedSlots)
 
   
   useEffect(() => {
@@ -256,6 +256,7 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
         insertFeedAds
         feedAds={feedAds}
         feedAdsLoaded={feedAdsLoaded}
+        feedAdsError={feedAdsError}
         emptyText={i18n._("home.postscontainer.label.noresults", { message: "No results matched your search, try something different." })}
       />
       {showResetButton && (

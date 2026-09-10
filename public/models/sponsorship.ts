@@ -40,6 +40,8 @@ export interface PublicAd {
   clickPath: string
 }
 
+export type EmptyAdPolicy = "collapse" | "reserve"
+
 export interface AdPlacement {
   id: string
   name: string
@@ -49,6 +51,19 @@ export interface AdPlacement {
   maxHeight?: number
   sort: number
   enabled: boolean
+  /** Google AdSense slot id for empty-house fallback (catalog-owned). */
+  adsenseSlotId?: string
+  adsenseFormat?: string
+  emptyPolicy?: EmptyAdPolicy
+}
+
+/** Public slim config from GET /api/v1/ads/placement-config. */
+export interface PlacementAdConfig {
+  adsenseSlotId?: string
+  adsenseFormat?: string
+  emptyPolicy?: EmptyAdPolicy
+  maxWidth?: number
+  maxHeight?: number
 }
 
 export interface CreativeVersion {
@@ -74,31 +89,42 @@ export type SponsorshipSlot = (typeof SPONSORSHIP_SLOTS)[number]
 /** Display + creative guidance per placement (UI sizing). IDs come from ad_placements. */
 export const SPONSORSHIP_SLOT_SPECS: Record<
   string,
-  { label: string; recommended: string; imgClassName: string; frameClassName: string }
+  {
+    label: string
+    recommended: string
+    imgClassName: string
+    frameClassName: string
+    /** Fallback only when placement-config has not loaded; prefer DB catalog. */
+    emptyPolicy?: EmptyAdPolicy
+  }
 > = {
   feed_native: {
     label: "Feed (native)",
     recommended: "1200\u00d7675 (16:9), JPG/WebP",
     imgClassName: "w-full h-full object-cover",
     frameClassName: "w-full aspect-video overflow-hidden rounded bg-surface-alt",
+    emptyPolicy: "collapse",
   },
   sidebar_top: {
     label: "Sidebar",
     recommended: "600\u00d7500 (approx 6:5), JPG/WebP",
     imgClassName: "w-full h-auto block",
     frameClassName: "w-full overflow-hidden rounded bg-surface-alt",
+    emptyPolicy: "collapse",
   },
   post_below_title: {
     label: "Below post title",
     recommended: "1200\u00d7400 (wide banner), JPG/WebP",
     imgClassName: "w-full h-full object-cover",
     frameClassName: "w-full aspect-[3/1] overflow-hidden rounded bg-surface-alt",
+    emptyPolicy: "collapse",
   },
   pages_header: {
     label: "Pages header",
     recommended: "1200\u00d7280 (wide banner), JPG/WebP",
     imgClassName: "w-full h-full object-cover",
     frameClassName: "w-full aspect-[4/1] overflow-hidden rounded bg-surface-alt",
+    emptyPolicy: "collapse",
   },
 }
 

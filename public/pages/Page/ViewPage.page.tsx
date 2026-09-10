@@ -26,7 +26,7 @@ const ViewPage = ({ page, comments: initialComments }: ViewPageProps) => {
   const { toc, activeId, scrollTo } = useTableOfContents(contentRef, page.title, "page-title")
   const [comments, setComments] = useState<Comment[]>(initialComments)
   const [reactionCounts, setReactionCounts] = useState(page.reactionCounts || [])
-  const { ads: pageAds, loaded: pageAdLoaded } = useAdSelection([
+  const { ads: pageAds, loaded: pageAdLoaded, error: pageAdError } = useAdSelection([
     { instanceId: "pages-header", placementId: "pages_header" },
   ])
 
@@ -225,7 +225,13 @@ const ViewPage = ({ page, comments: initialComments }: ViewPageProps) => {
             {page.authors && page.authors.length > 0 && <span>By {page.authors.map((author) => author.name).join(", ")}</span>}
           </HStack>
 
-          <AdSlot instanceId="pages-header" placementId="pages_header" ad={pageAdLoaded ? (pageAds["pages-header"] ?? null) : undefined} className="mb-6" />
+          <AdSlot
+            instanceId="pages-header"
+            placementId="pages_header"
+            ad={pageAdLoaded && !pageAdError ? (pageAds["pages-header"] ?? null) : undefined}
+            selectFailed={pageAdError}
+            className="mb-6"
+          />
 
           <div ref={contentRef} className="c-markdown mb-8 min-w-0 max-w-full">
             {contentParts.map((part, index) => {
