@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -107,6 +108,7 @@ type dbCampaign struct {
 	Enabled              bool          `db:"enabled"`
 	Clicks               int           `db:"clicks"`
 	PackageID            sql.NullInt64 `db:"package_id"`
+	ConfigVersion        int           `db:"config_version"`
 	CreatedAt            time.Time     `db:"created_at"`
 	UpdatedAt            time.Time     `db:"updated_at"`
 }
@@ -151,6 +153,7 @@ func (r *dbCampaign) toModel() *entity.SponsorshipCampaign {
 		CreativeHTML:      r.CreativeHTML,
 		ClickURL:          r.ClickURL, StartAt: r.StartAt.UTC(), EndAt: r.EndAt.UTC(),
 		Weight: r.Weight, Locale: r.Locale, Enabled: r.Enabled, Clicks: r.Clicks,
+		ConfigVersion: r.ConfigVersion,
 		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
 	}
 	if r.PackageID.Valid {
@@ -162,7 +165,7 @@ func (r *dbCampaign) toModel() *entity.SponsorshipCampaign {
 
 const campaignSelect = `
 	SELECT id, name, advertiser, slots, creative_image_url, creative_image_urls, creative_html, click_url,
-	       start_at, end_at, weight, locale, enabled, clicks, package_id, created_at, updated_at
+	       start_at, end_at, weight, locale, enabled, clicks, package_id, config_version, created_at, updated_at
 	FROM sponsorship_campaigns`
 
 func listSponsorshipCampaigns(ctx context.Context, q *query.ListSponsorshipCampaigns) error {
@@ -218,7 +221,7 @@ func createSponsorshipCampaign(ctx context.Context, c *cmd.CreateSponsorshipCamp
 			CreativeHTML: c.CreativeHTML,
 			ClickURL:     c.ClickURL, StartAt: start, EndAt: end,
 			Weight: c.Weight, Locale: c.Locale, Enabled: c.Enabled, Clicks: 0,
-			PackageID: c.PackageID, CreatedAt: now, UpdatedAt: now,
+			PackageID: c.PackageID, ConfigVersion: 1, CreatedAt: now, UpdatedAt: now,
 		}
 		return nil
 	})
@@ -233,15 +236,46 @@ func updateSponsorshipCampaign(ctx context.Context, c *cmd.UpdateSponsorshipCamp
 		if err != nil {
 			return errors.Wrap(err, "failed to encode creative image urls")
 		}
-		_, err = trx.Execute(`
+		var rows int64
+		if c.ConfigVersion > 0 {
+			rows, err = trx.Execute(`
+				UPDATE sponsorship_campaigns SET
+					name=$1, advertiser=$2, slots=$3, creative_image_url=$4, creative_image_urls=$5::jsonb, creative_html=$6, click_url=$7,
+					start_at=$8, end_at=$9, weight=$10, locale=$11, enabled=$12, package_id=$13, updated_at=$14,
+					config_version = config_version + 1
+				WHERE id=$15 AND tenant_id=$16 AND config_version=$17`,
+				c.Name, c.Advertiser, c.Slots, c.CreativeImageURL, urlsJSON, c.CreativeHTML, c.ClickURL,
+				start, end, c.Weight, c.Locale, c.Enabled, c.PackageID, now, c.ID, tenant.ID, c.ConfigVersion)
+			if err != nil {
+				return errors.Wrap(err, "failed to update sponsorship campaign")
+			}
+			if rows == 0 {
+				return app.ErrConflict
+			}
+			c.Result = &entity.SponsorshipCampaign{
+				ID: c.ID, Name: c.Name, Advertiser: c.Advertiser, Slots: c.Slots,
+				CreativeImageURL: c.CreativeImageURL, CreativeImageURLs: parseCreativeImageURLs(urlsJSON),
+				CreativeHTML: c.CreativeHTML,
+				ClickURL:     c.ClickURL, StartAt: start, EndAt: end,
+				Weight: c.Weight, Locale: c.Locale, Enabled: c.Enabled,
+				PackageID: c.PackageID, ConfigVersion: c.ConfigVersion + 1, UpdatedAt: now,
+			}
+			return nil
+		}
+		// Dual-read: legacy admin clients omit config_version — still bump OCC token.
+		rows, err = trx.Execute(`
 			UPDATE sponsorship_campaigns SET
 				name=$1, advertiser=$2, slots=$3, creative_image_url=$4, creative_image_urls=$5::jsonb, creative_html=$6, click_url=$7,
-				start_at=$8, end_at=$9, weight=$10, locale=$11, enabled=$12, package_id=$13, updated_at=$14
+				start_at=$8, end_at=$9, weight=$10, locale=$11, enabled=$12, package_id=$13, updated_at=$14,
+				config_version = config_version + 1
 			WHERE id=$15 AND tenant_id=$16`,
 			c.Name, c.Advertiser, c.Slots, c.CreativeImageURL, urlsJSON, c.CreativeHTML, c.ClickURL,
 			start, end, c.Weight, c.Locale, c.Enabled, c.PackageID, now, c.ID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to update sponsorship campaign")
+		}
+		if rows == 0 {
+			return app.ErrNotFound
 		}
 		c.Result = &entity.SponsorshipCampaign{
 			ID: c.ID, Name: c.Name, Advertiser: c.Advertiser, Slots: c.Slots,

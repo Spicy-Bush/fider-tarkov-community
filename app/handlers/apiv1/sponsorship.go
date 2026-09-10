@@ -1,13 +1,15 @@
 package apiv1
 
 import (
-	"fmt"
+	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/adsselect"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
@@ -168,15 +170,8 @@ func DeleteSponsorshipCampaign() web.HandlerFunc {
 	}
 }
 
-func publicCampaign(slot string, camp *entity.SponsorshipCampaign) entity.PublicSponsorshipCampaign {
-	return entity.PublicSponsorshipCampaign{
-		ID: camp.ID, Advertiser: camp.Advertiser, SlotID: slot,
-		CreativeImageURL: camp.ImageURLForSlot(slot), CreativeHTML: camp.CreativeHTML,
-		ClickPath: fmt.Sprintf("/ads/click/%d", camp.ID),
-	}
-}
-
-// GetActiveSponsorship:
+// GetActiveSponsorship is a dual-read thin adapter over the new ads select pipeline.
+// Synthetic instanceIds = placementIds so the legacy FE keeps working mid-rewrite.
 //
 //	?slot=feed_native&locale=en  -> single campaign or {}
 //	?slots=feed_native,sidebar_top&locale=en -> { "feed_native": {...}|null, ... }
@@ -187,9 +182,9 @@ func GetActiveSponsorship() web.HandlerFunc {
 			locale = "all"
 		}
 		slotsParam := strings.TrimSpace(c.QueryParam("slots"))
+		slotIDs := []string{}
 		if slotsParam != "" {
 			raw := strings.Split(slotsParam, ",")
-			slotIDs := make([]string, 0, len(raw))
 			seen := map[string]bool{}
 			for _, s := range raw {
 				s = strings.TrimSpace(s)
@@ -199,30 +194,47 @@ func GetActiveSponsorship() web.HandlerFunc {
 				seen[s] = true
 				slotIDs = append(slotIDs, s)
 			}
-			q := &query.GetActiveSponsorshipForSlots{SlotIDs: slotIDs, Locale: locale}
-			if err := bus.Dispatch(c, q); err != nil {
-				return c.Failure(err)
-			}
-			out := web.Map{}
-			for _, slot := range slotIDs {
-				camp := q.Result[slot]
-				if camp == nil {
-					out[slot] = nil
-				} else {
-					out[slot] = publicCampaign(slot, camp)
-				}
-			}
-			return c.Ok(out)
+		} else if slotID := strings.TrimSpace(c.QueryParam("slot")); slotID != "" {
+			slotIDs = []string{slotID}
 		}
 
-		slotID := c.QueryParam("slot")
-		q := &query.GetActiveSponsorshipForSlot{SlotID: slotID, Locale: locale}
-		if err := bus.Dispatch(c, q); err != nil {
-			return c.Failure(err)
-		}
-		if q.Result == nil {
+		if len(slotIDs) == 0 {
 			return c.Ok(web.Map{})
 		}
-		return c.Ok(publicCampaign(slotID, q.Result))
+
+		instances := make([]adsselect.InstanceReq, len(slotIDs))
+		for i, id := range slotIDs {
+			instances[i] = adsselect.InstanceReq{InstanceID: id, PlacementID: id}
+		}
+		selected, err := runAdSelection(c, instances, locale, time.Now().UTC(), rand.New(rand.NewSource(time.Now().UnixNano())))
+		if err != nil {
+			return c.Failure(err)
+		}
+
+		if slotsParam == "" {
+			ad := selected[slotIDs[0]]
+			if ad == nil {
+				return c.Ok(web.Map{})
+			}
+			return c.Ok(publicAdToLegacy(ad))
+		}
+
+		out := web.Map{}
+		for _, slot := range slotIDs {
+			ad := selected[slot]
+			if ad == nil {
+				out[slot] = nil
+			} else {
+				out[slot] = publicAdToLegacy(ad)
+			}
+		}
+		return c.Ok(out)
+	}
+}
+
+func publicAdToLegacy(ad *entity.PublicAd) entity.PublicSponsorshipCampaign {
+	return entity.PublicSponsorshipCampaign{
+		ID: ad.CampaignID, Advertiser: ad.Advertiser, SlotID: ad.PlacementID,
+		CreativeImageURL: ad.ImageURL, CreativeHTML: ad.HTML, ClickPath: ad.ClickPath,
 	}
 }

@@ -52,6 +52,11 @@ func (s Service) Init() {
 	bus.AddHandler(incrementSponsorshipClick)
 	bus.AddHandler(getActiveSponsorshipForSlot)
 	bus.AddHandler(getActiveSponsorshipForSlots)
+	bus.AddHandler(listAdPlacements)
+	bus.AddHandler(getActiveAdCandidates)
+	bus.AddHandler(getCreativeVersionsByIDs)
+	bus.AddHandler(createCreativeVersion)
+	bus.AddHandler(upsertCampaignAssignment)
 
 	bus.AddHandler(markAllNotificationsAsRead)
 	bus.AddHandler(markNotificationAsRead)

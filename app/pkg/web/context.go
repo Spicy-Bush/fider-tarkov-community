@@ -293,6 +293,10 @@ func (c *Context) Failure(err error) error {
 		return c.NotFound()
 	}
 
+	if cause == app.ErrConflict {
+		return c.JSON(http.StatusConflict, Map{"message": "Conflict"})
+	}
+
 	if renderErr := c.Page(http.StatusInternalServerError, Props{
 		Page:        "Error/Error500.page",
 		Title:       "Shoot! Well, this is unexpected…",

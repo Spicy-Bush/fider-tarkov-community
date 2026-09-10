@@ -19,9 +19,8 @@ type SponsorshipPackage struct {
 
 // SponsorshipCampaign is a scheduled house ad for one or more slots.
 // Name is internal (billing/reference). Advertiser is the public company label for disclosure.
-// Slots is a comma-separated list (e.g. "feed_native,sidebar_top").
-// CreativeImageURLs maps slot_id → image URL (optional per placement).
-// CreativeImageURL is the legacy single-image fallback when a slot key is missing.
+// Slots / Creative* / ClickURL are dual-read legacy fields (expand phase; drop in contract).
+// ConfigVersion is OCC token bumped on successful admin writes.
 type SponsorshipCampaign struct {
 	ID                int               `json:"id" db:"id"`
 	Name              string            `json:"name" db:"name"`
@@ -38,6 +37,7 @@ type SponsorshipCampaign struct {
 	Enabled           bool              `json:"enabled" db:"enabled"`
 	Clicks            int               `json:"clicks" db:"clicks"`
 	PackageID         *int              `json:"packageId,omitempty" db:"package_id"`
+	ConfigVersion     int               `json:"configVersion" db:"config_version"`
 	CreatedAt         time.Time         `json:"createdAt" db:"created_at"`
 	UpdatedAt         time.Time         `json:"updatedAt" db:"updated_at"`
 }

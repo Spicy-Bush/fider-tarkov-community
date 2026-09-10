@@ -63,6 +63,7 @@ type UpdateSponsorshipCampaign struct {
 	Locale            string
 	Enabled           bool
 	PackageID         *int
+	ConfigVersion     int // expected OCC token; when >0 store rejects mismatch and bumps
 	Result            *entity.SponsorshipCampaign
 }
 
