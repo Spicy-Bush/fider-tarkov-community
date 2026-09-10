@@ -85,9 +85,11 @@ func (r *Request) AddCookie(cookie *http.Cookie) {
 	r.instance.AddCookie(cookie)
 }
 
-// IsAPI returns true if its a request for an API resource
+// IsAPI returns true if this is an API request (/api/... public API or /_api/... session/staff API).
+// Bearer API keys are only resolved when IsAPI is true (see middlewares.User).
 func (r *Request) IsAPI() bool {
-	return strings.HasPrefix(r.URL.Path, "/api/")
+	path := r.URL.Path
+	return strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/_api/")
 }
 
 var crawlerRegex = regexp.MustCompile("(?i)(baidu)|(msnbot)|(bingbot)|(bingpreview)|(duckduckbot)|(googlebot)|(adsbot-google)|(mediapartners-google)|(slurp)|(yandexbot)|(yandexmetrika)|(ahrefsbot)|(twitterbot)|(slackbot)|(discordbot)|(semrushBot)|(exabot)")

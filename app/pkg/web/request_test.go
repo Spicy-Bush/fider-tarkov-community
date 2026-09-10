@@ -97,6 +97,19 @@ func TestIsCustomDomain(t *testing.T) {
 	Expect(req.IsAPI()).IsTrue()
 }
 
+func TestIsAPI(t *testing.T) {
+	RegisterT(t)
+
+	apiReq := web.WrapRequest(&http.Request{Host: "demo.test.fider.io", RequestURI: "/api/v1/pages"})
+	Expect(apiReq.IsAPI()).IsTrue()
+
+	staffAPI := web.WrapRequest(&http.Request{Host: "demo.test.fider.io", RequestURI: "/_api/pages"})
+	Expect(staffAPI.IsAPI()).IsTrue()
+
+	page := web.WrapRequest(&http.Request{Host: "demo.test.fider.io", RequestURI: "/pages/hello"})
+	Expect(page.IsAPI()).IsFalse()
+}
+
 func TestRequest_FullURL(t *testing.T) {
 	RegisterT(t)
 
