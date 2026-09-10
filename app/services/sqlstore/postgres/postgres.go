@@ -51,6 +51,7 @@ func (s Service) Init() {
 	bus.AddHandler(deleteSponsorshipCampaign)
 	bus.AddHandler(incrementSponsorshipClick)
 	bus.AddHandler(getActiveSponsorshipForSlot)
+	bus.AddHandler(getActiveSponsorshipForSlots)
 
 	bus.AddHandler(markAllNotificationsAsRead)
 	bus.AddHandler(markNotificationAsRead)

@@ -17,7 +17,7 @@ create table if not exists sponsorship_campaigns (
     id                  serial primary key,
     tenant_id           int not null references tenants(id) on delete cascade,
     name                varchar(200) not null,
-    slot_id             varchar(50) not null,
+    slots               text not null default '',
     creative_image_url  text not null default '',
     creative_html       text not null default '',
     click_url           text not null,
@@ -30,7 +30,6 @@ create table if not exists sponsorship_campaigns (
     package_id          int references sponsorship_packages(id) on delete set null,
     created_at          timestamptz not null default now(),
     updated_at          timestamptz not null default now(),
-    constraint chk_sponsorship_campaigns_slot check (slot_id in ('feed_native','sidebar_top','post_below_title','pages_header')),
     constraint chk_sponsorship_campaigns_locale check (locale in ('all','en','ru')),
     constraint chk_sponsorship_campaigns_weight check (weight >= 0),
     constraint chk_sponsorship_campaigns_dates check (end_at > start_at)
@@ -38,4 +37,4 @@ create table if not exists sponsorship_campaigns (
 
 create index if not exists idx_sponsorship_campaigns_tenant on sponsorship_campaigns(tenant_id);
 create index if not exists idx_sponsorship_campaigns_active
-    on sponsorship_campaigns(tenant_id, slot_id, enabled, start_at, end_at);
+    on sponsorship_campaigns(tenant_id, enabled, start_at, end_at);

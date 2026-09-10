@@ -4,6 +4,7 @@ import { VStack, HStack } from "@fider/components/layout"
 import { PageConfig } from "@fider/components/layouts"
 import { SponsorshipCampaign, SponsorshipPackage, SPONSORSHIP_SLOTS } from "@fider/models"
 import { actions, Failure, notify } from "@fider/services"
+import { datetimeLocalToUtcIso, utcToDatetimeLocalValue } from "@fider/components/sponsorship/datetime"
 
 export const pageConfig: PageConfig = {
   title: "Sponsorship",
@@ -33,23 +34,17 @@ const emptyCamp = () => {
   const end = new Date(Date.now() + 30 * 86400000)
   return {
     name: "",
-    slotId: "feed_native",
+    slotList: ["feed_native"] as string[],
     creativeImageUrl: "",
     creativeHtml: "",
     clickUrl: "https://",
-    startAt: start.toISOString().slice(0, 16),
-    endAt: end.toISOString().slice(0, 16),
+    startAtLocal: utcToDatetimeLocalValue(start.toISOString()),
+    endAtLocal: utcToDatetimeLocalValue(end.toISOString()),
     weight: 100,
     locale: "all",
     enabled: true,
     packageId: undefined as number | undefined,
   }
-}
-
-const toIso = (localDatetime: string) => {
-  // datetime-local -> ISO; append Z-less local as Date
-  const d = new Date(localDatetime)
-  return d.toISOString()
 }
 
 const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
@@ -64,15 +59,19 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
   const [error, setError] = useState<Failure | undefined>()
   const [busy, setBusy] = useState(false)
 
-  const slotOptions: SelectOption[] = useMemo(
-    () => slots.map((s) => ({ value: s, label: s })),
-    [slots]
-  )
   const localeOptions: SelectOption[] = [
     { value: "all", label: "all" },
     { value: "en", label: "en" },
     { value: "ru", label: "ru" },
   ]
+
+  const toggleCampSlot = (slot: string) => {
+    setCampForm((prev) => {
+      const has = prev.slotList.includes(slot)
+      const slotList = has ? prev.slotList.filter((s) => s !== slot) : [...prev.slotList, slot]
+      return { ...prev, slotList }
+    })
+  }
 
   const savePackage = async () => {
     setBusy(true)
@@ -108,14 +107,25 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
   const saveCampaign = async () => {
     setBusy(true)
     setError(undefined)
+    let startAt: string
+    let endAt: string
+    try {
+      startAt = datetimeLocalToUtcIso(campForm.startAtLocal)
+      endAt = datetimeLocalToUtcIso(campForm.endAtLocal)
+    } catch {
+      setBusy(false)
+      setError({ errors: [{ message: "Invalid start/end datetime" }] })
+      return
+    }
     const body = {
       name: campForm.name,
-      slotId: campForm.slotId,
+      slotList: campForm.slotList,
+      slots: campForm.slotList.join(","),
       creativeImageUrl: campForm.creativeImageUrl,
       creativeHtml: campForm.creativeHtml,
       clickUrl: campForm.clickUrl,
-      startAt: toIso(campForm.startAt),
-      endAt: toIso(campForm.endAt),
+      startAt,
+      endAt,
       weight: Number(campForm.weight),
       locale: campForm.locale || "all",
       enabled: campForm.enabled,
@@ -152,12 +162,12 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     setEditingCampId(c.id)
     setCampForm({
       name: c.name,
-      slotId: c.slotId,
+      slotList: (c.slots || "").split(",").map((s) => s.trim()).filter(Boolean),
       creativeImageUrl: c.creativeImageUrl || "",
       creativeHtml: c.creativeHtml || "",
       clickUrl: c.clickUrl,
-      startAt: new Date(c.startAt).toISOString().slice(0, 16),
-      endAt: new Date(c.endAt).toISOString().slice(0, 16),
+      startAtLocal: utcToDatetimeLocalValue(c.startAt),
+      endAtLocal: utcToDatetimeLocalValue(c.endAt),
       weight: c.weight,
       locale: c.locale || "all",
       enabled: c.enabled,
@@ -179,7 +189,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
 
       {tab === "packages" && (
         <VStack spacing={4}>
-          <p className="text-muted text-sm">Sellable packages shown on /advertise. Do not put dollar amounts in descriptions if you want them private.</p>
+          <p className="text-muted text-sm">Packages on /advertise. No public dollar amounts.</p>
           <Form error={error}>
             <Input field="slug" label="Slug" value={pkgForm.slug} onChange={(v) => setPkgForm({ ...pkgForm, slug: v })} />
             <Input field="name" label="Name" value={pkgForm.name} onChange={(v) => setPkgForm({ ...pkgForm, name: v })} />
@@ -218,20 +228,36 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
 
       {tab === "campaigns" && (
         <VStack spacing={4}>
-          <p className="text-muted text-sm">House ads fill slots when enabled and within start/end. Fallback is AdSense (if configured) then empty.</p>
+          <p className="text-muted text-sm">
+            One campaign can target multiple placements. Dates are entered in your local time and stored as UTC.
+          </p>
           <Form error={error}>
             <Input field="name" label="Name" value={campForm.name} onChange={(v) => setCampForm({ ...campForm, name: v })} />
-            <Select field="slotId" label="Slot" defaultValue={campForm.slotId} options={slotOptions} onChange={(o) => o && setCampForm({ ...campForm, slotId: o.value })} />
+            <div className="mb-3">
+              <div className="text-sm font-medium mb-1">Placements</div>
+              <HStack spacing={3} className="flex-wrap">
+                {slots.map((slot) => (
+                  <label key={slot} className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={campForm.slotList.includes(slot)}
+                      onChange={() => toggleCampSlot(slot)}
+                    />
+                    {slot}
+                  </label>
+                ))}
+              </HStack>
+            </div>
             <Select field="locale" label="Locale" defaultValue={campForm.locale} options={localeOptions} onChange={(o) => o && setCampForm({ ...campForm, locale: o.value })} />
             <Input field="creativeImageUrl" label="Creative image URL" value={campForm.creativeImageUrl} onChange={(v) => setCampForm({ ...campForm, creativeImageUrl: v })} />
             <TextArea field="creativeHtml" label="Creative HTML (optional)" value={campForm.creativeHtml} onChange={(v) => setCampForm({ ...campForm, creativeHtml: v })} />
             <Input field="clickUrl" label="Click URL" value={campForm.clickUrl} onChange={(v) => setCampForm({ ...campForm, clickUrl: v })} />
-            <Input field="startAt" label="Start (local)" type="datetime-local" value={campForm.startAt} onChange={(v) => setCampForm({ ...campForm, startAt: v })} />
-            <Input field="endAt" label="End (local)" type="datetime-local" value={campForm.endAt} onChange={(v) => setCampForm({ ...campForm, endAt: v })} />
+            <Input field="startAt" label="Start (local time)" type="datetime-local" value={campForm.startAtLocal} onChange={(v) => setCampForm({ ...campForm, startAtLocal: v })} />
+            <Input field="endAt" label="End (local time)" type="datetime-local" value={campForm.endAtLocal} onChange={(v) => setCampForm({ ...campForm, endAtLocal: v })} />
             <Input field="weight" label="Weight" value={String(campForm.weight)} onChange={(v) => setCampForm({ ...campForm, weight: Number(v) || 0 })} />
             <Toggle field="enabled" label="Enabled" active={campForm.enabled} onToggle={(v) => setCampForm({ ...campForm, enabled: v })} />
             <HStack spacing={2}>
-              <Button variant="primary" onClick={saveCampaign} disabled={busy}>
+              <Button variant="primary" onClick={saveCampaign} disabled={busy || campForm.slotList.length === 0}>
                 {editingCampId ? "Update campaign" : "Add campaign"}
               </Button>
               {editingCampId && (
@@ -247,7 +273,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                 <div className="min-w-0">
                   <div className="font-medium truncate">{c.name}</div>
                   <div className="text-muted text-sm">
-                    {c.slotId} · {c.locale} · {c.enabled ? "on" : "off"} · clicks {c.clicks}
+                    {c.slots} · {c.locale} · {c.enabled ? "on" : "off"} · clicks {c.clicks}
                   </div>
                 </div>
                 <HStack spacing={2}>

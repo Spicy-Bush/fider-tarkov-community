@@ -9,7 +9,7 @@ import { PostInput } from "./components/PostInput"
 import { PostsContainer } from "./components/PostsContainer"
 import { useFider } from "@fider/hooks"
 import { VStack } from "@fider/components/layout"
-import { AdSlot } from "@fider/components/sponsorship"
+import { AdSlot, SponsorshipProvider } from "@fider/components/sponsorship"
 import { isContentDismissed, dismissContentByValue, DismissableContentTypes } from "@fider/services/device"
 
 import { i18n } from "@lingui/core"
@@ -116,6 +116,7 @@ What can we do better? This is the place for you to vote, discuss and share idea
   }
 
   return (
+    <SponsorshipProvider slots={["sidebar_top", "feed_native"]}>
     <div id="p-home" className="page container grid grid-cols-1 gap-y-6 lg:grid-cols-3 lg:gap-x-6 lg:gap-y-0 grow">
       {/* Welcome column - 1 column on lg */}
       <div className="p-home__welcome-col bg-border tag-clipped p-px self-start">
@@ -150,6 +151,7 @@ What can we do better? This is the place for you to vote, discuss and share idea
         )}
       </div>
     </div>
+    </SponsorshipProvider>
   )
 }
 

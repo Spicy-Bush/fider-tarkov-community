@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
@@ -45,7 +46,7 @@ func getSponsorshipPackageByID(ctx context.Context, q *query.GetSponsorshipPacka
 func createSponsorshipPackage(ctx context.Context, c *cmd.CreateSponsorshipPackage) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var id int
-		now := time.Now()
+		now := time.Now().UTC()
 		err := trx.Get(&id, `
 			INSERT INTO sponsorship_packages (tenant_id, slug, name, description, slots, duration_days, sort, created_at)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
@@ -92,7 +93,7 @@ func deleteSponsorshipPackage(ctx context.Context, c *cmd.DeleteSponsorshipPacka
 type dbCampaign struct {
 	ID               int           `db:"id"`
 	Name             string        `db:"name"`
-	SlotID           string        `db:"slot_id"`
+	Slots            string        `db:"slots"`
 	CreativeImageURL string        `db:"creative_image_url"`
 	CreativeHTML     string        `db:"creative_html"`
 	ClickURL         string        `db:"click_url"`
@@ -109,11 +110,11 @@ type dbCampaign struct {
 
 func (r *dbCampaign) toModel() *entity.SponsorshipCampaign {
 	c := &entity.SponsorshipCampaign{
-		ID: r.ID, Name: r.Name, SlotID: r.SlotID,
+		ID: r.ID, Name: r.Name, Slots: r.Slots,
 		CreativeImageURL: r.CreativeImageURL, CreativeHTML: r.CreativeHTML,
-		ClickURL: r.ClickURL, StartAt: r.StartAt, EndAt: r.EndAt,
+		ClickURL: r.ClickURL, StartAt: r.StartAt.UTC(), EndAt: r.EndAt.UTC(),
 		Weight: r.Weight, Locale: r.Locale, Enabled: r.Enabled, Clicks: r.Clicks,
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
 	}
 	if r.PackageID.Valid {
 		id := int(r.PackageID.Int64)
@@ -123,7 +124,7 @@ func (r *dbCampaign) toModel() *entity.SponsorshipCampaign {
 }
 
 const campaignSelect = `
-	SELECT id, name, slot_id, creative_image_url, creative_html, click_url,
+	SELECT id, name, slots, creative_image_url, creative_html, click_url,
 	       start_at, end_at, weight, locale, enabled, clicks, package_id, created_at, updated_at
 	FROM sponsorship_campaigns`
 
@@ -157,21 +158,23 @@ func getSponsorshipCampaignByID(ctx context.Context, q *query.GetSponsorshipCamp
 func createSponsorshipCampaign(ctx context.Context, c *cmd.CreateSponsorshipCampaign) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var id int
-		now := time.Now()
+		now := time.Now().UTC()
+		start := c.StartAt.UTC()
+		end := c.EndAt.UTC()
 		err := trx.Get(&id, `
 			INSERT INTO sponsorship_campaigns (
-				tenant_id, name, slot_id, creative_image_url, creative_html, click_url,
+				tenant_id, name, slots, creative_image_url, creative_html, click_url,
 				start_at, end_at, weight, locale, enabled, clicks, package_id, created_at, updated_at
 			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,0,$12,$13,$13) RETURNING id`,
-			tenant.ID, c.Name, c.SlotID, c.CreativeImageURL, c.CreativeHTML, c.ClickURL,
-			c.StartAt, c.EndAt, c.Weight, c.Locale, c.Enabled, c.PackageID, now)
+			tenant.ID, c.Name, c.Slots, c.CreativeImageURL, c.CreativeHTML, c.ClickURL,
+			start, end, c.Weight, c.Locale, c.Enabled, c.PackageID, now)
 		if err != nil {
 			return errors.Wrap(err, "failed to create sponsorship campaign")
 		}
 		c.Result = &entity.SponsorshipCampaign{
-			ID: id, Name: c.Name, SlotID: c.SlotID,
+			ID: id, Name: c.Name, Slots: c.Slots,
 			CreativeImageURL: c.CreativeImageURL, CreativeHTML: c.CreativeHTML,
-			ClickURL: c.ClickURL, StartAt: c.StartAt, EndAt: c.EndAt,
+			ClickURL: c.ClickURL, StartAt: start, EndAt: end,
 			Weight: c.Weight, Locale: c.Locale, Enabled: c.Enabled, Clicks: 0,
 			PackageID: c.PackageID, CreatedAt: now, UpdatedAt: now,
 		}
@@ -181,21 +184,23 @@ func createSponsorshipCampaign(ctx context.Context, c *cmd.CreateSponsorshipCamp
 
 func updateSponsorshipCampaign(ctx context.Context, c *cmd.UpdateSponsorshipCampaign) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		now := time.Now()
+		now := time.Now().UTC()
+		start := c.StartAt.UTC()
+		end := c.EndAt.UTC()
 		_, err := trx.Execute(`
 			UPDATE sponsorship_campaigns SET
-				name=$1, slot_id=$2, creative_image_url=$3, creative_html=$4, click_url=$5,
+				name=$1, slots=$2, creative_image_url=$3, creative_html=$4, click_url=$5,
 				start_at=$6, end_at=$7, weight=$8, locale=$9, enabled=$10, package_id=$11, updated_at=$12
 			WHERE id=$13 AND tenant_id=$14`,
-			c.Name, c.SlotID, c.CreativeImageURL, c.CreativeHTML, c.ClickURL,
-			c.StartAt, c.EndAt, c.Weight, c.Locale, c.Enabled, c.PackageID, now, c.ID, tenant.ID)
+			c.Name, c.Slots, c.CreativeImageURL, c.CreativeHTML, c.ClickURL,
+			start, end, c.Weight, c.Locale, c.Enabled, c.PackageID, now, c.ID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to update sponsorship campaign")
 		}
 		c.Result = &entity.SponsorshipCampaign{
-			ID: c.ID, Name: c.Name, SlotID: c.SlotID,
+			ID: c.ID, Name: c.Name, Slots: c.Slots,
 			CreativeImageURL: c.CreativeImageURL, CreativeHTML: c.CreativeHTML,
-			ClickURL: c.ClickURL, StartAt: c.StartAt, EndAt: c.EndAt,
+			ClickURL: c.ClickURL, StartAt: start, EndAt: end,
 			Weight: c.Weight, Locale: c.Locale, Enabled: c.Enabled,
 			PackageID: c.PackageID, UpdatedAt: now,
 		}
@@ -216,8 +221,8 @@ func deleteSponsorshipCampaign(ctx context.Context, c *cmd.DeleteSponsorshipCamp
 func incrementSponsorshipClick(ctx context.Context, c *cmd.IncrementSponsorshipClick) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
-			UPDATE sponsorship_campaigns SET clicks = clicks + 1, updated_at = $1
-			WHERE id = $2 AND tenant_id = $3`, time.Now(), c.ID, tenant.ID)
+			UPDATE sponsorship_campaigns SET clicks = clicks + 1, updated_at = $3
+			WHERE id=$1 AND tenant_id=$2`, c.ID, tenant.ID, time.Now().UTC())
 		if err != nil {
 			return errors.Wrap(err, "failed to increment sponsorship click")
 		}
@@ -225,48 +230,104 @@ func incrementSponsorshipClick(ctx context.Context, c *cmd.IncrementSponsorshipC
 	})
 }
 
+func campaignHasSlot(slotsCSV, slotID string) bool {
+	for _, s := range strings.Split(slotsCSV, ",") {
+		if strings.TrimSpace(s) == slotID {
+			return true
+		}
+	}
+	return false
+}
+
+func pickWeighted(rows []*dbCampaign) *dbCampaign {
+	if len(rows) == 0 {
+		return nil
+	}
+	total := 0
+	for _, row := range rows {
+		w := row.Weight
+		if w < 1 {
+			w = 1
+		}
+		total += w
+	}
+	pick := rand.Intn(total)
+	running := 0
+	for _, row := range rows {
+		w := row.Weight
+		if w < 1 {
+			w = 1
+		}
+		running += w
+		if pick < running {
+			return row
+		}
+	}
+	return rows[len(rows)-1]
+}
+
 func getActiveSponsorshipForSlot(ctx context.Context, q *query.GetActiveSponsorshipForSlot) error {
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = nil
 		rows := []*dbCampaign{}
-		now := time.Now()
+		now := time.Now().UTC()
 		err := trx.Select(&rows, campaignSelect+`
 			WHERE tenant_id = $1
-			  AND slot_id = $2
 			  AND enabled = true
-			  AND start_at <= $3
-			  AND end_at > $3
-			  AND (locale = 'all' OR locale = $4)
-			ORDER BY weight DESC, id ASC`, tenant.ID, q.SlotID, now, q.Locale)
+			  AND start_at <= $2
+			  AND end_at > $2
+			  AND (locale = 'all' OR locale = $3)
+			ORDER BY weight DESC, id ASC`, tenant.ID, now, q.Locale)
 		if err != nil {
 			return errors.Wrap(err, "failed to query active sponsorship")
 		}
-		if len(rows) == 0 {
+		matched := make([]*dbCampaign, 0)
+		for _, row := range rows {
+			if campaignHasSlot(row.Slots, q.SlotID) {
+				matched = append(matched, row)
+			}
+		}
+		picked := pickWeighted(matched)
+		if picked == nil {
 			return nil
 		}
-		// weight-biased pick among active rows
-		total := 0
-		for _, row := range rows {
-			w := row.Weight
-			if w < 1 {
-				w = 1
-			}
-			total += w
+		q.Result = picked.toModel()
+		return nil
+	})
+}
+
+func getActiveSponsorshipForSlots(ctx context.Context, q *query.GetActiveSponsorshipForSlots) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		q.Result = map[string]*entity.SponsorshipCampaign{}
+		for _, slot := range q.SlotIDs {
+			q.Result[slot] = nil
 		}
-		pick := rand.Intn(total)
-		running := 0
-		for _, row := range rows {
-			w := row.Weight
-			if w < 1 {
-				w = 1
+		if len(q.SlotIDs) == 0 {
+			return nil
+		}
+		rows := []*dbCampaign{}
+		now := time.Now().UTC()
+		err := trx.Select(&rows, campaignSelect+`
+			WHERE tenant_id = $1
+			  AND enabled = true
+			  AND start_at <= $2
+			  AND end_at > $2
+			  AND (locale = 'all' OR locale = $3)
+			ORDER BY weight DESC, id ASC`, tenant.ID, now, q.Locale)
+		if err != nil {
+			return errors.Wrap(err, "failed to query active sponsorships")
+		}
+		for _, slot := range q.SlotIDs {
+			matched := make([]*dbCampaign, 0)
+			for _, row := range rows {
+				if campaignHasSlot(row.Slots, slot) {
+					matched = append(matched, row)
+				}
 			}
-			running += w
-			if pick < running {
-				q.Result = row.toModel()
-				return nil
+			if picked := pickWeighted(matched); picked != nil {
+				q.Result[slot] = picked.toModel()
 			}
 		}
-		q.Result = rows[0].toModel()
 		return nil
 	})
 }

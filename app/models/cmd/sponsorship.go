@@ -33,7 +33,7 @@ type DeleteSponsorshipPackage struct {
 
 type CreateSponsorshipCampaign struct {
 	Name             string
-	SlotID           string
+	Slots            string
 	CreativeImageURL string
 	CreativeHTML     string
 	ClickURL         string
@@ -49,7 +49,7 @@ type CreateSponsorshipCampaign struct {
 type UpdateSponsorshipCampaign struct {
 	ID               int
 	Name             string
-	SlotID           string
+	Slots            string
 	CreativeImageURL string
 	CreativeHTML     string
 	ClickURL         string

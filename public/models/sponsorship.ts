@@ -12,10 +12,12 @@ export interface SponsorshipPackage {
 export interface SponsorshipCampaign {
   id: number
   name: string
-  slotId: string
+  /** Comma-separated slot ids — one campaign may cover many placements. */
+  slots: string
   creativeImageUrl: string
   creativeHtml: string
   clickUrl: string
+  /** ISO-8601 UTC from API */
   startAt: string
   endAt: string
   weight: number

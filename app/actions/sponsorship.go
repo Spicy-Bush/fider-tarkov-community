@@ -20,6 +20,28 @@ func isCollaboratorPlus(user *entity.User) bool {
 	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
 }
 
+// NormalizeSlotsCSV validates and canonicalizes a comma-separated slot list.
+func NormalizeSlotsCSV(raw string) (string, bool) {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	seen := map[string]bool{}
+	for _, p := range parts {
+		s := strings.TrimSpace(p)
+		if s == "" {
+			continue
+		}
+		if !allowedSlots[s] || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	if len(out) == 0 {
+		return "", false
+	}
+	return strings.Join(out, ","), true
+}
+
 type CreateSponsorshipPackage struct {
 	Slug         string `json:"slug"`
 	Name         string `json:"name"`
@@ -95,17 +117,19 @@ func (a *DeleteSponsorshipPackage) Validate(ctx context.Context, user *entity.Us
 }
 
 type CreateSponsorshipCampaign struct {
-	Name             string    `json:"name"`
-	SlotID           string    `json:"slotId"`
-	CreativeImageURL string    `json:"creativeImageUrl"`
-	CreativeHTML     string    `json:"creativeHtml"`
-	ClickURL         string    `json:"clickUrl"`
+	Name             string   `json:"name"`
+	Slots            string   `json:"slots"`
+	SlotID           string   `json:"slotId"` // legacy single-slot clients
+	SlotList         []string `json:"slotList"`
+	CreativeImageURL string   `json:"creativeImageUrl"`
+	CreativeHTML     string   `json:"creativeHtml"`
+	ClickURL         string   `json:"clickUrl"`
 	StartAt          time.Time `json:"startAt"`
 	EndAt            time.Time `json:"endAt"`
-	Weight           int       `json:"weight"`
-	Locale           string    `json:"locale"`
-	Enabled          bool      `json:"enabled"`
-	PackageID        *int      `json:"packageId"`
+	Weight           int      `json:"weight"`
+	Locale           string   `json:"locale"`
+	Enabled          bool     `json:"enabled"`
+	PackageID        *int     `json:"packageId"`
 }
 
 func (a *CreateSponsorshipCampaign) IsAuthorized(ctx context.Context, user *entity.User) bool {
@@ -113,22 +137,29 @@ func (a *CreateSponsorshipCampaign) IsAuthorized(ctx context.Context, user *enti
 }
 
 func (a *CreateSponsorshipCampaign) Validate(ctx context.Context, user *entity.User) *validate.Result {
-	return validateCampaignFields(validate.Success(), a.Name, a.SlotID, a.CreativeImageURL, a.CreativeHTML, a.ClickURL, a.StartAt, a.EndAt, a.Weight, a.Locale)
+	a.Slots = coalesceSlots(a.Slots, a.SlotID, a.SlotList)
+	result := validateCampaignFields(validate.Success(), a.Name, a.Slots, a.CreativeImageURL, a.CreativeHTML, a.ClickURL, a.StartAt, a.EndAt, a.Weight, a.Locale)
+	if normalized, ok := NormalizeSlotsCSV(a.Slots); ok {
+		a.Slots = normalized
+	}
+	return result
 }
 
 type UpdateSponsorshipCampaign struct {
-	ID               int       `json:"id"`
-	Name             string    `json:"name"`
-	SlotID           string    `json:"slotId"`
-	CreativeImageURL string    `json:"creativeImageUrl"`
-	CreativeHTML     string    `json:"creativeHtml"`
-	ClickURL         string    `json:"clickUrl"`
+	ID               int      `json:"id"`
+	Name             string   `json:"name"`
+	Slots            string   `json:"slots"`
+	SlotID           string   `json:"slotId"`
+	SlotList         []string `json:"slotList"`
+	CreativeImageURL string   `json:"creativeImageUrl"`
+	CreativeHTML     string   `json:"creativeHtml"`
+	ClickURL         string   `json:"clickUrl"`
 	StartAt          time.Time `json:"startAt"`
 	EndAt            time.Time `json:"endAt"`
-	Weight           int       `json:"weight"`
-	Locale           string    `json:"locale"`
-	Enabled          bool      `json:"enabled"`
-	PackageID        *int      `json:"packageId"`
+	Weight           int      `json:"weight"`
+	Locale           string   `json:"locale"`
+	Enabled          bool     `json:"enabled"`
+	PackageID        *int     `json:"packageId"`
 }
 
 func (a *UpdateSponsorshipCampaign) IsAuthorized(ctx context.Context, user *entity.User) bool {
@@ -140,7 +171,12 @@ func (a *UpdateSponsorshipCampaign) Validate(ctx context.Context, user *entity.U
 	if a.ID <= 0 {
 		result.AddFieldFailure("id", "Invalid ID")
 	}
-	return validateCampaignFields(result, a.Name, a.SlotID, a.CreativeImageURL, a.CreativeHTML, a.ClickURL, a.StartAt, a.EndAt, a.Weight, a.Locale)
+	a.Slots = coalesceSlots(a.Slots, a.SlotID, a.SlotList)
+	result = validateCampaignFields(result, a.Name, a.Slots, a.CreativeImageURL, a.CreativeHTML, a.ClickURL, a.StartAt, a.EndAt, a.Weight, a.Locale)
+	if normalized, ok := NormalizeSlotsCSV(a.Slots); ok {
+		a.Slots = normalized
+	}
+	return result
 }
 
 type DeleteSponsorshipCampaign struct {
@@ -159,12 +195,26 @@ func (a *DeleteSponsorshipCampaign) Validate(ctx context.Context, user *entity.U
 	return result
 }
 
-func validateCampaignFields(result *validate.Result, name, slotID, imageURL, html, clickURL string, startAt, endAt time.Time, weight int, locale string) *validate.Result {
+func coalesceSlots(slotsCSV, slotID string, slotList []string) string {
+	if len(slotList) > 0 {
+		return strings.Join(slotList, ",")
+	}
+	if strings.TrimSpace(slotsCSV) != "" {
+		return slotsCSV
+	}
+	return slotID
+}
+
+func validateCampaignFields(result *validate.Result, name, slotsCSV, imageURL, html, clickURL string, startAt, endAt time.Time, weight int, locale string) *validate.Result {
 	if strings.TrimSpace(name) == "" {
 		result.AddFieldFailure("name", "Name is required")
 	}
-	if !allowedSlots[slotID] {
-		result.AddFieldFailure("slotId", "Invalid slot")
+	normalized, ok := NormalizeSlotsCSV(slotsCSV)
+	if !ok {
+		result.AddFieldFailure("slots", "Select at least one valid slot")
+	} else {
+		// write-back via pointer not available; callers use Normalize after validate
+		_ = normalized
 	}
 	if strings.TrimSpace(imageURL) == "" && strings.TrimSpace(html) == "" {
 		result.AddFieldFailure("creativeImageUrl", "Provide an image URL or HTML creative")

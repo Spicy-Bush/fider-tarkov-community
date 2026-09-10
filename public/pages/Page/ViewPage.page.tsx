@@ -9,7 +9,7 @@ import { EmbeddedPostsList } from "@fider/components/page/EmbeddedPostsList"
 import { ShowComment } from "@fider/pages/ShowPost/components/ShowComment"
 import { PageCommentInput } from "@fider/components/page/PageCommentInput"
 import { Reactions } from "@fider/components/post/Reactions"
-import { AdSlot } from "@fider/components/sponsorship"
+import { AdSlot, SponsorshipProvider } from "@fider/components/sponsorship"
 
 interface ViewPageProps {
   page: Page
@@ -222,7 +222,7 @@ const ViewPage = ({ page, comments: initialComments }: ViewPageProps) => {
             {page.authors && page.authors.length > 0 && <span>By {page.authors.map((author) => author.name).join(", ")}</span>}
           </HStack>
 
-          <AdSlot slot="pages_header" className="mb-6" />
+          <SponsorshipProvider slots={["pages_header"]}><AdSlot slot="pages_header" className="mb-6" /></SponsorshipProvider>
 
           <div ref={contentRef} className="c-markdown mb-8 min-w-0 max-w-full">
             {contentParts.map((part, index) => {

@@ -14,11 +14,12 @@ type SponsorshipPackage struct {
 	CreatedAt    time.Time `json:"createdAt" db:"created_at"`
 }
 
-// SponsorshipCampaign is a scheduled house ad for a slot.
+// SponsorshipCampaign is a scheduled house ad for one or more slots.
+// Slots is a comma-separated list (e.g. "feed_native,sidebar_top").
 type SponsorshipCampaign struct {
 	ID               int       `json:"id" db:"id"`
 	Name             string    `json:"name" db:"name"`
-	SlotID           string    `json:"slotId" db:"slot_id"`
+	Slots            string    `json:"slots" db:"slots"`
 	CreativeImageURL string    `json:"creativeImageUrl" db:"creative_image_url"`
 	CreativeHTML     string    `json:"creativeHtml" db:"creative_html"`
 	ClickURL         string    `json:"clickUrl" db:"click_url"`

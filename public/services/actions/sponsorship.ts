@@ -38,25 +38,13 @@ export const listSponsorshipCampaigns = (): Promise<Result<SponsorshipCampaign[]
   return http.get<SponsorshipCampaign[]>("/api/v1/sponsorship/campaigns")
 }
 
-export const createSponsorshipCampaign = (body: Partial<SponsorshipCampaign> & {
-  name: string
-  slotId: string
-  clickUrl: string
-  startAt: string
-  endAt: string
-}): Promise<Result<SponsorshipCampaign>> => {
+export const createSponsorshipCampaign = (body: Record<string, unknown>): Promise<Result<SponsorshipCampaign>> => {
   return http.post<SponsorshipCampaign>("/api/v1/sponsorship/campaigns", body)
 }
 
 export const updateSponsorshipCampaign = (
   id: number,
-  body: Partial<SponsorshipCampaign> & {
-    name: string
-    slotId: string
-    clickUrl: string
-    startAt: string
-    endAt: string
-  }
+  body: Record<string, unknown>
 ): Promise<Result<SponsorshipCampaign>> => {
   return http.put<SponsorshipCampaign>(`/api/v1/sponsorship/campaigns/${id}`, body)
 }
@@ -65,10 +53,11 @@ export const deleteSponsorshipCampaign = (id: number): Promise<Result> => {
   return http.delete(`/api/v1/sponsorship/campaigns/${id}`)
 }
 
-export const getActiveSponsorship = (
-  slot: string,
+/** One request for many slots. Missing/empty slots are null. */
+export const getActiveSponsorshipMap = (
+  slots: string[],
   locale: string
-): Promise<Result<PublicSponsorshipCampaign | Record<string, never>>> => {
-  const q = new URLSearchParams({ slot, locale })
+): Promise<Result<Record<string, PublicSponsorshipCampaign | null>>> => {
+  const q = new URLSearchParams({ slots: slots.join(","), locale })
   return http.get(`/api/v1/sponsorship/active?${q.toString()}`)
 }

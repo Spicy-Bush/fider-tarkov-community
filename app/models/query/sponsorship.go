@@ -26,3 +26,10 @@ type GetActiveSponsorshipForSlot struct {
 	Locale string
 	Result *entity.SponsorshipCampaign
 }
+
+// GetActiveSponsorshipForSlots picks at most one campaign per requested slot (one DB read).
+type GetActiveSponsorshipForSlots struct {
+	SlotIDs []string
+	Locale  string
+	Result  map[string]*entity.SponsorshipCampaign
+}

@@ -36,7 +36,7 @@ import { VoteSection } from "./components/VoteSection"
 import { DeletePostModal } from "./components/DeletePostModal"
 import { ResponseModal } from "./components/ResponseModal"
 import { VotesPanel } from "./components/VotesPanel"
-import { AdSlot } from "@fider/components/sponsorship"
+import { AdSlot, SponsorshipProvider } from "@fider/components/sponsorship"
 import { useShowPostState } from "./hooks"
 
 interface ReportStatus {
@@ -358,7 +358,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                 <div className="mt-2">
                   <TagsPanel post={props.post} tags={props.tags} />
                 </div>
-                <AdSlot slot="post_below_title" className="my-3" />
+                <SponsorshipProvider slots={["post_below_title"]}><AdSlot slot="post_below_title" className="my-3" /></SponsorshipProvider>
 
                 <VStack spacing={4}>
                   {!state.editMode ? (
