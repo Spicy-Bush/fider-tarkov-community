@@ -66,7 +66,7 @@ func SponsorshipClick() web.HandlerFunc {
 		if err := bus.Dispatch(c, get); err != nil || get.Result == nil {
 			return c.NotFound()
 		}
-		clickURL := get.Result.ClickURL
+		clickURL := ""
 		if vid, vErr := c.QueryParamAsInt("v"); vErr == nil && vid > 0 {
 			verQ := &query.GetCreativeVersionsByIDs{IDs: []int{vid}}
 			if err := bus.Dispatch(c, verQ); err == nil {
@@ -74,12 +74,16 @@ func SponsorshipClick() web.HandlerFunc {
 					clickURL = ver.ClickURL
 				}
 			}
-		} else {
-			// Fallback: newest version for campaign when ?v= omitted.
+		}
+		if clickURL == "" {
+			// Fallback: newest version for campaign when ?v= omitted or invalid.
 			list := &query.ListCreativeVersionsByCampaign{CampaignID: id}
 			if err := bus.Dispatch(c, list); err == nil && len(list.Result) > 0 && list.Result[0].ClickURL != "" {
 				clickURL = list.Result[0].ClickURL
 			}
+		}
+		if clickURL == "" {
+			return c.NotFound()
 		}
 		_ = bus.Dispatch(c, &cmd.IncrementSponsorshipClick{ID: id})
 		return c.Redirect(clickURL)

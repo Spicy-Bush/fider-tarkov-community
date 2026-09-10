@@ -50,8 +50,6 @@ func (s Service) Init() {
 	bus.AddHandler(updateSponsorshipCampaign)
 	bus.AddHandler(deleteSponsorshipCampaign)
 	bus.AddHandler(incrementSponsorshipClick)
-	bus.AddHandler(getActiveSponsorshipForSlot)
-	bus.AddHandler(getActiveSponsorshipForSlots)
 	bus.AddHandler(listAdPlacements)
 	bus.AddHandler(getActiveAdCandidates)
 	bus.AddHandler(getCreativeVersionsByIDs)

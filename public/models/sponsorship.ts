@@ -15,14 +15,6 @@ export interface SponsorshipCampaign {
   name: string
   /** Public advertiser / company name shown next to Sponsored. */
   advertiser: string
-  /** Comma-separated slot ids — dual-read legacy (Phase 3 DROP). */
-  slots: string
-  /** Legacy single image; dual-read until Phase 3 contract. */
-  creativeImageUrl: string
-  /** Optional per-slot image URLs (slot_id → url). Dual-read until Phase 3. */
-  creativeImageUrls?: Record<string, string>
-  creativeHtml: string
-  clickUrl: string
   /** ISO-8601 UTC from API */
   startAt: string
   endAt: string
@@ -74,16 +66,6 @@ export interface CampaignAssignment {
   campaignId: number
   placementId: string
   creativeVersionId: number
-}
-
-/** @deprecated Legacy public shape; prefer PublicAd. Kept for old GET adapter. */
-export interface PublicSponsorshipCampaign {
-  id: number
-  advertiser: string
-  slotId: string
-  creativeImageUrl?: string
-  creativeHtml?: string
-  clickPath: string
 }
 
 export const SPONSORSHIP_SLOTS = ["feed_native", "sidebar_top", "post_below_title", "pages_header"] as const

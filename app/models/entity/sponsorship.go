@@ -1,7 +1,6 @@
 package entity
 
 import (
-	"strings"
 	"time"
 )
 
@@ -17,53 +16,22 @@ type SponsorshipPackage struct {
 	CreatedAt    time.Time `json:"createdAt" db:"created_at"`
 }
 
-// SponsorshipCampaign is a scheduled house ad for one or more slots.
+// SponsorshipCampaign is a slim schedule/weight umbrella.
 // Name is internal (billing/reference). Advertiser is the public company label for disclosure.
-// Slots / Creative* / ClickURL are dual-read legacy fields (expand phase; drop in contract).
+// Creatives live in creative_versions; placement bindings in campaign_assignments.
 // ConfigVersion is OCC token bumped on successful admin writes.
 type SponsorshipCampaign struct {
-	ID                int               `json:"id" db:"id"`
-	Name              string            `json:"name" db:"name"`
-	Advertiser        string            `json:"advertiser" db:"advertiser"`
-	Slots             string            `json:"slots" db:"slots"`
-	CreativeImageURL  string            `json:"creativeImageUrl" db:"creative_image_url"`
-	CreativeImageURLs map[string]string `json:"creativeImageUrls,omitempty"`
-	CreativeHTML      string            `json:"creativeHtml" db:"creative_html"`
-	ClickURL          string            `json:"clickUrl" db:"click_url"`
-	StartAt           time.Time         `json:"startAt" db:"start_at"`
-	EndAt             time.Time         `json:"endAt" db:"end_at"`
-	Weight            int               `json:"weight" db:"weight"`
-	Locale            string            `json:"locale" db:"locale"`
-	Enabled           bool              `json:"enabled" db:"enabled"`
-	Clicks            int               `json:"clicks" db:"clicks"`
-	PackageID         *int              `json:"packageId,omitempty" db:"package_id"`
-	ConfigVersion     int               `json:"configVersion" db:"config_version"`
-	CreatedAt         time.Time         `json:"createdAt" db:"created_at"`
-	UpdatedAt         time.Time         `json:"updatedAt" db:"updated_at"`
-}
-
-// ImageURLForSlot returns the creative image for slotID: map entry first, then legacy column.
-func (c *SponsorshipCampaign) ImageURLForSlot(slotID string) string {
-	if c == nil {
-		return ""
-	}
-	slotID = strings.TrimSpace(slotID)
-	if c.CreativeImageURLs != nil {
-		if u := strings.TrimSpace(c.CreativeImageURLs[slotID]); u != "" {
-			return u
-		}
-	}
-	return strings.TrimSpace(c.CreativeImageURL)
-}
-
-// PublicSponsorshipCampaign is the safe public payload for rendering a slot.
-// Advertiser is the public company label (never internal campaign name).
-// CreativeImageURL is already resolved for SlotID (per-slot map or legacy fallback).
-type PublicSponsorshipCampaign struct {
-	ID               int    `json:"id"`
-	Advertiser       string `json:"advertiser"`
-	SlotID           string `json:"slotId"`
-	CreativeImageURL string `json:"creativeImageUrl,omitempty"`
-	CreativeHTML     string `json:"creativeHtml,omitempty"`
-	ClickPath        string `json:"clickPath"`
+	ID            int       `json:"id" db:"id"`
+	Name          string    `json:"name" db:"name"`
+	Advertiser    string    `json:"advertiser" db:"advertiser"`
+	StartAt       time.Time `json:"startAt" db:"start_at"`
+	EndAt         time.Time `json:"endAt" db:"end_at"`
+	Weight        int       `json:"weight" db:"weight"`
+	Locale        string    `json:"locale" db:"locale"`
+	Enabled       bool      `json:"enabled" db:"enabled"`
+	Clicks        int       `json:"clicks" db:"clicks"`
+	PackageID     *int      `json:"packageId,omitempty" db:"package_id"`
+	ConfigVersion int       `json:"configVersion" db:"config_version"`
+	CreatedAt     time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt     time.Time `json:"updatedAt" db:"updated_at"`
 }
