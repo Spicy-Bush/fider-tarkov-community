@@ -34,6 +34,7 @@ const emptyCamp = () => {
   const end = new Date(Date.now() + 30 * 86400000)
   return {
     name: "",
+    advertiser: "",
     slotList: ["feed_native"] as string[],
     creativeImageUrls: {} as Record<string, string>,
     creativeHtml: "",
@@ -150,6 +151,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     const creativeImageUrl = Object.values(creativeImageUrls)[0] || ""
     const body = {
       name: campForm.name,
+      advertiser: campForm.advertiser,
       slotList: campForm.slotList,
       slots: campForm.slotList.join(","),
       creativeImageUrl,
@@ -194,6 +196,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     setEditingCampId(c.id)
     setCampForm({
       name: c.name,
+      advertiser: c.advertiser || "",
       slotList: (c.slots || "").split(",").map((s) => s.trim()).filter(Boolean),
       creativeImageUrls: slotImagesFromCampaign(c),
       creativeHtml: c.creativeHtml || "",
@@ -264,7 +267,10 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
             One campaign can target multiple placements with an optional image URL per slot. Dates are entered in your local time and stored as UTC.
           </p>
           <Form error={error}>
-            <Input field="name" label="Name" value={campForm.name} onChange={(v) => setCampForm({ ...campForm, name: v })} />
+            <Input field="name" label="Campaign name (internal)" value={campForm.name} onChange={(v) => setCampForm({ ...campForm, name: v })} />
+            <p className="text-xs text-muted -mt-2 mb-1">Internal billing / reference only — not shown publicly as the advertiser label.</p>
+            <Input field="advertiser" label="Advertiser / company name" value={campForm.advertiser} onChange={(v) => setCampForm({ ...campForm, advertiser: v })} />
+            <p className="text-xs text-muted -mt-2 mb-1">Shown publicly next to Sponsored (outside the creative).</p>
             <div className="mb-3">
               <div className="text-sm font-medium mb-1">Placements</div>
               <HStack spacing={3} className="flex-wrap">
@@ -339,7 +345,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                 <div className="min-w-0">
                   <div className="font-medium truncate">{c.name}</div>
                   <div className="text-muted text-sm">
-                    {c.slots} · {c.locale} · {c.enabled ? "on" : "off"} · clicks {c.clicks}
+                    {c.advertiser ? `Sponsored · ${c.advertiser} · ` : ""}{c.slots} · {c.locale} · {c.enabled ? "on" : "off"} · clicks {c.clicks}
                   </div>
                 </div>
                 <HStack spacing={2}>

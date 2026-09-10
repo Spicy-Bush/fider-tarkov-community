@@ -11,7 +11,10 @@ export interface SponsorshipPackage {
 
 export interface SponsorshipCampaign {
   id: number
+  /** Internal billing/reference name (not shown as public disclosure). */
   name: string
+  /** Public advertiser / company name shown next to Sponsored. */
+  advertiser: string
   /** Comma-separated slot ids — one campaign may cover many placements. */
   slots: string
   /** Legacy single image; used as fallback when a slot key is missing from creativeImageUrls. */
@@ -35,6 +38,8 @@ export interface SponsorshipCampaign {
 export interface PublicSponsorshipCampaign {
   id: number
   name: string
+  /** Public advertiser / company name for EU-style disclosure. */
+  advertiser: string
   slotId: string
   /** Already resolved for this slotId (map entry or legacy fallback). */
   creativeImageUrl?: string

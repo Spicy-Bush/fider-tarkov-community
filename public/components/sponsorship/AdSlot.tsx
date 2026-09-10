@@ -12,6 +12,7 @@ interface AdSlotProps {
  * Renders a house ad for slot from SponsorshipProvider (no per-slot fetch).
  * Must be under a SponsorshipProvider that requested this slot.
  * Image + HTML both render when present. creativeImageUrl is already resolved for this slot by the API.
+ * Always shows visible "Sponsored · {advertiser}" disclosure outside the creative.
  * No swipe-mode / AdSense wiring here (house creatives only).
  */
 export const AdSlot: React.FC<AdSlotProps> = ({ slot, className }) => {
@@ -29,6 +30,8 @@ export const AdSlot: React.FC<AdSlotProps> = ({ slot, className }) => {
   const spec = SPONSORSHIP_SLOT_SPECS[slot]
   const hasImage = Boolean(campaign.creativeImageUrl)
   const hasHtml = Boolean(campaign.creativeHtml)
+  const advertiser = (campaign.advertiser || "").trim() || campaign.name
+  const disclosure = advertiser ? `Sponsored · ${advertiser}` : "Sponsored"
 
   return (
     <a
@@ -36,13 +39,14 @@ export const AdSlot: React.FC<AdSlotProps> = ({ slot, className }) => {
       className={className || "block my-3 no-underline"}
       rel="sponsored noopener"
       target="_blank"
-      aria-label={campaign.name}
+      aria-label={disclosure}
     >
+      <div className="text-[10px] uppercase tracking-wide text-muted mb-1">{disclosure}</div>
       {hasImage && (
         <div className={spec.frameClassName}>
           <img
             src={campaign.creativeImageUrl!}
-            alt={campaign.name}
+            alt={advertiser}
             className={spec.imgClassName}
             loading="lazy"
           />
@@ -51,8 +55,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({ slot, className }) => {
       {hasHtml && (
         <div className="sponsorship-html mt-2" dangerouslySetInnerHTML={{ __html: campaign.creativeHtml! }} />
       )}
-      {!hasImage && !hasHtml && <span className="text-sm text-muted">{campaign.name}</span>}
-      <div className="text-[10px] uppercase tracking-wide text-muted mt-1">Sponsored</div>
+      {!hasImage && !hasHtml && <span className="text-sm text-muted">{advertiser}</span>}
     </a>
   )
 }

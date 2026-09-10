@@ -135,6 +135,7 @@ func (a *DeleteSponsorshipPackage) Validate(ctx context.Context, user *entity.Us
 
 type CreateSponsorshipCampaign struct {
 	Name              string            `json:"name"`
+	Advertiser        string            `json:"advertiser"`
 	Slots             string            `json:"slots"`
 	SlotID            string            `json:"slotId"` // legacy single-slot clients
 	SlotList          []string          `json:"slotList"`
@@ -158,7 +159,7 @@ func (a *CreateSponsorshipCampaign) Validate(ctx context.Context, user *entity.U
 	a.Slots = coalesceSlots(a.Slots, a.SlotID, a.SlotList)
 	a.CreativeImageURLs = NormalizeCreativeImageURLs(a.CreativeImageURLs)
 	a.seedSlotImagesFromLegacy()
-	result := validateCampaignFields(validate.Success(), a.Name, a.Slots, a.CreativeImageURL, a.CreativeImageURLs, a.CreativeHTML, a.ClickURL, a.StartAt, a.EndAt, a.Weight, a.Locale)
+	result := validateCampaignFields(validate.Success(), a.Name, a.Advertiser, a.Slots, a.CreativeImageURL, a.CreativeImageURLs, a.CreativeHTML, a.ClickURL, a.StartAt, a.EndAt, a.Weight, a.Locale)
 	if normalized, ok := NormalizeSlotsCSV(a.Slots); ok {
 		a.Slots = normalized
 	}
@@ -187,6 +188,7 @@ func (a *CreateSponsorshipCampaign) seedSlotImagesFromLegacy() {
 type UpdateSponsorshipCampaign struct {
 	ID                int               `json:"id"`
 	Name              string            `json:"name"`
+	Advertiser        string            `json:"advertiser"`
 	Slots             string            `json:"slots"`
 	SlotID            string            `json:"slotId"`
 	SlotList          []string          `json:"slotList"`
@@ -214,7 +216,7 @@ func (a *UpdateSponsorshipCampaign) Validate(ctx context.Context, user *entity.U
 	a.Slots = coalesceSlots(a.Slots, a.SlotID, a.SlotList)
 	a.CreativeImageURLs = NormalizeCreativeImageURLs(a.CreativeImageURLs)
 	a.seedSlotImagesFromLegacy()
-	result = validateCampaignFields(result, a.Name, a.Slots, a.CreativeImageURL, a.CreativeImageURLs, a.CreativeHTML, a.ClickURL, a.StartAt, a.EndAt, a.Weight, a.Locale)
+	result = validateCampaignFields(result, a.Name, a.Advertiser, a.Slots, a.CreativeImageURL, a.CreativeImageURLs, a.CreativeHTML, a.ClickURL, a.StartAt, a.EndAt, a.Weight, a.Locale)
 	if normalized, ok := NormalizeSlotsCSV(a.Slots); ok {
 		a.Slots = normalized
 	}
@@ -277,9 +279,12 @@ func hasAnyCreativeImage(legacy string, urls map[string]string) bool {
 	return false
 }
 
-func validateCampaignFields(result *validate.Result, name, slotsCSV, imageURL string, imageURLs map[string]string, html, clickURL string, startAt, endAt time.Time, weight int, locale string) *validate.Result {
+func validateCampaignFields(result *validate.Result, name, advertiser, slotsCSV, imageURL string, imageURLs map[string]string, html, clickURL string, startAt, endAt time.Time, weight int, locale string) *validate.Result {
 	if strings.TrimSpace(name) == "" {
 		result.AddFieldFailure("name", "Name is required")
+	}
+	if strings.TrimSpace(advertiser) == "" {
+		result.AddFieldFailure("advertiser", "Advertiser / company name is required")
 	}
 	normalized, ok := NormalizeSlotsCSV(slotsCSV)
 	if !ok {
