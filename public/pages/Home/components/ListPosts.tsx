@@ -16,8 +16,10 @@ interface ListPostsProps {
   /** When true, insert feed_native AdSlots every FEED_AD_EVERY posts. Default off so SimilarPosts stays clean. */
   insertFeedAds?: boolean
   /** Page-owned selection map keyed by feed-{i}. Required when insertFeedAds. */
-  feedAds?: Record<string, PublicAd | null>
+  feedAds?: Record<string, PublicAd | null | undefined>
   feedAdsLoaded?: boolean
+  /** Select HTTP failure — do not treat as empty inventory / AdSense. */
+  feedAdsError?: boolean
 }
 
 interface PostWithTags {
@@ -148,8 +150,9 @@ export const ListPosts = (props: ListPostsProps) => {
         const showAd = insertFeedAds && (index + 1) % FEED_AD_EVERY === 0
         const feedIndex = Math.floor((index + 1) / FEED_AD_EVERY) - 1
         const instanceId = `feed-${feedIndex}`
+        const selectFailed = !!props.feedAdsError
         const ad: PublicAd | null | undefined = showAd
-          ? props.feedAdsLoaded
+          ? props.feedAdsLoaded && !selectFailed
             ? props.feedAds?.[instanceId] ?? null
             : undefined
           : undefined
@@ -157,7 +160,12 @@ export const ListPosts = (props: ListPostsProps) => {
           <React.Fragment key={post.id}>
             <ListPostItem post={post} tags={tags} votePosition={votePosition} />
             {showAd && (
-              <AdSlot instanceId={instanceId} placementId="feed_native" ad={ad} />
+              <AdSlot
+                instanceId={instanceId}
+                placementId="feed_native"
+                ad={ad}
+                selectFailed={selectFailed}
+              />
             )}
           </React.Fragment>
         )

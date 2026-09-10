@@ -71,6 +71,7 @@ export class FiderImpl {
     if (initData) {
       this.pSettings = initData.settings
       this.pSession = new FiderSession(initData)
+      this.syncAdSenseClient()
       return this
     }
 
@@ -78,7 +79,17 @@ export class FiderImpl {
     const data = el ? JSON.parse(el.textContent || el.innerText) : {}
     this.pSettings = data.settings
     this.pSession = new FiderSession(data)
+    this.syncAdSenseClient()
     return this
+  }
+
+  /** Mirror GOOGLE_ADSENSE into window.__adsense_client for presentational AdSenseSlot. */
+  private syncAdSenseClient(): void {
+    if (typeof window === "undefined") return
+    const client = (this.pSettings?.googleAdSense || "").trim()
+    if (client) {
+      window.__adsense_client = client
+    }
   }
 
   public get currentLocale(): string {

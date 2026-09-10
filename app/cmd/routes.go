@@ -140,6 +140,7 @@ func routes(r *web.Engine) *web.Engine {
 		publicApi.Get("/api/v1/pages", apiv1.SearchPages())
 		publicApi.Get("/api/v1/pages/:id/comments", apiv1.GetPageComments())
 		publicApi.Post("/api/v1/ads/select", apiv1.SelectAds())
+		publicApi.Get("/api/v1/ads/placement-config", apiv1.PublicAdPlacementConfig())
 	}
 
 	// Available to any authenticated user

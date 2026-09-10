@@ -4,14 +4,17 @@ import "time"
 
 // AdPlacement is a global (non-tenant) catalog row for a renderable ad slot.
 type AdPlacement struct {
-	ID          string `json:"id" db:"id"`
-	Name        string `json:"name" db:"name"`
-	Description string `json:"description" db:"description"`
-	Kind        string `json:"kind" db:"kind"`
-	MaxWidth    *int   `json:"maxWidth,omitempty" db:"max_width"`
-	MaxHeight   *int   `json:"maxHeight,omitempty" db:"max_height"`
-	Sort        int    `json:"sort" db:"sort"`
-	Enabled     bool   `json:"enabled" db:"enabled"`
+	ID            string `json:"id" db:"id"`
+	Name          string `json:"name" db:"name"`
+	Description   string `json:"description" db:"description"`
+	Kind          string `json:"kind" db:"kind"`
+	MaxWidth      *int   `json:"maxWidth,omitempty" db:"max_width"`
+	MaxHeight     *int   `json:"maxHeight,omitempty" db:"max_height"`
+	Sort          int    `json:"sort" db:"sort"`
+	Enabled       bool   `json:"enabled" db:"enabled"`
+	AdSenseSlotID string `json:"adsenseSlotId" db:"adsense_slot_id"`
+	AdSenseFormat string `json:"adsenseFormat" db:"adsense_format"`
+	EmptyPolicy   string `json:"emptyPolicy" db:"empty_policy"` // collapse | reserve
 }
 
 // CreativeVersion is an immutable creative payload owned by a campaign.

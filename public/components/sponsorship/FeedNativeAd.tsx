@@ -28,6 +28,7 @@ export const FeedNativeAd: React.FC<FeedNativeAdProps> = ({ ad, className }) => 
       rel="sponsored noopener"
       target="_blank"
       aria-label={disclosure}
+      data-ad-network="house"
     >
       <HStack spacing={4} align="start" className="min-w-0 opacity-95">
         <div className="shrink-0 w-10 text-center text-[10px] uppercase text-muted leading-tight pt-1">Ad</div>

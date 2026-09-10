@@ -23,6 +23,8 @@ export interface SystemSettings {
   assetsURL: string
   oauth: OAuthProviderOption[]
   navigationLinks?: NavigationLink[]
+  /** Publisher client id from GOOGLE_ADSENSE (e.g. ca-pub-...). Empty = AdSense off. */
+  googleAdSense?: string
 }
 
 export interface UserSettings {

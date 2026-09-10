@@ -578,7 +578,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               {previewAd && (
                 <div className="mb-2 p-3 border border-border rounded bg-elevated">
                   <div className="text-sm font-medium mb-2">Draft version preview</div>
-                  <AdSlot instanceId="admin-preview" placementId={previewAd.placementId} ad={previewAd} />
+                  <AdSlot instanceId="admin-preview" placementId={previewAd.placementId} ad={previewAd} allowAdSense={false} />
                 </div>
               )}
 

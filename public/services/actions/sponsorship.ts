@@ -1,6 +1,7 @@
 import { http, Result } from "@fider/services/http"
 import {
   AdPlacement,
+  PlacementAdConfig,
   CampaignAssignment,
   CreativeVersion,
   PublicAd,
@@ -133,4 +134,9 @@ export const saveSponsorshipCampaignGraph = (
   body: CampaignGraphSaveBody
 ): Promise<Result<CampaignGraphSaveResult>> => {
   return http.put<CampaignGraphSaveResult>(`/api/v1/sponsorship/campaigns/${campaignId}/graph`, body)
+}
+
+/** Public placement AdSense / empty-policy catalog (enabled rows only). */
+export const getAdPlacementConfig = (): Promise<Result<Record<string, PlacementAdConfig>>> => {
+  return http.get<Record<string, PlacementAdConfig>>("/api/v1/ads/placement-config")
 }

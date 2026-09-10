@@ -181,6 +181,40 @@ func ListAdPlacements() web.HandlerFunc {
 	}
 }
 
+// PublicAdPlacementConfig returns enabled placement AdSense/empty fallback metadata (public).
+// Used by the client when select returns no house fill — not part of ads/select.
+func PublicAdPlacementConfig() web.HandlerFunc {
+	return func(c *web.Context) error {
+		q := &query.ListAdPlacements{}
+		if err := bus.Dispatch(c, q); err != nil {
+			return c.Failure(err)
+		}
+		out := web.Map{}
+		for _, p := range q.Result {
+			if p == nil || !p.Enabled {
+				continue
+			}
+			policy := p.EmptyPolicy
+			if policy == "" {
+				policy = "collapse"
+			}
+			entry := web.Map{
+				"adsenseSlotId": p.AdSenseSlotID,
+				"adsenseFormat": p.AdSenseFormat,
+				"emptyPolicy":   policy,
+			}
+			if p.MaxWidth != nil {
+				entry["maxWidth"] = *p.MaxWidth
+			}
+			if p.MaxHeight != nil {
+				entry["maxHeight"] = *p.MaxHeight
+			}
+			out[p.ID] = entry
+		}
+		return c.Ok(out)
+	}
+}
+
 // ListCreativeVersions lists versions for a campaign.
 func ListCreativeVersions() web.HandlerFunc {
 	return func(c *web.Context) error {
