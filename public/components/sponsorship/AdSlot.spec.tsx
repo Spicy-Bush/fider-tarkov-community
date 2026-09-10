@@ -169,14 +169,14 @@ describe("<AdSlot /> AdSense empty-placement fallback", () => {
   })
 
 
-  test("kind native (props) uses FeedNativeAd even when placementId is not feed_native", () => {
+  test("AdSlot is a frame renderer (page chooses FeedNativeAd)", () => {
     setClient("")
     const ad: PublicAd = { ...houseAd, placementId: "sidebar_top", html: "<p>hi</p>" }
     const { container } = render(
       <AdSlot instanceId="x" placementId="sidebar_top" ad={ad} placement={{ kind: "native" }} />
     )
-    expect(container.querySelector('[data-ad-kind="native"]')).not.toBeNull()
-    expect(container.querySelector('[data-ad-kind="frame"]')).toBeNull()
+    expect(container.querySelector('[data-ad-kind="frame"]')).not.toBeNull()
+    expect(container.querySelector('[data-ad-kind="native"]')).toBeNull()
   })
 
   test("house frame shows image and html together when both set", () => {
@@ -192,6 +192,17 @@ describe("<AdSlot /> AdSense empty-placement fallback", () => {
     expect(container.querySelector("img")?.getAttribute("src")).toBe("https://example.com/ad.png")
     expect(container.querySelector("iframe")).not.toBeNull()
     expect(container.querySelector("a")?.getAttribute("href")).toBe("/ads/click/7?v=3")
+    expect(container.querySelector("iframe")?.closest("a")).toBeNull()
+  })
+
+  test("html-only house creative is not wrapped in a parent anchor", () => {
+    setClient("")
+    const ad: PublicAd = { ...houseAd, imageUrl: "", html: "<p>only</p>" }
+    const { container } = render(
+      <AdSlot instanceId="sidebar" placementId="sidebar_top" ad={ad} />
+    )
+    expect(container.querySelector("iframe")).not.toBeNull()
+    expect(container.querySelector("iframe")?.closest("a")).toBeNull()
   })
 
   test("empty advertiser renders null (no bare Sponsored)", () => {
