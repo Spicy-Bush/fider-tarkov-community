@@ -1,10 +1,25 @@
-import React, { useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { Button, Form, Input, TextArea, Toggle, Select, SelectOption } from "@fider/components"
 import { VStack, HStack } from "@fider/components/layout"
 import { PageConfig } from "@fider/components/layouts"
-import { SponsorshipCampaign, SponsorshipPackage, SPONSORSHIP_SLOTS, SPONSORSHIP_SLOT_SPECS, SponsorshipSlot } from "@fider/models"
+import {
+  AdPlacement,
+  CampaignAssignment,
+  CreativeVersion,
+  PublicAd,
+  SponsorshipCampaign,
+  SponsorshipPackage,
+  SPONSORSHIP_SLOT_SPECS,
+  deriveCampaignStatus,
+  CampaignDerivedStatus,
+} from "@fider/models"
 import { actions, Failure, notify } from "@fider/services"
-import { datetimeLocalToUtcIso, utcToDatetimeLocalValue } from "@fider/components/sponsorship/datetime"
+import { AdSlot } from "@fider/components/sponsorship"
+import {
+  browserTimeZoneLabel,
+  datetimeLocalToUtcIso,
+  utcToDatetimeLocalValue,
+} from "@fider/components/sponsorship/datetime"
 
 export const pageConfig: PageConfig = {
   title: "Sponsorship",
@@ -16,6 +31,7 @@ interface ManageSponsorshipPageProps {
   campaigns: SponsorshipCampaign[]
   packages: SponsorshipPackage[]
   slots: string[]
+  placements?: AdPlacement[]
 }
 
 type Tab = "campaigns" | "packages"
@@ -35,34 +51,44 @@ const emptyCamp = () => {
   return {
     name: "",
     advertiser: "",
-    slotList: ["feed_native"] as string[],
-    creativeImageUrls: {} as Record<string, string>,
-    creativeHtml: "",
-    clickUrl: "https://",
     startAtLocal: utcToDatetimeLocalValue(start.toISOString()),
     endAtLocal: utcToDatetimeLocalValue(end.toISOString()),
     weight: 100,
     locale: "all",
     enabled: true,
     packageId: undefined as number | undefined,
+    configVersion: 1,
   }
 }
 
-/** Resolve per-slot URLs for the edit form (map first, legacy fallback). */
-function slotImagesFromCampaign(c: SponsorshipCampaign): Record<string, string> {
-  const slots = (c.slots || "").split(",").map((s) => s.trim()).filter(Boolean)
-  const map = { ...(c.creativeImageUrls || {}) }
-  const legacy = (c.creativeImageUrl || "").trim()
-  for (const slot of slots) {
-    if (!(map[slot] || "").trim() && legacy) {
-      map[slot] = legacy
-    }
+function statusBadge(status: CampaignDerivedStatus): { label: string; className: string } {
+  switch (status) {
+    case "active":
+      return { label: "active", className: "bg-green-100 text-green-800" }
+    case "scheduled":
+      return { label: "scheduled", className: "bg-blue-100 text-blue-800" }
+    case "ended":
+      return { label: "ended", className: "bg-gray-100 text-gray-700" }
+    default:
+      return { label: "disabled", className: "bg-amber-100 text-amber-800" }
   }
-  return map
 }
+
+const tzLabel = browserTimeZoneLabel()
 
 const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
-  const slots = props.slots?.length ? props.slots : [...SPONSORSHIP_SLOTS]
+  const placementCatalog = props.placements?.length
+    ? props.placements
+    : (props.slots || []).map((id) => ({
+        id,
+        name: SPONSORSHIP_SLOT_SPECS[id]?.label || id,
+        description: "",
+        kind: "frame",
+        sort: 0,
+        enabled: true,
+      }))
+  const slots = placementCatalog.filter((p) => p.enabled).map((p) => p.id)
+
   const [tab, setTab] = useState<Tab>("campaigns")
   const [packages, setPackages] = useState<SponsorshipPackage[]>(props.packages || [])
   const [campaigns, setCampaigns] = useState<SponsorshipCampaign[]>(props.campaigns || [])
@@ -73,30 +99,53 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
   const [error, setError] = useState<Failure | undefined>()
   const [busy, setBusy] = useState(false)
 
+  const [versions, setVersions] = useState<CreativeVersion[]>([])
+  const [assignments, setAssignments] = useState<CampaignAssignment[]>([])
+  const [versionForm, setVersionForm] = useState({ imageUrl: "", html: "", clickUrl: "https://" })
+  const [assignPlacementId, setAssignPlacementId] = useState("")
+  const [assignVersionId, setAssignVersionId] = useState<number | "">("")
+
   const localeOptions: SelectOption[] = [
     { value: "all", label: "all" },
     { value: "en", label: "en" },
     { value: "ru", label: "ru" },
   ]
 
-  const toggleCampSlot = (slot: string) => {
-    setCampForm((prev) => {
-      const has = prev.slotList.includes(slot)
-      const slotList = has ? prev.slotList.filter((s) => s !== slot) : [...prev.slotList, slot]
-      const creativeImageUrls = { ...prev.creativeImageUrls }
-      if (has) {
-        delete creativeImageUrls[slot]
-      }
-      return { ...prev, slotList, creativeImageUrls }
-    })
+  const loadGraph = async (campaignId: number) => {
+    const [vRes, aRes] = await Promise.all([
+      actions.listCreativeVersions(campaignId),
+      actions.listCampaignAssignments(campaignId),
+    ])
+    setVersions(vRes.ok && vRes.data ? vRes.data : [])
+    setAssignments(aRes.ok && aRes.data ? aRes.data : [])
   }
 
-  const setSlotImage = (slot: string, url: string) => {
-    setCampForm((prev) => ({
-      ...prev,
-      creativeImageUrls: { ...prev.creativeImageUrls, [slot]: url },
-    }))
-  }
+  useEffect(() => {
+    if (editingCampId) {
+      void loadGraph(editingCampId)
+    } else {
+      setVersions([])
+      setAssignments([])
+    }
+  }, [editingCampId])
+
+  const previewAd: PublicAd | null = useMemo(() => {
+    const advertiser = (campForm.advertiser || "").trim()
+    if (!advertiser) return null
+    const imageUrl = (versionForm.imageUrl || "").trim()
+    const html = (versionForm.html || "").trim()
+    const clickUrl = (versionForm.clickUrl || "").trim()
+    if (!imageUrl && !html) return null
+    return {
+      campaignId: editingCampId || 0,
+      advertiser,
+      placementId: assignPlacementId || slots[0] || "sidebar_top",
+      creativeVersionId: 0,
+      imageUrl,
+      html,
+      clickPath: clickUrl || "#",
+    }
+  }, [campForm.advertiser, versionForm, editingCampId, assignPlacementId, slots])
 
   const savePackage = async () => {
     setBusy(true)
@@ -129,6 +178,19 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     }
   }
 
+  const reloadCampaigns = async () => {
+    const result = await actions.listSponsorshipCampaigns()
+    if (result.ok && result.data) {
+      setCampaigns(result.data)
+      if (editingCampId) {
+        const fresh = result.data.find((c) => c.id === editingCampId)
+        if (fresh) {
+          setCampForm((prev) => ({ ...prev, configVersion: fresh.configVersion || 1 }))
+        }
+      }
+    }
+  }
+
   const saveCampaign = async () => {
     setBusy(true)
     setError(undefined)
@@ -142,22 +204,46 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       setError({ errors: [{ message: "Invalid start/end datetime" }] })
       return
     }
-    const creativeImageUrls: Record<string, string> = {}
-    for (const slot of campForm.slotList) {
-      const u = (campForm.creativeImageUrls[slot] || "").trim()
-      if (u) creativeImageUrls[slot] = u
+    if (editingCampId) {
+      // Atomic OCC graph save: campaign fields + full assignment set
+      const result = await actions.saveSponsorshipCampaignGraph(editingCampId, {
+        name: campForm.name,
+        advertiser: campForm.advertiser,
+        startAt,
+        endAt,
+        weight: Number(campForm.weight),
+        locale: campForm.locale || "all",
+        enabled: campForm.enabled,
+        packageId: campForm.packageId || undefined,
+        configVersion: campForm.configVersion,
+        assignments: assignments.map((a) => ({
+          placementId: a.placementId,
+          creativeVersionId: a.creativeVersionId,
+        })),
+      })
+      setBusy(false)
+      if (result.ok) {
+        const camp = result.data.campaign
+        setCampaigns((prev) => prev.map((c) => (c.id === editingCampId ? camp : c)))
+        setCampForm((prev) => ({ ...prev, configVersion: camp.configVersion || prev.configVersion + 1 }))
+        setAssignments(result.data.assignments || [])
+        notify.success("Campaign + assignments saved")
+      } else {
+        const msg = (result.data as { message?: string } | undefined)?.message
+        if (msg === "Conflict") {
+          notify.error("Campaign was modified elsewhere — reloading")
+          await reloadCampaigns()
+          await loadGraph(editingCampId)
+        } else {
+          setError(result.error)
+        }
+      }
+      return
     }
-    // Keep legacy column as first non-empty slot image for older readers / fallback.
-    const creativeImageUrl = Object.values(creativeImageUrls)[0] || ""
-    const body = {
+
+    const body: Record<string, unknown> = {
       name: campForm.name,
       advertiser: campForm.advertiser,
-      slotList: campForm.slotList,
-      slots: campForm.slotList.join(","),
-      creativeImageUrl,
-      creativeImageUrls,
-      creativeHtml: campForm.creativeHtml,
-      clickUrl: campForm.clickUrl,
       startAt,
       endAt,
       weight: Number(campForm.weight),
@@ -165,19 +251,17 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       enabled: campForm.enabled,
       packageId: campForm.packageId || undefined,
     }
-    const result = editingCampId
-      ? await actions.updateSponsorshipCampaign(editingCampId, body)
-      : await actions.createSponsorshipCampaign(body)
+    const result = await actions.createSponsorshipCampaign(body)
     setBusy(false)
     if (result.ok) {
-      if (editingCampId) {
-        setCampaigns((prev) => prev.map((c) => (c.id === editingCampId ? result.data : c)))
-      } else {
-        setCampaigns((prev) => [...prev, result.data])
-      }
-      setCampForm(emptyCamp())
-      setEditingCampId(null)
-      notify.success("Campaign saved")
+      setCampaigns((prev) => [...prev, result.data])
+      setEditingCampId(result.data.id)
+      setCampForm({
+        ...campForm,
+        configVersion: result.data.configVersion || 1,
+      })
+      await loadGraph(result.data.id)
+      notify.success("Campaign created — add versions, then Save to bind assignments")
     } else {
       setError(result.error)
     }
@@ -188,6 +272,10 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     const result = await actions.deleteSponsorshipCampaign(id)
     if (result.ok) {
       setCampaigns((prev) => prev.filter((c) => c.id !== id))
+      if (editingCampId === id) {
+        setEditingCampId(null)
+        setCampForm(emptyCamp())
+      }
       notify.success("Campaign deleted")
     }
   }
@@ -197,19 +285,76 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     setCampForm({
       name: c.name,
       advertiser: c.advertiser || "",
-      slotList: (c.slots || "").split(",").map((s) => s.trim()).filter(Boolean),
-      creativeImageUrls: slotImagesFromCampaign(c),
-      creativeHtml: c.creativeHtml || "",
-      clickUrl: c.clickUrl,
       startAtLocal: utcToDatetimeLocalValue(c.startAt),
       endAtLocal: utcToDatetimeLocalValue(c.endAt),
       weight: c.weight,
       locale: c.locale || "all",
       enabled: c.enabled,
       packageId: c.packageId,
+      configVersion: c.configVersion || 1,
     })
     setTab("campaigns")
   }
+
+  const createVersion = async () => {
+    if (!editingCampId) return
+    const clickUrl = versionForm.clickUrl.trim()
+    if (!/^https?:\/\//i.test(clickUrl)) {
+      notify.error("clickUrl must be an http(s) URL")
+      return
+    }
+    setBusy(true)
+    const result = await actions.createCreativeVersion(editingCampId, {
+      imageUrl: versionForm.imageUrl.trim(),
+      html: versionForm.html.trim(),
+      clickUrl,
+      configVersion: campForm.configVersion,
+    })
+    setBusy(false)
+    if (result.ok) {
+      setVersionForm({ imageUrl: "", html: "", clickUrl: "https://" })
+      setCampForm((prev) => ({ ...prev, configVersion: prev.configVersion + 1 }))
+      await reloadCampaigns()
+      await loadGraph(editingCampId)
+      notify.success(`Creative v${result.data.versionNo} created`)
+    } else {
+      const msg = (result.data as { message?: string } | undefined)?.message
+      if (msg === "Conflict") {
+        notify.error("Campaign was modified elsewhere — reloading")
+        await reloadCampaigns()
+        await loadGraph(editingCampId)
+      } else {
+        notify.error("Failed to create creative version")
+        setError(result.error)
+      }
+    }
+  }
+
+  const upsertAssignment = () => {
+    if (!editingCampId || !assignPlacementId || !assignVersionId) return
+    const creativeVersionId = Number(assignVersionId)
+    setAssignments((prev) => {
+      const next = prev.filter((a) => a.placementId !== assignPlacementId)
+      next.push({
+        id: 0,
+        campaignId: editingCampId,
+        placementId: assignPlacementId,
+        creativeVersionId,
+      })
+      next.sort((a, b) => a.placementId.localeCompare(b.placementId))
+      return next
+    })
+    notify.success("Assignment staged — click Save campaign to persist")
+  }
+
+  const removeAssignment = (placementId: string) => {
+    if (!editingCampId) return
+    if (!confirm(`Remove assignment for ${placementId}?`)) return
+    setAssignments((prev) => prev.filter((a) => a.placementId !== placementId))
+    notify.success("Assignment removed from draft — click Save campaign to persist")
+  }
+
+  const versionById = (id: number) => versions.find((v) => v.id === id)
 
   return (
     <VStack spacing={6}>
@@ -224,12 +369,13 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
 
       {tab === "packages" && (
         <VStack spacing={4}>
-          <p className="text-muted text-sm">Packages on /advertise. No public dollar amounts.</p>
+          <p className="text-muted text-sm">Packages on /advertise. Slot CSV is advisory marketing against the placement catalog.</p>
           <Form error={error}>
             <Input field="slug" label="Slug" value={pkgForm.slug} onChange={(v) => setPkgForm({ ...pkgForm, slug: v })} />
             <Input field="name" label="Name" value={pkgForm.name} onChange={(v) => setPkgForm({ ...pkgForm, name: v })} />
             <TextArea field="description" label="Description" value={pkgForm.description} onChange={(v) => setPkgForm({ ...pkgForm, description: v })} />
-            <Input field="slots" label="Slots (comma-separated)" value={pkgForm.slots} onChange={(v) => setPkgForm({ ...pkgForm, slots: v })} />
+            <Input field="slots" label="Slots (comma-separated placement ids)" value={pkgForm.slots} onChange={(v) => setPkgForm({ ...pkgForm, slots: v })} />
+            <p className="text-xs text-muted -mt-2 mb-1">Known: {slots.join(", ")}</p>
             <Input field="durationDays" label="Duration days" value={String(pkgForm.durationDays)} onChange={(v) => setPkgForm({ ...pkgForm, durationDays: Number(v) || 0 })} />
             <Input field="sort" label="Sort" value={String(pkgForm.sort)} onChange={(v) => setPkgForm({ ...pkgForm, sort: Number(v) || 0 })} />
             <HStack spacing={2}>
@@ -264,28 +410,15 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       {tab === "campaigns" && (
         <VStack spacing={4}>
           <p className="text-muted text-sm">
-            One campaign can target multiple placements with an optional image URL per slot. Dates are entered in your local time and stored as UTC.
+            Campaigns are schedule/weight umbrellas. Creatives are immutable versions. Assignments are staged locally and persisted with Save (one OCC transaction). Soft-delete keeps creative versions.
+            Dates are entered in your local timezone (<strong>{tzLabel}</strong>) and stored as UTC.
+            {editingCampId ? ` OCC config_version=${campForm.configVersion}.` : ""}
           </p>
           <Form error={error}>
             <Input field="name" label="Campaign name (internal)" value={campForm.name} onChange={(v) => setCampForm({ ...campForm, name: v })} />
             <p className="text-xs text-muted -mt-2 mb-1">Internal billing / reference only — not shown publicly as the advertiser label.</p>
             <Input field="advertiser" label="Advertiser / company name" value={campForm.advertiser} onChange={(v) => setCampForm({ ...campForm, advertiser: v })} />
-            <p className="text-xs text-muted -mt-2 mb-1">Shown publicly next to Sponsored (outside the creative).</p>
-            <div className="mb-3">
-              <div className="text-sm font-medium mb-1">Placements</div>
-              <HStack spacing={3} className="flex-wrap">
-                {slots.map((slot) => (
-                  <label key={slot} className="inline-flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={campForm.slotList.includes(slot)}
-                      onChange={() => toggleCampSlot(slot)}
-                    />
-                    {slot}
-                  </label>
-                ))}
-              </HStack>
-            </div>
+            <p className="text-xs text-muted -mt-2 mb-1">Shown publicly next to Sponsored (outside the creative). Required — empty advertiser will not render.</p>
             <Select
               key={`locale-${editingCampId ?? "new"}-${campForm.locale}`}
               field="locale"
@@ -294,43 +427,14 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               options={localeOptions}
               onChange={(o) => o && setCampForm({ ...campForm, locale: o.value })}
             />
-            <div className="mb-3">
-              <div className="text-sm font-medium mb-2">Creative images (optional per placement)</div>
-              <p className="text-xs text-muted mb-2">
-                Images are cropped to each placement&apos;s aspect box (object-cover). Leave a slot blank to fall back to HTML-only or omit that creative.
-              </p>
-              {campForm.slotList.length === 0 ? (
-                <p className="text-xs text-muted">Select at least one placement to set image URLs.</p>
-              ) : (
-                <VStack spacing={3}>
-                  {campForm.slotList.map((slot) => {
-                    const spec = SPONSORSHIP_SLOT_SPECS[slot as SponsorshipSlot]
-                    const label = spec ? `${spec.label} image URL` : `${slot} image URL`
-                    const hint = spec ? `Recommended: ${spec.recommended}` : undefined
-                    return (
-                      <div key={slot}>
-                        <Input
-                          field={`creativeImageUrls.${slot}`}
-                          label={label}
-                          value={campForm.creativeImageUrls[slot] || ""}
-                          onChange={(v) => setSlotImage(slot, v)}
-                        />
-                        {hint && <p className="text-xs text-muted -mt-2 mb-1">{hint}</p>}
-                      </div>
-                    )
-                  })}
-                </VStack>
-              )}
-            </div>
-            <TextArea field="creativeHtml" label="Creative HTML (optional)" value={campForm.creativeHtml} onChange={(v) => setCampForm({ ...campForm, creativeHtml: v })} />
-            <Input field="clickUrl" label="Click URL" value={campForm.clickUrl} onChange={(v) => setCampForm({ ...campForm, clickUrl: v })} />
-            <Input field="startAt" label="Start (local time)" type="datetime-local" value={campForm.startAtLocal} onChange={(v) => setCampForm({ ...campForm, startAtLocal: v })} />
-            <Input field="endAt" label="End (local time)" type="datetime-local" value={campForm.endAtLocal} onChange={(v) => setCampForm({ ...campForm, endAtLocal: v })} />
+            <Input field="startAt" label={`Start (local ${tzLabel})`} type="datetime-local" value={campForm.startAtLocal} onChange={(v) => setCampForm({ ...campForm, startAtLocal: v })} />
+            <Input field="endAt" label={`End (local ${tzLabel})`} type="datetime-local" value={campForm.endAtLocal} onChange={(v) => setCampForm({ ...campForm, endAtLocal: v })} />
             <Input field="weight" label="Weight" value={String(campForm.weight)} onChange={(v) => setCampForm({ ...campForm, weight: Number(v) || 0 })} />
             <Toggle field="enabled" label="Enabled" active={campForm.enabled} onToggle={(v) => setCampForm({ ...campForm, enabled: v })} />
+
             <HStack spacing={2}>
-              <Button variant="primary" onClick={saveCampaign} disabled={busy || campForm.slotList.length === 0}>
-                {editingCampId ? "Update campaign" : "Add campaign"}
+              <Button variant="primary" onClick={saveCampaign} disabled={busy}>
+                {editingCampId ? "Save campaign + assignments" : "Add campaign"}
               </Button>
               {editingCampId && (
                 <Button variant="tertiary" onClick={() => { setEditingCampId(null); setCampForm(emptyCamp()) }}>
@@ -339,21 +443,112 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               )}
             </HStack>
           </Form>
-          <VStack spacing={2} divide>
-            {campaigns.map((c) => (
-              <HStack key={c.id} spacing={4} className="justify-between py-2">
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{c.name}</div>
-                  <div className="text-muted text-sm">
-                    {c.advertiser ? `Sponsored · ${c.advertiser} · ` : ""}{c.slots} · {c.locale} · {c.enabled ? "on" : "off"} · clicks {c.clicks}
-                  </div>
+
+          {editingCampId && (
+            <VStack spacing={4} className="p-4 border border-border rounded">
+              <div className="font-medium">Assignments &amp; creative versions</div>
+              <p className="text-xs text-muted">
+                Editing creative = create a new version, then point the placement assignment at it. Old versions stay for click history (?v=).
+              </p>
+
+              <div className="text-sm font-medium">Create version</div>
+              <Input field="ver.imageUrl" label="Image URL" value={versionForm.imageUrl} onChange={(v) => setVersionForm({ ...versionForm, imageUrl: v })} />
+              <TextArea field="ver.html" label="HTML (sandboxed iframe — never innerHTML)" value={versionForm.html} onChange={(v) => setVersionForm({ ...versionForm, html: v })} />
+              <Input field="ver.clickUrl" label="Click URL" value={versionForm.clickUrl} onChange={(v) => setVersionForm({ ...versionForm, clickUrl: v })} />
+              <Button variant="primary" onClick={createVersion} disabled={busy}>
+                Create immutable version
+              </Button>
+
+              {previewAd && (
+                <div className="mb-2 p-3 border border-border rounded bg-elevated">
+                  <div className="text-sm font-medium mb-2">Draft version preview</div>
+                  <AdSlot instanceId="admin-preview" placementId={previewAd.placementId} ad={previewAd} />
                 </div>
-                <HStack spacing={2}>
-                  <Button variant="tertiary" onClick={() => startEditCampaign(c)}>Edit</Button>
-                  <Button variant="danger" onClick={() => removeCampaign(c.id)}>Delete</Button>
-                </HStack>
+              )}
+
+              <div className="text-sm font-medium mt-2">Versions</div>
+              <VStack spacing={1} divide>
+                {versions.map((v) => (
+                  <div key={v.id} className="text-sm py-1">
+                    <strong>v{v.versionNo}</strong> (id {v.id}) · img={v.imageUrl ? "yes" : "no"} · html={v.html ? "yes" : "no"} · {v.clickUrl}
+                  </div>
+                ))}
+                {versions.length === 0 && <p className="text-muted text-sm">No versions yet — create one above, then assign placements.</p>}
+              </VStack>
+
+              <div className="text-sm font-medium mt-2">Assign placement → version</div>
+              <HStack spacing={2} className="flex-wrap items-end">
+                <label className="text-sm">
+                  Placement
+                  <select
+                    className="block mt-1 border border-border rounded px-2 py-1"
+                    value={assignPlacementId}
+                    onChange={(e) => setAssignPlacementId(e.target.value)}
+                  >
+                    <option value="">Select…</option>
+                    {slots.map((s) => (
+                      <option key={s} value={s}>{SPONSORSHIP_SLOT_SPECS[s]?.label || s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm">
+                  Version
+                  <select
+                    className="block mt-1 border border-border rounded px-2 py-1"
+                    value={assignVersionId === "" ? "" : String(assignVersionId)}
+                    onChange={(e) => setAssignVersionId(e.target.value ? Number(e.target.value) : "")}
+                  >
+                    <option value="">Select…</option>
+                    {versions.map((v) => (
+                      <option key={v.id} value={v.id}>v{v.versionNo} (#{v.id})</option>
+                    ))}
+                  </select>
+                </label>
+                <Button variant="primary" onClick={upsertAssignment} disabled={busy || !assignPlacementId || !assignVersionId}>
+                  Save assignment
+                </Button>
               </HStack>
-            ))}
+
+              <div className="text-sm font-medium mt-2">Current assignments</div>
+              <VStack spacing={1} divide>
+                {assignments.map((a) => {
+                  const ver = versionById(a.creativeVersionId)
+                  return (
+                    <HStack key={a.id} spacing={4} className="justify-between py-1 text-sm">
+                      <div>
+                        <strong>{a.placementId}</strong> → {ver ? `v${ver.versionNo}` : `version #${a.creativeVersionId}`}
+                      </div>
+                      <Button variant="danger" onClick={() => removeAssignment(a.placementId)}>Remove</Button>
+                    </HStack>
+                  )
+                })}
+                {assignments.length === 0 && <p className="text-muted text-sm">No assignments — selection will not fill placements for this campaign.</p>}
+              </VStack>
+            </VStack>
+          )}
+
+          <VStack spacing={2} divide>
+            {campaigns.map((c) => {
+              const status = deriveCampaignStatus(c)
+              const badge = statusBadge(status)
+              return (
+                <HStack key={c.id} spacing={4} className="justify-between py-2">
+                  <div>
+                    <div className="font-medium flex items-center gap-2 flex-wrap">
+                      {c.name}
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${badge.className}`}>{badge.label}</span>
+                    </div>
+                    <div className="text-muted text-sm">
+                      {c.advertiser} · {c.locale} · clicks {c.clicks} · cfg v{c.configVersion || 1}
+                    </div>
+                  </div>
+                  <HStack spacing={2}>
+                    <Button variant="tertiary" onClick={() => startEditCampaign(c)}>Edit</Button>
+                    <Button variant="danger" onClick={() => removeCampaign(c.id)}>Delete</Button>
+                  </HStack>
+                </HStack>
+              )
+            })}
             {campaigns.length === 0 && <p className="text-muted">No campaigns yet.</p>}
           </VStack>
         </VStack>

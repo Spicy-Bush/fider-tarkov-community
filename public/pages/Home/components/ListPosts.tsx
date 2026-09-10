@@ -6,12 +6,18 @@ import { heroiconsChatAlt2 as IconChatAlt2 } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 import { getVotePosition } from "@fider/components/UserProfile/UserProfileSettings"
 import { AdSlot } from "@fider/components/sponsorship"
+import { FEED_AD_EVERY, PublicAd } from "@fider/models"
 
 interface ListPostsProps {
   posts?: Post[]
   tags: Tag[]
   emptyText: string
   loading?: boolean
+  /** When true, insert feed_native AdSlots every FEED_AD_EVERY posts. Default off so SimilarPosts stays clean. */
+  insertFeedAds?: boolean
+  /** Page-owned selection map keyed by feed-{i}. Required when insertFeedAds. */
+  feedAds?: Record<string, PublicAd | null>
+  feedAdsLoaded?: boolean
 }
 
 interface PostWithTags {
@@ -134,16 +140,28 @@ export const ListPosts = (props: ListPostsProps) => {
     return <p className="text-center">{props.emptyText}</p>
   }
 
-  const FEED_AD_EVERY = 5
+  const insertFeedAds = !!props.insertFeedAds
 
   return (
     <VStack spacing={4} divide>
-      {postsWithTags.map(({ post, tags }, index) => (
-        <React.Fragment key={post.id}>
-          <ListPostItem post={post} tags={tags} votePosition={votePosition} />
-          {(index + 1) % FEED_AD_EVERY === 0 && <AdSlot slot="feed_native" />}
-        </React.Fragment>
-      ))}
+      {postsWithTags.map(({ post, tags }, index) => {
+        const showAd = insertFeedAds && (index + 1) % FEED_AD_EVERY === 0
+        const feedIndex = Math.floor((index + 1) / FEED_AD_EVERY) - 1
+        const instanceId = `feed-${feedIndex}`
+        const ad: PublicAd | null | undefined = showAd
+          ? props.feedAdsLoaded
+            ? props.feedAds?.[instanceId] ?? null
+            : undefined
+          : undefined
+        return (
+          <React.Fragment key={post.id}>
+            <ListPostItem post={post} tags={tags} votePosition={votePosition} />
+            {showAd && (
+              <AdSlot instanceId={instanceId} placementId="feed_native" ad={ad} />
+            )}
+          </React.Fragment>
+        )
+      })}
     </VStack>
   )
 }

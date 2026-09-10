@@ -32,38 +32,29 @@ type DeleteSponsorshipPackage struct {
 }
 
 type CreateSponsorshipCampaign struct {
-	Name              string
-	Advertiser        string
-	Slots             string
-	CreativeImageURL  string
-	CreativeImageURLs map[string]string
-	CreativeHTML      string
-	ClickURL          string
-	StartAt           time.Time
-	EndAt             time.Time
-	Weight            int
-	Locale            string
-	Enabled           bool
-	PackageID         *int
-	Result            *entity.SponsorshipCampaign
+	Name      string
+	Advertiser string
+	StartAt   time.Time
+	EndAt     time.Time
+	Weight    int
+	Locale    string
+	Enabled   bool
+	PackageID *int
+	Result    *entity.SponsorshipCampaign
 }
 
 type UpdateSponsorshipCampaign struct {
-	ID                int
-	Name              string
-	Advertiser        string
-	Slots             string
-	CreativeImageURL  string
-	CreativeImageURLs map[string]string
-	CreativeHTML      string
-	ClickURL          string
-	StartAt           time.Time
-	EndAt             time.Time
-	Weight            int
-	Locale            string
-	Enabled           bool
-	PackageID         *int
-	Result            *entity.SponsorshipCampaign
+	ID            int
+	Name          string
+	Advertiser    string
+	StartAt       time.Time
+	EndAt         time.Time
+	Weight        int
+	Locale        string
+	Enabled       bool
+	PackageID     *int
+	ConfigVersion int // required OCC token; store rejects mismatch and bumps
+	Result        *entity.SponsorshipCampaign
 }
 
 type DeleteSponsorshipCampaign struct {

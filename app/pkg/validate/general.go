@@ -89,3 +89,13 @@ func CNAME(ctx context.Context, cname string) []string {
 
 	return []string{}
 }
+
+// IsHTTPOrHTTPSURL reports whether rawurl is an absolute http or https URL.
+func IsHTTPOrHTTPSURL(rawurl string) bool {
+	u, err := url.ParseRequestURI(strings.TrimSpace(rawurl))
+	if err != nil || u == nil {
+		return false
+	}
+	scheme := strings.ToLower(u.Scheme)
+	return (scheme == "http" || scheme == "https") && u.Host != ""
+}

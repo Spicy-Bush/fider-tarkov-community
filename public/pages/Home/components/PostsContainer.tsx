@@ -1,12 +1,13 @@
 // import "./PostsContainer.scss"
 
-import React, { useEffect, useRef, useState, useCallback } from "react"
-import { Post, Tag, CurrentUser } from "@fider/models"
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import { Post, Tag, CurrentUser, FEED_AD_EVERY } from "@fider/models"
 import { Input, SwipeMode, SwipeModeButton } from "@fider/components"
 import { actions } from "@fider/services"
 import { heroiconsSearch as IconSearch, heroiconsX as IconX } from "@fider/icons.generated"
 import { FilterPanel } from "./FilterPanel"
 import { ListPosts } from "./ListPosts"
+import { useAdSelection } from "@fider/components/sponsorship"
 import { i18n } from "@lingui/core"
 import { PostsSort } from "./PostsSort"
 import { usePostFilters, FilterState } from "@fider/hooks/usePostFilters"
@@ -39,6 +40,16 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const seenPostIds = useRef(new Set<number>())
   const { filters, offset, setOffset, updateFilters, resetFilters, hasActiveFilters } = usePostFilters({ tags: props.tags })
+
+  const feedSlots = useMemo(() => {
+    const n = Math.floor(posts.length / FEED_AD_EVERY)
+    return Array.from({ length: n }, (_, i) => ({
+      instanceId: `feed-${i}`,
+      placementId: "feed_native",
+    }))
+  }, [posts.length])
+  const { ads: feedAds, loaded: feedAdsLoaded } = useAdSelection(feedSlots)
+
   
   useEffect(() => {
     if (hasInitialPosts) {
@@ -242,6 +253,9 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
         posts={posts}
         tags={props.tags}
         loading={loading}
+        insertFeedAds
+        feedAds={feedAds}
+        feedAdsLoaded={feedAdsLoaded}
         emptyText={i18n._("home.postscontainer.label.noresults", { message: "No results matched your search, try something different." })}
       />
       {showResetButton && (

@@ -1,9 +1,6 @@
 package apiv1
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -107,10 +104,8 @@ func CreateSponsorshipCampaign() web.HandlerFunc {
 		}
 		return c.WithTransaction(func() error {
 			create := &cmd.CreateSponsorshipCampaign{
-				Name: action.Name, Advertiser: action.Advertiser, Slots: action.Slots,
-				CreativeImageURL: action.CreativeImageURL, CreativeImageURLs: action.CreativeImageURLs,
-				CreativeHTML: action.CreativeHTML,
-				ClickURL:     action.ClickURL, StartAt: action.StartAt.UTC(), EndAt: action.EndAt.UTC(),
+				Name: action.Name, Advertiser: action.Advertiser,
+				StartAt: action.StartAt.UTC(), EndAt: action.EndAt.UTC(),
 				Weight: action.Weight, Locale: action.Locale, Enabled: action.Enabled,
 				PackageID: action.PackageID,
 			}
@@ -138,12 +133,10 @@ func UpdateSponsorshipCampaign() web.HandlerFunc {
 		}
 		return c.WithTransaction(func() error {
 			update := &cmd.UpdateSponsorshipCampaign{
-				ID: id, Name: action.Name, Advertiser: action.Advertiser, Slots: action.Slots,
-				CreativeImageURL: action.CreativeImageURL, CreativeImageURLs: action.CreativeImageURLs,
-				CreativeHTML: action.CreativeHTML,
-				ClickURL:     action.ClickURL, StartAt: action.StartAt.UTC(), EndAt: action.EndAt.UTC(),
+				ID: id, Name: action.Name, Advertiser: action.Advertiser,
+				StartAt: action.StartAt.UTC(), EndAt: action.EndAt.UTC(),
 				Weight: action.Weight, Locale: action.Locale, Enabled: action.Enabled,
-				PackageID: action.PackageID,
+				PackageID: action.PackageID, ConfigVersion: action.ConfigVersion,
 			}
 			if err := bus.Dispatch(c, update); err != nil {
 				return c.Failure(err)
@@ -165,64 +158,5 @@ func DeleteSponsorshipCampaign() web.HandlerFunc {
 			}
 			return c.Ok(web.Map{})
 		})
-	}
-}
-
-func publicCampaign(slot string, camp *entity.SponsorshipCampaign) entity.PublicSponsorshipCampaign {
-	return entity.PublicSponsorshipCampaign{
-		ID: camp.ID, Advertiser: camp.Advertiser, SlotID: slot,
-		CreativeImageURL: camp.ImageURLForSlot(slot), CreativeHTML: camp.CreativeHTML,
-		ClickPath: fmt.Sprintf("/ads/click/%d", camp.ID),
-	}
-}
-
-// GetActiveSponsorship:
-//
-//	?slot=feed_native&locale=en  -> single campaign or {}
-//	?slots=feed_native,sidebar_top&locale=en -> { "feed_native": {...}|null, ... }
-func GetActiveSponsorship() web.HandlerFunc {
-	return func(c *web.Context) error {
-		locale := c.QueryParam("locale")
-		if locale == "" {
-			locale = "all"
-		}
-		slotsParam := strings.TrimSpace(c.QueryParam("slots"))
-		if slotsParam != "" {
-			raw := strings.Split(slotsParam, ",")
-			slotIDs := make([]string, 0, len(raw))
-			seen := map[string]bool{}
-			for _, s := range raw {
-				s = strings.TrimSpace(s)
-				if s == "" || seen[s] {
-					continue
-				}
-				seen[s] = true
-				slotIDs = append(slotIDs, s)
-			}
-			q := &query.GetActiveSponsorshipForSlots{SlotIDs: slotIDs, Locale: locale}
-			if err := bus.Dispatch(c, q); err != nil {
-				return c.Failure(err)
-			}
-			out := web.Map{}
-			for _, slot := range slotIDs {
-				camp := q.Result[slot]
-				if camp == nil {
-					out[slot] = nil
-				} else {
-					out[slot] = publicCampaign(slot, camp)
-				}
-			}
-			return c.Ok(out)
-		}
-
-		slotID := c.QueryParam("slot")
-		q := &query.GetActiveSponsorshipForSlot{SlotID: slotID, Locale: locale}
-		if err := bus.Dispatch(c, q); err != nil {
-			return c.Failure(err)
-		}
-		if q.Result == nil {
-			return c.Ok(web.Map{})
-		}
-		return c.Ok(publicCampaign(slotID, q.Result))
 	}
 }

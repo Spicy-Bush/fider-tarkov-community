@@ -7,21 +7,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
-func TestNormalizeCreativeImageURLs(t *testing.T) {
-	got := NormalizeCreativeImageURLs(map[string]string{
-		"feed_native":  " https://a.test/f.jpg ",
-		"nope":         "https://a.test/x.jpg",
-		"sidebar_top":  "",
-		"pages_header": "https://a.test/p.jpg",
-	})
-	if len(got) != 2 || got["feed_native"] != "https://a.test/f.jpg" || got["pages_header"] != "https://a.test/p.jpg" {
-		t.Fatalf("unexpected: %#v", got)
-	}
-	if got := NormalizeCreativeImageURLs(nil); got == nil || len(got) != 0 {
-		t.Fatalf("nil input should yield empty map, got %#v", got)
-	}
-}
-
 func TestValidateCampaignFields_RequiresAdvertiser(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
@@ -29,11 +14,6 @@ func TestValidateCampaignFields_RequiresAdvertiser(t *testing.T) {
 		validate.Success(),
 		"Internal PO-1",
 		"",
-		"feed_native",
-		"https://cdn.example/a.jpg",
-		nil,
-		"",
-		"https://example.com",
 		start,
 		end,
 		100,
@@ -57,11 +37,6 @@ func TestValidateCampaignFields_RequiresAdvertiser(t *testing.T) {
 		validate.Success(),
 		"Internal PO-1",
 		"Acme Corp",
-		"feed_native",
-		"https://cdn.example/a.jpg",
-		nil,
-		"",
-		"https://example.com",
 		start,
 		end,
 		100,
@@ -69,5 +44,14 @@ func TestValidateCampaignFields_RequiresAdvertiser(t *testing.T) {
 	)
 	if !ok.Ok {
 		t.Fatalf("expected success with advertiser set, got %#v", ok.Errors)
+	}
+}
+
+func TestValidateCampaignFields_GraphOnlyNoCreativesRequired(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	ok := validateCampaignFields(validate.Success(), "PO", "Acme", start, end, 10, "en")
+	if !ok.Ok {
+		t.Fatalf("slim campaign should validate without creatives/slots: %#v", ok.Errors)
 	}
 }
