@@ -622,7 +622,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                 {versions.length === 0 && <p className="text-muted text-sm">No versions yet - create one above, then assign placements.</p>}
               </VStack>
 
-              <div className="text-sm font-medium mt-2">Assign placement -> version</div>
+              <div className="text-sm font-medium mt-2">Assign placement {"->"} version</div>
               <HStack spacing={2} className="flex-wrap items-end">
                 <label className="text-sm">
                   Placement
@@ -662,7 +662,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                   return (
                     <HStack key={a.id} spacing={4} className="justify-between py-1 text-sm">
                       <div>
-                        <strong>{a.placementId}</strong> -> {ver ? `v${ver.versionNo}` : `version #${a.creativeVersionId}`}
+                        <strong>{a.placementId}</strong> {"->"} {ver ? `v${ver.versionNo}` : `version #${a.creativeVersionId}`}
                       </div>
                       <Button variant="danger" onClick={() => removeAssignment(a.placementId)}>Remove</Button>
                     </HStack>
