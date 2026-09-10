@@ -2,7 +2,7 @@ import React, { useState } from "react"
 import { Button, Form, Input, TextArea, Toggle, Select, SelectOption } from "@fider/components"
 import { VStack, HStack } from "@fider/components/layout"
 import { PageConfig } from "@fider/components/layouts"
-import { SponsorshipCampaign, SponsorshipPackage, SPONSORSHIP_SLOTS } from "@fider/models"
+import { SponsorshipCampaign, SponsorshipPackage, SPONSORSHIP_SLOTS, SPONSORSHIP_SLOT_SPECS, SponsorshipSlot } from "@fider/models"
 import { actions, Failure, notify } from "@fider/services"
 import { datetimeLocalToUtcIso, utcToDatetimeLocalValue } from "@fider/components/sponsorship/datetime"
 
@@ -247,9 +247,25 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                   </label>
                 ))}
               </HStack>
+              <ul className="mt-2 text-xs text-muted space-y-1">
+                {campForm.slotList.map((slot) => {
+                  const spec = SPONSORSHIP_SLOT_SPECS[slot as SponsorshipSlot]
+                  if (!spec) {
+                    return null
+                  }
+                  return (
+                    <li key={slot}>
+                      <span className="font-medium">{spec.label}</span>: recommended {spec.recommended}
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
             <Select field="locale" label="Locale" defaultValue={campForm.locale} options={localeOptions} onChange={(o) => o && setCampForm({ ...campForm, locale: o.value })} />
             <Input field="creativeImageUrl" label="Creative image URL" value={campForm.creativeImageUrl} onChange={(v) => setCampForm({ ...campForm, creativeImageUrl: v })} />
+            <p className="text-xs text-muted -mt-2 mb-3">
+              Images are cropped to each placement's aspect box (object-cover). Prefer the recommended sizes listed under Placements.
+            </p>
             <TextArea field="creativeHtml" label="Creative HTML (optional)" value={campForm.creativeHtml} onChange={(v) => setCampForm({ ...campForm, creativeHtml: v })} />
             <Input field="clickUrl" label="Click URL" value={campForm.clickUrl} onChange={(v) => setCampForm({ ...campForm, clickUrl: v })} />
             <Input field="startAt" label="Start (local time)" type="datetime-local" value={campForm.startAtLocal} onChange={(v) => setCampForm({ ...campForm, startAtLocal: v })} />

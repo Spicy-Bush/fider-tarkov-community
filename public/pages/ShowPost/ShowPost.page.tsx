@@ -358,7 +358,6 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                 <div className="mt-2">
                   <TagsPanel post={props.post} tags={props.tags} />
                 </div>
-                <SponsorshipProvider slots={["post_below_title"]}><AdSlot slot="post_below_title" className="my-3" /></SponsorshipProvider>
 
                 <VStack spacing={4}>
                   {!state.editMode ? (
@@ -382,6 +381,8 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                     </HStack>
                   )}
                 </VStack>
+
+                <SponsorshipProvider slots={["post_below_title"]}><AdSlot slot="post_below_title" className="my-3" /></SponsorshipProvider>
 
                 <ResponseDetails status={props.post.status} response={props.post.response} previousStatus={props.post.archivedSettings?.previousStatus} />
               </VStack>
