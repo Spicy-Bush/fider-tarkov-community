@@ -112,7 +112,7 @@ func TestSelectAds_RejectsOversizedBatch(t *testing.T) {
 
 func TestUpdateSponsorshipCampaign_ConflictReturns409(t *testing.T) {
 	RegisterT(t)
-	// Proves OCC ErrConflict → HTTP 409 path used by UpdateSponsorshipCampaign / SaveCampaignGraph.
+	// Proves OCC ErrConflict -> HTTP 409 path used by UpdateSponsorshipCampaign / SaveCampaignGraph.
 	server := mock.NewServer()
 	status, _ := server.OnTenant(mock.DemoTenant).Execute(func(c *web.Context) error {
 		return c.Failure(app.ErrConflict)

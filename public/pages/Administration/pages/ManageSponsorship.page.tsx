@@ -231,7 +231,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       } else {
         const msg = (result.data as { message?: string } | undefined)?.message
         if (msg === "Conflict") {
-          notify.error("Campaign was modified elsewhere — reloading")
+          notify.error("Campaign was modified elsewhere - reloading")
           await reloadCampaigns()
           await loadGraph(editingCampId)
         } else {
@@ -261,7 +261,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
         configVersion: result.data.configVersion || 1,
       })
       await loadGraph(result.data.id)
-      notify.success("Campaign created — add versions, then Save to bind assignments")
+      notify.success("Campaign created - add versions, then Save to bind assignments")
     } else {
       setError(result.error)
     }
@@ -320,7 +320,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
     } else {
       const msg = (result.data as { message?: string } | undefined)?.message
       if (msg === "Conflict") {
-        notify.error("Campaign was modified elsewhere — reloading")
+        notify.error("Campaign was modified elsewhere - reloading")
         await reloadCampaigns()
         await loadGraph(editingCampId)
       } else {
@@ -344,14 +344,14 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       next.sort((a, b) => a.placementId.localeCompare(b.placementId))
       return next
     })
-    notify.success("Assignment staged — click Save campaign to persist")
+    notify.success("Assignment staged - click Save campaign to persist")
   }
 
   const removeAssignment = (placementId: string) => {
     if (!editingCampId) return
     if (!confirm(`Remove assignment for ${placementId}?`)) return
     setAssignments((prev) => prev.filter((a) => a.placementId !== placementId))
-    notify.success("Assignment removed from draft — click Save campaign to persist")
+    notify.success("Assignment removed from draft - click Save campaign to persist")
   }
 
   const versionById = (id: number) => versions.find((v) => v.id === id)
@@ -394,7 +394,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               <HStack key={p.id} spacing={4} className="justify-between py-2">
                 <div>
                   <div className="font-medium">{p.name} <span className="text-muted text-sm">({p.slug})</span></div>
-                  <div className="text-muted text-sm">{p.slots} · {p.durationDays}d</div>
+                  <div className="text-muted text-sm">{p.slots} | {p.durationDays}d</div>
                 </div>
                 <HStack spacing={2}>
                   <Button variant="tertiary" onClick={() => { setEditingPkgId(p.id); setPkgForm({ slug: p.slug, name: p.name, description: p.description, slots: p.slots, durationDays: p.durationDays, sort: p.sort }) }}>Edit</Button>
@@ -416,9 +416,9 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
           </p>
           <Form error={error}>
             <Input field="name" label="Campaign name (internal)" value={campForm.name} onChange={(v) => setCampForm({ ...campForm, name: v })} />
-            <p className="text-xs text-muted -mt-2 mb-1">Internal billing / reference only — not shown publicly as the advertiser label.</p>
+            <p className="text-xs text-muted -mt-2 mb-1">Internal billing / reference only - not shown publicly as the advertiser label.</p>
             <Input field="advertiser" label="Advertiser / company name" value={campForm.advertiser} onChange={(v) => setCampForm({ ...campForm, advertiser: v })} />
-            <p className="text-xs text-muted -mt-2 mb-1">Shown publicly next to Sponsored (outside the creative). Required — empty advertiser will not render.</p>
+            <p className="text-xs text-muted -mt-2 mb-1">Shown publicly next to Sponsored (outside the creative). Required - empty advertiser will not render.</p>
             <Select
               key={`locale-${editingCampId ?? "new"}-${campForm.locale}`}
               field="locale"
@@ -453,7 +453,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
 
               <div className="text-sm font-medium">Create version</div>
               <Input field="ver.imageUrl" label="Image URL" value={versionForm.imageUrl} onChange={(v) => setVersionForm({ ...versionForm, imageUrl: v })} />
-              <TextArea field="ver.html" label="HTML (sandboxed iframe — never innerHTML)" value={versionForm.html} onChange={(v) => setVersionForm({ ...versionForm, html: v })} />
+              <TextArea field="ver.html" label="HTML (sandboxed iframe - never innerHTML)" value={versionForm.html} onChange={(v) => setVersionForm({ ...versionForm, html: v })} />
               <Input field="ver.clickUrl" label="Click URL" value={versionForm.clickUrl} onChange={(v) => setVersionForm({ ...versionForm, clickUrl: v })} />
               <Button variant="primary" onClick={createVersion} disabled={busy}>
                 Create immutable version
@@ -470,13 +470,13 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               <VStack spacing={1} divide>
                 {versions.map((v) => (
                   <div key={v.id} className="text-sm py-1">
-                    <strong>v{v.versionNo}</strong> (id {v.id}) · img={v.imageUrl ? "yes" : "no"} · html={v.html ? "yes" : "no"} · {v.clickUrl}
+                    <strong>v{v.versionNo}</strong> (id {v.id}) | img={v.imageUrl ? "yes" : "no"} | html={v.html ? "yes" : "no"} | {v.clickUrl}
                   </div>
                 ))}
-                {versions.length === 0 && <p className="text-muted text-sm">No versions yet — create one above, then assign placements.</p>}
+                {versions.length === 0 && <p className="text-muted text-sm">No versions yet - create one above, then assign placements.</p>}
               </VStack>
 
-              <div className="text-sm font-medium mt-2">Assign placement → version</div>
+              <div className="text-sm font-medium mt-2">Assign placement -> version</div>
               <HStack spacing={2} className="flex-wrap items-end">
                 <label className="text-sm">
                   Placement
@@ -485,7 +485,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                     value={assignPlacementId}
                     onChange={(e) => setAssignPlacementId(e.target.value)}
                   >
-                    <option value="">Select…</option>
+                    <option value="">Select...</option>
                     {slots.map((s) => (
                       <option key={s} value={s}>{SPONSORSHIP_SLOT_SPECS[s]?.label || s}</option>
                     ))}
@@ -498,7 +498,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                     value={assignVersionId === "" ? "" : String(assignVersionId)}
                     onChange={(e) => setAssignVersionId(e.target.value ? Number(e.target.value) : "")}
                   >
-                    <option value="">Select…</option>
+                    <option value="">Select...</option>
                     {versions.map((v) => (
                       <option key={v.id} value={v.id}>v{v.versionNo} (#{v.id})</option>
                     ))}
@@ -516,13 +516,13 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                   return (
                     <HStack key={a.id} spacing={4} className="justify-between py-1 text-sm">
                       <div>
-                        <strong>{a.placementId}</strong> → {ver ? `v${ver.versionNo}` : `version #${a.creativeVersionId}`}
+                        <strong>{a.placementId}</strong> -> {ver ? `v${ver.versionNo}` : `version #${a.creativeVersionId}`}
                       </div>
                       <Button variant="danger" onClick={() => removeAssignment(a.placementId)}>Remove</Button>
                     </HStack>
                   )
                 })}
-                {assignments.length === 0 && <p className="text-muted text-sm">No assignments — selection will not fill placements for this campaign.</p>}
+                {assignments.length === 0 && <p className="text-muted text-sm">No assignments - selection will not fill placements for this campaign.</p>}
               </VStack>
             </VStack>
           )}
@@ -539,7 +539,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                       <span className={`text-xs px-1.5 py-0.5 rounded ${badge.className}`}>{badge.label}</span>
                     </div>
                     <div className="text-muted text-sm">
-                      {c.advertiser} · {c.locale} · clicks {c.clicks} · cfg v{c.configVersion || 1}
+                      {c.advertiser} | {c.locale} | clicks {c.clicks} | cfg v{c.configVersion || 1}
                     </div>
                   </div>
                   <HStack spacing={2}>

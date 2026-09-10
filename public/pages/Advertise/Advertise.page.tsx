@@ -13,7 +13,7 @@ interface AdvertisePageProps {
 const AdvertisePage: React.FC<AdvertisePageProps> = (props) => {
   const packages = props.packages || []
   const contact = props.contact || "contact@tarkov.community"
-  const mailto = `mailto:${contact}?subject=${encodeURIComponent("Sponsorship inquiry — tarkov.community")}`
+  const mailto = `mailto:${contact}?subject=${encodeURIComponent("Sponsorship inquiry - tarkov.community")}`
 
   return (
     <div id="p-advertise" className="page container w-max-4xl py-10 pb-24">
@@ -24,7 +24,7 @@ const AdvertisePage: React.FC<AdvertisePageProps> = (props) => {
         </div>
         <p className="text-muted text-base leading-relaxed">
           Reach Escape from Tarkov players on tarkov.community with native feed placements and
-          contextual slots. Packages below describe what we offer — no public pricing. Tell us
+          contextual slots. Packages below describe what we offer - no public pricing. Tell us
           your goals and we will follow up with availability and rates.
         </p>
 
