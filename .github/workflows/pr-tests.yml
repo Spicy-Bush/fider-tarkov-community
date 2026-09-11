@@ -53,8 +53,7 @@ jobs:
       - name: migrate and test ads packages
         run: |
           mkdir ./dist
-          make generate
-          go build -o fider .
+          make build
           godotenv -f .test.env ./fider migrate
           godotenv -f .test.env go test -vet=off -race ./app/handlers ./app/handlers/apiv1 ./app/pkg/adsselect ./app/actions ./app/services/sqlstore/postgres
         env:
