@@ -17,6 +17,7 @@ export const HoverInfo = (props: InfoProps) => {
   const Elem = props.href ? "a" : "span"
   const classList = classSet({
     "ml-1": true,
+    "tooltip-wrap": true,
     "cursor-pointer": props.onClick !== undefined,
   })
   return (

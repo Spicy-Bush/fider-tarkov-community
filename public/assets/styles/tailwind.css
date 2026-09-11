@@ -562,6 +562,12 @@ p:last-child, pre:last-child { margin-bottom: 0; }
   display: none;
 }
 
+.tooltip-wrap[data-tooltip]::before {
+  white-space: normal;
+  max-width: 280px;
+  text-align: left;
+}
+
 .tooltip-left[data-tooltip]::before {
   bottom: auto;
   top: 50%;
