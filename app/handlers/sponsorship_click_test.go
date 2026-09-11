@@ -3,18 +3,27 @@ package handlers_test
 import (
 	"context"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/mock"
 )
+
+func init() {
+	if assets.FS == nil {
+		assets.FS = os.DirFS(env.Path("."))
+	}
+}
 
 func liveCampaign(id int) *entity.SponsorshipCampaign {
 	now := time.Now().UTC()
@@ -57,6 +66,7 @@ func TestSponsorshipClick_HappyPath_RedirectsAndIncrements(t *testing.T) {
 	server := mock.NewServer()
 	status, resp := server.
 		OnTenant(mock.DemoTenant).
+		AddHeader("Accept", "application/json").
 		WithURL("http://demo.test.fider.io/ads/click/7?v=3").
 		AddParam("id", 7).
 		Execute(handlers.SponsorshipClick())
@@ -76,6 +86,7 @@ func TestSponsorshipClick_MissingV_404NoIncrement(t *testing.T) {
 	server := mock.NewServer()
 	status, resp := server.
 		OnTenant(mock.DemoTenant).
+		AddHeader("Accept", "application/json").
 		WithURL("http://demo.test.fider.io/ads/click/7").
 		AddParam("id", 7).
 		Execute(handlers.SponsorshipClick())
@@ -95,6 +106,7 @@ func TestSponsorshipClick_ForeignVersion_404NoIncrement(t *testing.T) {
 	server := mock.NewServer()
 	status, _ := server.
 		OnTenant(mock.DemoTenant).
+		AddHeader("Accept", "application/json").
 		WithURL("http://demo.test.fider.io/ads/click/7?v=99").
 		AddParam("id", 7).
 		Execute(handlers.SponsorshipClick())
@@ -114,6 +126,7 @@ func TestSponsorshipClick_Disabled_404NoIncrement(t *testing.T) {
 	server := mock.NewServer()
 	status, _ := server.
 		OnTenant(mock.DemoTenant).
+		AddHeader("Accept", "application/json").
 		WithURL("http://demo.test.fider.io/ads/click/7?v=3").
 		AddParam("id", 7).
 		Execute(handlers.SponsorshipClick())
@@ -135,6 +148,7 @@ func TestSponsorshipClick_OutOfSchedule_404NoIncrement(t *testing.T) {
 	server := mock.NewServer()
 	status, _ := server.
 		OnTenant(mock.DemoTenant).
+		AddHeader("Accept", "application/json").
 		WithURL("http://demo.test.fider.io/ads/click/7?v=3").
 		AddParam("id", 7).
 		Execute(handlers.SponsorshipClick())
@@ -151,6 +165,7 @@ func TestSponsorshipClick_Deleted_404NoIncrement(t *testing.T) {
 	server := mock.NewServer()
 	status, _ := server.
 		OnTenant(mock.DemoTenant).
+		AddHeader("Accept", "application/json").
 		WithURL("http://demo.test.fider.io/ads/click/7?v=3").
 		AddParam("id", 7).
 		Execute(handlers.SponsorshipClick())
@@ -169,6 +184,7 @@ func TestSponsorshipClick_BadURL_404NoIncrement(t *testing.T) {
 	server := mock.NewServer()
 	status, _ := server.
 		OnTenant(mock.DemoTenant).
+		AddHeader("Accept", "application/json").
 		WithURL("http://demo.test.fider.io/ads/click/7?v=3").
 		AddParam("id", 7).
 		Execute(handlers.SponsorshipClick())
