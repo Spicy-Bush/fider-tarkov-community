@@ -55,7 +55,11 @@ jobs:
           mkdir ./dist
           make build
           godotenv -f .test.env ./fider migrate
-          godotenv -f .test.env go test -vet=off -race ./app/handlers ./app/handlers/apiv1 ./app/pkg/adsselect ./app/actions ./app/services/sqlstore/postgres
+          godotenv -f .test.env go test -vet=off -race -count=1 ./app/pkg/adsselect
+          godotenv -f .test.env go test -vet=off -race -count=1 ./app/actions -run 'TestValidateCampaignFields'
+          godotenv -f .test.env go test -vet=off -race -count=1 ./app/handlers -run 'TestSponsorshipClick'
+          godotenv -f .test.env go test -vet=off -race -count=1 ./app/handlers/apiv1 -run 'TestSelectAds_|TestSaveCampaignGraph_|TestCreateCreativeVersion_|TestCreateSponsorshipCampaign_|TestUpdateAdPlacement_'
+          godotenv -f .test.env go test -vet=off -race -count=1 ./app/services/sqlstore/postgres -run 'TestAds_'
         env:
           BLOB_STORAGE_S3_ENDPOINT_URL: http://localhost:9000
           DATABASE_URL: postgres://fider_ci:fider_ci_pw@localhost:5432/fider_ci?sslmode=disable
