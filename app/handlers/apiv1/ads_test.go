@@ -151,6 +151,29 @@ func TestSaveCampaignGraph_StaleConfigVersion_RealJSON_409(t *testing.T) {
 	Expect(got.Assignments[0].PlacementID).Equals("feed_native")
 }
 
+func TestSaveCampaignGraph_UnknownPlacement_400(t *testing.T) {
+	RegisterT(t)
+	bus.AddHandler(func(ctx context.Context, c *cmd.SaveSponsorshipCampaignGraph) error {
+		t.Fatal("store must not run for unknown placement")
+		return nil
+	})
+	body := `{
+		"name":"Camp","advertiser":"Acme",
+		"startAt":"2026-01-01T00:00:00Z","endAt":"2026-12-01T00:00:00Z",
+		"weight":10,"locale":"all","enabled":true,
+		"configVersion":1,
+		"assignments":[{"placementId":"not_a_slot","creativeVersionId":9}]
+	}`
+	server := mock.NewServer()
+	status, resp := server.
+		OnTenant(mock.DemoTenant).
+		AsUser(mock.JonSnow).
+		AddParam("id", 42).
+		ExecutePost(apiv1.SaveCampaignGraph(), body)
+	Expect(status).Equals(http.StatusBadRequest)
+	Expect(resp.Body.String()).ContainsSubstring("unknown placementId")
+}
+
 func TestSaveCampaignGraph_ExpectedZero_RealJSON_409(t *testing.T) {
 	RegisterT(t)
 

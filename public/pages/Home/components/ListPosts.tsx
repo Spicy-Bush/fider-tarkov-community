@@ -5,7 +5,7 @@ import { ResponseLozenge } from "@fider/components/post/ShowPostResponse"
 import { heroiconsChatAlt2 as IconChatAlt2 } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 import { getVotePosition } from "@fider/components/UserProfile/UserProfileSettings"
-import { AdSlot } from "@fider/components/sponsorship"
+import { AdSlot, FeedNativeAd } from "@fider/components/sponsorship"
 import { FEED_AD_EVERY, PublicAd } from "@fider/models"
 
 interface ListPostsProps {
@@ -160,12 +160,17 @@ export const ListPosts = (props: ListPostsProps) => {
           <React.Fragment key={post.id}>
             <ListPostItem post={post} tags={tags} votePosition={votePosition} />
             {showAd && (
-              <AdSlot
-                instanceId={instanceId}
-                placementId="feed_native"
-                ad={ad}
-                selectFailed={selectFailed}
-              />
+              ad ? (
+                <FeedNativeAd ad={ad} />
+              ) : (
+                <AdSlot
+                  instanceId={instanceId}
+                  placementId="feed_native"
+                  ad={ad}
+                  selectFailed={selectFailed}
+                  placement={{ kind: "native" }}
+                />
+              )
             )}
           </React.Fragment>
         )

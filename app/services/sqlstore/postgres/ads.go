@@ -100,6 +100,8 @@ func getActiveAdCandidates(ctx context.Context, q *query.GetActiveAdCandidates) 
 			FROM sponsorship_campaigns c
 			INNER JOIN campaign_assignments a
 			  ON a.tenant_id = c.tenant_id AND a.campaign_id = c.id
+			INNER JOIN ad_placements p
+			  ON p.id = a.placement_id AND p.enabled = true
 			WHERE c.tenant_id = $1
 			  AND c.deleted_at IS NULL
 			  AND c.enabled = true

@@ -343,3 +343,49 @@ func TestAds_ExpectedConfigVersionZero_Conflict(t *testing.T) {
 	}
 	Expect(errors.Cause(bus.Dispatch(demoTenantCtx, save))).Equals(app.ErrConflict)
 }
+
+func TestAds_ClickIncrement_SkipsIneligible(t *testing.T) {
+	SetupDatabaseTest(t)
+	defer TeardownDatabaseTest()
+
+	now := time.Now().UTC()
+	live := &cmd.CreateSponsorshipCampaign{
+		Name: "ClickLive", Advertiser: "Acme",
+		StartAt: now.Add(-time.Hour), EndAt: now.Add(24 * time.Hour),
+		Weight: 10, Locale: "all", Enabled: true,
+	}
+	Expect(bus.Dispatch(demoTenantCtx, live)).IsNil()
+	Expect(bus.Dispatch(demoTenantCtx, &cmd.IncrementSponsorshipClick{ID: live.Result.ID})).IsNil()
+	get := &query.GetSponsorshipCampaignByID{ID: live.Result.ID}
+	Expect(bus.Dispatch(demoTenantCtx, get)).IsNil()
+	Expect(get.Result.Clicks).Equals(1)
+
+	disabled := &cmd.CreateSponsorshipCampaign{
+		Name: "ClickOff", Advertiser: "Acme",
+		StartAt: now.Add(-time.Hour), EndAt: now.Add(24 * time.Hour),
+		Weight: 10, Locale: "all", Enabled: false,
+	}
+	Expect(bus.Dispatch(demoTenantCtx, disabled)).IsNil()
+	Expect(errors.Cause(bus.Dispatch(demoTenantCtx, &cmd.IncrementSponsorshipClick{ID: disabled.Result.ID}))).Equals(app.ErrNotFound)
+	getOff := &query.GetSponsorshipCampaignByID{ID: disabled.Result.ID}
+	Expect(bus.Dispatch(demoTenantCtx, getOff)).IsNil()
+	Expect(getOff.Result.Clicks).Equals(0)
+
+	expired := &cmd.CreateSponsorshipCampaign{
+		Name: "ClickOld", Advertiser: "Acme",
+		StartAt: now.Add(-48 * time.Hour), EndAt: now.Add(-time.Hour),
+		Weight: 10, Locale: "all", Enabled: true,
+	}
+	Expect(bus.Dispatch(demoTenantCtx, expired)).IsNil()
+	Expect(errors.Cause(bus.Dispatch(demoTenantCtx, &cmd.IncrementSponsorshipClick{ID: expired.Result.ID}))).Equals(app.ErrNotFound)
+
+	deleted := &cmd.CreateSponsorshipCampaign{
+		Name: "ClickGone", Advertiser: "Acme",
+		StartAt: now.Add(-time.Hour), EndAt: now.Add(24 * time.Hour),
+		Weight: 10, Locale: "all", Enabled: true,
+	}
+	Expect(bus.Dispatch(demoTenantCtx, deleted)).IsNil()
+	Expect(bus.Dispatch(demoTenantCtx, &cmd.DeleteSponsorshipCampaign{ID: deleted.Result.ID})).IsNil()
+	Expect(errors.Cause(bus.Dispatch(demoTenantCtx, &cmd.IncrementSponsorshipClick{ID: deleted.Result.ID}))).Equals(app.ErrNotFound)
+	Expect(errors.Cause(bus.Dispatch(demoTenantCtx, &query.GetSponsorshipCampaignByID{ID: deleted.Result.ID}))).Equals(app.ErrNotFound)
+}

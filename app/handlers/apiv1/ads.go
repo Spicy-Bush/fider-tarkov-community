@@ -44,17 +44,6 @@ func SelectAds() web.HandlerFunc {
 			return c.BadRequest(web.Map{"message": fmt.Sprintf("Too many slots (max %d)", MaxSelectAdsSlots)})
 		}
 
-		placementsQ := &query.ListAdPlacements{}
-		if err := bus.Dispatch(c, placementsQ); err != nil {
-			return c.Failure(err)
-		}
-		known := map[string]bool{}
-		for _, p := range placementsQ.Result {
-			if p != nil {
-				known[p.ID] = true
-			}
-		}
-
 		seenInstance := map[string]bool{}
 		instances := make([]adsselect.InstanceReq, 0, len(req.Slots))
 		for _, s := range req.Slots {
@@ -67,7 +56,7 @@ func SelectAds() web.HandlerFunc {
 				return c.BadRequest(web.Map{"message": "duplicate instanceId: " + iid})
 			}
 			seenInstance[iid] = true
-			if !known[pid] {
+			if !entity.IsCatalogPlacementID(pid) {
 				return c.BadRequest(web.Map{"message": "unknown placementId: " + pid})
 			}
 			instances = append(instances, adsselect.InstanceReq{InstanceID: iid, PlacementID: pid})
@@ -347,6 +336,9 @@ func SaveCampaignGraph() web.HandlerFunc {
 			pid := strings.TrimSpace(a.PlacementID)
 			if pid == "" || a.CreativeVersionID <= 0 {
 				return c.BadRequest(web.Map{"message": "each assignment needs placementId and creativeVersionId"})
+			}
+			if !entity.IsCatalogPlacementID(pid) {
+				return c.BadRequest(web.Map{"message": "unknown placementId: " + pid})
 			}
 			if seenPlacement[pid] {
 				return c.BadRequest(web.Map{"message": "duplicate placementId in assignments: " + pid})

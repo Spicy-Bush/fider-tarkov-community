@@ -2,6 +2,21 @@ package entity
 
 import "time"
 
+// CatalogPlacementIDs is the static public allow-list (SSR/select). Adding a
+// placement is a catalog row + frame spec + optional adsense + a page insertion
+// point; adsselect is not retouched.
+var CatalogPlacementIDs = map[string]struct{}{
+	"feed_native":      {},
+	"sidebar_top":      {},
+	"post_below_title": {},
+	"pages_header":     {},
+}
+
+func IsCatalogPlacementID(id string) bool {
+	_, ok := CatalogPlacementIDs[id]
+	return ok
+}
+
 // AdPlacement is a global (non-tenant) catalog row for a renderable ad slot.
 type AdPlacement struct {
 	ID            string `json:"id" db:"id"`

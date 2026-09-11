@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -63,30 +64,36 @@ func SponsorshipClick() web.HandlerFunc {
 		if err != nil {
 			return c.NotFound()
 		}
+		vid, vErr := c.QueryParamAsInt("v")
+		if vErr != nil || vid <= 0 {
+			return c.NotFound()
+		}
+
 		get := &query.GetSponsorshipCampaignByID{ID: id}
 		if err := bus.Dispatch(c, get); err != nil || get.Result == nil {
 			return c.NotFound()
 		}
-		clickURL := ""
-		if vid, vErr := c.QueryParamAsInt("v"); vErr == nil && vid > 0 {
-			verQ := &query.GetCreativeVersionsByIDs{IDs: []int{vid}}
-			if err := bus.Dispatch(c, verQ); err == nil {
-				if ver := verQ.Result[vid]; ver != nil && ver.CampaignID == id && ver.ClickURL != "" {
-					clickURL = ver.ClickURL
-				}
-			}
-		}
-		if clickURL == "" {
-			// Fallback: newest version for campaign when ?v= omitted or invalid.
-			list := &query.ListCreativeVersionsByCampaign{CampaignID: id}
-			if err := bus.Dispatch(c, list); err == nil && len(list.Result) > 0 && list.Result[0].ClickURL != "" {
-				clickURL = list.Result[0].ClickURL
-			}
-		}
-		if clickURL == "" || !validate.IsHTTPOrHTTPSURL(clickURL) {
+		camp := get.Result
+		now := time.Now().UTC()
+		if !camp.Enabled || camp.StartAt.After(now) || !camp.EndAt.After(now) {
 			return c.NotFound()
 		}
-		_ = bus.Dispatch(c, &cmd.IncrementSponsorshipClick{ID: id})
-		return c.Redirect(clickURL)
+
+		verQ := &query.GetCreativeVersionsByIDs{IDs: []int{vid}}
+		if err := bus.Dispatch(c, verQ); err != nil {
+			return c.NotFound()
+		}
+		ver := verQ.Result[vid]
+		if ver == nil || ver.CampaignID != id {
+			return c.NotFound()
+		}
+		if ver.ClickURL == "" || !validate.IsHTTPOrHTTPSURL(ver.ClickURL) {
+			return c.NotFound()
+		}
+
+		if err := bus.Dispatch(c, &cmd.IncrementSponsorshipClick{ID: id}); err != nil {
+			return c.NotFound()
+		}
+		return c.Redirect(ver.ClickURL)
 	}
 }

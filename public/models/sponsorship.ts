@@ -154,15 +154,15 @@ export interface ResolvedPlacementRenderMeta {
 }
 
 /**
- * Prefer live catalog/props; fall back to SPONSORSHIP_SLOT_SPECS (and feed_native id) for SSR safety.
- * Placement.kind is the chosen model -- not CreativeVersionKind.
+ * Prefer live catalog/props; fall back to SPONSORSHIP_SLOT_SPECS for SSR safety.
+ * Page/catalog kind chooses the frame -- not placement id.
  */
 export function resolvePlacementRenderMeta(
   placementId: string,
   override?: PlacementRenderMeta | null
 ): ResolvedPlacementRenderMeta {
   const spec = SPONSORSHIP_SLOT_SPECS[placementId] || SPONSORSHIP_SLOT_SPECS.sidebar_top
-  const rawKind = (override?.kind || spec.kind || (placementId === "feed_native" ? "native" : "frame")).toLowerCase()
+  const rawKind = (override?.kind || spec.kind || "frame").toLowerCase()
   const kind: "native" | "frame" = rawKind === "native" ? "native" : "frame"
   return {
     kind,

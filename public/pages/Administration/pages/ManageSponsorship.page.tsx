@@ -14,7 +14,7 @@ import {
   CampaignDerivedStatus,
 } from "@fider/models"
 import { actions, Failure, notify } from "@fider/services"
-import { AdSlot } from "@fider/components/sponsorship"
+import { AdSlot, FeedNativeAd } from "@fider/components/sponsorship"
 import {
   browserTimeZoneLabel,
   datetimeLocalToUtcIso,
@@ -150,11 +150,13 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
   useEffect(() => {
     if (editingCampId) {
       setAssignmentsDirty(false)
+      setAssignVersionId("")
       void loadGraph(editingCampId, { forceAssignments: true })
     } else {
       setVersions([])
       setAssignments([])
       setAssignmentsDirty(false)
+      setAssignVersionId(0)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingCampId])
@@ -302,22 +304,28 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       enabled: campForm.enabled,
       packageId: campForm.packageId || undefined,
     }
-    // Optional first version + assignments in one txn when draft creative is ready.
     const clickUrl = versionForm.clickUrl.trim()
     const hasDraftVersion =
       !!clickUrl &&
       /^https?:\/\//i.test(clickUrl) &&
       (!!(versionForm.imageUrl || "").trim() || !!(versionForm.html || "").trim())
-    if (hasDraftVersion && assignments.length > 0) {
+    if (assignments.length > 0 && !hasDraftVersion) {
+      setBusy(false)
+      setError({ errors: [{ message: "Assignments on create require a draft version (image and/or html + http(s) click URL)" }] })
+      return
+    }
+    if (hasDraftVersion) {
       body.version = {
         imageUrl: versionForm.imageUrl.trim(),
         html: versionForm.html.trim(),
         clickUrl,
       }
-      body.assignments = assignments.map((a) => ({
-        placementId: a.placementId,
-        creativeVersionId: 0,
-      }))
+      if (assignments.length > 0) {
+        body.assignments = assignments.map((a) => ({
+          placementId: a.placementId,
+          creativeVersionId: 0,
+        }))
+      }
     }
     const result = await actions.createSponsorshipCampaign(body)
     setBusy(false)
@@ -342,7 +350,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
           setCampForm({ ...campForm, configVersion: cfg })
           setAssignmentsDirty(false)
           await loadGraph(camp.id, { forceAssignments: true })
-          notify.success("Campaign created - add versions, then Save to bind assignments")
+          notify.success("Campaign created - add a version and assignment, then Save to go live")
         }
       } catch {
         notify.error("Create succeeded but configVersion missing - reload the page")
@@ -373,7 +381,9 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       notify.error("Campaign missing configVersion from server")
       return
     }
-    setAssignmentsDirty(false)
+    if (editingCampId !== c.id) {
+      setAssignmentsDirty(false)
+    }
     setEditingCampId(c.id)
     setCampForm({
       name: c.name,
@@ -453,13 +463,14 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
   }
 
   const upsertAssignment = () => {
-    if (!editingCampId || !assignPlacementId || !assignVersionId) return
-    const creativeVersionId = Number(assignVersionId)
+    if (!assignPlacementId) return
+    const creativeVersionId = editingCampId ? Number(assignVersionId) : 0
+    if (editingCampId && (!assignVersionId || creativeVersionId <= 0)) return
     setAssignments((prev) => {
       const next = prev.filter((a) => a.placementId !== assignPlacementId)
       next.push({
         id: 0,
-        campaignId: editingCampId,
+        campaignId: editingCampId || 0,
         placementId: assignPlacementId,
         creativeVersionId,
       })
@@ -467,11 +478,10 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       return next
     })
     setAssignmentsDirty(true)
-    notify.success("Assignment staged - click Save campaign to persist")
+    notify.success(editingCampId ? "Assignment staged - click Save campaign to persist" : "Assignment staged - included on Add campaign")
   }
 
   const removeAssignment = (placementId: string) => {
-    if (!editingCampId) return
     if (!confirm(`Remove assignment for ${placementId}?`)) return
     setAssignments((prev) => prev.filter((a) => a.placementId !== placementId))
     setAssignmentsDirty(true)
@@ -558,7 +568,9 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
           <p className="text-muted text-sm">
             Campaigns are schedule/weight umbrellas. Creatives are immutable versions. Assignments are staged locally and persisted with Save (one OCC transaction). Soft-delete keeps creative versions.
             Dates are entered in your local timezone (<strong>{tzLabel}</strong>) and stored as UTC.
-            {editingCampId ? ` OCC config_version=${campForm.configVersion}.` : ""}
+            {editingCampId
+              ? ` OCC config_version=${campForm.configVersion}.`
+              : " First save can include a draft version and placements so the campaign goes live immediately. Slim create (no assignments) is not live inventory."}
           </p>
           <Form error={error}>
             <Input field="name" label="Campaign name (internal)" value={campForm.name} onChange={(v) => setCampForm({ ...campForm, name: v })} />
@@ -578,51 +590,50 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
             <Input field="weight" label="Weight" value={String(campForm.weight)} onChange={(v) => setCampForm({ ...campForm, weight: Number(v) || 0 })} />
             <Toggle field="enabled" label="Enabled" active={campForm.enabled} onToggle={(v) => setCampForm({ ...campForm, enabled: v })} />
 
-            <HStack spacing={2}>
-              <Button variant="primary" onClick={saveCampaign} disabled={busy}>
-                {editingCampId ? "Save campaign + assignments" : "Add campaign"}
-              </Button>
-              {editingCampId && (
-                <Button variant="tertiary" onClick={() => { setEditingCampId(null); setCampForm(emptyCamp()) }}>
-                  Cancel
-                </Button>
-              )}
-            </HStack>
-          </Form>
-
-          {editingCampId && (
-            <VStack spacing={4} className="p-4 border border-border rounded">
+          <VStack spacing={4} className="p-4 border border-border rounded">
               <div className="font-medium">Assignments &amp; creative versions</div>
               <p className="text-xs text-muted">
-                Editing creative = create a new version, then point the placement assignment at it. Old versions stay for click history (?v=).
+                {editingCampId
+                  ? "Editing creative = create a new version, then point the placement assignment at it. Old versions stay for click history (?v=)."
+                  : "Optional on create: draft version (image and/or html + http(s) click URL) and at least one placement. That POST persists campaign + version + assignments in one transaction. No assignments = not live; selection will not fill."}
               </p>
 
-              <div className="text-sm font-medium">Create version</div>
+              <div className="text-sm font-medium">{editingCampId ? "Create version" : "Draft version"}</div>
               <Input field="ver.imageUrl" label="Image URL" value={versionForm.imageUrl} onChange={(v) => setVersionForm({ ...versionForm, imageUrl: v })} />
               <TextArea field="ver.html" label="HTML (sandboxed iframe - never innerHTML)" value={versionForm.html} onChange={(v) => setVersionForm({ ...versionForm, html: v })} />
               <Input field="ver.clickUrl" label="Click URL" value={versionForm.clickUrl} onChange={(v) => setVersionForm({ ...versionForm, clickUrl: v })} />
-              <Button variant="primary" onClick={createVersion} disabled={busy}>
-                Create immutable version
-              </Button>
+              {editingCampId && (
+                <Button variant="primary" onClick={createVersion} disabled={busy}>
+                  Create immutable version
+                </Button>
+              )}
 
               {previewAd && (
                 <div className="mb-2 p-3 border border-border rounded bg-elevated">
                   <div className="text-sm font-medium mb-2">Draft version preview</div>
-                  <AdSlot
-                    instanceId="admin-preview"
-                    placementId={previewAd.placementId}
-                    ad={previewAd}
-                    allowAdSense={false}
-                    placement={(() => {
-                      const pl = placements.find((row) => row.id === previewAd.placementId)
-                      return pl
-                        ? { kind: pl.kind, maxWidth: pl.maxWidth, maxHeight: pl.maxHeight, label: pl.name }
-                        : undefined
-                    })()}
-                  />
+                  {(() => {
+                    const pl = placements.find((row) => row.id === previewAd.placementId)
+                    const meta = pl
+                      ? { kind: pl.kind, maxWidth: pl.maxWidth, maxHeight: pl.maxHeight, label: pl.name }
+                      : undefined
+                    if ((pl?.kind || "").toLowerCase() === "native") {
+                      return <FeedNativeAd ad={previewAd} placement={meta} />
+                    }
+                    return (
+                      <AdSlot
+                        instanceId="admin-preview"
+                        placementId={previewAd.placementId}
+                        ad={previewAd}
+                        allowAdSense={false}
+                        placement={meta}
+                      />
+                    )
+                  })()}
                 </div>
               )}
 
+              {editingCampId && (
+                <>
               <div className="text-sm font-medium mt-2">Versions</div>
               <VStack spacing={1} divide>
                 {versions.map((v) => (
@@ -632,6 +643,8 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                 ))}
                 {versions.length === 0 && <p className="text-muted text-sm">No versions yet - create one above, then assign placements.</p>}
               </VStack>
+                </>
+              )}
 
               <div className="text-sm font-medium mt-2">Assign placement {"->"} version</div>
               <HStack spacing={2} className="flex-wrap items-end">
@@ -659,12 +672,16 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                     onChange={(e) => setAssignVersionId(e.target.value ? Number(e.target.value) : "")}
                   >
                     <option value="">Select...</option>
-                    {versions.map((v) => (
-                      <option key={v.id} value={v.id}>v{v.versionNo} (#{v.id})</option>
-                    ))}
+                    {editingCampId ? (
+                      versions.map((v) => (
+                        <option key={v.id} value={v.id}>v{v.versionNo} (#{v.id})</option>
+                      ))
+                    ) : (
+                      <option value="0">Draft version (created on save)</option>
+                    )}
                   </select>
                 </label>
-                <Button variant="primary" onClick={upsertAssignment} disabled={busy || !assignPlacementId || !assignVersionId}>
+                <Button variant="primary" onClick={upsertAssignment} disabled={busy || !assignPlacementId || (editingCampId ? !assignVersionId : false)}>
                   Save assignment
                 </Button>
               </HStack>
@@ -674,9 +691,9 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                 {assignments.map((a) => {
                   const ver = versionById(a.creativeVersionId)
                   return (
-                    <HStack key={a.id} spacing={4} className="justify-between py-1 text-sm">
+                    <HStack key={a.placementId} spacing={4} className="justify-between py-1 text-sm">
                       <div>
-                        <strong>{a.placementId}</strong> {"->"} {ver ? `v${ver.versionNo}` : `version #${a.creativeVersionId}`}
+                        <strong>{a.placementId}</strong> {"->"} {ver ? `v${ver.versionNo}` : a.creativeVersionId === 0 ? "draft version" : `version #${a.creativeVersionId}`}
                       </div>
                       <Button variant="danger" onClick={() => removeAssignment(a.placementId)}>Remove</Button>
                     </HStack>
@@ -685,7 +702,18 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                 {assignments.length === 0 && <p className="text-muted text-sm">No assignments - selection will not fill placements for this campaign.</p>}
               </VStack>
             </VStack>
-          )}
+
+            <HStack spacing={2}>
+              <Button variant="primary" onClick={saveCampaign} disabled={busy}>
+                {editingCampId ? "Save campaign + assignments" : "Add campaign"}
+              </Button>
+              {editingCampId && (
+                <Button variant="tertiary" onClick={() => { setEditingCampId(null); setCampForm(emptyCamp()) }}>
+                  Cancel
+                </Button>
+              )}
+            </HStack>
+          </Form>
 
           <VStack spacing={2} divide>
             {campaigns.map((c) => {

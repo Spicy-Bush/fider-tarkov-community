@@ -1,5 +1,4 @@
 import React from "react"
-import { FeedNativeAd } from "./FeedNativeAd"
 import { HtmlCreativeFrame } from "./HtmlCreativeFrame"
 import { AdSenseSlot } from "./AdSenseSlot"
 import { getAdSenseClient } from "./adsenseClient"
@@ -31,11 +30,19 @@ function frameSizeStyle(meta: { maxWidth?: number; maxHeight?: number }): React.
   }
 }
 
+function HouseImageLink(props: { ad: PublicAd; advertiser: string; className: string; style?: React.CSSProperties }) {
+  return (
+    <a href={props.ad.clickPath} className="block no-underline" rel="sponsored noopener" target="_blank">
+      <img src={props.ad.imageUrl} alt={props.advertiser} className={props.className} loading="lazy" style={props.style} />
+    </a>
+  )
+}
+
 /**
- * Props-only renderer. House fill from select takes precedence (never also AdSense).
+ * Frame renderer. Page chooses native vs frame (FeedNativeAd is a feed layout wrapper).
+ * House fill from select takes precedence (never also AdSense).
  * null + client + placement adsense slot -> AdSenseSlot; else emptyPolicy collapse|reserve.
- * HTML via sandboxed iframe only. No dangerouslySetInnerHTML.
- * When both image and html are set, show both.
+ * HTML via sandboxed iframe only, never inside a parent <a>. No dangerouslySetInnerHTML.
  */
 export const AdSlot: React.FC<AdSlotProps> = ({
   instanceId,
@@ -49,59 +56,80 @@ export const AdSlot: React.FC<AdSlotProps> = ({
   const wantConfig = allowAdSense && !selectFailed && ad === null
   const { config: placementConfig, loaded: configLoaded } = usePlacementAdConfig(wantConfig)
 
-  // Loading select or failed select: render nothing (do not treat as empty inventory).
   if (ad === undefined || selectFailed) {
     return null
   }
 
-  // House fill -- never also AdSense for this instance.
   if (ad !== null) {
     const advertiser = (ad.advertiser || "").trim()
     if (!advertiser) {
-      return null // #39 belt-and-suspenders
+      return null
     }
 
-    // House path: prefer explicit placement props, else SPECS/feed_native fallback (no forced catalog fetch).
     const meta = resolvePlacementRenderMeta(placementId, placement)
-
-    if (meta.kind === "native") {
-      return <FeedNativeAd ad={ad} className={className} placement={meta} />
-    }
-
     const hasImage = Boolean(ad.imageUrl)
     const hasHtml = Boolean(ad.html)
     const disclosure = `Sponsored - ${advertiser}`
     const sizeStyle = frameSizeStyle(meta)
+    const rootClassName = className || "block my-3"
+
+    if (hasHtml) {
+      return (
+        <div
+          className={rootClassName}
+          data-ad-instance={instanceId}
+          data-ad-placement={placementId}
+          data-ad-network="house"
+          data-ad-kind="frame"
+        >
+          <div className="text-[10px] uppercase tracking-wide text-muted mb-1">{disclosure}</div>
+          {hasImage && (
+            <div className={meta.frameClassName} style={sizeStyle}>
+              <HouseImageLink ad={ad} advertiser={advertiser} className={meta.imgClassName} />
+            </div>
+          )}
+          <div className={hasImage ? "mt-2" : undefined} style={sizeStyle}>
+            <HtmlCreativeFrame html={ad.html} title={disclosure} />
+          </div>
+        </div>
+      )
+    }
+
+    if (hasImage) {
+      return (
+        <a
+          href={ad.clickPath}
+          className={className || "block my-3 no-underline"}
+          rel="sponsored noopener"
+          target="_blank"
+          aria-label={disclosure}
+          data-ad-instance={instanceId}
+          data-ad-placement={placementId}
+          data-ad-network="house"
+          data-ad-kind="frame"
+        >
+          <div className="text-[10px] uppercase tracking-wide text-muted mb-1">{disclosure}</div>
+          <div className={meta.frameClassName} style={sizeStyle}>
+            <img src={ad.imageUrl} alt={advertiser} className={meta.imgClassName} loading="lazy" />
+          </div>
+        </a>
+      )
+    }
 
     return (
-      <a
-        href={ad.clickPath}
-        className={className || "block my-3 no-underline"}
-        rel="sponsored noopener"
-        target="_blank"
-        aria-label={disclosure}
+      <div
+        className={rootClassName}
         data-ad-instance={instanceId}
         data-ad-placement={placementId}
         data-ad-network="house"
         data-ad-kind="frame"
       >
         <div className="text-[10px] uppercase tracking-wide text-muted mb-1">{disclosure}</div>
-        {hasImage && (
-          <div className={meta.frameClassName} style={sizeStyle}>
-            <img src={ad.imageUrl} alt={advertiser} className={meta.imgClassName} loading="lazy" />
-          </div>
-        )}
-        {hasHtml && (
-          <div className="mt-2" onClick={(e) => e.preventDefault()} style={sizeStyle}>
-            <HtmlCreativeFrame html={ad.html} title={disclosure} />
-          </div>
-        )}
-        {!hasImage && !hasHtml && <span className="text-sm text-muted">{advertiser}</span>}
-      </a>
+        <span className="text-sm text-muted">{advertiser}</span>
+      </div>
     )
   }
 
-  // ad === null: empty house fill -> optional AdSense / emptyPolicy
   if (!allowAdSense) {
     return null
   }
