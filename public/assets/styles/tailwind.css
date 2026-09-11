@@ -568,6 +568,24 @@ p:last-child, pre:last-child { margin-bottom: 0; }
   text-align: left;
 }
 
+.sponsorship-field-tip {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.sponsorship-field-tip[data-tooltip]::before {
+  white-space: normal;
+  max-width: 280px;
+  text-align: left;
+  left: 0;
+  transform: translateX(0) scale(0);
+  transform-origin: left bottom;
+}
+.sponsorship-field-tip[data-tooltip]:hover::before {
+  transform: translateX(0) scale(1);
+}
+
 .tooltip-left[data-tooltip]::before {
   bottom: auto;
   top: 50%;
