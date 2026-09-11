@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react"
-import { Button, Form, Hint, Input, TextArea, Toggle, Select, SelectOption } from "@fider/components"
-import { HoverInfo } from "@fider/components/common/HoverInfo"
+import { Button, Form, Hint, Icon, Input, TextArea, Toggle, Select, SelectOption } from "@fider/components"
+import { heroiconsInformationCircle as IconInformationCircle } from "@fider/icons.generated"
 import { VStack, HStack } from "@fider/components/layout"
 import { PageConfig } from "@fider/components/layouts"
 import {
@@ -62,6 +62,14 @@ const emptyCamp = () => {
   }
 }
 
+
+function FieldTip({ text }: { text: string }) {
+  return (
+    <span className="sponsorship-field-tip ml-1" data-tooltip={text}>
+      <Icon width="15" height="15" className="block shrink-0" sprite={IconInformationCircle} />
+    </span>
+  )
+}
 
 /** Server is the only OCC source. Missing/invalid token is a hard fail (no || 1, no local +1). */
 function requireConfigVersion(v: unknown): number {
@@ -533,42 +541,42 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               label="Slug"
               value={pkgForm.slug}
               onChange={(v) => setPkgForm({ ...pkgForm, slug: v })}
-              afterLabel={<HoverInfo text="URL-ish id for this package on /advertise." />}
+              afterLabel={<FieldTip text="URL-ish id for this package on /advertise." />}
             />
             <Input
               field="name"
               label="Name"
               value={pkgForm.name}
               onChange={(v) => setPkgForm({ ...pkgForm, name: v })}
-              afterLabel={<HoverInfo text="Display name on /advertise. Not used for live ad selection." />}
+              afterLabel={<FieldTip text="Display name on /advertise. Not used for live ad selection." />}
             />
             <TextArea
               field="description"
               label="Description"
               value={pkgForm.description}
               onChange={(v) => setPkgForm({ ...pkgForm, description: v })}
-              afterLabel={<HoverInfo text="Copy on /advertise. Does not affect who wins a slot." />}
+              afterLabel={<FieldTip text="Copy on /advertise. Does not affect who wins a slot." />}
             />
             <Input
               field="slots"
               label="Slots CSV (marketing only)"
               value={pkgForm.slots}
               onChange={(v) => setPkgForm({ ...pkgForm, slots: v })}
-              afterLabel={<HoverInfo text={`Marketing copy only (e.g. ${slots.join(", ")}). Selection never parses this.`} />}
+              afterLabel={<FieldTip text={`Marketing copy only (e.g. ${slots.join(", ")}). Selection never parses this.`} />}
             />
             <Input
               field="durationDays"
               label="Duration days"
               value={String(pkgForm.durationDays)}
               onChange={(v) => setPkgForm({ ...pkgForm, durationDays: Number(v) || 0 })}
-              afterLabel={<HoverInfo text="Sold length shown on /advertise. Not the campaign schedule." />}
+              afterLabel={<FieldTip text="Sold length shown on /advertise. Not the campaign schedule." />}
             />
             <Input
               field="sort"
               label="Sort"
               value={String(pkgForm.sort)}
               onChange={(v) => setPkgForm({ ...pkgForm, sort: Number(v) || 0 })}
-              afterLabel={<HoverInfo text="Display order on /advertise. Lower first." />}
+              afterLabel={<FieldTip text="Display order on /advertise. Lower first." />}
             />
             <HStack spacing={2}>
               <Button variant="primary" onClick={savePackage} disabled={busy}>
@@ -611,14 +619,14 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               label="Campaign name (internal)"
               value={campForm.name}
               onChange={(v) => setCampForm({ ...campForm, name: v })}
-              afterLabel={<HoverInfo text="Internal billing/reference. Not shown as the public Sponsored label." />}
+              afterLabel={<FieldTip text="Internal billing/reference. Not shown as the public Sponsored label." />}
             />
             <Input
               field="advertiser"
               label="Advertiser / company name"
               value={campForm.advertiser}
               onChange={(v) => setCampForm({ ...campForm, advertiser: v })}
-              afterLabel={<HoverInfo text="Shown as Sponsored - {name} outside the creative. Empty advertiser is never selected or rendered." />}
+              afterLabel={<FieldTip text="Shown as Sponsored - {name} outside the creative. Empty advertiser is never selected or rendered." />}
             />
             <Select
               key={`locale-${editingCampId ?? "new"}-${campForm.locale}`}
@@ -627,7 +635,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               defaultValue={campForm.locale}
               options={localeOptions}
               onChange={(o) => o && setCampForm({ ...campForm, locale: o.value })}
-              afterLabel={<HoverInfo text="all = every locale. en/ru = that site language only." />}
+              afterLabel={<FieldTip text="all = every locale. en/ru = that site language only." />}
             />
             <Input
               field="startAt"
@@ -635,7 +643,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               type="datetime-local"
               value={campForm.startAtLocal}
               onChange={(v) => setCampForm({ ...campForm, startAtLocal: v })}
-              afterLabel={<HoverInfo text="Inclusive. Entered in your timezone, stored as UTC." />}
+              afterLabel={<FieldTip text="Inclusive. Entered in your timezone, stored as UTC." />}
             />
             <Input
               field="endAt"
@@ -643,18 +651,18 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               type="datetime-local"
               value={campForm.endAtLocal}
               onChange={(v) => setCampForm({ ...campForm, endAtLocal: v })}
-              afterLabel={<HoverInfo text="Exclusive (now must be before this). Out of window: not selected, clicks 404." />}
+              afterLabel={<FieldTip text="Exclusive (now must be before this). Out of window: not selected, clicks 404." />}
             />
             <Input
               field="weight"
               label="Weight"
               value={String(campForm.weight)}
               onChange={(v) => setCampForm({ ...campForm, weight: Number(v) || 0 })}
-              afterLabel={<HoverInfo text="Share of the lottery vs other live campaigns in the same slot. 0 never wins." />}
+              afterLabel={<FieldTip text="Share of the lottery vs other live campaigns in the same slot. 0 never wins." />}
             />
             <HStack spacing={1} className="mb-4 items-center">
               <Toggle field="enabled" label="Enabled" active={campForm.enabled} onToggle={(v) => setCampForm({ ...campForm, enabled: v })} />
-              <HoverInfo text="Off: not selected and clicks 404. Pause without deleting." />
+              <FieldTip text="Off: not selected and clicks 404. Pause without deleting." />
             </HStack>
 
           <VStack spacing={4} className="p-4 border border-border rounded">
@@ -671,21 +679,21 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                 label="Image URL"
                 value={versionForm.imageUrl}
                 onChange={(v) => setVersionForm({ ...versionForm, imageUrl: v })}
-                afterLabel={<HoverInfo text="Optional if HTML is set. Image-only ads may be a link." />}
+                afterLabel={<FieldTip text="Optional if HTML is set. Image-only ads may be a link." />}
               />
               <TextArea
                 field="ver.html"
                 label="HTML (sandboxed iframe - never innerHTML)"
                 value={versionForm.html}
                 onChange={(v) => setVersionForm({ ...versionForm, html: v })}
-                afterLabel={<HoverInfo text="Renders in a sandboxed iframe only, never inside a parent link. Optional if image is set." />}
+                afterLabel={<FieldTip text="Renders in a sandboxed iframe only, never inside a parent link. Optional if image is set." />}
               />
               <Input
                 field="ver.clickUrl"
                 label="Click URL"
                 value={versionForm.clickUrl}
                 onChange={(v) => setVersionForm({ ...versionForm, clickUrl: v })}
-                afterLabel={<HoverInfo text="Must be http(s) with no user:pass in the URL. Required for a version. Clicks go through /ads/click/:id?v=." />}
+                afterLabel={<FieldTip text="Must be http(s) with no user:pass in the URL. Required for a version. Clicks go through /ads/click/:id?v=." />}
               />
               {editingCampId && (
                 <Button variant="primary" onClick={createVersion} disabled={busy}>
@@ -735,7 +743,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
               <HStack spacing={2} className="flex-wrap items-end">
                 <label className="text-sm">
                   Placement
-                  <HoverInfo text="Slot this campaign occupies (feed, sidebar, post, pages). Unassign + Save reveals AdSense if configured." />
+                  <FieldTip text="Slot this campaign occupies (feed, sidebar, post, pages). Unassign + Save reveals AdSense if configured." />
                   <select
                     className="block mt-1 border border-border rounded px-2 py-1"
                     value={assignPlacementId}
@@ -752,7 +760,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                 </label>
                 <label className="text-sm">
                   Version
-                  <HoverInfo text="Which creative that slot uses. On create, the draft is saved with the campaign. Edit: new creative = new version, then re-assign." />
+                  <FieldTip text="Which creative that slot uses. On create, the draft is saved with the campaign. Edit: new creative = new version, then re-assign." />
                   <select
                     className="block mt-1 border border-border rounded px-2 py-1"
                     value={assignVersionId === "" ? "" : String(assignVersionId)}
@@ -855,7 +863,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                      onChange={(v) =>
                        setPlacements((prev) => prev.map((row) => (row.id === p.id ? { ...row, adsenseSlotId: v } : row)))
                      }
-                     afterLabel={<HoverInfo text="Google ad unit id. Publisher id stays in GOOGLE_ADSENSE. Empty = no AdSense when house misses." />}
+                     afterLabel={<FieldTip text="Google ad unit id. Publisher id stays in GOOGLE_ADSENSE. Empty = no AdSense when house misses." />}
                    />
                    <Input
                      field={`adsenseFormat.${p.id}`}
@@ -864,11 +872,11 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
                      onChange={(v) =>
                        setPlacements((prev) => prev.map((row) => (row.id === p.id ? { ...row, adsenseFormat: v } : row)))
                      }
-                     afterLabel={<HoverInfo text="data-ad-format, e.g. auto, rectangle, fluid." />}
+                     afterLabel={<FieldTip text="data-ad-format, e.g. auto, rectangle, fluid." />}
                    />
                    <label className="block text-sm mb-2">
                      Empty policy
-                     <HoverInfo text="If no house fill and no AdSense: collapse takes no space; reserve keeps the empty frame." />
+                     <FieldTip text="If no house fill and no AdSense: collapse takes no space; reserve keeps the empty frame." />
                     <select
                       className="block mt-1 border border-border rounded px-2 py-1"
                       value={p.emptyPolicy === "reserve" ? "reserve" : "collapse"}
