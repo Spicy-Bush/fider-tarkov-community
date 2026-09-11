@@ -20,6 +20,7 @@ interface SelectProps {
   options: SelectOption[]
   onChange?: (option?: SelectOption) => void
   disabled?: boolean
+  afterLabel?: JSX.Element
 }
 
 export const Select: React.FunctionComponent<SelectProps> = (props) => {
@@ -61,7 +62,12 @@ export const Select: React.FunctionComponent<SelectProps> = (props) => {
       {(ctx) => (
         <>
           <div className="mb-4">
-            {!!props.label && <label htmlFor={`input-${props.field}`} className="block text-sm font-medium mb-1">{props.label}</label>}
+            {!!props.label && (
+              <label htmlFor={`input-${props.field}`} className="block text-sm font-medium mb-1">
+                {props.label}
+                {props.afterLabel}
+              </label>
+            )}
             <select
               className={classSet({
                 "w-full bg-elevated p-2 border rounded-input appearance-none bg-no-repeat pr-10 disabled:opacity-45 disabled:cursor-not-allowed disabled:pointer-events-none": true,
