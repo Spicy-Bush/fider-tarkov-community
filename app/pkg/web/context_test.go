@@ -1,17 +1,23 @@
 package web_test
 
 import (
+	"context"
 	"crypto/tls"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
+
+func init() { assets.FS = os.DirFS(env.Path(".")) }
 
 func newGetContext(rawurl string, headers map[string]string) *web.Context {
 	u, _ := url.Parse(rawurl)
@@ -213,4 +219,31 @@ func TestGetOAuthBaseURL_WithPort(t *testing.T) {
 
 	env.Config.HostMode = "single"
 	Expect(web.OAuthBaseURL(ctx)).Equals("https://test.fider.io:3000")
+}
+
+func TestContextConcurrentValuesAndCancellation(t *testing.T) {
+	parent, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	request := httptest.NewRequest("GET", "/", nil).WithContext(parent)
+	ctx := web.NewContext(nil, request, httptest.NewRecorder(), nil)
+	type key struct{}
+	var work sync.WaitGroup
+	work.Add(1)
+	go func() {
+		defer work.Done()
+		for i := 0; i < 1000; i++ {
+			ctx.Value(key{})
+			ctx.Done()
+			ctx.Err()
+			ctx.Deadline()
+		}
+	}()
+	for i := 0; i < 1000; i++ {
+		ctx.Set(key{}, i)
+	}
+	work.Wait()
+	cancel()
+	if ctx.Value(key{}) != 999 || ctx.Err() != context.Canceled {
+		t.Fatal("context lost values or request cancellation")
+	}
 }

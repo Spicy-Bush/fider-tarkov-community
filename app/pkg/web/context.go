@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -65,7 +66,8 @@ const CookieSignUpAuthName = "__signup_auth"
 
 // Context shared between http pipeline
 type Context struct {
-	context.Context
+	ctx       context.Context
+	contextMu sync.RWMutex
 	Response  Response
 	Request   Request
 	id        string
@@ -89,7 +91,7 @@ func NewContext(engine *Engine, req *http.Request, rw http.ResponseWriter, param
 	})
 
 	return &Context{
-		Context:  ctx,
+		ctx:      ctx,
 		id:       contextID,
 		engine:   engine,
 		Request:  wrappedRequest,
@@ -111,7 +113,7 @@ func (c *Context) SessionID() string {
 // SetSessionID sets the session ID on current context
 func (c *Context) SetSessionID(id string) {
 	c.sessionID = id
-	c.Context = log.WithProperty(c.Context, log.PropertyKeySessionID, id)
+	log.WithProperty(c, log.PropertyKeySessionID, id)
 }
 
 // ContextID returns the unique id for this context
@@ -368,7 +370,7 @@ func (c *Context) User() *entity.User {
 // SetUser update HTTP context with current user
 func (c *Context) SetUser(user *entity.User) {
 	if user != nil {
-		c.Context = log.WithProperty(c.Context, log.PropertyKeyUserID, user.ID)
+		log.WithProperty(c, log.PropertyKeyUserID, user.ID)
 	}
 	c.Set(app.UserCtxKey, user)
 }
@@ -470,8 +472,23 @@ func (c *Context) GetMatchedRoutePath() string {
 
 // Set saves data in the context.
 func (c *Context) Set(key any, val any) {
-	c.Context = context.WithValue(c.Context, key, val)
+	c.contextMu.Lock()
+	defer c.contextMu.Unlock()
+	c.ctx = context.WithValue(c.ctx, key, val)
 }
+
+// SQL watches cancellation after queries return, whilst the request may add values
+// readers retain an immutable context chain
+func (c *Context) snapshotContext() context.Context {
+	c.contextMu.RLock()
+	defer c.contextMu.RUnlock()
+	return c.ctx
+}
+
+func (c *Context) Deadline() (time.Time, bool) { return c.snapshotContext().Deadline() }
+func (c *Context) Done() <-chan struct{}       { return c.snapshotContext().Done() }
+func (c *Context) Err() error                  { return c.snapshotContext().Err() }
+func (c *Context) Value(key any) any           { return c.snapshotContext().Value(key) }
 
 // String returns a text response with status code.
 func (c *Context) String(code int, text string) error {
