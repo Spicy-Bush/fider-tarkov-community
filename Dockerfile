@@ -33,6 +33,8 @@ COPY . ./
 COPY --from=ui-builder /ui/dist /server/dist
 COPY --from=ui-builder /ui/ssr.js /server/ssr.js
 
+RUN go run github.com/joho/godotenv/cmd/godotenv -f .test.env go test ./app/pkg/web -run '^TestReactRenderer_' -count=1
+
 ARG COMMITHASH
 RUN COMMITHASH=${COMMITHASH} GOOS=${TARGETOS} GOARCH=${TARGETARCH} make build-server
 

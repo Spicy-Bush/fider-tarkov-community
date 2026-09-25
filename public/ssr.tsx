@@ -7,26 +7,25 @@ import { DevBanner, ReadOnlyNotice } from "./components"
 import { activateI18NSync } from "./services"
 import { I18nProvider } from "@lingui/react"
 
-// Locale files must be bundled for SSR to work synchronously
+// Keep the .mjs extension as source JSON lacks Lingui's compiled messages export
 const messages: { [key: string]: any } = {
-  en: require(`../locale/en/client`),
-  "pt-BR": require(`../locale/pt-BR/client`),
-  "sv-SE": require(`../locale/sv-SE/client`),
-  it: require(`../locale/it/client`),
-  "es-ES": require(`../locale/es-ES/client`),
-  "zh-CN": require(`../locale/zh-CN/client`),
-  el: require(`../locale/el/client`),
-  nl: require(`../locale/nl/client`),
-  de: require(`../locale/de/client`),
-  fr: require(`../locale/fr/client`),
-  pl: require(`../locale/pl/client`),
-  ru: require(`../locale/ru/client`),
-  sk: require(`../locale/sk/client`),
-  tr: require(`../locale/tr/client`),
+  en: require(`../locale/en/client.mjs`),
+  "pt-BR": require(`../locale/pt-BR/client.mjs`),
+  "sv-SE": require(`../locale/sv-SE/client.mjs`),
+  it: require(`../locale/it/client.mjs`),
+  "es-ES": require(`../locale/es-ES/client.mjs`),
+  "zh-CN": require(`../locale/zh-CN/client.mjs`),
+  el: require(`../locale/el/client.mjs`),
+  nl: require(`../locale/nl/client.mjs`),
+  de: require(`../locale/de/client.mjs`),
+  fr: require(`../locale/fr/client.mjs`),
+  pl: require(`../locale/pl/client.mjs`),
+  ru: require(`../locale/ru/client.mjs`),
+  sk: require(`../locale/sk/client.mjs`),
+  tr: require(`../locale/tr/client.mjs`),
 }
 
-// ESBuild doesn't support Dynamic Imports, so we need to map them statically
-// But at least only public routes will be here, as routes behind authentication won't be crawled anyway
+// v8go renders synchronously and cannot load page modules at runtime.
 const pages: { [key: string]: any } = {
   "Home/Home.page": require(`./pages/Home/Home.page`),
   "ShowPost/ShowPost.page": require(`./pages/ShowPost/ShowPost.page`),

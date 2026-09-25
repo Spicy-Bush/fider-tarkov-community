@@ -77,9 +77,9 @@ esbuild
   .build({
     entryPoints: ["./public/ssr.tsx"],
     bundle: true,
-    platform: "node",
-    target: "node18",
-    format: "esm",
+    platform: "browser",
+    target: "es2020",
+    format: "iife",
     define: {
       "process.env.NODE_ENV": `"${process.env.NODE_ENV || "development"}"`,
     },

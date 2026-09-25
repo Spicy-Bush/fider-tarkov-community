@@ -36,6 +36,9 @@ build-ssr: ## Build SSR script and locales
 
 test: test-server test-ui ## Test server and ui code
 
+test-ssr: build-ssr ## test the SSR bundle in V8 runtime
+	go run github.com/joho/godotenv/cmd/godotenv -f .test.env go test ./app/pkg/web -run '^TestReactRenderer_' -count=1
+
 test-server: build ## Run all server tests
 	godotenv -f .test.env ./fider migrate
 	godotenv -f .test.env go test ./... -race
