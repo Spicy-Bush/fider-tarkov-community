@@ -68,12 +68,12 @@ watch: build-ssr build-ui ## Build assets then run watchers
 	make -j2 watch-server watch-ui
 
 watch-server: ## Build and run server in watch mode
-	air -c air.conf
+	FIDER_DEV_UI=true air -c air.conf
 
 watch-ui: ## Build UI in watch mode (rebuilds on changes)
 	npx lingui compile
 	npm run build:sprites
-	npx vite build --watch
+	npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
 
 
 

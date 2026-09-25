@@ -71,6 +71,10 @@ func NewRenderer() *Renderer {
 }
 
 func (r *Renderer) loadAssets() error {
+	if env.IsDevelopment() && env.Config.DevUI {
+		return nil
+	}
+
 	manifestPath := "dist/.vite/manifest.json"
 
 	jsonBytes, err := fs.ReadFile(assets.FS, manifestPath)
@@ -307,6 +311,7 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 	}
 
 	private["assets"] = r.assets
+	private["devUI"] = env.IsDevelopment() && env.Config.DevUI
 	private["logo"] = LogoURL(ctx)
 
 	locale := i18n.GetLocale(ctx)

@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	stdLog "log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"runtime"
 	"strconv"
 	"strings"
@@ -108,12 +110,26 @@ func (e *Engine) Start(address string) {
 	}
 
 	stdLog.SetOutput(io.Discard)
+	var handler http.Handler = e.mux
+
+	if env.IsDevelopment() && env.Config.DevUI {
+		devUI := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: "127.0.0.1:5173"})
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/assets/") {
+				devUI.ServeHTTP(w, r)
+				return
+			}
+
+			e.mux.ServeHTTP(w, r)
+		})
+	}
+
 	e.webServer = &http.Server{
 		ReadTimeout:  env.Config.HTTP.ReadTimeout,
 		WriteTimeout: env.Config.HTTP.WriteTimeout,
 		IdleTimeout:  env.Config.HTTP.IdleTimeout,
 		Addr:         address,
-		Handler:      e.mux,
+		Handler:      handler,
 		TLSConfig:    getDefaultTLSConfig(env.Config.TLS.Automatic),
 	}
 

@@ -23,7 +23,17 @@
 {{define "content"}}<div id="root"></div><div id="root-modal"></div><div id="root-toastify"></div>{{end}}
 
 {{define "end-of-body"}}
-  {{ if .private.assets }}
+  {{ if .private.devUI }}
+    <script type="module" nonce="{{ .public.contextID }}">
+      const { default: RefreshRuntime } = await import("/assets/@react-refresh");
+      RefreshRuntime.injectIntoGlobalHook(window);
+      window.$RefreshReg$ = () => {};
+      window.$RefreshSig$ = () => (type) => type;
+      window.__vite_plugin_react_preamble_installed__ = true;
+      await import("/assets/@vite/client");
+      await import("/assets/public/index.tsx");
+    </script>
+  {{ else if .private.assets }}
     {{range .private.assets.JS}}
     <script type="module" src="{{ $.public.settings.assetsURL }}{{ . }}" crossorigin="anonymous"></script>
     {{end}}

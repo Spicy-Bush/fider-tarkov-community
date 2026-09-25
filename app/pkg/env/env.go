@@ -31,6 +31,7 @@ func Version() string {
 
 type config struct {
 	Environment    string `env:"GO_ENV,default=production"`
+	DevUI          bool   `env:"FIDER_DEV_UI,default=false"`
 	SignUpDisabled bool   `env:"SIGNUP_DISABLED,default=false"`
 	TLS            struct {
 		Automatic      bool   `env:"SSL_AUTO,default=false"`
