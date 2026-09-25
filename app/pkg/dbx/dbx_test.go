@@ -9,6 +9,7 @@ import (
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/log"
 )
 
 type user struct {
@@ -38,6 +39,31 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 	os.Exit(code)
+}
+
+func TestLoggingPreservesSQL(t *testing.T) {
+	previous := log.CurrentLevel
+	t.Cleanup(func() { log.CurrentLevel = previous })
+	for _, level := range []log.Level{log.INFO, log.DEBUG} {
+		t.Run(level.String(), func(t *testing.T) {
+			log.CurrentLevel = level
+			trx, err := dbx.BeginTx(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer trx.MustRollback()
+			if _, err := trx.Execute("CREATE TEMP TABLE logging_text (value TEXT); INSERT INTO logging_text VALUES ('title\n\tbody')"); err != nil {
+				t.Fatal(err)
+			}
+			var value string
+			if err := trx.Scalar(&value, "SELECT value || '\nend' FROM logging_text"); err != nil {
+				t.Fatal(err)
+			}
+			if value != "title\n\tbody\nend" {
+				t.Fatalf("logging changed SQL text: %q", value)
+			}
+		})
+	}
 }
 
 func TestBind_SimpleStruct(t *testing.T) {

@@ -98,11 +98,10 @@ var formatter = strings.NewReplacer("\t", "", "\n", " ")
 // Execute given SQL command
 func (trx *Trx) Execute(command string, args ...any) (int64, error) {
 	if log.IsEnabled(log.DEBUG) {
-		command = formatter.Replace(command)
 		start := time.Now()
 		defer func() {
 			log.Debugf(trx.ctx, "@{Command:yellow} @{Args:blue} executed in @{ElapsedMs:magenta}ms", dto.Props{
-				"Command":   command,
+				"Command":   formatter.Replace(command),
 				"Args":      args,
 				"ElapsedMs": time.Since(start).Nanoseconds() / int64(time.Millisecond),
 			})
@@ -121,11 +120,10 @@ func (trx *Trx) Execute(command string, args ...any) (int64, error) {
 // Scalar returns first row and first column
 func (trx *Trx) Scalar(data any, command string, args ...any) error {
 	if log.IsEnabled(log.DEBUG) {
-		command = formatter.Replace(command)
 		start := time.Now()
 		defer func() {
 			log.Debugf(trx.ctx, "@{Command:yellow} @{Args:blue} executed in @{ElapsedMs:magenta}ms", dto.Props{
-				"Command":   command,
+				"Command":   formatter.Replace(command),
 				"Args":      args,
 				"ElapsedMs": time.Since(start).Nanoseconds() / int64(time.Millisecond),
 			})
@@ -146,11 +144,10 @@ func (trx *Trx) Scalar(data any, command string, args ...any) error {
 // Get first row and bind to given data
 func (trx *Trx) Get(data any, command string, args ...any) error {
 	if log.IsEnabled(log.DEBUG) {
-		command = formatter.Replace(command)
 		start := time.Now()
 		defer func() {
 			log.Debugf(trx.ctx, "@{Command:yellow} @{Args:blue} executed in @{ElapsedMs:magenta}ms", dto.Props{
-				"Command":   command,
+				"Command":   formatter.Replace(command),
 				"Args":      args,
 				"ElapsedMs": time.Since(start).Nanoseconds() / int64(time.Millisecond),
 			})
@@ -178,11 +175,10 @@ func (trx *Trx) Get(data any, command string, args ...any) error {
 // Exists returns true if at least one record is found
 func (trx *Trx) Exists(command string, args ...any) (bool, error) {
 	if log.IsEnabled(log.DEBUG) {
-		command = formatter.Replace(command)
 		start := time.Now()
 		defer func() {
 			log.Debugf(trx.ctx, "@{Command:yellow} @{Args:blue} executed in @{ElapsedMs:magenta}ms", dto.Props{
-				"Command":   command,
+				"Command":   formatter.Replace(command),
 				"Args":      args,
 				"ElapsedMs": time.Since(start).Nanoseconds() / int64(time.Millisecond),
 			})
@@ -201,11 +197,10 @@ func (trx *Trx) Exists(command string, args ...any) (bool, error) {
 // Count returns number of rows
 func (trx *Trx) Count(command string, args ...any) (int, error) {
 	if log.IsEnabled(log.DEBUG) {
-		command = formatter.Replace(command)
 		start := time.Now()
 		defer func() {
 			log.Debugf(trx.ctx, "@{Command:yellow} @{Args:blue} executed in @{ElapsedMs:magenta}ms", dto.Props{
-				"Command":   command,
+				"Command":   formatter.Replace(command),
 				"Args":      args,
 				"ElapsedMs": time.Since(start).Nanoseconds() / int64(time.Millisecond),
 			})
@@ -228,11 +223,10 @@ func (trx *Trx) Count(command string, args ...any) (int, error) {
 // Select all matched rows bind to given data
 func (trx *Trx) Select(data any, command string, args ...any) error {
 	if log.IsEnabled(log.DEBUG) {
-		command = formatter.Replace(command)
 		start := time.Now()
 		defer func() {
 			log.Debugf(trx.ctx, "@{Command:yellow} @{Args:blue} executed in @{ElapsedMs:magenta}ms", dto.Props{
-				"Command":   command,
+				"Command":   formatter.Replace(command),
 				"Args":      args,
 				"ElapsedMs": time.Since(start).Nanoseconds() / int64(time.Millisecond),
 			})
@@ -269,11 +263,10 @@ func (trx *Trx) Select(data any, command string, args ...any) error {
 // Query all matched rows and return raw sql.Rows
 func (trx *Trx) Query(command string, args ...any) (*sql.Rows, error) {
 	if log.IsEnabled(log.DEBUG) {
-		command = formatter.Replace(command)
 		start := time.Now()
 		defer func() {
 			log.Debugf(trx.ctx, "@{Command:yellow} @{Args:blue} executed in @{ElapsedMs:magenta}ms", dto.Props{
-				"Command":   command,
+				"Command":   formatter.Replace(command),
 				"Args":      args,
 				"ElapsedMs": time.Since(start).Nanoseconds() / int64(time.Millisecond),
 			})
