@@ -1,5 +1,6 @@
 // UserProfileHeader converted to Tailwind
 
+import { ProfileReviewStatus, useProfileReview } from "./ProfileReviewStatus"
 import React, { useState } from "react"
 import { Avatar, UserName, Icon, Modal, Form, Input, Button, SelectOption, ImageUploader } from "@fider/components"
 import { getInitials, getAvatarColor } from "@fider/components/common/Avatar"
@@ -7,8 +8,13 @@ import { useUserProfile } from "./context"
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
 import { UserAvatarType, ImageUpload } from "@fider/models"
-import { actions, Failure, classSet } from "@fider/services"
-import { heroiconsPencilAlt as IconDocument, heroiconsChatAlt2 as IconChat, heroiconsThumbsup as IconThumbsUp, heroiconsPhotograph as IconPhotograph } from "@fider/icons.generated"
+import { actions, Failure, classSet, Fider } from "@fider/services"
+import {
+  heroiconsPencilAlt as IconDocument,
+  heroiconsChatAlt2 as IconChat,
+  heroiconsThumbsup as IconThumbsUp,
+  heroiconsPhotograph as IconPhotograph,
+} from "@fider/icons.generated"
 
 interface InitialsAvatarProps {
   name: string
@@ -24,23 +30,14 @@ const InitialsAvatar: React.FC<InitialsAvatarProps> = ({ name, size, className =
     md: "w-14 h-14",
     lg: "w-full h-full",
   }
-  
+
   return (
-    <div 
+    <div
       className={`rounded-full flex items-center justify-center shrink-0 overflow-hidden ${sizeClasses[size]} ${className}`}
       style={{ background: color.bg }}
     >
       <svg viewBox="0 0 100 100" className="w-full h-full">
-        <text
-          x="50"
-          y="50"
-          dominantBaseline="central"
-          textAnchor="middle"
-          fill={color.text}
-          fontSize="42"
-          fontWeight="700"
-          fontFamily="inherit"
-        >
+        <text x="50" y="50" dominantBaseline="central" textAnchor="middle" fill={color.text} fontSize="42" fontWeight="700" fontFamily="inherit">
           {initials}
         </text>
       </svg>
@@ -53,7 +50,15 @@ interface UserProfileHeaderProps {
 }
 
 export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: compactProp }) => {
-  const { user, stats, compact: contextCompact, canEditName, canEditAvatar, updateUserName: contextUpdateName, updateUserAvatar: contextUpdateAvatar } = useUserProfile()
+  const {
+    user,
+    stats,
+    compact: contextCompact,
+    canEditName,
+    canEditAvatar,
+    updateUserName: contextUpdateName,
+    updateUserAvatar: contextUpdateAvatar,
+  } = useUserProfile()
   const isCompact = compactProp ?? contextCompact
 
   const [avatarModalState, setAvatarModalState] = useState({
@@ -62,6 +67,7 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
     isHoveringAvatar: false,
     avatarType: (user?.avatarType as UserAvatarType) || UserAvatarType.Letter,
     avatar: undefined as ImageUpload | undefined,
+    isSaving: false,
   })
 
   const [nameModalState, setNameModalState] = useState({
@@ -70,7 +76,14 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
     name: user?.name || "",
   })
 
-  if (!user) return null
+  const ownsProfile = Fider.session.isAuthenticated && Fider.session.user.id === user?.id
+  const review = useProfileReview({ enabled: ownsProfile, onNameChanged: contextUpdateName, onAvatarChanged: contextUpdateAvatar })
+  const savedName = review.changes.find((change) => change.field === "name" && change.state !== "complete")?.value
+  const savedAvatarURL = review.changes.find((change) => change.field === "avatar")?.previewURL
+
+  if (!user) {
+    return null
+  }
 
   const userForComponents = {
     ...user,
@@ -80,58 +93,108 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
 
   const handleAvatarClick = () => {
     if (canEditAvatar) {
-      setAvatarModalState(prev => ({ ...prev, isOpen: true }))
+      setAvatarModalState((prev) => ({
+        ...prev,
+        isOpen: true,
+        avatarType: savedAvatarURL ? UserAvatarType.Custom : (user.avatarType as UserAvatarType),
+        avatar: undefined,
+        error: undefined,
+      }))
     }
   }
 
   const handleAvatarChange = async () => {
-    const result = await actions.updateUserAvatar({
-      avatarType: avatarModalState.avatarType,
-      avatar: avatarModalState.avatar,
-    }, user.id)
+    if (savedAvatarURL && avatarModalState.avatarType === UserAvatarType.Custom && !avatarModalState.avatar?.upload && !avatarModalState.avatar?.remove) {
+      setAvatarModalState((prev) => ({ ...prev, isOpen: false }))
+      return
+    }
 
-    if (result.ok && result.data) {
-      setAvatarModalState(prev => ({ ...prev, isOpen: false }))
-      contextUpdateAvatar(result.data.avatarURL)
-    } else if (result.error) {
-      setAvatarModalState(prev => ({ ...prev, error: result.error }))
+    review.pause()
+    setAvatarModalState((prev) => ({ ...prev, isSaving: true }))
+
+    try {
+      const result = await actions.updateUserAvatar(
+        {
+          avatarType:
+            avatarModalState.avatarType === UserAvatarType.Custom && avatarModalState.avatar?.remove ? UserAvatarType.Letter : avatarModalState.avatarType,
+          avatar: avatarModalState.avatarType === UserAvatarType.Custom ? avatarModalState.avatar : undefined,
+        },
+        user.id
+      )
+
+      if (result.ok && result.data) {
+        contextUpdateAvatar(result.data.avatarURL, result.data.avatarType)
+
+        if (result.data.pending) {
+          await review.refresh("avatar")
+        } else {
+          void review.refresh()
+        }
+
+        setAvatarModalState((prev) => ({ ...prev, isOpen: false }))
+      } else if (result.error) {
+        setAvatarModalState((prev) => ({ ...prev, error: result.error }))
+        void review.refresh()
+      }
+    } catch {
+      setAvatarModalState((prev) => ({ ...prev, error: { errors: [{ message: "Couldn't save your avatar. Please try again." }] } }))
+      void review.refresh()
+    } finally {
+      setAvatarModalState((prev) => ({ ...prev, isSaving: false }))
     }
   }
 
   const handleAvatarTypeChange = (opt?: SelectOption) => {
     if (opt) {
-      setAvatarModalState(prev => ({ ...prev, avatarType: opt.value as UserAvatarType }))
+      setAvatarModalState((prev) => ({ ...prev, avatarType: opt.value as UserAvatarType }))
     }
   }
 
   const handleAvatarUpload = (avatar: ImageUpload): void => {
-    setAvatarModalState(prev => ({ ...prev, avatar }))
+    setAvatarModalState((prev) => ({ ...prev, avatar }))
   }
 
   const handleNameChange = async () => {
-    const result = await actions.updateUserName({
-      name: nameModalState.name,
-    }, user.id)
+    review.pause()
 
-    if (result.ok) {
-      setNameModalState(prev => ({ ...prev, isOpen: false }))
-      contextUpdateName(nameModalState.name)
-    } else if (result.error) {
-      setNameModalState(prev => ({ ...prev, error: result.error }))
+    try {
+      const result = await actions.updateUserName(
+        {
+          name: nameModalState.name,
+        },
+        user.id
+      )
+
+      if (result.ok) {
+        setNameModalState((prev) => ({ ...prev, isOpen: false }))
+        contextUpdateName(result.data.name)
+      } else if (result.error) {
+        setNameModalState((prev) => ({ ...prev, error: result.error }))
+      }
+    } catch {
+      setNameModalState((prev) => ({ ...prev, error: { errors: [{ message: "Couldn't save your name. Please try again." }] } }))
+    } finally {
+      void review.refresh()
     }
   }
 
   return (
     <>
+      {ownsProfile && <ProfileReviewStatus {...review} />}
       <div className="col-span-full flex items-start gap-5 p-5 bg-surface-alt rounded-card shadow-sm max-md:flex-col max-md:p-3 max-md:gap-3 max-md:items-center">
-        <div 
-          className={`relative rounded-full overflow-hidden shrink-0 flex items-center justify-center ${isCompact ? 'w-20 h-20' : 'w-[120px] h-[120px]'} max-md:w-[100px] max-md:h-[100px]`}
-          onMouseEnter={() => setAvatarModalState(prev => ({ ...prev, isHoveringAvatar: true }))}
-          onMouseLeave={() => setAvatarModalState(prev => ({ ...prev, isHoveringAvatar: false }))}
+        <div
+          className={`relative rounded-full overflow-hidden shrink-0 flex items-center justify-center ${isCompact ? "w-20 h-20" : "w-[120px] h-[120px]"} max-md:w-[100px] max-md:h-[100px]`}
+          onMouseEnter={() => setAvatarModalState((prev) => ({ ...prev, isHoveringAvatar: true }))}
+          onMouseLeave={() => setAvatarModalState((prev) => ({ ...prev, isHoveringAvatar: false }))}
           onClick={handleAvatarClick}
           style={canEditAvatar ? { cursor: "pointer" } : undefined}
         >
-          <Avatar user={{ ...userForComponents, avatarType: user.avatarType as UserAvatarType }} size="fill" imageSize={isCompact ? 100 : 200} clickable={false} />
+          <Avatar
+            user={{ ...userForComponents, avatarType: user.avatarType as UserAvatarType }}
+            size="fill"
+            imageSize={isCompact ? 100 : 200}
+            clickable={false}
+          />
           {canEditAvatar && avatarModalState.isHoveringAvatar && (
             <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity text-sm">
               <Trans id="profile.avatar.change">Change Avatar</Trans>
@@ -142,9 +205,9 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
           <div className="flex items-center gap-2">
             <UserName user={userForComponents} />
             {canEditName && (
-              <button 
+              <button
                 className="bg-transparent border-none p-1 cursor-pointer text-muted rounded hover:text-foreground hover:bg-surface-alt transition-all"
-                onClick={() => setNameModalState(prev => ({ ...prev, isOpen: true, name: user.name }))}
+                onClick={() => setNameModalState((prev) => ({ ...prev, isOpen: true, name: savedName ?? user.name }))}
               >
                 <Icon sprite={IconDocument} className="h-4" />
               </button>
@@ -169,9 +232,10 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
         </div>
       </div>
 
-      <Modal.Window 
-        isOpen={avatarModalState.isOpen} 
-        onClose={() => setAvatarModalState(prev => ({ ...prev, isOpen: false }))}
+      <Modal.Window
+        isOpen={avatarModalState.isOpen}
+        canClose={!avatarModalState.isSaving}
+        onClose={() => setAvatarModalState((prev) => ({ ...prev, isOpen: false }))}
         center={false}
         size="large"
       >
@@ -180,164 +244,170 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
         </Modal.Header>
         <Modal.Content>
           <Form error={avatarModalState.error}>
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-3">
-                <Trans id="label.avatar.type">Avatar Type</Trans>
-              </label>
-              <div className="grid grid-cols-3 gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleAvatarTypeChange({ value: UserAvatarType.Letter, label: i18n._("label.letter", { message: "Letter" }) })}
-                  className={classSet({
-                    "p-4 rounded-card border-2 transition-all duration-150 text-left": true,
-                    "border-primary bg-accent-light shadow-sm": avatarModalState.avatarType === UserAvatarType.Letter,
-                    "border-border bg-transparent hover:border-border-strong hover:bg-surface-alt hover:shadow-sm": avatarModalState.avatarType !== UserAvatarType.Letter,
-                  })}
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <InitialsAvatar name={user.name} size="sm" />
-                    <div className="text-sm font-medium">
-                      <Trans id="label.letter">Letter</Trans>
-                    </div>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAvatarTypeChange({ value: UserAvatarType.Gravatar, label: i18n._("label.gravatar", { message: "Gravatar" }) })}
-                  className={classSet({
-                    "p-4 rounded-card border-2 transition-all duration-150 text-left": true,
-                    "border-primary bg-accent-light shadow-sm": avatarModalState.avatarType === UserAvatarType.Gravatar,
-                    "border-border bg-transparent hover:border-border-strong hover:bg-surface-alt hover:shadow-sm": avatarModalState.avatarType !== UserAvatarType.Gravatar,
-                  })}
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <InitialsAvatar name={user.name} size="sm" />
-                    <div className="text-sm font-medium">
-                      <Trans id="label.gravatar">Gravatar</Trans>
-                    </div>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAvatarTypeChange({ value: UserAvatarType.Custom, label: i18n._("label.custom", { message: "Custom" }) })}
-                  className={classSet({
-                    "p-4 rounded-card border-2 transition-all duration-150 text-left": true,
-                    "border-primary bg-accent-light shadow-sm": avatarModalState.avatarType === UserAvatarType.Custom,
-                    "border-border bg-transparent hover:border-border-strong hover:bg-surface-alt hover:shadow-sm": avatarModalState.avatarType !== UserAvatarType.Custom,
-                  })}
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-12 h-12 rounded-full bg-surface-alt flex items-center justify-center shrink-0">
-                      <Icon sprite={IconPhotograph} className="h-6 w-6 text-muted" />
-                    </div>
-                    <div className="text-sm font-medium">
-                      <Trans id="label.custom">Custom</Trans>
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            <div className="h-[120px] mb-6 flex items-start">
-              {avatarModalState.avatarType === UserAvatarType.Gravatar && (
-                <div className="p-4 bg-surface-alt rounded-card w-full">
-                  <p className="text-sm text-muted">
-                    <Trans id="mysettings.message.avatar.gravatar">
-                      A{" "}
-                      <a className="text-link" rel="noopener" href="https://en.gravatar.com" target="_blank">
-                        Gravatar
-                      </a>{" "}
-                      will be used based on your email. If you don&apos;t have a Gravatar, a letter avatar based on your initials is generated for you.
-                    </Trans>
-                  </p>
-                </div>
-              )}
-
-              {avatarModalState.avatarType === UserAvatarType.Letter && (
-                <div className="p-4 bg-surface-alt rounded-card w-full">
-                  <p className="text-sm text-muted">
-                    <Trans id="mysettings.message.avatar.letter">A letter avatar based on your initials is generated for you.</Trans>
-                  </p>
-                </div>
-              )}
-
-              {avatarModalState.avatarType === UserAvatarType.Custom && (
-                <div className="w-full">
-                  <ImageUploader 
-                    field="avatar" 
-                    onChange={handleAvatarUpload} 
-                    bkey={user.avatarType === UserAvatarType.Custom ? user.avatarURL : undefined}
+            <fieldset disabled={avatarModalState.isSaving}>
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-3">
+                  <Trans id="label.avatar.type">Avatar Type</Trans>
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleAvatarTypeChange({ value: UserAvatarType.Letter, label: i18n._("label.letter", { message: "Letter" }) })}
+                    className={classSet({
+                      "p-4 rounded-card border-2 transition-all duration-150 text-left": true,
+                      "border-primary bg-accent-light shadow-sm": avatarModalState.avatarType === UserAvatarType.Letter,
+                      "border-border bg-transparent hover:border-border-strong hover:bg-surface-alt hover:shadow-sm":
+                        avatarModalState.avatarType !== UserAvatarType.Letter,
+                    })}
                   >
-                    <p className="text-sm text-muted mt-2">
-                      <Trans id="mysettings.message.avatar.custom">
-                        We accept JPG and PNG images, smaller than 5MB and with an aspect ratio of 1:1 with minimum dimensions of 50x50 pixels.
+                    <div className="flex flex-col items-center gap-2">
+                      <InitialsAvatar name={user.name} size="sm" />
+                      <div className="text-sm font-medium">
+                        <Trans id="label.letter">Letter</Trans>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAvatarTypeChange({ value: UserAvatarType.Gravatar, label: i18n._("label.gravatar", { message: "Gravatar" }) })}
+                    className={classSet({
+                      "p-4 rounded-card border-2 transition-all duration-150 text-left": true,
+                      "border-primary bg-accent-light shadow-sm": avatarModalState.avatarType === UserAvatarType.Gravatar,
+                      "border-border bg-transparent hover:border-border-strong hover:bg-surface-alt hover:shadow-sm":
+                        avatarModalState.avatarType !== UserAvatarType.Gravatar,
+                    })}
+                  >
+                    <div className="flex flex-col items-center gap-2">
+                      <InitialsAvatar name={user.name} size="sm" />
+                      <div className="text-sm font-medium">
+                        <Trans id="label.gravatar">Gravatar</Trans>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAvatarTypeChange({ value: UserAvatarType.Custom, label: i18n._("label.custom", { message: "Custom" }) })}
+                    className={classSet({
+                      "p-4 rounded-card border-2 transition-all duration-150 text-left": true,
+                      "border-primary bg-accent-light shadow-sm": avatarModalState.avatarType === UserAvatarType.Custom,
+                      "border-border bg-transparent hover:border-border-strong hover:bg-surface-alt hover:shadow-sm":
+                        avatarModalState.avatarType !== UserAvatarType.Custom,
+                    })}
+                  >
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-12 h-12 rounded-full bg-surface-alt flex items-center justify-center shrink-0">
+                        <Icon sprite={IconPhotograph} className="h-6 w-6 text-muted" />
+                      </div>
+                      <div className="text-sm font-medium">
+                        <Trans id="label.custom">Custom</Trans>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="h-[120px] mb-6 flex items-start">
+                {avatarModalState.avatarType === UserAvatarType.Gravatar && (
+                  <div className="p-4 bg-surface-alt rounded-card w-full">
+                    <p className="text-sm text-muted">
+                      <Trans id="mysettings.message.avatar.gravatar">
+                        A{" "}
+                        <a className="text-link" rel="noopener" href="https://en.gravatar.com" target="_blank">
+                          Gravatar
+                        </a>{" "}
+                        will be used based on your email. If you don&apos;t have a Gravatar, a letter avatar based on your initials is generated for you.
                       </Trans>
                     </p>
-                  </ImageUploader>
+                  </div>
+                )}
+
+                {avatarModalState.avatarType === UserAvatarType.Letter && (
+                  <div className="p-4 bg-surface-alt rounded-card w-full">
+                    <p className="text-sm text-muted">
+                      <Trans id="mysettings.message.avatar.letter">A letter avatar based on your initials is generated for you.</Trans>
+                    </p>
+                  </div>
+                )}
+
+                {avatarModalState.avatarType === UserAvatarType.Custom && (
+                  <div className="w-full">
+                    <ImageUploader
+                      field="avatar"
+                      onChange={handleAvatarUpload}
+                      previewURL={savedAvatarURL ?? (user.avatarType === UserAvatarType.Custom ? user.avatarURL : undefined)}
+                    >
+                      <p className="text-sm text-muted mt-2">
+                        <Trans id="mysettings.message.avatar.custom">
+                          We accept JPG and PNG images, smaller than 5MB and with an aspect ratio of 1:1 with minimum dimensions of 50x50 pixels.
+                        </Trans>
+                      </p>
+                    </ImageUploader>
+                  </div>
+                )}
+              </div>
+
+              {(avatarModalState.avatar?.upload || avatarModalState.avatarType !== user?.avatarType) && (
+                <div className="pt-4 border-t border-border">
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="flex flex-col items-center">
+                      <div className="text-xs font-medium mb-1.5 text-muted">
+                        <Trans id="modal.avatar.preview.current">Current</Trans>
+                      </div>
+                      <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-border shrink-0">
+                        <Avatar user={{ ...userForComponents, avatarType: user.avatarType as UserAvatarType }} size="fill" imageSize={64} clickable={false} />
+                      </div>
+                    </div>
+                    <div className="text-muted text-xl">→</div>
+                    <div className="flex flex-col items-center">
+                      <div className="text-xs font-medium mb-1.5 text-muted">
+                        <Trans id="modal.avatar.preview.new">Preview</Trans>
+                      </div>
+                      <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-primary shrink-0">
+                        {avatarModalState.avatarType === UserAvatarType.Custom &&
+                        !avatarModalState.avatar?.remove &&
+                        (avatarModalState.avatar?.upload || savedAvatarURL || user.avatarType === UserAvatarType.Custom) ? (
+                          <img
+                            src={
+                              avatarModalState.avatar?.upload
+                                ? `data:${avatarModalState.avatar.upload.contentType};base64,${avatarModalState.avatar.upload.content}`
+                                : (savedAvatarURL ?? user.avatarURL)
+                            }
+                            alt="Preview"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <InitialsAvatar name={user.name} size="lg" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
-            </div>
-
-            {(avatarModalState.avatar?.upload || avatarModalState.avatarType !== user?.avatarType) && (
-              <div className="pt-4 border-t border-border">
-                <div className="flex items-center justify-center gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="text-xs font-medium mb-1.5 text-muted">
-                      <Trans id="modal.avatar.preview.current">Current</Trans>
-                    </div>
-                    <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-border shrink-0">
-                      <Avatar user={{ ...userForComponents, avatarType: user.avatarType as UserAvatarType }} size="fill" imageSize={64} clickable={false} />
-                    </div>
-                  </div>
-                  <div className="text-muted text-xl">→</div>
-                  <div className="flex flex-col items-center">
-                    <div className="text-xs font-medium mb-1.5 text-muted">
-                      <Trans id="modal.avatar.preview.new">Preview</Trans>
-                    </div>
-                    <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-primary shrink-0">
-                      {avatarModalState.avatarType === UserAvatarType.Custom && avatarModalState.avatar?.upload ? (
-                        <img 
-                          src={`data:${avatarModalState.avatar.upload.contentType};base64,${avatarModalState.avatar.upload.content}`}
-                          alt="Preview"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <InitialsAvatar name={user.name} size="lg" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            </fieldset>
           </Form>
         </Modal.Content>
         <Modal.Footer>
           <Button variant="primary" onClick={handleAvatarChange}>
             <Trans id="action.save">Save</Trans>
           </Button>
-          <Button variant="tertiary" onClick={() => setAvatarModalState(prev => ({ ...prev, isOpen: false }))}>
+          <Button variant="tertiary" disabled={avatarModalState.isSaving} onClick={() => setAvatarModalState((prev) => ({ ...prev, isOpen: false }))}>
             <Trans id="action.cancel">Cancel</Trans>
           </Button>
         </Modal.Footer>
       </Modal.Window>
 
-      <Modal.Window 
-        isOpen={nameModalState.isOpen} 
-        onClose={() => setNameModalState(prev => ({ ...prev, isOpen: false }))}
-        center={false}
-        size="large"
-      >
+      <Modal.Window isOpen={nameModalState.isOpen} onClose={() => setNameModalState((prev) => ({ ...prev, isOpen: false }))} center={false} size="large">
         <Modal.Header>
           <Trans id="modal.name.header">Change Name</Trans>
         </Modal.Header>
         <Modal.Content>
           <Form error={nameModalState.error}>
-            <Input 
-              label={i18n._("label.name", { message: "Name" })} 
-              field="name" 
-              value={nameModalState.name} 
-              maxLength={100} 
-              onChange={(name) => setNameModalState(prev => ({ ...prev, name }))} 
+            <Input
+              label={i18n._("label.name", { message: "Name" })}
+              field="name"
+              value={nameModalState.name}
+              maxLength={100}
+              onChange={(name) => setNameModalState((prev) => ({ ...prev, name }))}
             />
           </Form>
         </Modal.Content>
@@ -345,7 +415,7 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ compact: c
           <Button variant="primary" onClick={handleNameChange}>
             <Trans id="action.save">Save</Trans>
           </Button>
-          <Button variant="tertiary" onClick={() => setNameModalState(prev => ({ ...prev, isOpen: false }))}>
+          <Button variant="tertiary" onClick={() => setNameModalState((prev) => ({ ...prev, isOpen: false }))}>
             <Trans id="action.cancel">Cancel</Trans>
           </Button>
         </Modal.Footer>

@@ -98,13 +98,13 @@ export const Button: React.FC<ButtonProps> = ({ size = "default", variant = "sec
     }
 
     buttonContent = (
-      <button type={type} className={className} onClick={onClick} style={props.style}>
+      <button type={type} className={className} onClick={onClick} style={props.style} disabled={isLoading || props.disabled}>
         {props.children}
       </button>
     )
   } else {
     buttonContent = (
-      <button type={type} className={className} style={props.style}>
+      <button type={type} className={className} style={props.style} disabled={isLoading || props.disabled}>
         {props.children}
       </button>
     )

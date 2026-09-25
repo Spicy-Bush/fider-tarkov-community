@@ -127,7 +127,6 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
 
   return ReactDOM.createPortal(
     <div 
-      aria-disabled={true} 
       className="fixed inset-0 w-full h-full text-center align-middle p-4 z-overlay flex justify-center items-start overflow-y-auto animate-[dimmerFadeIn_0.5s] bg-black/80 max-sm:p-0 max-sm:items-stretch"
       onMouseDown={handleDimmerMouseDown}
       onMouseUp={handleDimmerMouseUp}
@@ -137,6 +136,8 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
           className={className} 
           data-testid="modal"
           data-modal-window
+          role="dialog"
+          aria-modal="true"
         >
           {props.children}
         </div>

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react"
 import { UserStatus, UserAvatarType, UserRole, VisualRole } from "@fider/models"
-import { actions, Fider, userPermissions } from "@fider/services"
+import { actions, userPermissions } from "@fider/services"
+import { useFider } from "@fider/hooks"
 import { useUserStanding } from "@fider/contexts/UserStandingContext"
 
 export type ProfileTab = "search" | "standing" | "settings"
@@ -57,7 +58,7 @@ interface UserProfileContextType extends UserProfileState {
   refreshStats: () => Promise<void>
   refreshUser: () => void
   updateUserName: (name: string) => void
-  updateUserAvatar: (avatarURL: string) => void
+  updateUserAvatar: (avatarURL: string, avatarType?: UserAvatarType) => void
   updateUserVisualRole: (visualRole: VisualRole | string) => void
   isViewingOwnProfile: boolean
   canModerate: boolean
@@ -86,7 +87,10 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
   onUserUpdate,
   children,
 }) => {
-  const [user, setUser] = useState<UserData | null>(initialUser || null)
+  const { session } = useFider()
+  const isViewingOwnProfile = session.isAuthenticated && session.user.id === userId
+  const [otherUser, setOtherUser] = useState<UserData | null>(isViewingOwnProfile ? null : initialUser || null)
+  const user = isViewingOwnProfile ? session.user : otherUser
   const [stats, setStats] = useState<UserProfileStats>({ posts: 0, comments: 0, votes: 0 })
   const [standing, setStanding] = useState<UserProfileStanding>({ warnings: [], mutes: [] })
   const [isLoading, setIsLoading] = useState(!initialUser)
@@ -94,15 +98,14 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
   const [activeTab, setActiveTabState] = useState<ProfileTab>("search")
 
   useEffect(() => {
-    if (initialUser && initialUser.visualRole !== user?.visualRole) {
-      setUser(prev => prev ? { ...prev, visualRole: initialUser.visualRole } : initialUser)
+    if (!isViewingOwnProfile && initialUser && initialUser.visualRole !== otherUser?.visualRole) {
+      setOtherUser((prev) => (prev ? { ...prev, visualRole: initialUser.visualRole } : initialUser))
     }
   }, [initialUser?.visualRole])
 
-  const isViewingOwnProfile = Fider.session.isAuthenticated && Fider.session.user.id === userId
   const globalStanding = useUserStanding()
   const globalStandingRef = useRef(globalStanding)
-  
+
   useEffect(() => {
     globalStandingRef.current = globalStanding
   }, [globalStanding])
@@ -134,36 +137,65 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
     window.location.reload()
   }, [])
 
-  const updateUserName = useCallback((name: string) => {
-    setUser(prev => prev ? { ...prev, name } : null)
-    onUserUpdate?.({ name })
-  }, [onUserUpdate])
+  const updateUserName = useCallback(
+    (name: string) => {
+      if (isViewingOwnProfile) {
+        session.updateUserProfile({ name })
+      } else {
+        setOtherUser((prev) => (prev ? { ...prev, name } : null))
+      }
 
-  const updateUserAvatar = useCallback((avatarURL: string) => {
-    setUser(prev => prev ? { ...prev, avatarURL } : null)
-    onUserUpdate?.({ avatarURL })
-  }, [onUserUpdate])
+      onUserUpdate?.({ name })
+    },
+    [isViewingOwnProfile, session, onUserUpdate]
+  )
 
-  const updateUserVisualRole = useCallback((visualRole: VisualRole | string) => {
-    setUser(prev => prev ? { ...prev, visualRole } : null)
-    onUserUpdate?.({ visualRole } as Partial<UserData>)
-  }, [onUserUpdate])
+  const updateUserAvatar = useCallback(
+    (avatarURL: string, avatarType?: UserAvatarType) => {
+      const change = avatarType ? { avatarURL, avatarType } : { avatarURL }
 
-  const setActiveTab = useCallback((tab: ProfileTab) => {
-    setActiveTabState(tab)
-    if (!embedded) {
-      window.location.hash = tab
-    }
-  }, [embedded])
+      if (isViewingOwnProfile) {
+        session.updateUserProfile(change)
+      } else {
+        setOtherUser((prev) => (prev ? { ...prev, ...change } : null))
+      }
+
+      onUserUpdate?.(change)
+    },
+    [isViewingOwnProfile, session, onUserUpdate]
+  )
+
+  const updateUserVisualRole = useCallback(
+    (visualRole: VisualRole | string) => {
+      if (isViewingOwnProfile) {
+        session.updateUserProfile({ visualRole: visualRole as VisualRole })
+      } else {
+        setOtherUser((prev) => (prev ? { ...prev, visualRole } : null))
+      }
+
+      onUserUpdate?.({ visualRole } as Partial<UserData>)
+    },
+    [isViewingOwnProfile, session, onUserUpdate]
+  )
+
+  const setActiveTab = useCallback(
+    (tab: ProfileTab) => {
+      setActiveTabState(tab)
+      if (!embedded) {
+        window.location.hash = tab
+      }
+    },
+    [embedded]
+  )
 
   const initialLoadDone = useRef(false)
-  
+
   useEffect(() => {
     if (initialLoadDone.current) {
       return
     }
     initialLoadDone.current = true
-    
+
     const init = async () => {
       setIsLoading(true)
       await loadStats()
@@ -181,7 +213,7 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
 
   useEffect(() => {
     if (embedded) return
-    
+
     const handleHashChange = () => {
       const hash = window.location.hash.replace("#", "")
       if (hash === "search" || hash === "standing" || hash === "settings") {
@@ -217,11 +249,7 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
     canEditAvatar: user ? userPermissions.canEditAvatar(user) : false,
   }
 
-  return (
-    <UserProfileContext.Provider value={contextValue}>
-      {children}
-    </UserProfileContext.Provider>
-  )
+  return <UserProfileContext.Provider value={contextValue}>{children}</UserProfileContext.Provider>
 }
 
 export const useUserProfile = (): UserProfileContextType => {
@@ -231,4 +259,3 @@ export const useUserProfile = (): UserProfileContextType => {
   }
   return context
 }
-

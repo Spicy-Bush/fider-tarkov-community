@@ -60,35 +60,47 @@ export const updateUserSettings = async (data: {
   return await http.post("/_api/user/settings", data)
 }
 
-export const updateUserAvatar = async (data: {
-  avatarType: UserAvatarType
-  avatar?: ImageUpload
-}, userID?: number): Promise<Result<{ avatarURL: string; avatarRejected?: boolean }>> => {
+export const updateUserAvatar = async (
+  data: {
+    avatarType: UserAvatarType
+    avatar?: ImageUpload
+  },
+  userID?: number
+): Promise<Result<{ avatarURL: string; avatarType: UserAvatarType; pending: boolean }>> => {
   if (userID && userID !== Fider.session.user?.id) {
-    return await http.post<{ avatarURL: string; avatarRejected?: boolean }>(`/_api/users/${userID}/avatar`, data)
+    return await http.post<{ avatarURL: string; avatarType: UserAvatarType; pending: boolean }>(`/_api/users/${userID}/avatar`, data)
   }
-  return await http.post<{ avatarURL: string; avatarRejected?: boolean }>("/_api/user/avatar", data)
+  return await http.post<{ avatarURL: string; avatarType: UserAvatarType; pending: boolean }>("/_api/user/avatar", data)
 }
 
-export const updateOtherUserAvatar = async (userID: number, data: {
-  avatarType: UserAvatarType
-  avatar?: ImageUpload
-}): Promise<Result<{ avatarURL: string; avatarRejected?: boolean }>> => {
+export const updateOtherUserAvatar = async (
+  userID: number,
+  data: {
+    avatarType: UserAvatarType
+    avatar?: ImageUpload
+  }
+): Promise<Result<{ avatarURL: string; avatarType: UserAvatarType; pending: boolean }>> => {
   return await updateUserAvatar(data, userID)
 }
 
-export const updateUserName = async (data: {
-  name: string
-}, userID?: number): Promise<Result<void>> => {
+export const updateUserName = async (
+  data: {
+    name: string
+  },
+  userID?: number
+): Promise<Result<{ name: string; pending: boolean }>> => {
   if (userID && userID !== Fider.session.user?.id) {
     return await http.post(`/_api/users/${userID}/name`, data)
   }
   return await http.post("/_api/user/name", data)
 }
 
-export const updateOtherUserName = async (userID: number, data: {
-  name: string
-}): Promise<Result<void>> => {
+export const updateOtherUserName = async (
+  userID: number,
+  data: {
+    name: string
+  }
+): Promise<Result<{ name: string; pending: boolean }>> => {
   return await updateUserName(data, userID)
 }
 

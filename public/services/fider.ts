@@ -27,6 +27,7 @@ export class FiderSession {
   private pContextID: string
   private pTenant: Tenant
   private pUser: CurrentUser | undefined
+  private userListeners = new Set<() => void>()
   private pProps: { [key: string]: any } = {}
 
   constructor(data: any) {
@@ -48,6 +49,31 @@ export class FiderSession {
   public get user(): CurrentUser {
     if (!this.pUser) throw new Error("User is undefined")
     return this.pUser
+  }
+
+  public getUserSnapshot = (): CurrentUser | undefined => this.pUser
+
+  public subscribeUser = (listener: () => void): (() => void) => {
+    this.userListeners.add(listener)
+
+    return () => {
+      this.userListeners.delete(listener)
+    }
+  }
+
+  public updateUserProfile(change: Partial<Pick<CurrentUser, "name" | "avatarURL" | "avatarType" | "visualRole">>): void {
+    const user = this.user
+    const changed = Object.entries(change).some(([key, value]) => user[key as keyof CurrentUser] !== value)
+
+    if (!changed) {
+      return
+    }
+
+    this.pUser = { ...user, ...change }
+
+    for (const listener of this.userListeners) {
+      listener()
+    }
   }
 
   public get tenant(): Tenant {

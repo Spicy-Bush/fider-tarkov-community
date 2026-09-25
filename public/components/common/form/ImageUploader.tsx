@@ -16,12 +16,12 @@ interface ImageUploaderProps {
   field: string
   label?: string
   bkey?: string
+  previewURL?: string
   disabled?: boolean
   onChange(state: ImageUpload, instanceID?: string, previewURL?: string): void
 }
 
 interface ImageUploaderState extends ImageUpload {
-  previewURL?: string
   showModal: boolean
 }
 
@@ -34,8 +34,13 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
       upload: undefined,
       remove: false,
       showModal: false,
-      previewURL: uploadedImageURL(this.props.bkey),
     }
+  }
+
+  private get previewURL() {
+    if (this.state.remove) return undefined
+    const upload = this.state.upload
+    return upload ? `data:${upload.contentType};base64,${upload.content}` : (this.props.previewURL ?? uploadedImageURL(this.props.bkey))
   }
 
   public fileChanged = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,10 +61,9 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
             contentType: file.type,
           },
           remove: false,
-          previewURL: `data:${file.type};base64,${base64}`,
         },
         () => {
-          this.props.onChange(this.state, this.props.instanceID, this.state.previewURL)
+          this.props.onChange(this.state, this.props.instanceID, this.previewURL)
         }
       )
     }
@@ -75,7 +79,6 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
         bkey: this.props.bkey,
         remove: true,
         upload: undefined,
-        previewURL: undefined,
       },
       () => {
         this.props.onChange(
@@ -85,7 +88,7 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
             upload: this.state.upload,
           },
           this.props.instanceID,
-          this.state.previewURL
+          this.previewURL
         )
       }
     )
@@ -108,7 +111,7 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
   private modal() {
     return (
       <Modal.Window isOpen={this.state.showModal} onClose={this.closeModal} center={false} size="fluid">
-        <Modal.Content>{this.props.bkey ? <img alt="" src={uploadedImageURL(this.props.bkey)} /> : <img alt="" src={this.state.previewURL} />}</Modal.Content>
+        <Modal.Content>{<img alt="" src={this.previewURL} />}</Modal.Content>
 
         <Modal.Footer>
           <Button variant="tertiary" onClick={this.closeModal}>
@@ -121,7 +124,7 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
 
   public render() {
     const isUploading = !!this.state.upload
-    const hasFile = (!this.state.remove && this.props.bkey) || isUploading
+    const hasFile = (!this.state.remove && (this.props.bkey || this.props.previewURL)) || isUploading
 
     return (
       <ValidationContext.Consumer>
@@ -133,14 +136,18 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
             })}
           >
             {this.modal()}
-            {this.props.label && <label htmlFor={`input-${this.props.field}`} className="block text-sm font-medium mb-1">{this.props.label}</label>}
+            {this.props.label && (
+              <label htmlFor={`input-${this.props.field}`} className="block text-sm font-medium mb-1">
+                {this.props.label}
+              </label>
+            )}
 
             {hasFile && (
               <div className="relative inline-block h-20">
-                <img 
-                  alt="" 
-                  onClick={this.openModal} 
-                  src={this.state.previewURL} 
+                <img
+                  alt=""
+                  onClick={this.openModal}
+                  src={this.previewURL}
                   className="p-1 min-w-[50px] min-h-[50px] border border-border cursor-pointer h-full"
                 />
                 {!this.props.disabled && (
@@ -151,7 +158,13 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
               </div>
             )}
 
-            <input ref={(e) => (this.fileSelector = e)} type="file" onChange={this.fileChanged} accept="image/png, image/jpeg, image/jpg, image/webp" className="hidden" />
+            <input
+              ref={(e) => (this.fileSelector = e)}
+              type="file"
+              onChange={this.fileChanged}
+              accept="image/png, image/jpeg, image/jpg, image/webp"
+              className="hidden"
+            />
             {!hasFile && (
               <Button variant="secondary" onClick={this.selectFile} disabled={this.props.disabled}>
                 <Icon sprite={IconPhotograph} />
