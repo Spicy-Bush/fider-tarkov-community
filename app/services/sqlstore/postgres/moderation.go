@@ -21,25 +21,15 @@ func setModerationPending(ctx context.Context, c *cmd.SetModerationPending) erro
 			return errors.New("invalid content type: %s", c.ContentType)
 		}
 
-		var err error
-		if c.ModerationData != "" {
-			_, err = trx.Execute(`
-				UPDATE `+table+` 
-				SET moderation_pending = $1, moderation_data = $2::jsonb 
-				WHERE id = $3 AND tenant_id = $4
-			`, c.Pending, c.ModerationData, c.ContentID, tenant.ID)
-		} else {
-			_, err = trx.Execute(`
-				UPDATE `+table+` 
-				SET moderation_pending = $1 
-				WHERE id = $2 AND tenant_id = $3
-			`, c.Pending, c.ContentID, tenant.ID)
-		}
+		_, err := trx.Execute(`UPDATE `+table+` SET moderation_pending=$1,
+            moderation_data=CASE WHEN $1 THEN '{"source":"staff"}'::jsonb ELSE NULL END
+            WHERE id=$2 AND tenant_id=$3`, c.Pending, c.ContentID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to set moderation_pending for %s %d", c.ContentType, c.ContentID)
 		}
 
-		return nil
+		_, err = trx.Execute(`UPDATE moderation_checks SET revision=revision+1,state='canceled',text_content='',blob_keys='[]',result=NULL,updated_at=NOW()
+            WHERE tenant_id=$1 AND content_type=$2 AND content_id=$3`, tenant.ID, c.ContentType, c.ContentID)
+		return err
 	})
 }
-

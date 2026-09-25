@@ -78,6 +78,7 @@ func isImageFileInUse(ctx context.Context, q *query.IsImageFileInUse) error {
 		q.Result = false
 
 		var usageCount struct {
+			ModerationCount int `db:"moderation_count"`
 			LogoCount       int `db:"logo_count"`
 			AvatarCount     int `db:"avatar_count"`
 			AttachmentCount int `db:"attachment_count"`
@@ -85,7 +86,9 @@ func isImageFileInUse(ctx context.Context, q *query.IsImageFileInUse) error {
 
 		err := trx.Get(&usageCount, `
 			SELECT 
-				(SELECT COUNT(*) FROM tenants WHERE logo_bkey = $1 AND id = $2) AS logo_count,
+				(SELECT COUNT(*) FROM moderation_checks WHERE tenant_id=$2
+                  AND state IN ('pending','running','failed') AND (blob_keys ? $1 OR fallback_profile->>'avatar_bkey'=$1)) AS moderation_count,
+                (SELECT COUNT(*) FROM tenants WHERE logo_bkey = $1 AND id = $2) AS logo_count,
 				(SELECT COUNT(*) FROM users WHERE avatar_bkey = $1) AS avatar_count,
 				(SELECT COUNT(*) FROM attachments a
 					LEFT JOIN posts p ON a.post_id = p.id
@@ -98,6 +101,11 @@ func isImageFileInUse(ctx context.Context, q *query.IsImageFileInUse) error {
 
 		if err != nil {
 			return errors.Wrap(err, "failed to check file usage")
+		}
+
+		if usageCount.ModerationCount > 0 {
+			usageLocations = append(usageLocations, "Awaiting moderation")
+			q.Result = true
 		}
 
 		if usageCount.LogoCount > 0 {
@@ -188,7 +196,8 @@ func getImageFile(ctx context.Context, q *query.GetImageFile) error {
 	blob.EnsureAuthorizedPrefix(ctx, q.BlobKey)
 
 	blobQuery := &query.GetBlobByKey{
-		Key: q.BlobKey,
+		AllowUnpublishedAvatar: true,
+		Key:                    q.BlobKey,
 	}
 	if err := bus.Dispatch(ctx, blobQuery); err != nil {
 		return errors.Wrap(err, "failed to get blob")
@@ -261,7 +270,8 @@ func renameImageFile(ctx context.Context, c *cmd.RenameImageFile) error {
 	blob.EnsureAuthorizedPrefix(ctx, c.BlobKey)
 
 	blobQuery := &query.GetBlobByKey{
-		Key: c.BlobKey,
+		AllowUnpublishedAvatar: true,
+		Key:                    c.BlobKey,
 	}
 	if err := bus.Dispatch(ctx, blobQuery); err != nil {
 		return errors.Wrap(err, "failed to get blob")
@@ -316,6 +326,9 @@ func deleteImageFileReferences(ctx context.Context, c *cmd.DeleteImageFileRefere
 	blob.EnsureAuthorizedPrefix(ctx, c.BlobKey)
 
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if err := lockModerationFileContent(trx, tenant.ID, c.BlobKey); err != nil {
+			return err
+		}
 		queries := []struct {
 			query string
 			args  []interface{}
@@ -341,11 +354,27 @@ func deleteImageFileReferences(ctx context.Context, c *cmd.DeleteImageFileRefere
 		for _, q := range queries {
 			_, err := trx.Execute(q.query, q.args...)
 			if err != nil {
-				return errors.Wrap(err, "failed to "+q.desc)
+				return errors.Wrap(err, "failed to %s", q.desc)
 			}
 		}
 
-		return nil
+		if _, err := trx.Execute(`
+            UPDATE moderation_checks
+            SET fallback_profile = jsonb_build_object('avatar_type', 1, 'avatar_bkey', '')
+            WHERE tenant_id = $2 AND fallback_profile->>'avatar_bkey' = $1`, c.BlobKey, tenant.ID); err != nil {
+			return err
+		}
+
+		_, err := trx.Execute(`
+            UPDATE moderation_checks
+            SET blob_keys = blob_keys - $1,
+                revision = revision + 1,
+                state = CASE WHEN content_type = 'avatar' THEN 'canceled' ELSE 'pending' END,
+                fallback_profile = CASE WHEN content_type = 'avatar' THEN NULL ELSE fallback_profile END,
+                attempts = 0, next_attempt_at = NOW(), last_error = '', updated_at = NOW()
+            WHERE tenant_id = $2 AND state IN ('pending', 'running', 'failed') AND blob_keys ? $1`,
+			c.BlobKey, tenant.ID)
+		return err
 	})
 }
 
@@ -378,6 +407,9 @@ func updateImageFileReferences(ctx context.Context, c *cmd.UpdateImageFileRefere
 	blob.EnsureAuthorizedPrefix(ctx, c.NewBlobKey)
 
 	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if err := lockModerationFileContent(trx, tenant.ID, c.OldBlobKey); err != nil {
+			return err
+		}
 		queries := []struct {
 			query string
 			args  []interface{}
@@ -403,11 +435,29 @@ func updateImageFileReferences(ctx context.Context, c *cmd.UpdateImageFileRefere
 		for _, q := range queries {
 			_, err := trx.Execute(q.query, q.args...)
 			if err != nil {
-				return errors.Wrap(err, "failed to "+q.desc)
+				return errors.Wrap(err, "failed to %s", q.desc)
 			}
 		}
 
-		return nil
+		if _, err := trx.Execute(`
+            UPDATE moderation_checks
+            SET fallback_profile = jsonb_set(fallback_profile, '{avatar_bkey}', to_jsonb($2::text))
+            WHERE tenant_id = $3 AND fallback_profile->>'avatar_bkey' = $1`,
+			c.OldBlobKey, c.NewBlobKey, tenant.ID); err != nil {
+			return err
+		}
+
+		_, err := trx.Execute(`
+            UPDATE moderation_checks
+            SET blob_keys = (
+                    SELECT jsonb_agg(CASE WHEN key = $1 THEN $2 ELSE key END)
+                    FROM jsonb_array_elements_text(blob_keys) AS key
+                ),
+                revision = revision + 1, state = 'pending', attempts = 0,
+                next_attempt_at = NOW(), last_error = '', updated_at = NOW()
+            WHERE tenant_id = $3 AND state IN ('pending', 'running', 'failed') AND blob_keys ? $1`,
+			c.OldBlobKey, c.NewBlobKey, tenant.ID)
+		return err
 	})
 }
 
@@ -573,6 +623,7 @@ func listImageFiles(ctx context.Context, q *query.ListImageFiles) error {
 }
 
 type fileUsageCounts struct {
+	ModerationCount int `db:"moderation_count"`
 	LogoCount       int
 	AvatarCount     int
 	AttachmentCount int
@@ -791,6 +842,19 @@ func getPrunableFiles(ctx context.Context, q *query.GetPrunableFiles) error {
 			WHERE b.tenant_id = $1
 			  AND b.key NOT IN (SELECT logo_bkey FROM tenants WHERE logo_bkey IS NOT NULL AND id = $1)
 			  AND b.key NOT IN (SELECT avatar_bkey FROM users WHERE avatar_bkey IS NOT NULL)
+              AND NOT EXISTS (
+                  SELECT 1 FROM (
+                      SELECT jsonb_array_elements_text(
+                          blob_keys || CASE
+                              WHEN fallback_profile ? 'avatar_bkey'
+                              THEN jsonb_build_array(fallback_profile->>'avatar_bkey')
+                              ELSE '[]'::jsonb
+                          END
+                      ) AS blob_key
+                      FROM moderation_checks
+                      WHERE tenant_id = $1 AND state IN ('pending', 'running', 'failed')
+                  ) protected WHERE protected.blob_key = b.key
+              )
 			  AND b.key NOT IN (SELECT attachment_bkey FROM attachments WHERE attachment_bkey IS NOT NULL AND tenant_id = $1)
 		`, tenant.ID)
 		if err != nil {
@@ -808,4 +872,30 @@ func getPrunableFiles(ctx context.Context, q *query.GetPrunableFiles) error {
 
 		return rows.Err()
 	})
+}
+
+// Completion can publish either the proposal or its previous avatar. Lock their
+// owner before changing either key so a concurrent rejection cannot restore a stale key.
+func lockModerationFileContent(trx *dbx.Trx, tenantID int, key string) error {
+	targets := []struct{ table, kind string }{
+		{"users", "avatar"},
+		{"posts", "post"},
+		{"comments", "comment"},
+	}
+
+	for _, target := range targets {
+		if _, err := trx.Execute(`
+            SELECT id FROM `+target.table+`
+            WHERE tenant_id = $1 AND id IN (
+                SELECT content_id FROM moderation_checks
+                WHERE tenant_id = $1 AND content_type = $2
+                  AND state IN ('pending', 'running', 'failed')
+                  AND (blob_keys ? $3 OR fallback_profile->>'avatar_bkey' = $3)
+            )
+            ORDER BY id
+            FOR UPDATE`, tenantID, target.kind, key); err != nil {
+			return err
+		}
+	}
+	return nil
 }

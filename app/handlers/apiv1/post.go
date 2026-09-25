@@ -245,14 +245,8 @@ func CreatePost() web.HandlerFunc {
 
 			c.Enqueue(tasks.NotifyAboutNewPost(newPost.Result))
 
-			if env.IsOpenAIModerationEnabled() {
-				blobKeys := make([]string, 0)
-				for _, att := range action.Attachments {
-					if att.BlobKey != "" && !att.Remove {
-						blobKeys = append(blobKeys, att.BlobKey)
-					}
-				}
-				c.Enqueue(tasks.ModerateNewContent("post", newPost.Result.ID, action.Description, blobKeys))
+			if err := bus.Dispatch(c, &cmd.ScheduleModeration{ContentType: "post", ContentID: newPost.Result.ID}); err != nil {
+				return c.Failure(err)
 			}
 
 			postcache.InvalidateTenantRankings(c.Tenant().ID)
@@ -325,6 +319,10 @@ func UpdatePost() web.HandlerFunc {
 				},
 			)
 			if err != nil {
+				return c.Failure(err)
+			}
+
+			if err := bus.Dispatch(c, &cmd.ScheduleModeration{ContentType: "post", ContentID: action.Post.ID}); err != nil {
 				return c.Failure(err)
 			}
 
@@ -562,14 +560,8 @@ func PostComment() web.HandlerFunc {
 			}
 			c.Enqueue(tasks.NotifyAboutNewComment(commentForNotification, getPost.Result))
 
-			if env.IsOpenAIModerationEnabled() {
-				blobKeys := make([]string, 0)
-				for _, att := range action.Attachments {
-					if att.BlobKey != "" && !att.Remove {
-						blobKeys = append(blobKeys, att.BlobKey)
-					}
-				}
-				c.Enqueue(tasks.ModerateNewContent("comment", addNewComment.Result.ID, action.Content, blobKeys))
+			if err := bus.Dispatch(c, &cmd.ScheduleModeration{ContentType: "comment", ContentID: addNewComment.Result.ID}); err != nil {
+				return c.Failure(err)
 			}
 
 			if getPost.Result.Status == enum.PostArchived {
@@ -654,6 +646,10 @@ func UpdateComment() web.HandlerFunc {
 
 			// Update the content
 			c.Enqueue(tasks.NotifyAboutUpdatedComment(contentToSave, getPost.Result, action.ID))
+
+			if err := bus.Dispatch(c, &cmd.ScheduleModeration{ContentType: "comment", ContentID: action.ID}); err != nil {
+				return c.Failure(err)
+			}
 
 			return c.Ok(web.Map{})
 		})

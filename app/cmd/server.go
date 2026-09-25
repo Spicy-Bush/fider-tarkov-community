@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"sync"
 	"syscall"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/jobs"
@@ -16,6 +17,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/log"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/services/moderation"
 	"github.com/robfig/cron"
 
 	_ "github.com/Spicy-Bush/fider-tarkov-community/app/services/billing/paddle"
@@ -49,10 +51,21 @@ func RunServer() int {
 		})
 	}
 
+	if env.Config.OpenAI.Concurrency < 1 || env.Config.OpenAI.Concurrency > 32 {
+		log.Error(ctx, errors.New("OPENAI_MODERATION_CONCURRENCY must be between 1 and 32"))
+		return 1
+	}
 	copyEtcFiles(ctx)
 	initCrawlerVerifier(ctx)
 	startJobs(ctx)
 
+	moderationCtx, cancelModeration := context.WithCancel(log.WithProperty(context.Background(), log.PropertyKeyTag, "MODERATION"))
+	var moderationWorkers sync.WaitGroup
+	for i := 0; i < env.Config.OpenAI.Concurrency; i++ {
+		moderationWorkers.Add(1)
+		go func() { defer moderationWorkers.Done(); moderation.Run(moderationCtx) }()
+	}
+	defer func() { cancelModeration(); moderationWorkers.Wait() }()
 	e := routes(web.New())
 	go e.Start(":" + env.Config.Port)
 	return listenSignals(e)

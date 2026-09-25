@@ -9,7 +9,13 @@ type ListBlobs struct {
 }
 
 type GetBlobByKey struct {
-	Key string
+	Key                    string
+	AllowUnpublishedAvatar bool
 
 	Result *dto.Blob
+}
+
+type IsAvatarPublished struct {
+	Key    string
+	Result bool
 }

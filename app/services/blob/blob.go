@@ -3,6 +3,9 @@ package blob
 import (
 	"context"
 	"errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -48,4 +51,23 @@ func EnsureAuthorizedPrefix(ctx context.Context, path string) {
 	if strings.HasPrefix(path, "tenants") {
 		panic(errors.New("Unauthorized access to 'tenants' path."))
 	}
+}
+
+// trusted callers can read a proposal after getting ownership / authority
+func AuthorizeRead(ctx context.Context, q *query.GetBlobByKey) error {
+	key := strings.TrimPrefix(path.Clean("/"+q.Key), "/")
+	if key != q.Key {
+		return ErrNotFound
+	}
+	if !strings.HasPrefix(key, "avatars/") || q.AllowUnpublishedAvatar {
+		return nil
+	}
+	published := &query.IsAvatarPublished{Key: key}
+	if err := bus.Dispatch(ctx, published); err != nil {
+		return err
+	}
+	if !published.Result {
+		return ErrNotFound
+	}
+	return nil
 }

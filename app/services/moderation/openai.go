@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -14,7 +16,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/log"
 )
 
 const OpenAIModerationURL = "https://api.openai.com/v1/moderations"
@@ -42,7 +43,7 @@ type ModerationRequest struct {
 type ModerationResult struct {
 	Flagged    bool                `json:"flagged"`
 	Categories map[string]bool     `json:"categories"`
-	Scores     map[string]float64  `json:"category_scores"`
+	Scores     map[string]*float64 `json:"category_scores"`
 	InputTypes map[string][]string `json:"category_applied_input_types,omitempty"`
 }
 
@@ -50,11 +51,6 @@ type ModerationResponse struct {
 	ID      string             `json:"id"`
 	Model   string             `json:"model"`
 	Results []ModerationResult `json:"results"`
-}
-
-type FlaggedCategory struct {
-	Category string
-	Score    float64
 }
 
 func CallOpenAIModeration(ctx context.Context, text string, images []ImageData) (*ModerationResponse, error) {
@@ -66,266 +62,219 @@ func CallOpenAIModeration(ctx context.Context, text string, images []ImageData) 
 		return nil, errors.New("no content to moderate")
 	}
 
-	combinedResponse := &ModerationResponse{
-		Results: []ModerationResult{},
-	}
+	inputs := make([]ModerationInput, 0, 1+len(images))
 
 	if text != "" {
-		textResponse, err := callSingleModeration(ctx, []ModerationInput{{Type: "text", Text: text}})
-		if err != nil {
-			return nil, err
-		}
-		combinedResponse.ID = textResponse.ID
-		combinedResponse.Model = textResponse.Model
-		combinedResponse.Results = append(combinedResponse.Results, textResponse.Results...)
+		inputs = append(inputs, ModerationInput{Type: "text", Text: text})
 	}
 
 	for _, img := range images {
-		base64Data := base64.StdEncoding.EncodeToString(img.Content)
-		dataURL := fmt.Sprintf("data:%s;base64,%s", img.ContentType, base64Data)
-		imgInput := ModerationInput{
+		inputs = append(inputs, ModerationInput{
 			Type:     "image_url",
-			ImageURL: &ImageURLInput{URL: dataURL},
-		}
-
-		imgResponse, err := callSingleModeration(ctx, []ModerationInput{imgInput})
-		if err != nil {
-			return nil, err
-		}
-		if combinedResponse.ID == "" {
-			combinedResponse.ID = imgResponse.ID
-			combinedResponse.Model = imgResponse.Model
-		}
-		combinedResponse.Results = append(combinedResponse.Results, imgResponse.Results...)
+			ImageURL: &ImageURLInput{URL: "data:" + img.ContentType + ";base64," + base64.StdEncoding.EncodeToString(img.Content)},
+		})
 	}
 
-	return combinedResponse, nil
+	return callSingleModeration(ctx, inputs)
 }
+
+// diagnostics
+type ProviderError struct {
+	Status     int
+	Type       string
+	Headers    map[string]string
+	Cause      error
+	Code       string
+	RequestID  string
+	Retryable  bool
+	RetryAfter time.Duration
+}
+
+func (e *ProviderError) Error() string {
+	headers, _ := json.Marshal(e.Headers)
+	return fmt.Sprintf("moderation unavailable: status=%d type=%s code=%s request_id=%s headers=%s", e.Status, e.Type, e.Code, e.RequestID, headers)
+}
+
+func (e *ProviderError) Unwrap() error { return e.Cause }
 
 func callSingleModeration(ctx context.Context, inputs []ModerationInput) (*ModerationResponse, error) {
-	request := ModerationRequest{
-		Model: "omni-moderation-latest",
-		Input: inputs,
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
-	jsonContent, err := json.Marshal(request)
+	payload, err := json.Marshal(ModerationRequest{Model: "omni-moderation-latest", Input: inputs})
+
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal moderation request")
+		return nil, err
 	}
 
-	maxRetries := 3
-	var lastErr error
+	requestCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	request := &cmd.HTTPRequest{
+		URL: OpenAIModerationURL, Method: "POST", Body: bytes.NewReader(payload),
+		Headers: map[string]string{"Content-Type": "application/json", "Authorization": "Bearer " + env.Config.OpenAI.APIKey},
+	}
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		httpReq := &cmd.HTTPRequest{
-			URL:    OpenAIModerationURL,
-			Body:   bytes.NewBuffer(jsonContent),
-			Method: "POST",
-			Headers: map[string]string{
-				"Content-Type":  "application/json",
-				"Authorization": "Bearer " + env.Config.OpenAI.APIKey,
-			},
+	if err := bus.Dispatch(requestCtx, request); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
 
-		if err := bus.Dispatch(ctx, httpReq); err != nil {
-			lastErr = errors.Wrap(err, "failed to call OpenAI moderation API")
+		return nil, &ProviderError{Code: "transport_error", Retryable: true, Cause: err}
+	}
+
+	if request.ResponseStatusCode != 200 {
+		var body struct {
+			Error struct {
+				Code string `json:"code"`
+				Type string `json:"type"`
+			} `json:"error"`
+		}
+
+		_ = json.Unmarshal(request.ResponseBody, &body)
+		failure := &ProviderError{
+			Status: request.ResponseStatusCode, Type: safeDiagnostic(body.Error.Type), Headers: diagnosticHeaders(request.ResponseHeader), Code: safeDiagnostic(body.Error.Code),
+			RequestID: safeDiagnostic(request.ResponseHeader.Get("x-request-id")),
+			Retryable: request.ResponseStatusCode == 429 || request.ResponseStatusCode >= 500 || request.ResponseStatusCode == 408,
+		}
+
+		if request.ResponseStatusCode == 429 || request.ResponseStatusCode == 503 {
+			cooldown := retryDelay(request.ResponseHeader, time.Now())
+
+			if body.Error.Code == "insufficient_quota" && cooldown < time.Hour {
+				cooldown = time.Hour
+			}
+
+			failure.RetryAfter = cooldown
+		}
+
+		return nil, failure
+	}
+
+	var response ModerationResponse
+
+	if err := json.Unmarshal(request.ResponseBody, &response); err != nil || len(response.Results) != 1 {
+		return nil, &ProviderError{Code: "invalid_response", Retryable: true}
+	}
+
+	for _, category := range []string{"sexual", "sexual/minors", "self-harm", "self-harm/intent", "self-harm/instructions"} {
+		score, exists := response.Results[0].Scores[category]
+
+		if !exists || score == nil || math.IsNaN(*score) || math.IsInf(*score, 0) || *score < 0 || *score > 1 {
+			return nil, &ProviderError{Code: "incomplete_response", Retryable: true}
+		}
+	}
+
+	return &response, nil
+}
+
+func diagnosticHeaders(headers http.Header) map[string]string {
+	result := make(map[string]string)
+
+	for name, values := range headers {
+		lower := strings.ToLower(name)
+
+		if lower != "date" && lower != "retry-after" && !strings.HasPrefix(lower, "x-ratelimit-") {
 			continue
 		}
 
-		if httpReq.ResponseStatusCode == 429 {
-			if isOutOfTokens(httpReq) {
-				resetTokens := httpReq.ResponseHeader.Get("x-ratelimit-reset-tokens")
-				return nil, errors.New("OpenAI token quota exhausted, resets in %s", resetTokens)
+		if len(result) == 20 {
+			break
+		}
+
+		value := strings.Join(values, ", ")
+
+		if len(value) > 256 {
+			value = value[:256]
+		}
+
+		result[lower] = strings.Map(func(r rune) rune {
+			if r < 32 || r > 126 {
+				return -1
 			}
-			waitTime, resetHeader := getRateLimitWaitTime(httpReq)
-			log.Error(ctx, errors.New("OpenAI rate limit hit, waiting %s before retry (attempt %d/%d)", resetHeader, attempt+1, maxRetries))
-			time.Sleep(waitTime)
-			lastErr = errors.New("rate limited")
-			continue
-		}
 
-		if httpReq.ResponseStatusCode != 200 {
-			return nil, errors.New("OpenAI moderation API returned status %d: %s", httpReq.ResponseStatusCode, string(httpReq.ResponseBody))
-		}
-
-		checkRateLimitHeaders(ctx, httpReq)
-
-		var response ModerationResponse
-		if err := json.Unmarshal(httpReq.ResponseBody, &response); err != nil {
-			return nil, errors.Wrap(err, "failed to parse moderation response")
-		}
-
-		return &response, nil
+			return r
+		}, value)
 	}
 
-	return nil, errors.Wrap(lastErr, "failed after %d retries", maxRetries)
+	return result
 }
 
-func getRateLimitWaitTime(httpReq *cmd.HTTPRequest) (time.Duration, string) {
-	if httpReq.ResponseHeader == nil {
-		return 5 * time.Second, "5s (default)"
+func safeDiagnostic(value string) string {
+	if len(value) > 128 {
+		return "unrecognized"
 	}
 
-	resetRequests := httpReq.ResponseHeader.Get("x-ratelimit-reset-requests")
-	if resetRequests != "" {
-		if d := parseDuration(resetRequests); d > 0 {
-			return d + 100*time.Millisecond, resetRequests
+	for _, r := range value {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-' || r == '.') {
+			return "unrecognized"
 		}
 	}
 
-	resetTokens := httpReq.ResponseHeader.Get("x-ratelimit-reset-tokens")
-	if resetTokens != "" {
-		if d := parseDuration(resetTokens); d > 0 {
-			return d + 100*time.Millisecond, resetTokens
-		}
-	}
-
-	return 5 * time.Second, "5s (default)"
+	return value
 }
 
-func parseDuration(s string) time.Duration {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0
+func retryDelay(headers http.Header, now time.Time) time.Duration {
+	delay := 5 * time.Second
+
+	if seconds, err := strconv.ParseFloat(headers.Get("Retry-After"), 64); err == nil && seconds > 0 && !math.IsInf(seconds, 0) && !math.IsNaN(seconds) {
+		delay = time.Duration(math.Min(seconds, 86400) * float64(time.Second))
+	} else if date, err := http.ParseTime(headers.Get("Retry-After")); err == nil && date.After(now) {
+		delay = date.Sub(now)
 	}
 
-	d, err := time.ParseDuration(s)
-	if err == nil {
-		return d
-	}
-
-	total := time.Duration(0)
-	current := ""
-
-	for _, c := range s {
-		if c >= '0' && c <= '9' || c == '.' {
-			current += string(c)
-		} else {
-			if current != "" {
-				val, _ := strconv.ParseFloat(current, 64)
-				switch c {
-				case 'h':
-					total += time.Duration(val * float64(time.Hour))
-				case 'm':
-					total += time.Duration(val * float64(time.Minute))
-				case 's':
-					total += time.Duration(val * float64(time.Second))
-				}
-				current = ""
-			}
+	for _, key := range []string{"x-ratelimit-reset-requests", "x-ratelimit-reset-tokens"} {
+		if value, err := time.ParseDuration(headers.Get(key)); err == nil && value > delay {
+			delay = value
 		}
 	}
 
-	return total
+	return min(delay, 24*time.Hour)
 }
 
-func checkRateLimitHeaders(ctx context.Context, httpReq *cmd.HTTPRequest) {
-	if httpReq.ResponseHeader == nil {
-		return
-	}
-
-	remainingRequests := httpReq.ResponseHeader.Get("x-ratelimit-remaining-requests")
-	if remainingRequests != "" {
-		remaining, _ := strconv.Atoi(remainingRequests)
-		if remaining <= 5 {
-			log.Error(ctx, errors.New("OpenAI rate limit warning: only %d requests remaining", remaining))
-		}
-	}
-
-	remainingTokens := httpReq.ResponseHeader.Get("x-ratelimit-remaining-tokens")
-	if remainingTokens != "" {
-		remaining, _ := strconv.Atoi(remainingTokens)
-		if remaining <= 1000 {
-			log.Error(ctx, errors.New("OpenAI rate limit warning: only %d tokens remaining", remaining))
-		}
-	}
-}
-
-func isOutOfTokens(httpReq *cmd.HTTPRequest) bool {
-	if httpReq.ResponseHeader == nil {
-		return false
-	}
-
-	remainingTokens := httpReq.ResponseHeader.Get("x-ratelimit-remaining-tokens")
-	if remainingTokens != "" {
-		remaining, _ := strconv.Atoi(remainingTokens)
-		return remaining == 0
-	}
-	return false
-}
-
-func CheckThresholds(response *ModerationResponse) []FlaggedCategory {
-	flagged := []FlaggedCategory{}
+func CheckThresholds(response *ModerationResponse) []cmd.ModerationFinding {
+	flagged := []cmd.ModerationFinding{}
 
 	if len(response.Results) == 0 {
 		return flagged
 	}
 
 	for _, result := range response.Results {
-		if score, ok := result.Scores["sexual"]; ok && score >= env.Config.OpenAI.SexualThreshold {
-			flagged = append(flagged, FlaggedCategory{
+		if score, ok := result.Scores["sexual"]; ok && score != nil && *score >= env.Config.OpenAI.SexualThreshold {
+			flagged = append(flagged, cmd.ModerationFinding{
 				Category: "sexual",
-				Score:    score,
+				Score:    *score,
 			})
 		}
 
-		if score, ok := result.Scores["sexual/minors"]; ok && score >= env.Config.OpenAI.SexualThreshold {
-			flagged = append(flagged, FlaggedCategory{
+		if score, ok := result.Scores["sexual/minors"]; ok && score != nil && *score >= env.Config.OpenAI.SexualThreshold {
+			flagged = append(flagged, cmd.ModerationFinding{
 				Category: "sexual/minors",
-				Score:    score,
+				Score:    *score,
 			})
 		}
 
-		if score, ok := result.Scores["self-harm"]; ok && score >= env.Config.OpenAI.SelfHarmThreshold {
-			flagged = append(flagged, FlaggedCategory{
+		if score, ok := result.Scores["self-harm"]; ok && score != nil && *score >= env.Config.OpenAI.SelfHarmThreshold {
+			flagged = append(flagged, cmd.ModerationFinding{
 				Category: "self-harm",
-				Score:    score,
+				Score:    *score,
 			})
 		}
 
-		if score, ok := result.Scores["self-harm/intent"]; ok && score >= env.Config.OpenAI.SelfHarmThreshold {
-			flagged = append(flagged, FlaggedCategory{
+		if score, ok := result.Scores["self-harm/intent"]; ok && score != nil && *score >= env.Config.OpenAI.SelfHarmThreshold {
+			flagged = append(flagged, cmd.ModerationFinding{
 				Category: "self-harm/intent",
-				Score:    score,
+				Score:    *score,
 			})
 		}
 
-		if score, ok := result.Scores["self-harm/instructions"]; ok && score >= env.Config.OpenAI.SelfHarmThreshold {
-			flagged = append(flagged, FlaggedCategory{
+		if score, ok := result.Scores["self-harm/instructions"]; ok && score != nil && *score >= env.Config.OpenAI.SelfHarmThreshold {
+			flagged = append(flagged, cmd.ModerationFinding{
 				Category: "self-harm/instructions",
-				Score:    score,
+				Score:    *score,
 			})
 		}
 	}
 
 	return flagged
-}
-
-func IsTextFlagged(ctx context.Context, text string) (bool, []FlaggedCategory) {
-	if !env.IsOpenAIModerationEnabled() || text == "" {
-		return false, nil
-	}
-
-	response, err := CallOpenAIModeration(ctx, text, nil)
-	if err != nil {
-		return false, nil
-	}
-
-	flagged := CheckThresholds(response)
-	return len(flagged) > 0, flagged
-}
-
-func IsImageFlagged(ctx context.Context, imageData []byte, contentType string) (bool, []FlaggedCategory) {
-	if !env.IsOpenAIModerationEnabled() || len(imageData) == 0 {
-		return false, nil
-	}
-
-	images := []ImageData{{Content: imageData, ContentType: contentType}}
-	response, err := CallOpenAIModeration(ctx, "", images)
-	if err != nil {
-		return false, nil
-	}
-
-	flagged := CheckThresholds(response)
-	return len(flagged) > 0, flagged
 }

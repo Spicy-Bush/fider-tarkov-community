@@ -149,6 +149,7 @@ func (s Service) Init() {
 	bus.AddHandler(getUserByAPIKey)
 	bus.AddHandler(getUserByEmail)
 	bus.AddHandler(getUserByID)
+	bus.AddHandler(isAvatarPublished)
 	bus.AddHandler(getUserByProvider)
 	bus.AddHandler(getAllUserProviders)
 	bus.AddHandler(getAllUsers)
@@ -235,6 +236,14 @@ func (s Service) Init() {
 	bus.AddHandler(hasPushSubscription)
 
 	bus.AddHandler(setModerationPending)
+	bus.AddHandler(scheduleModeration)
+	bus.AddHandler(saveProfileName)
+	bus.AddHandler(saveProfileAvatar)
+	bus.AddHandler(getProfileModeration)
+	bus.AddHandler(claimModeration)
+	bus.AddHandler(finishModeration)
+	bus.AddHandler(listModerationFailures)
+	bus.AddHandler(retryModerationFailures)
 
 	bus.AddHandler(getPageBySlug)
 	bus.AddHandler(getPageByID)

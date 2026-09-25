@@ -9,7 +9,6 @@ import (
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/services/moderation"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
@@ -138,26 +137,19 @@ func UpdateUserName() web.HandlerFunc {
 			}
 		}
 
-		nameToUse := action.Name
-		if flagged, _ := moderation.IsTextFlagged(c, action.Name); flagged {
-			nameToUse = generateRandomUsername()
-		}
-
 		return c.WithTransaction(func() error {
-			if err := bus.Dispatch(c, &cmd.UpdateUser{
-				UserID: userID,
-				Name:   nameToUse,
-			}); err != nil {
+			change := &cmd.SaveProfileName{UserID: userID, Name: action.Name, Review: env.IsOpenAIModerationEnabled() && userID == c.User().ID}
+			if err := bus.Dispatch(c, change); err != nil {
 				return c.Failure(err)
 			}
-
-			if env.Config.UserList.Enabled {
-				c.Enqueue(tasks.UserListUpdateUser(userID, nameToUse, ""))
+			getUser := &query.GetUserByID{UserID: userID}
+			if err := bus.Dispatch(c, getUser); err != nil {
+				return c.Failure(err)
 			}
-
-			return c.Ok(web.Map{
-				"name": nameToUse,
-			})
+			if env.Config.UserList.Enabled && !change.Pending {
+				c.Enqueue(tasks.UserListUpdateUser(userID, action.Name, ""))
+			}
+			return c.Ok(web.Map{"name": getUser.Result.Name, "pending": change.Pending})
 		})
 	}
 }
@@ -225,49 +217,34 @@ func UpdateUserAvatar() web.HandlerFunc {
 		}
 
 		return c.WithTransaction(func() error {
-			avatarFlagged := false
-
-			if action.Avatar != nil && action.Avatar.Upload != nil {
-				if flagged, _ := moderation.IsImageFlagged(c, action.Avatar.Upload.Content, action.Avatar.Upload.ContentType); flagged {
-					avatarFlagged = true
-					action.Avatar = nil
-					action.AvatarType = enum.AvatarTypeGravatar
-				} else {
-					if err := bus.Dispatch(c, &cmd.UploadImage{
-						Image:  action.Avatar,
-						Folder: "avatars",
-					}); err != nil {
-						return c.Failure(err)
-					}
-				}
-			}
-
-			if userID == c.User().ID {
-				if err := bus.Dispatch(c, &cmd.UpdateCurrentUser{
-					Avatar:     action.Avatar,
-					AvatarType: action.AvatarType,
-				}); err != nil {
-					return c.Failure(err)
-				}
-			} else {
-				if err := bus.Dispatch(c, &cmd.UpdateUserAvatar{
-					UserID:     userID,
-					AvatarType: action.AvatarType,
-					Avatar:     action.Avatar,
-				}); err != nil {
-					return c.Failure(err)
-				}
-			}
-
 			getUser := &query.GetUserByID{UserID: userID}
 			if err := bus.Dispatch(c, getUser); err != nil {
 				return c.Failure(err)
 			}
-
-			return c.Ok(web.Map{
-				"avatarRejected": avatarFlagged,
-				"avatarURL":      getUser.Result.AvatarURL,
-			})
+			blobKey := getUser.Result.AvatarBlobKey
+			if action.AvatarType != enum.AvatarTypeCustom {
+				blobKey = ""
+			}
+			if action.AvatarType == enum.AvatarTypeCustom && action.Avatar != nil {
+				if action.Avatar.Remove {
+					blobKey = ""
+					action.AvatarType = enum.AvatarTypeLetter
+				} else if action.Avatar.Upload != nil {
+					if err := bus.Dispatch(c, &cmd.UploadImage{Image: action.Avatar, Folder: "avatars"}); err != nil {
+						return c.Failure(err)
+					}
+					blobKey = action.Avatar.BlobKey
+				}
+			}
+			if action.AvatarType == enum.AvatarTypeCustom && blobKey == "" {
+				return c.BadRequest(web.Map{"errors": []web.Map{{"field": "avatar", "message": "Choose an image for your custom avatar."}}})
+			}
+			change := &cmd.SaveProfileAvatar{UserID: userID, AvatarType: action.AvatarType, BlobKey: blobKey,
+				Review: env.IsOpenAIModerationEnabled() && userID == c.User().ID}
+			if err := bus.Dispatch(c, change, getUser); err != nil {
+				return c.Failure(err)
+			}
+			return c.Ok(web.Map{"avatarURL": getUser.Result.AvatarURL, "avatarType": getUser.Result.AvatarType, "pending": change.Pending})
 		})
 	}
 }

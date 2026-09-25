@@ -29,6 +29,7 @@ var cCancelBillingSubscriptionHandler func(context.Context, *cmd.CancelBillingSu
 var cChangeUserEmailHandler func(context.Context, *cmd.ChangeUserEmail) error
 var cChangeUserRoleHandler func(context.Context, *cmd.ChangeUserRole) error
 var cChangeUserVisualRoleHandler func(context.Context, *cmd.ChangeUserVisualRole) error
+var cClaimModerationHandler func(context.Context, *cmd.ClaimModeration) error
 var cCreateCannedResponseHandler func(context.Context, *cmd.CreateCannedResponse) error
 var cCreateCreativeVersionHandler func(context.Context, *cmd.CreateCreativeVersion) error
 var cCreatePageHandler func(context.Context, *cmd.CreatePage) error
@@ -60,10 +61,13 @@ var cDeleteTagHandler func(context.Context, *cmd.DeleteTag) error
 var cDeleteWarningHandler func(context.Context, *cmd.DeleteWarning) error
 var cExpireMuteHandler func(context.Context, *cmd.ExpireMute) error
 var cExpireWarningHandler func(context.Context, *cmd.ExpireWarning) error
+var cFinishModerationHandler func(context.Context, *cmd.FinishModeration) error
 var cGenerateCheckoutLinkHandler func(context.Context, *cmd.GenerateCheckoutLink) error
+var cGetProfileModerationHandler func(context.Context, *cmd.GetProfileModeration) error
 var cGetWebhookPropsHandler func(context.Context, *cmd.GetWebhookProps) error
 var cHTTPRequestHandler func(context.Context, *cmd.HTTPRequest) error
 var cIncrementSponsorshipClickHandler func(context.Context, *cmd.IncrementSponsorshipClick) error
+var cListModerationFailuresHandler func(context.Context, *cmd.ListModerationFailures) error
 var cLockExpiredTenantsHandler func(context.Context, *cmd.LockExpiredTenants) error
 var cLockPostHandler func(context.Context, *cmd.LockPost) error
 var cMarkAllNotificationsAsReadHandler func(context.Context, *cmd.MarkAllNotificationsAsRead) error
@@ -85,12 +89,16 @@ var cRemoveVoteHandler func(context.Context, *cmd.RemoveVote) error
 var cRenameImageFileHandler func(context.Context, *cmd.RenameImageFile) error
 var cReorderReportReasonsHandler func(context.Context, *cmd.ReorderReportReasons) error
 var cResolveReportHandler func(context.Context, *cmd.ResolveReport) error
+var cRetryModerationFailuresHandler func(context.Context, *cmd.RetryModerationFailures) error
 var cSaveCustomOAuthConfigHandler func(context.Context, *cmd.SaveCustomOAuthConfig) error
 var cSaveNavigationLinksHandler func(context.Context, *cmd.SaveNavigationLinks) error
 var cSavePageDraftHandler func(context.Context, *cmd.SavePageDraft) error
+var cSaveProfileAvatarHandler func(context.Context, *cmd.SaveProfileAvatar) error
+var cSaveProfileNameHandler func(context.Context, *cmd.SaveProfileName) error
 var cSavePushSubscriptionHandler func(context.Context, *cmd.SavePushSubscription) error
 var cSaveSponsorshipCampaignGraphHandler func(context.Context, *cmd.SaveSponsorshipCampaignGraph) error
 var cSaveVerificationKeyHandler func(context.Context, *cmd.SaveVerificationKey) error
+var cScheduleModerationHandler func(context.Context, *cmd.ScheduleModeration) error
 var cSetAttachmentsHandler func(context.Context, *cmd.SetAttachments) error
 var cSetKeyAsVerifiedHandler func(context.Context, *cmd.SetKeyAsVerified) error
 var cSetModerationPendingHandler func(context.Context, *cmd.SetModerationPending) error
@@ -219,6 +227,7 @@ var qGetVerificationByKeyHandler func(context.Context, *query.GetVerificationByK
 var qGetWebhookHandler func(context.Context, *query.GetWebhook) error
 var qHasPushSubscriptionHandler func(context.Context, *query.HasPushSubscription) error
 var qHasUserReportedTargetHandler func(context.Context, *query.HasUserReportedTarget) error
+var qIsAvatarPublishedHandler func(context.Context, *query.IsAvatarPublished) error
 var qIsCNAMEAvailableHandler func(context.Context, *query.IsCNAMEAvailable) error
 var qIsImageFileInUseHandler func(context.Context, *query.IsImageFileInUse) error
 var qIsSubdomainAvailableHandler func(context.Context, *query.IsSubdomainAvailable) error
@@ -290,6 +299,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cChangeUserRoleHandler = fn
 	case func(context.Context, *cmd.ChangeUserVisualRole) error:
 		cChangeUserVisualRoleHandler = fn
+	case func(context.Context, *cmd.ClaimModeration) error:
+		cClaimModerationHandler = fn
 	case func(context.Context, *cmd.CreateCannedResponse) error:
 		cCreateCannedResponseHandler = fn
 	case func(context.Context, *cmd.CreateCreativeVersion) error:
@@ -352,14 +363,20 @@ func registerTypedHandler(handler HandlerFunc) {
 		cExpireMuteHandler = fn
 	case func(context.Context, *cmd.ExpireWarning) error:
 		cExpireWarningHandler = fn
+	case func(context.Context, *cmd.FinishModeration) error:
+		cFinishModerationHandler = fn
 	case func(context.Context, *cmd.GenerateCheckoutLink) error:
 		cGenerateCheckoutLinkHandler = fn
+	case func(context.Context, *cmd.GetProfileModeration) error:
+		cGetProfileModerationHandler = fn
 	case func(context.Context, *cmd.GetWebhookProps) error:
 		cGetWebhookPropsHandler = fn
 	case func(context.Context, *cmd.HTTPRequest) error:
 		cHTTPRequestHandler = fn
 	case func(context.Context, *cmd.IncrementSponsorshipClick) error:
 		cIncrementSponsorshipClickHandler = fn
+	case func(context.Context, *cmd.ListModerationFailures) error:
+		cListModerationFailuresHandler = fn
 	case func(context.Context, *cmd.LockExpiredTenants) error:
 		cLockExpiredTenantsHandler = fn
 	case func(context.Context, *cmd.LockPost) error:
@@ -402,18 +419,26 @@ func registerTypedHandler(handler HandlerFunc) {
 		cReorderReportReasonsHandler = fn
 	case func(context.Context, *cmd.ResolveReport) error:
 		cResolveReportHandler = fn
+	case func(context.Context, *cmd.RetryModerationFailures) error:
+		cRetryModerationFailuresHandler = fn
 	case func(context.Context, *cmd.SaveCustomOAuthConfig) error:
 		cSaveCustomOAuthConfigHandler = fn
 	case func(context.Context, *cmd.SaveNavigationLinks) error:
 		cSaveNavigationLinksHandler = fn
 	case func(context.Context, *cmd.SavePageDraft) error:
 		cSavePageDraftHandler = fn
+	case func(context.Context, *cmd.SaveProfileAvatar) error:
+		cSaveProfileAvatarHandler = fn
+	case func(context.Context, *cmd.SaveProfileName) error:
+		cSaveProfileNameHandler = fn
 	case func(context.Context, *cmd.SavePushSubscription) error:
 		cSavePushSubscriptionHandler = fn
 	case func(context.Context, *cmd.SaveSponsorshipCampaignGraph) error:
 		cSaveSponsorshipCampaignGraphHandler = fn
 	case func(context.Context, *cmd.SaveVerificationKey) error:
 		cSaveVerificationKeyHandler = fn
+	case func(context.Context, *cmd.ScheduleModeration) error:
+		cScheduleModerationHandler = fn
 	case func(context.Context, *cmd.SetAttachments) error:
 		cSetAttachmentsHandler = fn
 	case func(context.Context, *cmd.SetKeyAsVerified) error:
@@ -670,6 +695,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		qHasPushSubscriptionHandler = fn
 	case func(context.Context, *query.HasUserReportedTarget) error:
 		qHasUserReportedTargetHandler = fn
+	case func(context.Context, *query.IsAvatarPublished) error:
+		qIsAvatarPublishedHandler = fn
 	case func(context.Context, *query.IsCNAMEAvailable) error:
 		qIsCNAMEAvailableHandler = fn
 	case func(context.Context, *query.IsImageFileInUse) error:
@@ -819,6 +846,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.ChangeUserVisualRole")
 		}
 		return cChangeUserVisualRoleHandler(ctx, m)
+	case *cmd.ClaimModeration:
+		if cClaimModerationHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.ClaimModeration")
+		}
+		return cClaimModerationHandler(ctx, m)
 	case *cmd.CreateCannedResponse:
 		if cCreateCannedResponseHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.CreateCannedResponse")
@@ -974,11 +1006,21 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.ExpireWarning")
 		}
 		return cExpireWarningHandler(ctx, m)
+	case *cmd.FinishModeration:
+		if cFinishModerationHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.FinishModeration")
+		}
+		return cFinishModerationHandler(ctx, m)
 	case *cmd.GenerateCheckoutLink:
 		if cGenerateCheckoutLinkHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.GenerateCheckoutLink")
 		}
 		return cGenerateCheckoutLinkHandler(ctx, m)
+	case *cmd.GetProfileModeration:
+		if cGetProfileModerationHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.GetProfileModeration")
+		}
+		return cGetProfileModerationHandler(ctx, m)
 	case *cmd.GetWebhookProps:
 		if cGetWebhookPropsHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.GetWebhookProps")
@@ -994,6 +1036,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.IncrementSponsorshipClick")
 		}
 		return cIncrementSponsorshipClickHandler(ctx, m)
+	case *cmd.ListModerationFailures:
+		if cListModerationFailuresHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.ListModerationFailures")
+		}
+		return cListModerationFailuresHandler(ctx, m)
 	case *cmd.LockExpiredTenants:
 		if cLockExpiredTenantsHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.LockExpiredTenants")
@@ -1099,6 +1146,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.ResolveReport")
 		}
 		return cResolveReportHandler(ctx, m)
+	case *cmd.RetryModerationFailures:
+		if cRetryModerationFailuresHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.RetryModerationFailures")
+		}
+		return cRetryModerationFailuresHandler(ctx, m)
 	case *cmd.SaveCustomOAuthConfig:
 		if cSaveCustomOAuthConfigHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.SaveCustomOAuthConfig")
@@ -1114,6 +1166,16 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.SavePageDraft")
 		}
 		return cSavePageDraftHandler(ctx, m)
+	case *cmd.SaveProfileAvatar:
+		if cSaveProfileAvatarHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.SaveProfileAvatar")
+		}
+		return cSaveProfileAvatarHandler(ctx, m)
+	case *cmd.SaveProfileName:
+		if cSaveProfileNameHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.SaveProfileName")
+		}
+		return cSaveProfileNameHandler(ctx, m)
 	case *cmd.SavePushSubscription:
 		if cSavePushSubscriptionHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.SavePushSubscription")
@@ -1129,6 +1191,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.SaveVerificationKey")
 		}
 		return cSaveVerificationKeyHandler(ctx, m)
+	case *cmd.ScheduleModeration:
+		if cScheduleModerationHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.ScheduleModeration")
+		}
+		return cScheduleModerationHandler(ctx, m)
 	case *cmd.SetAttachments:
 		if cSetAttachmentsHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.SetAttachments")
@@ -1769,6 +1836,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.HasUserReportedTarget")
 		}
 		return qHasUserReportedTargetHandler(ctx, m)
+	case *query.IsAvatarPublished:
+		if qIsAvatarPublishedHandler == nil {
+			return fmt.Errorf("handler not registered: query.IsAvatarPublished")
+		}
+		return qIsAvatarPublishedHandler(ctx, m)
 	case *query.IsCNAMEAvailable:
 		if qIsCNAMEAvailableHandler == nil {
 			return fmt.Errorf("handler not registered: query.IsCNAMEAvailable")

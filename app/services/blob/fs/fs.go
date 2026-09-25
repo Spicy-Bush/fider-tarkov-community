@@ -74,6 +74,9 @@ func listBlobs(ctx context.Context, q *query.ListBlobs) error {
 }
 
 func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
+	if err := blob.AuthorizeRead(ctx, q); err != nil {
+		return err
+	}
 	// see: filemanagement page
 	if strings.HasPrefix(q.Key, "files/") {
 		user, ok := ctx.Value(app.UserCtxKey).(*entity.User)

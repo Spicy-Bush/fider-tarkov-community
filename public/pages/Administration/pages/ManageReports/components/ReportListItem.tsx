@@ -74,8 +74,8 @@ export const ReportListItem: React.FC<ReportListItemProps> = memo(({
       </div>
       <div className="text-sm text-foreground font-medium mb-1 whitespace-nowrap overflow-hidden text-ellipsis">{report.reason}</div>
       <div className="flex items-center gap-1 text-xs text-muted [&_.c-avatar]:w-5 [&_.c-avatar]:h-5">
-        <Avatar user={report.reporter} clickable={false} />
-        <span>{report.reporter.name}</span>
+        {report.reporter && <Avatar user={report.reporter} clickable={false} />}
+        <span>{report.reporter ? report.reporter.name : "Automatic moderation"}</span>
         <Moment locale={Fider.currentLocale} date={report.createdAt} />
       </div>
     </div>

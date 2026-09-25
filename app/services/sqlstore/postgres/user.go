@@ -153,6 +153,12 @@ func deleteCurrentUser(ctx context.Context, c *cmd.DeleteCurrentUser) error {
 			return errors.Wrap(err, "failed to delete current user")
 		}
 
+		// Profile saves and completion lock the user first, so deletion also excludes in flight publication
+		if _, err := trx.Execute(`DELETE FROM moderation_checks
+            WHERE tenant_id = $1 AND content_id = $2 AND content_type IN ('name', 'avatar')`, tenant.ID, user.ID); err != nil {
+			return err
+		}
+
 		var tables = []struct {
 			name       string
 			userColumn string
@@ -921,5 +927,13 @@ func updateUser(ctx context.Context, c *cmd.UpdateUser) error {
 			return errors.Wrap(err, "failed to update user")
 		}
 		return nil
+	})
+}
+
+func isAvatarPublished(ctx context.Context, q *query.IsAvatarPublished) error {
+	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		return trx.Scalar(&q.Result, `SELECT EXISTS (
+         SELECT 1 FROM users WHERE tenant_id = $1 AND avatar_bkey = $2 AND avatar_bkey <> '' AND avatar_type = 3
+     )`, tenant.ID, q.Key)
 	})
 }

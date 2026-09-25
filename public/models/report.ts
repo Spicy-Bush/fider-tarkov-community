@@ -12,7 +12,7 @@ export interface Report {
   details?: string
   status: ReportStatus
   createdAt: string
-  reporter: User
+  reporter: User | null
   assignedTo?: User
   assignedAt?: string
   resolvedAt?: string

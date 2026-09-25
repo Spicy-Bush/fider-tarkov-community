@@ -56,6 +56,7 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
     )
   }
 
+  const reporter = report.reporter
   const isAssignedToMe = report.assignedTo?.id === currentUserId
   const canAction = report.status === "pending" || report.status === "in_review"
 
@@ -145,31 +146,27 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-muted uppercase tracking-wide">Reported by</label>
-            <div
-              className="p-3 bg-tertiary rounded-card cursor-pointer hover:bg-surface-alt transition-colors group relative"
-              onClick={() =>
-                onUserClick?.({
-                  id: report.reporter.id,
-                  name: report.reporter.name,
-                  avatarURL: report.reporter.avatarURL,
-                  role: report.reporter.role,
-                  status: report.reporter.status,
-                })
-              }
-              role="button"
-              tabIndex={0}
-            >
-              <HStack spacing={2}>
-                <Avatar user={report.reporter} clickable={false} />
-                <div>
-                  <div className="font-medium">{report.reporter.name}</div>
-                  <div className="text-xs text-muted">
-                    <Moment locale={Fider.currentLocale} date={report.createdAt} />
+            {reporter ? (
+              <div
+                className="p-3 bg-tertiary rounded-card cursor-pointer hover:bg-surface-alt transition-colors group relative"
+                onClick={() => onUserClick?.(reporter)}
+                role="button"
+                tabIndex={0}
+              >
+                <HStack spacing={2}>
+                  <Avatar user={reporter} clickable={false} />
+                  <div>
+                    <div className="font-medium">{reporter.name}</div>
+                    <div className="text-xs text-muted">
+                      <Moment locale={Fider.currentLocale} date={report.createdAt} />
+                    </div>
                   </div>
-                </div>
-              </HStack>
-              <span className="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity absolute right-3 top-1/2 -translate-y-1/2">View profile</span>
-            </div>
+                </HStack>
+                <span className="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity absolute right-3 top-1/2 -translate-y-1/2">View profile</span>
+              </div>
+            ) : (
+              <span>Automatic moderation</span>
+            )}
           </div>
         </div>
         {report.details && (

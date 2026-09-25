@@ -1,9 +1,9 @@
+import { AutomaticChecks } from "./components/AutomaticChecks"
 import React, { useEffect, useCallback } from "react"
 import { PageConfig } from "@fider/components/layouts"
 import { useStackNavigation, useRealtimePresence } from "@fider/hooks"
 import { useReportsState, useReportsEvents, useReportsActions, ViewingUserType } from "./hooks"
 import { ReportsList, ReportsPreview, ResolveModal } from "./components"
-
 
 export const pageConfig: PageConfig = {
   title: "Reports",
@@ -108,55 +108,58 @@ const ManageReportsPage: React.FC = () => {
   }, [state.setViewingUser])
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-130px)] min-h-[500px]">
-      <ReportsList
-        reports={state.reports}
-        total={state.total}
-        page={state.page}
-        perPage={state.perPage}
-        isLoading={state.isLoading}
-        selectedReport={state.selectedReport}
-        selectedStatus={state.selectedStatus}
-        selectedType={state.selectedType}
-        selectedReason={state.selectedReason}
-        newReportIds={state.newReportIds}
-        viewers={viewers}
-        statusOptions={actions.statusOptions}
-        typeOptions={actions.typeOptions}
-        reasonOptions={actions.reasonOptions}
-        onSelectReport={actions.handleSelectReport}
-        onStatusChange={actions.handleStatusChange}
-        onTypeChange={actions.handleTypeChange}
-        onReasonChange={actions.handleReasonChange}
-        onRefresh={state.loadReports}
-        onRefreshNewReports={actions.handleRefreshNewReports}
-        onPrevPage={actions.handlePrevPage}
-        onNextPage={actions.handleNextPage}
-      />
-      <ReportsPreview
-        selectedReport={state.selectedReport}
-        viewingUser={state.viewingUser}
-        profileKey={state.profileKey}
-        previewPost={state.previewPost}
-        previewComment={state.previewComment}
-        isLoadingPreview={state.isLoadingPreview}
-        onDeselectReport={actions.handleDeselectReport}
-        onCloseUserProfile={actions.handleCloseUserProfile}
-        onAssign={actions.handleAssign}
-        onUnassign={actions.handleUnassign}
-        onResolveClick={actions.handleResolveClick}
-        onViewUser={actions.handleViewUser}
-        onUserUpdate={handleUserUpdate}
-      />
-      <ResolveModal
-        isOpen={state.showResolveModal}
-        resolveAction={state.resolveAction}
-        resolutionNote={state.resolutionNote}
-        error={state.error}
-        onResolutionNoteChange={state.setResolutionNote}
-        onSubmit={actions.handleResolveSubmit}
-        onClose={actions.handleCloseResolveModal}
-      />
+    <div className="flex flex-col gap-3">
+      <AutomaticChecks />
+      <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-130px)] min-h-[500px]">
+        <ReportsList
+          reports={state.reports}
+          total={state.total}
+          page={state.page}
+          perPage={state.perPage}
+          isLoading={state.isLoading}
+          selectedReport={state.selectedReport}
+          selectedStatus={state.selectedStatus}
+          selectedType={state.selectedType}
+          selectedReason={state.selectedReason}
+          newReportIds={state.newReportIds}
+          viewers={viewers}
+          statusOptions={actions.statusOptions}
+          typeOptions={actions.typeOptions}
+          reasonOptions={actions.reasonOptions}
+          onSelectReport={actions.handleSelectReport}
+          onStatusChange={actions.handleStatusChange}
+          onTypeChange={actions.handleTypeChange}
+          onReasonChange={actions.handleReasonChange}
+          onRefresh={state.loadReports}
+          onRefreshNewReports={actions.handleRefreshNewReports}
+          onPrevPage={actions.handlePrevPage}
+          onNextPage={actions.handleNextPage}
+        />
+        <ReportsPreview
+          selectedReport={state.selectedReport}
+          viewingUser={state.viewingUser}
+          profileKey={state.profileKey}
+          previewPost={state.previewPost}
+          previewComment={state.previewComment}
+          isLoadingPreview={state.isLoadingPreview}
+          onDeselectReport={actions.handleDeselectReport}
+          onCloseUserProfile={actions.handleCloseUserProfile}
+          onAssign={actions.handleAssign}
+          onUnassign={actions.handleUnassign}
+          onResolveClick={actions.handleResolveClick}
+          onViewUser={actions.handleViewUser}
+          onUserUpdate={handleUserUpdate}
+        />
+        <ResolveModal
+          isOpen={state.showResolveModal}
+          resolveAction={state.resolveAction}
+          resolutionNote={state.resolutionNote}
+          error={state.error}
+          onResolutionNoteChange={state.setResolutionNote}
+          onSubmit={actions.handleResolveSubmit}
+          onClose={actions.handleCloseResolveModal}
+        />
+      </div>
     </div>
   )
 }

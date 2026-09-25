@@ -151,6 +151,8 @@ func routes(r *web.Engine) *web.Engine {
 
 		// user settings
 		membersApi.Get("/profile", handlers.UserProfile())
+		membersApi.Get("/_api/user/moderation", handlers.ProfileModerationStatus())
+		membersApi.Get("/_api/user/moderation/avatar", handlers.PreviewProfileAvatar())
 		membersApi.Post("/_api/user/name", handlers.UpdateUserName())
 		membersApi.Post("/_api/user/avatar", handlers.UpdateUserAvatar())
 		membersApi.Post("/_api/user/settings", handlers.UpdateUserSettings())
@@ -249,6 +251,8 @@ func routes(r *web.Engine) *web.Engine {
 
 		// reports
 		staff.Get("/admin/reports", handlers.ManageReportsPage())
+		staff.Get("/_api/admin/moderation/checks", handlers.ListModerationChecks())
+		staff.Post("/_api/admin/moderation/retry", handlers.RetryModerationChecks())
 		staff.Get("/api/v1/reports", handlers.ListReports())
 		staff.Get("/api/v1/reports/:id", handlers.GetReport())
 		staff.Get("/api/v1/reports/:id/details", handlers.GetReportDetails())

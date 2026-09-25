@@ -23,8 +23,8 @@ type dbReport struct {
 	Details              sql.NullString `db:"details"`
 	Status               string         `db:"status"`
 	CreatedAt            time.Time      `db:"created_at"`
-	ReporterID           int            `db:"reporter_id"`
-	ReporterName         string         `db:"reporter_name"`
+	ReporterID           sql.NullInt64  `db:"reporter_id"`
+	ReporterName         sql.NullString `db:"reporter_name"`
 	ReporterAvatarType   sql.NullInt64  `db:"reporter_avatar_type"`
 	ReporterAvatarBkey   sql.NullString `db:"reporter_avatar_bkey"`
 	AssignedToID         sql.NullInt64  `db:"assigned_to_id"`
@@ -48,10 +48,6 @@ func (r *dbReport) toModel(ctx context.Context) *entity.Report {
 		Reason:    r.Reason,
 		Status:    enum.ReportStatusPending,
 		CreatedAt: r.CreatedAt,
-		Reporter: &entity.User{
-			ID:   r.ReporterID,
-			Name: r.ReporterName,
-		},
 	}
 
 	_ = report.ReportedType.UnmarshalText([]byte(r.ReportedType))
@@ -62,8 +58,11 @@ func (r *dbReport) toModel(ctx context.Context) *entity.Report {
 		report.Details = r.Details.String
 	}
 
-	if r.ReporterAvatarType.Valid {
-		report.Reporter.AvatarURL = buildAvatarURL(ctx, enum.AvatarType(r.ReporterAvatarType.Int64), r.ReporterID, r.ReporterName, r.ReporterAvatarBkey.String)
+	if r.ReporterID.Valid {
+		report.Reporter = &entity.User{ID: int(r.ReporterID.Int64), Name: r.ReporterName.String}
+		if r.ReporterAvatarType.Valid {
+			report.Reporter.AvatarURL = buildAvatarURL(ctx, enum.AvatarType(r.ReporterAvatarType.Int64), report.Reporter.ID, report.Reporter.Name, r.ReporterAvatarBkey.String)
+		}
 	}
 
 	if r.AssignedToID.Valid {

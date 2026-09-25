@@ -9,12 +9,12 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/services/moderation"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	webutil "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web/util"
@@ -136,7 +136,7 @@ func CompleteSignInProfile() web.HandlerFunc {
 		}
 
 		nameToUse := action.Name
-		if flagged, _ := moderation.IsTextFlagged(c, action.Name); flagged {
+		if env.IsOpenAIModerationEnabled() {
 			nameToUse = generateRandomUsername()
 		}
 
@@ -150,6 +150,11 @@ func CompleteSignInProfile() web.HandlerFunc {
 		err = c.WithTransaction(func() error {
 			if err := bus.Dispatch(c, &cmd.RegisterUser{User: user}); err != nil {
 				return c.Failure(err)
+			}
+			if env.IsOpenAIModerationEnabled() {
+				if err := bus.Dispatch(c, &cmd.SaveProfileName{UserID: user.ID, Name: action.Name, Review: true}); err != nil {
+					return c.Failure(err)
+				}
 			}
 
 			if err := bus.Dispatch(c, &cmd.SetKeyAsVerified{Key: action.Key}); err != nil {

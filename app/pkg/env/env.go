@@ -145,6 +145,7 @@ type config struct {
 	OpenAI struct {
 		APIKey            string  `env:"OPENAI_API_KEY"`
 		ModerationEnabled bool    `env:"OPENAI_MODERATION_ENABLED,default=false"`
+		Concurrency       int     `env:"OPENAI_MODERATION_CONCURRENCY,default=2,strict"`
 		SexualThreshold   float64 `env:"OPENAI_MODERATION_SEXUAL_THRESHOLD,default=0.5"`
 		SelfHarmThreshold float64 `env:"OPENAI_MODERATION_SELFHARM_THRESHOLD,default=0.5"`
 	}
