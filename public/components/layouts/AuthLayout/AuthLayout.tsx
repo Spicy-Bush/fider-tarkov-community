@@ -23,9 +23,11 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
           {children}
         </div>
       </main>
-      <footer className="p-4 text-center">
-        <span className="text-sm text-border-strong">{fider.session.tenant.name}</span>
-      </footer>
+      {fider.session.tenant && (
+        <footer className="p-4 text-center">
+          <span className="text-sm text-border-strong">{fider.session.tenant.name}</span>
+        </footer>
+      )}
     </div>
   )
 }

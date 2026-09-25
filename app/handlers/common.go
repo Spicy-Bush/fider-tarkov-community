@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/middlewares"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
@@ -47,7 +46,6 @@ func UpdateMessageBanner() web.HandlerFunc {
 		if err != nil {
 			return c.Failure(err)
 		}
-		middlewares.InvalidateTenantCache()
 		return c.Ok(web.Map{})
 	}
 }

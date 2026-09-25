@@ -4,18 +4,23 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/middlewares"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/mock"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
+
+func init() { assets.FS = os.DirFS(env.Path(".")) }
 
 var testCases = []struct {
 	expected string
@@ -231,8 +236,6 @@ func TestSingleTenant_NoTenants(t *testing.T) {
 func TestSingleTenant_WithTenants_ShouldSetFirstToContext(t *testing.T) {
 	RegisterT(t)
 
-	middlewares.InvalidateTenantCache()
-
 	bus.AddHandler(func(ctx context.Context, q *query.GetFirstTenant) error {
 		q.Result = &entity.Tenant{Name: "MyCompany", Subdomain: "mycompany", Status: enum.TenantActive}
 		return nil
@@ -373,8 +376,6 @@ func TestRequireTenant_MultiHostMode_ValidTenant(t *testing.T) {
 func TestRequireTenant_SingleHostMode_NoTenants_RedirectToSignUp(t *testing.T) {
 	RegisterT(t)
 
-	middlewares.InvalidateTenantCache()
-
 	bus.AddHandler(func(ctx context.Context, q *query.GetFirstTenant) error {
 		return app.ErrNotFound
 	})
@@ -393,8 +394,6 @@ func TestRequireTenant_SingleHostMode_NoTenants_RedirectToSignUp(t *testing.T) {
 
 func TestRequireTenant_SingleHostMode_ValidTenant(t *testing.T) {
 	RegisterT(t)
-
-	middlewares.InvalidateTenantCache()
 
 	bus.AddHandler(func(ctx context.Context, q *query.GetFirstTenant) error {
 		q.Result = mock.DemoTenant
@@ -447,4 +446,41 @@ func TestBlockLockedTenants_LockedTenant(t *testing.T) {
 		})
 
 	Expect(status).Equals(http.StatusPaymentRequired)
+}
+
+func TestSingleTenant_SeesCreationAndActivation(t *testing.T) {
+	RegisterT(t)
+	var stored *entity.Tenant
+	bus.AddHandler(func(ctx context.Context, q *query.GetFirstTenant) error {
+		if stored == nil {
+			return app.ErrNotFound
+		}
+		copy := *stored
+		q.Result = &copy
+		return nil
+	})
+	check := func(want *entity.Tenant) {
+		t.Helper()
+		server := mock.NewSingleTenantServer().Use(middlewares.SingleTenant())
+		status, _ := server.Execute(func(c *web.Context) error {
+			if want == nil {
+				Expect(c.Tenant()).IsNil()
+			} else {
+				if c.Tenant() == nil {
+					t.Fatal("newly created tenant was not found")
+				}
+				Expect(c.Tenant().Name).Equals(want.Name)
+				Expect(c.Tenant().Status).Equals(want.Status)
+			}
+			return c.NoContent(http.StatusOK)
+		})
+		Expect(status).Equals(http.StatusOK)
+	}
+	check(nil)
+	stored = &entity.Tenant{ID: 1, Name: "Created", Status: enum.TenantPending}
+	check(stored)
+	stored.Status = enum.TenantActive
+	check(stored)
+	stored.Name = "Updated"
+	check(stored)
 }
