@@ -3,6 +3,8 @@ package web
 import (
 	"context"
 	"crypto/tls"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -39,6 +41,9 @@ func mockGetTenantWithIncorrectSubdomains(ctx context.Context, q *query.GetTenan
 }
 
 func TestUseAutoCert_WhenCNAMEAreRegistered(t *testing.T) {
+	previousPath := env.Config.BlobStorage.FS.Path
+	env.Config.BlobStorage.FS.Path = t.TempDir()
+	t.Cleanup(func() { env.Config.BlobStorage.FS.Path = previousPath })
 	RegisterT(t)
 	bus.Init(fs.Service{})
 	bus.AddHandler(mockGetTenantWithCorrectSubdomains)
@@ -165,5 +170,26 @@ func TestGetCertificate_ServerNameDoesntMatchCertificate_ButEndsWithHostName_Sho
 		})
 		Expect(err.Error()).ContainsSubstring("invalid ServerName used: " + serverName)
 		Expect(cert).IsNil()
+	}
+}
+
+func TestAutoCertCacheUsesTemporaryStorage(t *testing.T) {
+	previousPath := env.Config.BlobStorage.FS.Path
+	root := t.TempDir()
+	env.Config.BlobStorage.FS.Path = root
+	t.Cleanup(func() { env.Config.BlobStorage.FS.Path = previousPath })
+	bus.Init(fs.Service{})
+	cache := NewAutoCertCache()
+	ctx := context.Background()
+	if err := cache.Put(ctx, "acme_account+key", []byte("test cache value")); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := os.ReadFile(filepath.Join(root, "autocert", "acme_account+key"))
+	if err != nil || string(stored) != "test cache value" {
+		t.Fatalf("cache did not use the test-owned directory: %v", err)
+	}
+	value, err := cache.Get(ctx, "acme_account+key")
+	if err != nil || string(value) != "test cache value" {
+		t.Fatalf("cache round trip failed: %v", err)
 	}
 }
