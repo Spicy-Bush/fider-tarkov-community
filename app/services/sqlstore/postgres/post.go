@@ -33,6 +33,7 @@ type dbPost struct {
 	LastActivityAt     time.Time      `db:"last_activity_at"`
 	User               *dbUser        `db:"user"`
 	VoteType           sql.NullInt32  `db:"vote_type"`
+	VoteRevision       int64          `db:"vote_revision"`
 	VotesCount         int            `db:"votes_count"`
 	CommentsCount      int            `db:"comments_count"`
 	RecentVotes        int            `db:"recent_votes_count"`
@@ -71,6 +72,7 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 		CreatedAt:      i.CreatedAt,
 		LastActivityAt: i.LastActivityAt,
 		VoteType:       voteType,
+		VoteRevision:   i.VoteRevision,
 		VotesCount:     i.VotesCount,
 		CommentsCount:  i.CommentsCount,
 		Status:         enum.PostStatus(i.Status),
@@ -402,8 +404,10 @@ func buildHydration(tenantID int, user *entity.User, cteName string, limit strin
 	}
 
 	voteTypeField := "NULL::int"
+	voteRevisionField := "0::bigint"
 	if user != nil {
 		voteTypeField = fmt.Sprintf("(SELECT vote_type FROM post_votes WHERE post_id = p.id AND user_id = $%d LIMIT 1)", userParameter)
+		voteRevisionField = fmt.Sprintf("COALESCE((SELECT revision FROM post_vote_revisions WHERE post_id = p.id AND user_id = $%d), 0)", userParameter)
 	}
 
 	moderationFilter := ""
@@ -467,6 +471,7 @@ func buildHydration(tenantID int, user *entity.User, cteName string, limit strin
 			p.archived_from_status,
 			%s AS tag_dates,
 			%s AS vote_type,
+			%s AS vote_revision,
 			p.moderation_pending,
 			p.moderation_data
 		FROM %s tp
@@ -487,7 +492,7 @@ func buildHydration(tenantID int, user *entity.User, cteName string, limit strin
 		) agg_t ON true
 		%s
 		%s
-	`, tagDatesField, voteTypeField, cteName, moderationFilter, tenantParameter, tenantParameter, tenantParameter, tenantParameter, tagCondition, orderClause, limitClause)
+	`, tagDatesField, voteTypeField, voteRevisionField, cteName, moderationFilter, tenantParameter, tenantParameter, tenantParameter, tenantParameter, tagCondition, orderClause, limitClause)
 	return cteResult{SQL: sql, Params: params}
 }
 
@@ -1209,7 +1214,7 @@ func getArchivablePosts(ctx context.Context, q *query.GetArchivablePosts) error 
 
 func countVotesSinceArchive(ctx context.Context, q *query.CountVotesSinceArchive) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		err := trx.Get(&q.Result, `
+		err := trx.Scalar(&q.Result, `
 			SELECT COALESCE(SUM(vote_type), 0) 
 			FROM post_votes 
 			WHERE post_id = $1 AND tenant_id = $2 AND created_at > $3

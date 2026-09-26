@@ -20,6 +20,7 @@ var cAddNewTagHandler func(context.Context, *cmd.AddNewTag) error
 var cAddPageCommentHandler func(context.Context, *cmd.AddPageComment) error
 var cAddSubscriberHandler func(context.Context, *cmd.AddSubscriber) error
 var cAddVoteHandler func(context.Context, *cmd.AddVote) error
+var cApplyPostVoteHandler func(context.Context, *cmd.ApplyPostVote) error
 var cArchivePostHandler func(context.Context, *cmd.ArchivePost) error
 var cAssignReportHandler func(context.Context, *cmd.AssignReport) error
 var cAssignTagHandler func(context.Context, *cmd.AssignTag) error
@@ -283,6 +284,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cAddSubscriberHandler = fn
 	case func(context.Context, *cmd.AddVote) error:
 		cAddVoteHandler = fn
+	case func(context.Context, *cmd.ApplyPostVote) error:
+		cApplyPostVoteHandler = fn
 	case func(context.Context, *cmd.ArchivePost) error:
 		cArchivePostHandler = fn
 	case func(context.Context, *cmd.AssignReport) error:
@@ -807,6 +810,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.AddVote")
 		}
 		return cAddVoteHandler(ctx, m)
+	case *cmd.ApplyPostVote:
+		if cApplyPostVoteHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.ApplyPostVote")
+		}
+		return cApplyPostVoteHandler(ctx, m)
 	case *cmd.ArchivePost:
 		if cArchivePostHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.ArchivePost")

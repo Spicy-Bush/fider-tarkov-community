@@ -2,14 +2,22 @@ package postgres_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/apiv1"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
@@ -50,6 +58,19 @@ func newPostWorkflow(t testing.TB) postWorkflow {
 	return postWorkflow{ctx: ctx, engine: web.New(), tenant: tenant.Result, user: user.Result}
 }
 
+func (f postWorkflow) request(handler web.HandlerFunc, method string, number int, body string) (*httptest.ResponseRecorder, error) {
+	req := httptest.NewRequest(method, "http://localhost:3000/api/v1/posts", strings.NewReader(body))
+	req.RequestURI = req.URL.RequestURI()
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	c := web.NewContext(f.engine, req, recorder, web.StringMap{"number": fmt.Sprint(number)})
+	c.SetTenant(f.tenant)
+	c.SetUser(f.user)
+	err := handler(c)
+	return recorder, err
+}
+
 func workflowCount(t testing.TB, sql string) int {
 	t.Helper()
 	var count int
@@ -57,6 +78,59 @@ func workflowCount(t testing.TB, sql string) int {
 		t.Fatal(err)
 	}
 	return count
+}
+
+func TestPostWorkflowVoteRevisions(t *testing.T) {
+	f := newPostWorkflow(t)
+	post := &cmd.AddNewPost{Title: "Vote revisions", Description: "A post"}
+	if err := bus.Dispatch(f.ctx, post); err != nil {
+		t.Fatal(err)
+	}
+	if err := bus.Dispatch(f.ctx, &cmd.AddVote{Post: post.Result, User: f.user, VoteType: enum.VoteTypeUp}); err != nil {
+		t.Fatal(err)
+	}
+	write := func(direction int, revision int) map[string]any {
+		t.Helper()
+		handler, method := apiv1.RemoveVote(), http.MethodDelete
+		if direction == 1 {
+			handler, method = apiv1.AddVote(), http.MethodPost
+		} else if direction == -1 {
+			handler, method = apiv1.AddDownVote(), http.MethodPost
+		}
+		recorder, err := f.request(handler, method, 1, fmt.Sprintf(`{"revision":%d}`, revision))
+		if err != nil || recorder.Code != http.StatusOK {
+			t.Fatalf("vote: %v %d %s", err, recorder.Code, recorder.Body)
+		}
+		var state map[string]any
+		if err := json.Unmarshal(recorder.Body.Bytes(), &state); err != nil {
+			t.Fatal(err)
+		}
+		return state
+	}
+	removed := write(0, 1)
+	if removed["applied"] != true || removed["revision"] != float64(2) || removed["upvotes"] != float64(0) {
+		t.Fatalf("remove did not advance state: %v", removed)
+	}
+	stale := write(-1, 1)
+	if stale["applied"] != false || stale["direction"] != float64(0) {
+		t.Fatalf("stale vote overwritten: %v", stale)
+	}
+	noop := write(0, 2)
+	if noop["revision"] != float64(3) {
+		t.Fatalf("accepted no-op did not advance revision: %v", noop)
+	}
+	current := write(-1, 3)
+	if current["downvotes"] != float64(1) || current["revision"] != float64(4) {
+		t.Fatalf("downvote counts/revision incorrect: %v", current)
+	}
+	response, err := f.request(apiv1.GetPost(), http.MethodGet, 1, "")
+	var hydrated entity.Post
+	if err != nil || json.Unmarshal(response.Body.Bytes(), &hydrated) != nil || hydrated.VoteRevision != 4 || hydrated.VoteType != -1 {
+		t.Fatalf("post hydration disagrees with committed vote: %v %s", err, response.Body)
+	}
+	if _, err := dbx.Connection().Exec("DELETE FROM post_votes; DELETE FROM post_subscribers; DELETE FROM posts WHERE number = 1"); err != nil {
+		t.Fatalf("physical deletion failed with revision trigger: %v", err)
+	}
 }
 
 func TestPostWorkflowVoteModelAndActivity(t *testing.T) {
@@ -141,6 +215,151 @@ func BenchmarkPostWorkflowVote(b *testing.B) {
 	})
 }
 
+func BenchmarkPostWorkflowVoteAPI(b *testing.B) {
+	f := newPostWorkflow(b)
+	var sequence atomic.Int64
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		title := fmt.Sprintf("Benchmark API vote %d", sequence.Add(1))
+		post := &cmd.AddNewPost{Title: title, Description: "Benchmark"}
+		if err := bus.Dispatch(f.ctx, post); err != nil {
+			b.Error(err)
+			return
+		}
+		recorder, err := f.request(apiv1.GetPost(), http.MethodGet, post.Result.Number, "")
+		var initial entity.Post
+		if err != nil || json.Unmarshal(recorder.Body.Bytes(), &initial) != nil {
+			b.Errorf("post hydration: %v %s", err, recorder.Body)
+			return
+		}
+		revision, direction := initial.VoteRevision, 1
+		for pb.Next() {
+			handler := apiv1.AddVote()
+			if direction == -1 {
+				handler = apiv1.AddDownVote()
+			}
+			body := fmt.Sprintf(`{"revision":%d}`, revision)
+			recorder, err := f.request(handler, http.MethodPost, post.Result.Number, body)
+			var after struct {
+				Direction int  `json:"direction"`
+				Applied   bool `json:"applied"`
+				Revision  int64 `json:"revision"`
+			}
+			decodeErr := json.Unmarshal(recorder.Body.Bytes(), &after)
+			if err != nil || decodeErr != nil || recorder.Code != http.StatusOK || !after.Applied || after.Direction != direction {
+				b.Errorf("vote failed: %v %v %d %s", err, decodeErr, recorder.Code, recorder.Body)
+				return
+			}
+			direction = -direction
+			revision = after.Revision
+		}
+	})
+}
+
+func TestPostWorkflowLegacyToggleAndStaleStatus(t *testing.T) {
+	f := newPostWorkflow(t)
+	post := &cmd.AddNewPost{Title: "Legacy vote concurrency", Description: "A post"}
+	if err := bus.Dispatch(f.ctx, post); err != nil {
+		t.Fatal(err)
+	}
+	var voters sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		voters.Add(1)
+		go func() {
+			defer voters.Done()
+			recorder, err := f.request(apiv1.ToggleVote(), http.MethodPost, post.Result.Number, "")
+			if err != nil || recorder.Code != http.StatusOK {
+				t.Errorf("legacy toggle failed: %v %d", err, recorder.Code)
+			}
+		}()
+	}
+	voters.Wait()
+	if workflowCount(t, "SELECT vote_type FROM post_votes") != -1 ||
+		workflowCount(t, "SELECT revision FROM post_vote_revisions") != 16 {
+		t.Fatal("concurrent toggles lost an accepted change")
+	}
+	if err := bus.Dispatch(f.ctx, &cmd.SetPostResponse{Post: post.Result, Status: enum.PostDeleted}); err != nil {
+		t.Fatal(err)
+	}
+	// Stale callers must not bypass the persisted deletion.
+	post.Result.Status = enum.PostOpen
+	if err := bus.Dispatch(f.ctx, &cmd.AddVote{Post: post.Result, User: f.user, VoteType: enum.VoteTypeUp}); err != nil {
+		t.Fatal(err)
+	}
+	if workflowCount(t, "SELECT vote_type FROM post_votes") != -1 {
+		t.Fatal("stale caller changed a deleted post's vote")
+	}
+}
+
+func TestPostWorkflowArchiveVoteRevival(t *testing.T) {
+	f := newPostWorkflow(t)
+	post := &cmd.AddNewPost{Title: "Revive archived post", Description: "A post"}
+	if err := bus.Dispatch(f.ctx, post); err != nil {
+		t.Fatal(err)
+	}
+	if err := bus.Dispatch(f.ctx, &cmd.ArchivePost{Post: post.Result}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := dbx.Connection().Exec(`INSERT INTO users
+		(name, email, created_at, tenant_id, role, status, avatar_type, avatar_bkey)
+		SELECT 'Voter ' || n, 'voter' || n || '@example.com', NOW(), $1, 0, 1, 1, ''
+		FROM generate_series(1, 10) n`, f.tenant.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = dbx.Connection().Exec(`INSERT INTO post_votes (post_id, tenant_id, user_id, vote_type, created_at)
+		SELECT $1, $2, id, 1, NOW() FROM users WHERE email LIKE 'voter%@example.com'`, post.Result.ID, f.tenant.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder, err := f.request(apiv1.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
+	if err != nil || recorder.Code != http.StatusOK {
+		t.Fatalf("reviving vote failed: %v %d %s", err, recorder.Code, recorder.Body)
+	}
+	if workflowCount(t, "SELECT status FROM posts") != int(enum.PostOpen) ||
+		workflowCount(t, "SELECT upvotes FROM posts") != 11 {
+		t.Fatal("eleven new upvotes did not revive the archived post")
+	}
+}
+
+func TestPostWorkflowVoteVisibilityAndPermissions(t *testing.T) {
+	f := newPostWorkflow(t)
+	post := &cmd.AddNewPost{Title: "Vote visibility", Description: "A post"}
+	if err := bus.Dispatch(f.ctx, post); err != nil {
+		t.Fatal(err)
+	}
+	visitor := f
+	visitor.user = &entity.User{ID: 2, Role: enum.RoleVisitor}
+	if _, err := dbx.Connection().Exec("UPDATE posts SET moderation_pending = TRUE"); err != nil {
+		t.Fatal(err)
+	}
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		handler := apiv1.GetPost()
+		if method == http.MethodPost {
+			handler = apiv1.AddVote()
+		}
+		recorder, err := visitor.request(handler, method, post.Result.Number, `{"revision":0}`)
+		if err != nil || recorder.Code != http.StatusNotFound {
+			t.Fatalf("hidden post visible through %s vote: %v %d", method, err, recorder.Code)
+		}
+	}
+	if _, err := dbx.Connection().Exec(`UPDATE posts SET moderation_pending = FALSE, locked_settings = '{"locked":true}'`); err != nil {
+		t.Fatal(err)
+	}
+	recorder, err := visitor.request(apiv1.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
+	if err != nil || recorder.Code != http.StatusForbidden {
+		t.Fatalf("visitor voted on locked post: %v %d", err, recorder.Code)
+	}
+	if _, err := dbx.Connection().Exec("UPDATE posts SET locked_settings = NULL, status = 2"); err != nil {
+		t.Fatal(err)
+	}
+	recorder, err = f.request(apiv1.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
+	if err != nil || recorder.Code != http.StatusForbidden || workflowCount(t, "SELECT COUNT(*) FROM post_votes") != 0 {
+		t.Fatalf("closed post accepted vote: %v %d", err, recorder.Code)
+	}
+}
+
 func TestPostWorkflowDeletedOriginalAndImportedNumbers(t *testing.T) {
 	f := newPostWorkflow(t)
 	original := &cmd.AddNewPost{Title: "Original proposal", Description: "A post"}
@@ -170,5 +389,60 @@ func TestPostWorkflowDeletedOriginalAndImportedNumbers(t *testing.T) {
 	next := &cmd.AddNewPost{Title: "After removed import", Description: "A post"}
 	if err := bus.Dispatch(f.ctx, next); err != nil || next.Result.Number != 101 {
 		t.Fatalf("number allocator reused a deleted import: %v %+v", err, next.Result)
+	}
+}
+
+func TestPostWorkflowLegacyVoteContracts(t *testing.T) {
+	f := newPostWorkflow(t)
+	post := &cmd.AddNewPost{Title: "Legacy voting", Description: "A post"}
+	if err := bus.Dispatch(f.ctx, post); err != nil {
+		t.Fatal(err)
+	}
+	for _, step := range []struct {
+		handler   web.HandlerFunc
+		method    string
+		response  string
+		upvotes   int
+		downvotes int
+	}{
+		{apiv1.AddVote(), http.MethodPost, "{}", 1, 0},
+		{apiv1.AddVote(), http.MethodPost, "{}", 1, 0},
+		{apiv1.AddDownVote(), http.MethodPost, "{}", 0, 1},
+		{apiv1.ToggleVote(), http.MethodPost, `{"voted":true}`, 1, 0},
+		{apiv1.ToggleVote(), http.MethodPost, `{"voted":false}`, 0, 1},
+		{apiv1.RemoveVote(), http.MethodDelete, "{}", 0, 0},
+	} {
+		recorder, err := f.request(step.handler, step.method, post.Result.Number, "")
+		if err != nil || recorder.Code != http.StatusOK || strings.TrimSpace(recorder.Body.String()) != step.response {
+			t.Fatalf("legacy response: %v %d %s", err, recorder.Code, recorder.Body)
+		}
+		if workflowCount(t, "SELECT upvotes FROM posts") != step.upvotes ||
+			workflowCount(t, "SELECT downvotes FROM posts") != step.downvotes {
+			t.Fatalf("legacy counts: expected %d up, %d down", step.upvotes, step.downvotes)
+		}
+	}
+	recorder, err := f.request(apiv1.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
+	if err != nil || recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"applied":false`) {
+		t.Fatalf("stale revision after legacy changes: %v %d %s", err, recorder.Code, recorder.Body)
+	}
+	visitor := f
+	visitor.user = &entity.User{ID: 2, Role: enum.RoleVisitor}
+	for _, step := range []struct {
+		settings string
+		status   int
+	}{
+		{`locked_settings = '{"locked":true}'`, http.StatusBadRequest},
+		{`locked_settings = NULL, status = 2`, http.StatusOK},
+		{`status = 6`, http.StatusNotFound},
+	} {
+		if _, err := dbx.Connection().Exec("UPDATE posts SET " + step.settings); err != nil {
+			t.Fatal(err)
+		}
+		for _, handler := range []web.HandlerFunc{apiv1.AddVote(), apiv1.AddDownVote(), apiv1.RemoveVote()} {
+			recorder, err := visitor.request(handler, http.MethodPost, post.Result.Number, "")
+			if err != nil || recorder.Code != step.status || workflowCount(t, "SELECT COUNT(*) FROM post_votes") != 0 {
+				t.Fatalf("legacy permission %s: %v %d %s", step.settings, err, recorder.Code, recorder.Body)
+			}
+		}
 	}
 }

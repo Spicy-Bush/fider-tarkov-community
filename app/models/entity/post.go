@@ -18,6 +18,7 @@ type Post struct {
 	LastActivityAt    time.Time             `json:"lastActivityAt"`
 	User              *User                 `json:"user"`
 	VoteType          int                   `json:"voteType"`
+	VoteRevision      int64                 `json:"voteRevision"`
 	VotesCount        int                   `json:"votesCount"`
 	CommentsCount     int                   `json:"commentsCount"`
 	Status            enum.PostStatus       `json:"status"`
