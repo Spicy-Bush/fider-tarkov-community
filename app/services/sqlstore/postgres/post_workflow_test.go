@@ -27,6 +27,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	blobsql "github.com/Spicy-Bush/fider-tarkov-community/app/services/blob/sql"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/services/email"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/services/sqlstore/postgres"
 )
 
@@ -56,6 +57,17 @@ func newPostWorkflow(t testing.TB) postWorkflow {
 	}
 	ctx = context.WithValue(ctx, app.UserCtxKey, user.Result)
 	return postWorkflow{ctx: ctx, engine: web.New(), tenant: tenant.Result, user: user.Result}
+}
+
+func (f postWorkflow) queuePostNotification(t testing.TB) {
+	t.Helper()
+	post := &cmd.AddNewPost{Title: "Queued proposal", Description: "A notification test"}
+	if err := bus.Dispatch(f.ctx, post); err != nil {
+		t.Fatal(err)
+	}
+	if err := bus.Dispatch(f.ctx, &cmd.SchedulePostNotification{Post: post.Result, BaseURL: "http://localhost:3000"}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (f postWorkflow) request(handler web.HandlerFunc, method string, number int, body string) (*httptest.ResponseRecorder, error) {
@@ -444,5 +456,232 @@ func TestPostWorkflowLegacyVoteContracts(t *testing.T) {
 				t.Fatalf("legacy permission %s: %v %d %s", step.settings, err, recorder.Code, recorder.Body)
 			}
 		}
+	}
+}
+
+func TestPostWorkflowConcurrentNotificationDelivery(t *testing.T) {
+	f := newPostWorkflow(t)
+	f.queuePostNotification(t)
+	prepare := func(context.Context, *entity.Post) ([]cmd.PostNotificationRecipient, error) {
+		return []cmd.PostNotificationRecipient{{Channel: "email", ID: 2}, {Channel: "email", ID: 3}}, nil
+	}
+	if err := bus.Dispatch(f.ctx, &cmd.ProcessPostNotification{Prepare: prepare}); err != nil {
+		t.Fatal(err)
+	}
+	entered := make(chan int, 2)
+	release := make(chan struct{})
+	finished := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			finished <- bus.Dispatch(f.ctx, &cmd.ProcessPostNotification{
+				Prepare: prepare,
+				Send: func(ctx context.Context, post *entity.Post, recipients []cmd.PostNotificationRecipient) error {
+					entered <- recipients[0].ID
+					<-release
+					return nil
+				},
+			})
+		}()
+	}
+	ids := make(map[int]bool)
+	for i := 0; i < 2; i++ {
+		select {
+		case id := <-entered:
+			ids[id] = true
+		case <-time.After(5 * time.Second):
+			close(release)
+			t.Fatal("one recipient blocked another recipient's delivery")
+		}
+	}
+	close(release)
+	for i := 0; i < 2; i++ {
+		if err := <-finished; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(ids) != 2 || workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries") != 0 {
+		t.Fatal("concurrent delivery repeated a recipient or retained the completed envelope")
+	}
+}
+
+func TestPostWorkflowNotificationAfterAuthorDeletion(t *testing.T) {
+	f := newPostWorkflow(t)
+	f.queuePostNotification(t)
+	if err := bus.Dispatch(f.ctx, &cmd.DeleteCurrentUser{}); err != nil {
+		t.Fatal(err)
+	}
+	prepared := false
+	err := bus.Dispatch(f.ctx, &cmd.ProcessPostNotification{
+		Prepare: func(ctx context.Context, post *entity.Post) ([]cmd.PostNotificationRecipient, error) {
+			author := ctx.Value(app.UserCtxKey).(*entity.User)
+			if author.Status != enum.UserDeleted || author.Name != "" || author.Email != "" {
+				t.Fatal("delivery restored the deleted author's identity")
+			}
+			prepared = true
+			return nil, nil
+		},
+	})
+	if err != nil || !prepared || workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries") != 0 {
+		t.Fatalf("deleted author stranded delivery: %v", err)
+	}
+}
+
+func BenchmarkPostNotificationQueue(b *testing.B) {
+	for _, batchSize := range []int{1, 1000} {
+		b.Run(fmt.Sprintf("batch-%d", batchSize), func(b *testing.B) {
+			benchmarkPostNotificationQueue(b, batchSize)
+		})
+	}
+}
+
+func benchmarkPostNotificationQueue(b *testing.B, batchSize int) {
+	f := newPostWorkflow(b)
+	var delivered int
+	process := func() *cmd.ProcessPostNotification {
+		return &cmd.ProcessPostNotification{
+			EmailBatchSize: batchSize,
+			Prepare: func(context.Context, *entity.Post) ([]cmd.PostNotificationRecipient, error) {
+				recipients := make([]cmd.PostNotificationRecipient, 100)
+				for i := range recipients {
+					recipients[i] = cmd.PostNotificationRecipient{Channel: "email", ID: i + 1}
+				}
+				return recipients, nil
+			},
+			Send: func(ctx context.Context, post *entity.Post, recipients []cmd.PostNotificationRecipient) error {
+				delivered += len(recipients)
+				return nil
+			},
+		}
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		post := &cmd.AddNewPost{Title: fmt.Sprintf("Delivery benchmark %d", i), Description: "A representative notification"}
+		if err := bus.Dispatch(f.ctx, post); err != nil {
+			b.Fatal(err)
+		}
+		if err := bus.Dispatch(f.ctx, &cmd.SchedulePostNotification{Post: post.Result, BaseURL: "http://localhost:3000"}); err != nil {
+			b.Fatal(err)
+		}
+		for {
+			operation := process()
+			if err := bus.Dispatch(f.ctx, operation); err != nil {
+				b.Fatal(err)
+			}
+			if !operation.Found {
+				break
+			}
+		}
+	}
+	b.StopTimer()
+	if delivered != b.N*100 || workflowCount(b, "SELECT COUNT(*) FROM post_notification_deliveries") != 0 {
+		b.Fatal("benchmark did not complete and reclaim every delivery")
+	}
+}
+
+func TestPostWorkflowNotificationBatchFallback(t *testing.T) {
+	f := newPostWorkflow(t)
+	f.queuePostNotification(t)
+	batches, healthy, recovered := 0, 0, 0
+	fail := true
+	process := func() error {
+		return bus.Dispatch(f.ctx, &cmd.ProcessPostNotification{
+			EmailBatchSize: 1000,
+			Prepare: func(context.Context, *entity.Post) ([]cmd.PostNotificationRecipient, error) {
+				return []cmd.PostNotificationRecipient{{Channel: "email", ID: 2}, {Channel: "email", ID: 3}}, nil
+			},
+			Send: func(ctx context.Context, post *entity.Post, recipients []cmd.PostNotificationRecipient) error {
+				if len(recipients) > 1 {
+					batches++
+					return &email.RecipientRejected{Cause: fmt.Errorf("batch contains an invalid recipient")}
+				}
+				if recipients[0].ID == 2 {
+					healthy++
+					return nil
+				}
+				if fail {
+					return fmt.Errorf("recipient temporarily unavailable")
+				}
+				recovered++
+				return nil
+			},
+		})
+	}
+	if err := process(); err != nil {
+		t.Fatal(err)
+	}
+	if err := process(); err == nil || batches != 1 {
+		t.Fatal("expected one rejected batch")
+	}
+	if _, err := dbx.Connection().Exec("UPDATE post_notification_recipients SET available_at = NOW()"); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		_ = process()
+	}
+	if batches != 1 || healthy != 1 || recovered != 0 || workflowCount(t, "SELECT COUNT(*) FROM post_notification_recipients") != 1 {
+		t.Fatal("failed batch did not isolate recipient failures")
+	}
+	fail = false
+	if _, err := dbx.Connection().Exec("UPDATE post_notification_recipients SET available_at = NOW()"); err != nil {
+		t.Fatal(err)
+	}
+	if err := process(); err != nil || healthy != 1 || recovered != 1 || workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries") != 0 {
+		t.Fatalf("failed recipient did not recover independently: %v", err)
+	}
+}
+
+func BenchmarkPostNotificationIdle(b *testing.B) {
+	f := newPostWorkflow(b)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		operation := &cmd.ProcessPostNotification{}
+		if err := bus.Dispatch(f.ctx, operation); err != nil || operation.Found {
+			b.Fatalf("idle queue: found=%v error=%v", operation.Found, err)
+		}
+	}
+}
+
+func TestPostWorkflowTransientFailurePreservesEmailBatch(t *testing.T) {
+	f := newPostWorkflow(t)
+	f.queuePostNotification(t)
+	var sizes []int
+	operation := func() *cmd.ProcessPostNotification {
+		return &cmd.ProcessPostNotification{
+			EmailBatchSize: 1000,
+			Prepare: func(context.Context, *entity.Post) ([]cmd.PostNotificationRecipient, error) {
+				recipients := make([]cmd.PostNotificationRecipient, 1000)
+				for i := range recipients {
+					recipients[i] = cmd.PostNotificationRecipient{Channel: "email", ID: i + 1}
+				}
+				return recipients, nil
+			},
+			Send: func(_ context.Context, _ *entity.Post, recipients []cmd.PostNotificationRecipient) error {
+				sizes = append(sizes, len(recipients))
+				if len(sizes) == 1 {
+					return fmt.Errorf("provider temporarily unavailable")
+				}
+				return nil
+			},
+		}
+	}
+	if err := bus.Dispatch(f.ctx, operation()); err != nil {
+		t.Fatal(err)
+	}
+	if err := bus.Dispatch(f.ctx, operation()); err == nil {
+		t.Fatal("expected the provider failure")
+	}
+	if _, err := dbx.Connection().Exec("UPDATE post_notification_recipients SET available_at = NOW()"); err != nil {
+		t.Fatal(err)
+	}
+	if err := bus.Dispatch(f.ctx, operation()); err != nil {
+		t.Fatal(err)
+	}
+	if len(sizes) != 2 || sizes[0] != 1000 || sizes[1] != 1000 {
+		t.Fatalf("temporary provider failure fragmented a healthy batch: %v", sizes)
+	}
+	if workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries") != 0 {
+		t.Fatal("successful batch retained pending work")
 	}
 }

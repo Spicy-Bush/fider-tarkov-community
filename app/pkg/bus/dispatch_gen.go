@@ -78,6 +78,7 @@ var cMarkPostAsDuplicateHandler func(context.Context, *cmd.MarkPostAsDuplicate) 
 var cMuteUserHandler func(context.Context, *cmd.MuteUser) error
 var cParseOAuthRawProfileHandler func(context.Context, *cmd.ParseOAuthRawProfile) error
 var cPreviewWebhookHandler func(context.Context, *cmd.PreviewWebhook) error
+var cProcessPostNotificationHandler func(context.Context, *cmd.ProcessPostNotification) error
 var cPublishScheduledPagesHandler func(context.Context, *cmd.PublishScheduledPages) error
 var cPurgeExpiredNotificationsHandler func(context.Context, *cmd.PurgeExpiredNotifications) error
 var cPurgeReadNotificationsHandler func(context.Context, *cmd.PurgeReadNotifications) error
@@ -101,6 +102,7 @@ var cSavePushSubscriptionHandler func(context.Context, *cmd.SavePushSubscription
 var cSaveSponsorshipCampaignGraphHandler func(context.Context, *cmd.SaveSponsorshipCampaignGraph) error
 var cSaveVerificationKeyHandler func(context.Context, *cmd.SaveVerificationKey) error
 var cScheduleModerationHandler func(context.Context, *cmd.ScheduleModeration) error
+var cSchedulePostNotificationHandler func(context.Context, *cmd.SchedulePostNotification) error
 var cSendMailHandler func(context.Context, *cmd.SendMail) error
 var cSetAttachmentsHandler func(context.Context, *cmd.SetAttachments) error
 var cSetKeyAsVerifiedHandler func(context.Context, *cmd.SetKeyAsVerified) error
@@ -400,6 +402,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cParseOAuthRawProfileHandler = fn
 	case func(context.Context, *cmd.PreviewWebhook) error:
 		cPreviewWebhookHandler = fn
+	case func(context.Context, *cmd.ProcessPostNotification) error:
+		cProcessPostNotificationHandler = fn
 	case func(context.Context, *cmd.PublishScheduledPages) error:
 		cPublishScheduledPagesHandler = fn
 	case func(context.Context, *cmd.PurgeExpiredNotifications) error:
@@ -446,6 +450,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cSaveVerificationKeyHandler = fn
 	case func(context.Context, *cmd.ScheduleModeration) error:
 		cScheduleModerationHandler = fn
+	case func(context.Context, *cmd.SchedulePostNotification) error:
+		cSchedulePostNotificationHandler = fn
 	case func(context.Context, *cmd.SendMail) error:
 		cSendMailHandler = fn
 	case func(context.Context, *cmd.SetAttachments) error:
@@ -1100,6 +1106,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.PreviewWebhook")
 		}
 		return cPreviewWebhookHandler(ctx, m)
+	case *cmd.ProcessPostNotification:
+		if cProcessPostNotificationHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.ProcessPostNotification")
+		}
+		return cProcessPostNotificationHandler(ctx, m)
 	case *cmd.PublishScheduledPages:
 		if cPublishScheduledPagesHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.PublishScheduledPages")
@@ -1215,6 +1226,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.ScheduleModeration")
 		}
 		return cScheduleModerationHandler(ctx, m)
+	case *cmd.SchedulePostNotification:
+		if cSchedulePostNotificationHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.SchedulePostNotification")
+		}
+		return cSchedulePostNotificationHandler(ctx, m)
 	case *cmd.SendMail:
 		if cSendMailHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.SendMail")
