@@ -98,10 +98,8 @@ export const postPermissions = {
     return postPermissions.canRespond(user) || postPermissions.canRespondDuplicateOnly(user)
   },
 
-  canLock: (user?: CurrentUser): boolean => {
-    const currentUser = user ?? getCurrentUser()
-    if (!currentUser) return false
-    return currentUser.isCollaborator || currentUser.isAdministrator
+  canLock: (user: CurrentUser | undefined): boolean => {
+    return !!user && (user.isCollaborator || user.isAdministrator)
   },
 
   canArchive: (user?: CurrentUser): boolean => {

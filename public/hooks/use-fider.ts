@@ -8,3 +8,8 @@ export const useFider = () => {
 
   return fider
 }
+
+export const useCurrentUser = () => {
+  const { session } = useContext(FiderContext)
+  return useSyncExternalStore(session.subscribeUser, session.getUserSnapshot, session.getUserSnapshot)
+}

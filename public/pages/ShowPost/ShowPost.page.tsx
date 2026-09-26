@@ -1,3 +1,4 @@
+import { useCurrentUser } from "@fider/hooks"
 import React, { useEffect, useCallback, useState } from "react"
 
 import { LockStatus } from "./components/LockStatus"
@@ -57,6 +58,7 @@ interface ShowPostPageProps {
 }
 
 const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
+  const user = useCurrentUser()
   const state = useShowPostState({
     initialTitle: props.post.title,
     initialDescription: props.post.description,
@@ -262,7 +264,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                             <Dropdown.ListItem onClick={onActionSelected("edit")}>
                               <Trans id="action.edit">Edit</Trans>
                             </Dropdown.ListItem>
-                            {postPermissions.canLock() && (
+                            {postPermissions.canLock(user) && (
                               <>
                                 {!isPostLocked(props.post) ? (
                                   <Dropdown.ListItem onClick={onActionSelected("lock")}>
