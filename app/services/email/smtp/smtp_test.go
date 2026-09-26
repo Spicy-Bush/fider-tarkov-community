@@ -2,6 +2,8 @@ package smtp_test
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	gosmtp "net/smtp"
 	"regexp"
 	"testing"
@@ -159,4 +161,27 @@ func TestBatch_Success(t *testing.T) {
 	Expect(string(requests[1].body)).ContainsSubstring("From: \"Fider Test\" <noreply@random.org>\r\nReply-To: noreply@random.org\r\nTo: \"Arya Stark\" <arya.start@got.com>\r\nSubject: Message to: Arya\r\nMIME-version: 1.0\r\nContent-Type: text/html; charset=\"UTF-8\"\r\nDate: ")
 	Expect(string(requests[1].body)).ContainsSubstring("Message-ID: ")
 	Expect(string(requests[1].body)).ContainsSubstring("Hello World Arya!")
+}
+
+func TestSendMailDispatchReturnsFailureAndCanRecover(t *testing.T) {
+	RegisterT(t)
+	reset()
+	email.SetAllowlist("")
+	previous := smtp.Send
+	t.Cleanup(func() { smtp.Send = previous })
+	smtp.Send = func(string, string, bool, gosmtp.Auth, string, []string, []byte) error {
+		return fmt.Errorf("injected SMTP connection failure")
+	}
+	message := &cmd.SendMail{
+		To: []dto.Recipient{{Address: "subscriber@example.com"}},
+		TemplateName: "echo_test",
+		Props: dto.Props{"name": "Subscriber"},
+	}
+	if err := bus.Dispatch(ctx, message); err == nil || !strings.Contains(err.Error(), "injected SMTP connection failure") {
+		t.Fatalf("delivery failure was not returned to its owner: %v", err)
+	}
+	smtp.Send = mockSend
+	if err := bus.Dispatch(ctx, message); err != nil || len(requests) != 1 {
+		t.Fatalf("delivery did not recover after the transport recovered: %v", err)
+	}
 }

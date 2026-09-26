@@ -43,6 +43,7 @@ func (s Service) Enabled() bool {
 func (s Service) Init() {
 	MessageHistory = make([]*HistoryItem, 0)
 	bus.AddListener(sendMail)
+	bus.AddHandler(sendMail)
 	bus.AddHandler(fetchRecentSupressions)
 }
 
@@ -51,7 +52,7 @@ func fetchRecentSupressions(ctx context.Context, c *query.FetchRecentSupressions
 	return nil
 }
 
-func sendMail(ctx context.Context, c *cmd.SendMail) {
+func sendMail(ctx context.Context, c *cmd.SendMail) error {
 	if c.Props == nil {
 		c.Props = dto.Props{}
 	}
@@ -67,4 +68,5 @@ func sendMail(ctx context.Context, c *cmd.SendMail) {
 		item.Tenant = tenant
 	}
 	MessageHistory = append(MessageHistory, item)
+	return nil
 }

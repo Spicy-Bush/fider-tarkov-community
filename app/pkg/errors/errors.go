@@ -116,3 +116,7 @@ func Cause(err error) error {
 func (err *theError) Error() string {
 	return fmt.Sprintf("Error Trace: \n- %s\n- %v", err.text, err.cause)
 }
+
+func (err *theError) Unwrap() error {
+	return err.cause
+}

@@ -44,6 +44,7 @@ func (s Service) Enabled() bool {
 
 func (s Service) Init() {
 	bus.AddListener(sendMail)
+	bus.AddHandler(sendMail)
 	bus.AddHandler(fetchRecentSupressions)
 }
 
@@ -52,7 +53,7 @@ func fetchRecentSupressions(ctx context.Context, c *query.FetchRecentSupressions
 	return nil
 }
 
-func sendMail(ctx context.Context, c *cmd.SendMail) {
+func sendMail(ctx context.Context, c *cmd.SendMail) error {
 	if c.Props == nil {
 		c.Props = dto.Props{}
 	}
@@ -63,7 +64,7 @@ func sendMail(ctx context.Context, c *cmd.SendMail) {
 
 	for _, to := range c.To {
 		if to.Address == "" {
-			return
+			continue
 		}
 
 		u, err := url.Parse(web.BaseURL(ctx))
@@ -77,7 +78,7 @@ func sendMail(ctx context.Context, c *cmd.SendMail) {
 				"Name":    to.Name,
 				"Address": to.Address,
 			})
-			return
+			continue
 		}
 
 		log.Debugf(ctx, "Sending email to @{Address} with template @{TemplateName} and params @{Props}.", dto.Props{
@@ -103,10 +104,11 @@ func sendMail(ctx context.Context, c *cmd.SendMail) {
 		auth := authenticate(smtpConfig.Username, smtpConfig.Password, smtpConfig.Host)
 		err = Send(localname, servername, smtpConfig.EnableStartTLS, auth, email.NoReply, []string{to.Address}, b.Bytes())
 		if err != nil {
-			panic(errors.Wrap(err, "failed to send email with template %s", c.TemplateName))
+			return errors.Wrap(err, "failed to send email with template %s", c.TemplateName)
 		}
 		log.Debug(ctx, "Email sent.")
 	}
+	return nil
 }
 
 var Send = func(localName, serverAddress string, enableStartTLS bool, a gosmtp.Auth, from string, to []string, msg []byte) error {

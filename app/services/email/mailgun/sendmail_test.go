@@ -273,3 +273,60 @@ func TestGetBaseURL(t *testing.T) {
 	Expect(httpclientmock.RequestsHistory[5].URL.String()).Equals("https://api.mailgun.net/v3/mydomain.com/messages")
 
 }
+
+func TestSendMailDispatchRejectsProviderFailure(t *testing.T) {
+	RegisterT(t)
+	reset()
+	email.SetAllowlist("")
+	bus.AddHandler(func(_ context.Context, request *cmd.HTTPRequest) error {
+		request.ResponseStatusCode = 503
+		return nil
+	})
+	message := &cmd.SendMail{
+		To: []dto.Recipient{{Address: "subscriber@example.com"}},
+		TemplateName: "echo_test",
+		Props: dto.Props{"name": "Subscriber"},
+	}
+	if err := bus.Dispatch(ctx, message); err == nil {
+		t.Fatal("provider rejected email but the delivery reported success")
+	}
+	bus.Init(httpclientmock.Service{})
+	if err := bus.Dispatch(ctx, message); err != nil {
+		t.Fatalf("delivery did not recover after the provider recovered: %v", err)
+	}
+}
+
+func TestSendMailClassifiesOnlyInvalidRecipientAddresses(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		status    int
+		body      string
+		recipient bool
+	}{
+		{"invalid recipient", 400, `{"message":"'to' parameter is not a valid address. please check documentation"}`, true},
+		{"invalid sender", 400, `{"message":"'from' parameter is not a valid address. please check documentation"}`, false},
+		{"other bad request", 400, `{"message":"missing subject"}`, false},
+		{"malformed response", 400, `<html>bad request</html>`, false},
+		{"unauthorized", 401, `{"message":"Forbidden"}`, false},
+		{"rate limited", 429, `{"message":"'to' parameter is not a valid address"}`, false},
+		{"unavailable", 503, `{"message":"Service unavailable"}`, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			reset()
+			email.SetAllowlist("")
+			bus.AddHandler(func(_ context.Context, request *cmd.HTTPRequest) error {
+				request.ResponseStatusCode = test.status
+				request.ResponseBody = []byte(test.body)
+				return nil
+			})
+			err := bus.Dispatch(ctx, &cmd.SendMail{
+				To:           []dto.Recipient{{Address: "subscriber@example.com"}},
+				TemplateName: "echo_test",
+				Props:        dto.Props{"name": "Subscriber"},
+			})
+			if err == nil || email.IsRecipientRejected(err) != test.recipient {
+				t.Fatalf("incorrect provider rejection classification: %v", err)
+			}
+		})
+	}
+}

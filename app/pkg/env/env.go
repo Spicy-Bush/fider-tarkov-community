@@ -158,6 +158,10 @@ var Config config
 
 func init() {
 	Reload()
+	// Package tests do not run main, which binds the embedded production assets.
+	if IsTest() {
+		assets.FS = os.DirFS(Path("."))
+	}
 }
 
 func Reload() {

@@ -52,10 +52,11 @@ func (s Service) Init() {
 
 	sesClient = ses.New(awsSession)
 	bus.AddListener(sendMail)
+	bus.AddHandler(sendMail)
 	bus.AddHandler(fetchRecentSupressions)
 }
 
-func sendMail(ctx context.Context, c *cmd.SendMail) {
+func sendMail(ctx context.Context, c *cmd.SendMail) error {
 	if c.Props == nil {
 		c.Props = dto.Props{}
 	}
@@ -66,7 +67,7 @@ func sendMail(ctx context.Context, c *cmd.SendMail) {
 
 	for _, to := range c.To {
 		if to.Address == "" {
-			return
+			continue
 		}
 
 		if !email.CanSendTo(to.Address) {
@@ -74,7 +75,7 @@ func sendMail(ctx context.Context, c *cmd.SendMail) {
 				"Name":    to.Name,
 				"Address": to.Address,
 			})
-			return
+			continue
 		}
 
 		log.Debugf(ctx, "Sending email to @{Address} with template @{TemplateName} and params @{Props}.", dto.Props{
@@ -119,13 +120,14 @@ func sendMail(ctx context.Context, c *cmd.SendMail) {
 
 		result, err := sesClient.SendEmailWithContext(ctx, input)
 		if err != nil {
-			panic(errors.Wrap(err, "failed to send email with template %s", c.TemplateName))
+			return errors.Wrap(err, "failed to send email with template %s", c.TemplateName)
 		}
 
 		log.Debugf(ctx, "Email sent with ID @{MessageId}.", dto.Props{
 			"MessageId": *result.MessageId,
 		})
 	}
+	return nil
 }
 
 func fetchRecentSupressions(ctx context.Context, q *query.FetchRecentSupressions) error {

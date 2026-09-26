@@ -19,9 +19,9 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/services/email"
 )
 
-func sendMail(ctx context.Context, c *cmd.SendMail) {
+func sendMail(ctx context.Context, c *cmd.SendMail) error {
 	if len(c.To) == 0 {
-		return
+		return nil
 	}
 
 	if c.Props == nil {
@@ -75,15 +75,14 @@ func sendMail(ctx context.Context, c *cmd.SendMail) {
 		}
 	}
 
-	// If we skipped all recipients, just return
 	if len(recipientVariables) == 0 {
-		return
+		return nil
 	}
 
 	if isBatch {
 		json, err := json.Marshal(recipientVariables)
 		if err != nil {
-			panic(errors.Wrap(err, "failed to marshal recipient variables"))
+			return errors.Wrap(err, "failed to marshal recipient variables")
 		}
 
 		form.Add("recipient-variables", string(json))
@@ -115,9 +114,23 @@ func sendMail(ctx context.Context, c *cmd.SendMail) {
 	}
 	err := bus.Dispatch(ctx, req)
 	if err != nil {
-		panic(errors.Wrap(err, "failed to send email with template %s", c.TemplateName))
+		return errors.Wrap(err, "failed to send email with template %s", c.TemplateName)
+	}
+	if req.ResponseStatusCode < 200 || req.ResponseStatusCode >= 300 {
+		err := errors.New("mailgun rejected email with template %s: HTTP %d", c.TemplateName, req.ResponseStatusCode)
+		if req.ResponseStatusCode == 400 {
+			var response struct {
+				Message string `json:"message"`
+			}
+			if json.Unmarshal(req.ResponseBody, &response) == nil &&
+				strings.HasPrefix(response.Message, "'to' parameter is not a valid address") {
+				return &email.RecipientRejected{Cause: err}
+			}
+		}
+		return err
 	}
 	log.Debugf(ctx, "Email sent with response code @{StatusCode}.", dto.Props{
 		"StatusCode": req.ResponseStatusCode,
 	})
+	return nil
 }

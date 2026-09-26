@@ -39,6 +39,7 @@ func (s Service) Enabled() bool {
 
 func (s Service) Init() {
 	bus.AddListener(sendMail)
+	bus.AddHandler(sendMail)
 	bus.AddHandler(fetchRecentSupressions)
 }
 
