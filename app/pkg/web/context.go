@@ -141,26 +141,58 @@ func (c *Context) Commit() error {
 func (c *Context) Rollback() {
 	trx, ok := c.Value(app.TransactionCtxKey).(*dbx.Trx)
 	if ok && trx != nil {
-		trx.MustRollback()
+		if err := trx.Rollback(); err != nil {
+			log.Error(c, err)
+		}
 	}
 }
 
-// creates a new database transaction, executes the given function,
-// and commits on success or rolls back on error. Any write op
-// that need's atomicity will use this. The transaction is stored in context so all bus.Dispatch
-// calls within fn will use the same transaction
+// A response wont acknowledge writes before they commit
 func (c *Context) WithTransaction(fn func() error) error {
+	if trx, ok := c.Value(app.TransactionCtxKey).(*dbx.Trx); ok && trx != nil {
+		return fn()
+	}
 	trx, err := dbx.BeginTx(c)
 	if err != nil {
 		return err
 	}
+	defer trx.Rollback()
+
+	previous := c.Value(app.TransactionCtxKey)
+	response := c.Response
+	pending := &transactionResponse{header: response.Header().Clone()}
+	taskCount := len(c.tasks)
+	committed := false
 	c.Set(app.TransactionCtxKey, trx)
+	c.Response = Response{Writer: pending}
+	defer func() {
+		c.Set(app.TransactionCtxKey, previous)
+		c.Response = response
+		if !committed {
+			c.tasks = c.tasks[:taskCount]
+		}
+	}()
 
 	if err := fn(); err != nil {
-		trx.MustRollback()
+		err = trx.RollbackWithCause(err)
+		if pending.status >= http.StatusBadRequest {
+			if publishErr := pending.publish(&response); publishErr != nil {
+				return errors.Wrap(err, "failed to publish error response: %v", publishErr)
+			}
+		}
 		return err
 	}
-	return trx.Commit()
+	if pending.status >= http.StatusBadRequest {
+		if err := trx.Rollback(); err != nil {
+			return err
+		}
+		return pending.publish(&response)
+	}
+	if err := trx.Commit(); err != nil {
+		return err
+	}
+	committed = true
+	return pending.publish(&response)
 }
 
 // Enqueue given task to be processed in background

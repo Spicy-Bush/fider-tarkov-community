@@ -52,12 +52,16 @@ func setLastRun(key string, t time.Time) {
 		log.Error(ctx, err)
 		return
 	}
-	defer trx.MustCommit()
+	defer trx.Rollback()
 
 	if err = bus.Dispatch(ctx, &cmd.SetSystemSettings{
 		Key:   key,
 		Value: t.Format(time.RFC3339),
 	}); err != nil {
+		log.Error(ctx, trx.RollbackWithCause(err))
+		return
+	}
+	if err := trx.Commit(); err != nil {
 		log.Error(ctx, err)
 	}
 }

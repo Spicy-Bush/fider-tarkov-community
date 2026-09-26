@@ -31,6 +31,10 @@ func createServer() *Server {
 	bus.AddHandler(func(ctx context.Context, q *query.ListActiveOAuthProviders) error {
 		return nil
 	})
+	bus.AddHandler(func(ctx context.Context, q *query.GetNavigationLinks) error {
+		q.Result = []*entity.NavigationLink{}
+		return nil
+	})
 
 	engine := web.New()
 

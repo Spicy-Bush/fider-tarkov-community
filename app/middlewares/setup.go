@@ -53,20 +53,23 @@ func WorkerSetup() worker.MiddlewareFunc {
 				return err
 			}
 
+			previous := c.Value(app.TransactionCtxKey)
 			c.Set(app.TransactionCtxKey, trx)
+			defer c.Set(app.TransactionCtxKey, previous)
+			defer trx.Rollback()
 
 			//In case it panics somewhere
 			defer func() {
 				if r := recover(); r != nil {
-					err := c.Failure(errors.Panicked(r))
-					trx.MustRollback()
+					err = c.Failure(errors.Panicked(r))
+					err = trx.RollbackWithCause(err)
 					logFinish("panicked", err)
 				}
 			}()
 
 			//Execute the chain
 			if err = next(c); err != nil {
-				trx.MustRollback()
+				err = trx.RollbackWithCause(err)
 				logFinish("next_error", err)
 				return err
 			}

@@ -265,7 +265,9 @@ func (e *Engine) handle(middlewares []MiddlewareFunc, handler HandlerFunc) httpr
 			params[p.Key] = p.Value
 		}
 		ctx := NewContext(e, req, res, params)
-		_ = next(ctx)
+		if err := next(ctx); err != nil && ctx.Response.StatusCode == 0 {
+			_ = ctx.Failure(err)
+		}
 	}
 	return h
 }

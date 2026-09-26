@@ -1,11 +1,9 @@
 package dbx
 
 import (
-	"context"
 	"hash/fnv"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/log"
 )
 
 func hash(s string) uint32 {
@@ -14,18 +12,11 @@ func hash(s string) uint32 {
 	return h.Sum32()
 }
 
-// Try to obtain an advisory lock
-// returns true and an unlock function if lock was aquired
-func TryLock(ctx context.Context, trx *Trx, key string) (bool, func()) {
+func TryLock(trx *Trx, key string) (bool, error) {
 	var locked bool
 	if err := trx.Scalar(&locked, "SELECT pg_try_advisory_xact_lock($1)", hash(key)); err != nil {
-		log.Error(ctx, errors.Wrap(err, "failed to acquire advisory lock"))
-		return false, nil
+		return false, errors.Wrap(err, "failed to acquire advisory lock")
 	}
 
-	unlock := func() {
-		trx.MustCommit()
-	}
-
-	return locked, unlock
+	return locked, nil
 }

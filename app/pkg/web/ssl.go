@@ -58,7 +58,7 @@ func isValidHostName(ctx context.Context, host string) error {
 	if err != nil {
 		return errors.Wrap(err, "failed start new transaction")
 	}
-	defer trx.MustCommit()
+	defer trx.Rollback()
 	dbCtx := context.WithValue(ctx, app.TransactionCtxKey, trx)
 
 	getTenant := &query.GetTenantByDomain{Domain: host}
@@ -83,7 +83,7 @@ func isValidHostName(ctx context.Context, host string) error {
 		return errors.Wrap(errInvalidHostName, "cname %s (from %s) doesn't match configured host %s", cname, host, getTenant.Result.Subdomain+env.MultiTenantDomain())
 	}
 
-	return nil
+	return trx.Commit()
 }
 
 // CertificateManager is used to manage SSL certificates

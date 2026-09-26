@@ -94,6 +94,7 @@ func runMigration(ctx context.Context, version int, path, fileName string) error
 	if err != nil {
 		return err
 	}
+	defer trx.Rollback()
 
 	_, err = trx.tx.Exec(string(content))
 	if err != nil {

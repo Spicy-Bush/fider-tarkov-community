@@ -32,17 +32,14 @@ func NewJob(ctx context.Context, name string, handler Handler) (string, fiderJob
 }
 
 func (j fiderJob) Run() {
-	locked := false
-	unlock := func() {}
-
 	ctx, trx, err := newJobContext()
 	if err != nil {
 		log.Error(ctx, err)
 		return
 	}
+	defer trx.Rollback()
 
 	start := time.Now()
-	ctx.LastSuccessfulRun = getLastSuccessfulRun(ctx, j.Name)
 
 	logFinish := func() {
 		elapsedMs := time.Since(start).Nanoseconds() / int64(time.Millisecond)
@@ -51,20 +48,12 @@ func (j fiderJob) Run() {
 			"JobName":   j.Name,
 		})
 
-		// Jobs should take at least 1sec before unlocking to avoid double execution
-		if elapsedMs <= 1000 {
-			waitMs := time.Duration(1000 - elapsedMs)
-			time.Sleep(waitMs * time.Millisecond)
-		}
-		unlock()
 	}
 
 	defer func() {
 		if r := recover(); r != nil {
-			logFinish()
-			log.Error(ctx, errors.Panicked(r))
+			log.Error(ctx, trx.RollbackWithCause(errors.Panicked(r)))
 			setLastFailedRun(j.Name, start)
-			trx.MustRollback()
 		}
 	}()
 
@@ -72,25 +61,37 @@ func (j fiderJob) Run() {
 		"JobName": j.Name,
 	})
 
-	locked, unlock = dbx.TryLock(ctx, trx, j.Name)
+	locked, err := dbx.TryLock(trx, j.Name)
+	if err != nil {
+		log.Error(ctx, err)
+		return
+	}
 	if !locked {
 		log.Debugf(ctx, "Job '@{JobName}' skipped, could not acquire lock", dto.Props{
 			"JobName": j.Name,
 		})
-		trx.MustCommit()
 		return
 	}
 
 	defer logFinish()
+	ctx.LastSuccessfulRun = getLastSuccessfulRun(ctx, j.Name)
 
-	if err := j.Handler.Run(ctx); err != nil {
+	err = j.Handler.Run(ctx)
+	// Avoid releasing the lock while other replicas are starting this tick.
+	if remaining := time.Second - time.Since(start); remaining > 0 {
+		time.Sleep(remaining)
+	}
+	if err != nil {
+		log.Error(ctx, trx.RollbackWithCause(err))
+		setLastFailedRun(j.Name, start)
+		return
+	}
+	if err := trx.Commit(); err != nil {
 		log.Error(ctx, err)
 		setLastFailedRun(j.Name, start)
-		trx.MustRollback()
-	} else {
-		setLastSuccessfulRun(j.Name, start)
-		trx.MustCommit()
+		return
 	}
+	setLastSuccessfulRun(j.Name, start)
 }
 
 func newJobContext() (Context, *dbx.Trx, error) {

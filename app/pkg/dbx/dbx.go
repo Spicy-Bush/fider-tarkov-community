@@ -161,14 +161,19 @@ func (trx *Trx) Get(data any, command string, args ...any) error {
 
 	defer rows.Close()
 	if rows.Next() {
-		columns, _ := rows.Columns()
-		err := rowMapper.Map(data, columns, rows.Scan)
+		columns, err := rows.Columns()
+		if err != nil {
+			return wrap(err, "failed to read result columns")
+		}
+		err = rowMapper.Map(data, columns, rows.Scan)
 		if err != nil {
 			return wrap(err, "failed to map result to model")
 		}
-		return nil
+		return wrap(rows.Close(), "failed to finish trx.Get")
 	}
-
+	if err := rows.Err(); err != nil {
+		return wrap(err, "failed to read trx.Get result")
+	}
 	return app.ErrNotFound
 }
 
@@ -191,7 +196,11 @@ func (trx *Trx) Exists(command string, args ...any) (bool, error) {
 	}
 
 	defer rows.Close()
-	return rows.Next(), nil
+	exists := rows.Next()
+	if err := rows.Err(); err != nil {
+		return false, wrap(err, "failed to read trx.Exists result")
+	}
+	return exists, wrap(rows.Close(), "failed to finish trx.Exists")
 }
 
 // Count returns number of rows
@@ -216,6 +225,9 @@ func (trx *Trx) Count(command string, args ...any) (int, error) {
 	count := 0
 	for rows.Next() {
 		count++
+	}
+	if err := rows.Err(); err != nil {
+		return 0, wrap(err, "failed to read trx.Count result")
 	}
 	return count, nil
 }
@@ -245,7 +257,10 @@ func (trx *Trx) Select(data any, command string, args ...any) error {
 	var columns []string
 	for rows.Next() {
 		if columns == nil {
-			columns, _ = rows.Columns()
+			columns, err = rows.Columns()
+			if err != nil {
+				return wrap(err, "failed to read result columns")
+			}
 		}
 		item := reflect.New(itemType)
 		if err = rowMapper.Map(item.Interface(), columns, rows.Scan); err != nil {
@@ -254,6 +269,9 @@ func (trx *Trx) Select(data any, command string, args ...any) error {
 		items = reflect.Append(items, item)
 	}
 
+	if err := rows.Err(); err != nil {
+		return wrap(err, "failed to read trx.Select result")
+	}
 	if items.Len() > 0 {
 		reflect.Indirect(reflect.ValueOf(data)).Set(items)
 	}
@@ -283,7 +301,7 @@ func (trx *Trx) Query(command string, args ...any) (*sql.Rows, error) {
 // Commit current transaction
 func (trx *Trx) Commit() error {
 	err := trx.tx.Commit()
-	if err != nil && err != sql.ErrTxDone {
+	if err != nil {
 		return wrap(err, "failed to commit transaction")
 	}
 	return nil
