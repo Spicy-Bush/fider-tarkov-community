@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 )
@@ -53,4 +55,12 @@ type UnarchivePost struct {
 
 type BulkArchivePosts struct {
 	PostIDs []int
+}
+
+type SubmitPost struct {
+	SubmissionID string
+	Fingerprint  string
+	BaseURL      string
+	Create       func(context.Context) (*entity.Post, error)
+	Result       *dto.PostSubmissionReceipt
 }

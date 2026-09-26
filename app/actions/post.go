@@ -22,12 +22,13 @@ import (
 
 // CreateNewPost is used to create a new post
 type CreateNewPost struct {
-	Title       string             `json:"title"`
-	Description string             `json:"description"`
-	TagSlugs    []string           `json:"tags"`
-	Attachments []*dto.ImageUpload `json:"attachments"`
+	Title        string             `json:"title"`
+	Description  string             `json:"description"`
+	TagSlugs     []string           `json:"tags"`
+	Attachments  []*dto.ImageUpload `json:"attachments"`
+	SubmissionID string             `json:"submissionId"`
 
-	Tags []*entity.Tag
+	Tags []*entity.Tag `json:"-"`
 }
 
 // OnPreExecute prefetches Tags for later use

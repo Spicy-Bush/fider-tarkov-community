@@ -1,9 +1,12 @@
 package postgres_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +24,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/apiv1"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/jobs"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -799,4 +803,205 @@ func TestPostWorkflowNotificationRecovery(t *testing.T) {
 	if pendingDeliveries != 0 || pendingRecipients != 0 {
 		t.Fatal("completed delivery retained queue data")
 	}
+}
+
+func submissionBody(t testing.TB, id string, images bool) string {
+	t.Helper()
+
+	input := map[string]any{
+		"title":        "A complete suggestion " + id,
+		"description":  strings.Repeat("A useful description for the community. ", 6),
+		"submissionId": id,
+	}
+
+	if images {
+		var imageData bytes.Buffer
+		if err := png.Encode(&imageData, image.NewRGBA(image.Rect(0, 0, 20, 20))); err != nil {
+			t.Fatal(err)
+		}
+
+		input["attachments"] = []*dto.ImageUpload{
+			{
+				Upload: &dto.ImageUploadData{
+					FileName:    "example.png",
+					ContentType: "image/png",
+					Content:     imageData.Bytes(),
+				},
+			},
+		}
+	}
+
+	body, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return string(body)
+}
+
+func TestPostWorkflowConcurrentReplayAndDeletedReceipt(t *testing.T) {
+	f := newPostWorkflow(t)
+	body := submissionBody(t, "same-operation", true)
+
+	var writers sync.WaitGroup
+	responses := make(chan string, 16)
+
+	for i := 0; i < 16; i++ {
+		writers.Add(1)
+		go func() {
+			defer writers.Done()
+
+			recorder, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+			if err != nil || recorder.Code != http.StatusOK {
+				t.Errorf("create: status=%d error=%v body=%s", recorder.Code, err, recorder.Body)
+			}
+
+			responses <- recorder.Body.String()
+		}()
+	}
+
+	writers.Wait()
+	close(responses)
+
+	var original string
+	for response := range responses {
+		if original == "" {
+			original = response
+		} else if response != original {
+			t.Errorf("replay changed receipt: %s != %s", response, original)
+		}
+	}
+
+	effectCounts := []string{
+		"SELECT COUNT(*) FROM posts",
+		"SELECT COUNT(*) FROM post_votes",
+		"SELECT COUNT(*) FROM post_subscribers",
+		"SELECT COUNT(*) FROM attachments",
+		"SELECT COUNT(*) FROM post_notification_deliveries",
+	}
+
+	for _, query := range effectCounts {
+		if count := workflowCount(t, query); count != 1 {
+			t.Errorf("%s: want exactly one effect, got %d", query, count)
+		}
+	}
+
+	_, err := dbx.Connection().Exec(
+		"UPDATE posts SET status = $1, title = $2",
+		enum.PostDeleted, "edited and deleted",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	replay, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if replay.Code != http.StatusOK || replay.Body.String() != original {
+		t.Fatalf("deleted receipt was not recovered: status=%d body=%s", replay.Code, replay.Body)
+	}
+
+	deleted, err := f.request(apiv1.GetPost(), http.MethodGet, 1, "")
+	if err != nil || deleted.Code != http.StatusNotFound {
+		t.Fatalf("deleted post visible: %v %d %s", err, deleted.Code, deleted.Body)
+	}
+
+	changedBody := strings.Replace(body, "A complete suggestion", "A different suggestion", 1)
+	conflict, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, changedBody)
+	if err != nil || conflict.Code != http.StatusConflict {
+		t.Fatalf("changed payload reused identity: %v %d %s", err, conflict.Code, conflict.Body)
+	}
+}
+
+func TestPostWorkflowRollbackAndRecovery(t *testing.T) {
+	f := newPostWorkflow(t)
+	body := submissionBody(t, "recover-after-failure", true)
+
+	bus.AddHandler(func(context.Context, *cmd.ScheduleModeration) error {
+		return fmt.Errorf("injected scheduling failure")
+	})
+
+	failed, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+	if err == nil || failed.Code == http.StatusOK {
+		t.Fatalf("late failure reported success: %v %d", err, failed.Code)
+	}
+
+	effectCounts := []string{
+		"SELECT COUNT(*) FROM posts",
+		"SELECT COUNT(*) FROM post_votes",
+		"SELECT COUNT(*) FROM post_subscribers",
+		"SELECT COUNT(*) FROM attachments",
+		"SELECT COUNT(*) FROM post_notification_deliveries",
+	}
+
+	for _, query := range effectCounts {
+		if count := workflowCount(t, query); count != 0 {
+			t.Errorf("%s: failed operation retained %d rows", query, count)
+		}
+	}
+
+	bus.Init(postgres.Service{}, blobsql.Service{})
+
+	recovered, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+	if err != nil || recovered.Code != http.StatusOK {
+		t.Fatalf("recovery failed: %v %d %s", err, recovered.Code, recovered.Body)
+	}
+
+	if workflowCount(t, "SELECT number FROM posts") != 1 {
+		t.Fatal("rolled-back number was consumed")
+	}
+}
+
+func TestPostWorkflowIndependentConcurrentCreates(t *testing.T) {
+	f := newPostWorkflow(t)
+	var writers sync.WaitGroup
+
+	for i := 0; i < 24; i++ {
+		body := submissionBody(t, fmt.Sprintf("independent-%d", i), false)
+		writers.Add(1)
+		go func() {
+			defer writers.Done()
+
+			recorder, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+			if err != nil || recorder.Code != http.StatusOK {
+				t.Errorf("create failed: %v %d %s", err, recorder.Code, recorder.Body)
+			}
+		}()
+	}
+
+	writers.Wait()
+
+	var count, distinct, minimum, maximum int
+	err := dbx.Connection().QueryRow(`
+		SELECT COUNT(*), COUNT(DISTINCT number), MIN(number), MAX(number) FROM posts
+	`).Scan(&count, &distinct, &minimum, &maximum)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if count != 24 || distinct != 24 || minimum != 1 || maximum != 24 {
+		t.Fatalf("numbering: count=%d distinct=%d range=%d..%d", count, distinct, minimum, maximum)
+	}
+}
+
+func BenchmarkPostWorkflowCreate(b *testing.B) {
+	f := newPostWorkflow(b)
+	var sequence atomic.Int64
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			id := fmt.Sprintf("benchmark-%d", sequence.Add(1))
+			body := submissionBody(b, id, false)
+
+			recorder, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+			if err != nil || recorder.Code != http.StatusOK {
+				b.Errorf("create failed: %v %d %s", err, recorder.Code, recorder.Body)
+			}
+		}
+	})
 }

@@ -29,6 +29,7 @@ func (s Service) Enabled() bool {
 }
 
 func (s Service) Init() {
+	bus.AddHandler(submitPost)
 	bus.AddHandler(applyPostVote)
 	bus.AddHandler(schedulePostNotification)
 	bus.AddHandler(processPostNotification)

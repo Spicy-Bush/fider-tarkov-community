@@ -111,6 +111,7 @@ var cSetPostResponseHandler func(context.Context, *cmd.SetPostResponse) error
 var cSetSystemSettingsHandler func(context.Context, *cmd.SetSystemSettings) error
 var cStoreBlobHandler func(context.Context, *cmd.StoreBlob) error
 var cStoreEventHandler func(context.Context, *cmd.StoreEvent) error
+var cSubmitPostHandler func(context.Context, *cmd.SubmitPost) error
 var cSupressEmailHandler func(context.Context, *cmd.SupressEmail) error
 var cTestWebhookHandler func(context.Context, *cmd.TestWebhook) error
 var cToggleCommentReactionHandler func(context.Context, *cmd.ToggleCommentReaction) error
@@ -469,6 +470,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cStoreBlobHandler = fn
 	case func(context.Context, *cmd.StoreEvent) error:
 		cStoreEventHandler = fn
+	case func(context.Context, *cmd.SubmitPost) error:
+		cSubmitPostHandler = fn
 	case func(context.Context, *cmd.SupressEmail) error:
 		cSupressEmailHandler = fn
 	case func(context.Context, *cmd.TestWebhook) error:
@@ -1274,6 +1277,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.StoreEvent")
 		}
 		return cStoreEventHandler(ctx, m)
+	case *cmd.SubmitPost:
+		if cSubmitPostHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.SubmitPost")
+		}
+		return cSubmitPostHandler(ctx, m)
 	case *cmd.SupressEmail:
 		if cSupressEmailHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.SupressEmail")

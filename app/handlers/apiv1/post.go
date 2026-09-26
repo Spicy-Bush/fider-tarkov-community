@@ -1,6 +1,8 @@
 package apiv1
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -16,6 +18,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/markdown"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/sse"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/tasks"
 )
@@ -196,70 +199,139 @@ func SearchPosts() web.HandlerFunc {
 // CreatePost creates a new post on current tenant
 func CreatePost() web.HandlerFunc {
 	return func(c *web.Context) error {
-		if c.User().IsMuted() {
-			return c.BadRequest(web.Map{
-				"message": "You are currently muted and cannot create new posts.",
-			})
+		if !c.IsAuthenticated() {
+			return c.Unauthorized()
 		}
 
 		action := new(actions.CreateNewPost)
-		if result := c.BindTo(action); !result.Ok {
-			return c.HandleValidation(result)
+		if err := c.Bind(action); err != nil {
+			return c.BadRequest(web.Map{
+				"message": "Invalid post submission.",
+			})
 		}
 
-		return c.WithTransaction(func() error {
-			if err := bus.Dispatch(c, &cmd.UploadImages{Images: action.Attachments, Folder: "attachments"}); err != nil {
-				return c.Failure(err)
+		if len(action.SubmissionID) > 128 {
+			return c.BadRequest(web.Map{
+				"message": "Invalid submission identity.",
+			})
+		}
+
+		original, err := json.Marshal(action)
+		if err != nil {
+			return err
+		}
+
+		fingerprint := fmt.Sprintf("%x", sha256.Sum256(original))
+		var validation *validate.Result
+		var created *entity.Post
+		var tagsAssigned int
+
+		submission := &cmd.SubmitPost{
+			SubmissionID: action.SubmissionID,
+			Fingerprint:  fingerprint,
+			BaseURL:      web.BaseURL(c),
+		}
+
+		submission.Create = func(ctx context.Context) (*entity.Post, error) {
+			if c.User().IsMuted() {
+				validation = validate.Failed("You are currently muted and cannot create new posts.")
+				return nil, nil
+			}
+
+			if err := action.OnPreExecute(ctx); err != nil {
+				return nil, err
+			}
+
+			if !action.IsAuthorized(ctx, c.User()) {
+				validation = validate.Unauthorized()
+				return nil, nil
+			}
+
+			validation = action.Validate(ctx, c.User())
+			if !validation.Ok {
+				return nil, validation.Err
+			}
+
+			uploadImages := &cmd.UploadImages{
+				Images: action.Attachments,
+				Folder: "attachments",
+			}
+
+			if err := bus.Dispatch(ctx, uploadImages); err != nil {
+				return nil, err
 			}
 
 			newPost := &cmd.AddNewPost{
 				Title:       action.Title,
 				Description: action.Description,
 			}
-			if err := bus.Dispatch(c, newPost); err != nil {
-				return c.Failure(err)
+
+			if err := bus.Dispatch(ctx, newPost); err != nil {
+				return nil, err
 			}
 
-			setAttachments := &cmd.SetAttachments{Post: newPost.Result, Attachments: action.Attachments}
-			addVote := &cmd.AddVote{Post: newPost.Result, User: c.User(), VoteType: enum.VoteTypeUp}
-			if err := bus.Dispatch(c, setAttachments, addVote); err != nil {
-				return c.Failure(err)
+			created = newPost.Result
+			setAttachments := &cmd.SetAttachments{
+				Post:        created,
+				Attachments: action.Attachments,
+			}
+			addVote := &cmd.AddVote{
+				Post:     created,
+				User:     c.User(),
+				VoteType: enum.VoteTypeUp,
 			}
 
-			tagsAssigned := 0
-			if env.Config.PostCreationWithTagsEnabled {
-				for _, tag := range action.Tags {
-					assignTag := &cmd.AssignTag{Tag: tag, Post: newPost.Result}
-					if err := bus.Dispatch(c, assignTag); err != nil {
-						return c.Failure(err)
-					}
-					tagsAssigned++
+			if err := bus.Dispatch(ctx, setAttachments, addVote); err != nil {
+				return nil, err
+			}
+
+			for _, tag := range action.Tags {
+				assignTag := &cmd.AssignTag{
+					Tag:  tag,
+					Post: created,
 				}
+
+				if err := bus.Dispatch(ctx, assignTag); err != nil {
+					return nil, err
+				}
+
+				tagsAssigned++
 			}
 
+			moderation := &cmd.ScheduleModeration{
+				ContentType: "post",
+				ContentID:   created.ID,
+			}
+
+			if err := bus.Dispatch(ctx, moderation); err != nil {
+				return nil, err
+			}
+
+			return created, nil
+		}
+
+		err = bus.Dispatch(c, submission)
+		if err != nil {
+			return c.Failure(err)
+		}
+
+		if validation != nil && !validation.Ok {
+			return c.HandleValidation(validation)
+		}
+
+		if created != nil {
 			if tagsAssigned == 0 {
 				sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgQueuePostNew, sse.QueueEventPayload{
-					PostID: newPost.Result.ID,
+					PostID: created.ID,
 				})
-			}
-
-			c.Enqueue(tasks.NotifyAboutNewPost(newPost.Result))
-
-			if err := bus.Dispatch(c, &cmd.ScheduleModeration{ContentType: "post", ContentID: newPost.Result.ID}); err != nil {
-				return c.Failure(err)
 			}
 
 			postcache.InvalidateTenantRankings(c.Tenant().ID)
 			postcache.InvalidateCountPerStatus(c.Tenant().ID)
-
 			metrics.TotalPosts.Inc()
-			return c.Ok(web.Map{
-				"id":     newPost.Result.ID,
-				"number": newPost.Result.Number,
-				"title":  newPost.Result.Title,
-				"slug":   newPost.Result.Slug,
-			})
-		})
+		}
+
+		return c.Ok(submission.Result)
 	}
 }
 
