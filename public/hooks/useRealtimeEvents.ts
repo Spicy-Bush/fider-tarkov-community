@@ -25,7 +25,7 @@ export const useRealtimeEvents = <T extends EventHandlerMap>(
 
     const unsubscribers: Array<() => void> = []
 
-    for (const [eventType, handler] of Object.entries(handlersRef.current)) {
+    for (const eventType of Object.keys(handlersRef.current)) {
       const unsubscribe = eventSource.on(eventType, (type, payload) => {
         const currentHandler = handlersRef.current[eventType]
         if (currentHandler) {

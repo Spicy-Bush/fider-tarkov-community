@@ -57,11 +57,14 @@ export function useDetailsCache<T extends Record<string, unknown>>(
       setIsLoading(true)
       const request = fetchFn()
         .then((data) => {
-          const existingEntry = cache.current.get(key) || { data: {}, timestamp: 0 }
+          const updated: Partial<T> = Object.assign({}, cache.current.get(key)?.data)
+          updated[field] = data
+
           cache.current.set(key, {
-            data: { ...existingEntry.data, [field]: data },
+            data: updated,
             timestamp: Date.now(),
           })
+
           return data
         })
         .finally(() => {

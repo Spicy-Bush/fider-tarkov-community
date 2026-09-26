@@ -5,7 +5,6 @@ import { Avatar, UserName, Button, Form, MultiImageUploader } from "@fider/compo
 import { SignInModal } from "@fider/components"
 
 import { cache, actions, Failure } from "@fider/services"
-import { HStack } from "@fider/components/layout"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
 

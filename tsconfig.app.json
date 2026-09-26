@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "target": "ES2020",
+    "lib": ["DOM", "ES2020", "ES2020.Intl"],
+    "skipLibCheck": true,
+    "incremental": false
+  },
+  "include": [
+    "public/**/*",
+    "locale/**/*",
+    "index.d.ts"
+  ],
+  "exclude": [
+    "public/**/*.spec.ts",
+    "public/**/*.spec.tsx",
+    "public/**/*.test.ts",
+    "public/**/*.test.tsx",
+    "public/jest.*",
+    "public/services/testing/**/*"
+  ]
+}

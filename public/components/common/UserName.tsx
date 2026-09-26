@@ -1,5 +1,5 @@
 import React from "react"
-import { isAdministrator, isCollaborator, isHelper, isModerator, UserRole, VisualRole, getVisualRoleName } from "@fider/models"
+import { isAdministrator, isCollaborator, isHelper, isModerator, UserRole, VisualRole } from "@fider/models"
 import { classSet } from "@fider/services"
 import { useFider } from "@fider/hooks"
 
@@ -34,7 +34,6 @@ export const UserName = (props: UserNameProps) => {
   }
   
   const visualRole = props.user.visualRole || getDefaultVisualRole();
-  const visualRoleName = getVisualRoleName(visualRole)
   const vrClass = visualRole ? `vr-${visualRole}` : ""
 
   const userName = props.user.name || "Anonymous"
@@ -42,7 +41,7 @@ export const UserName = (props: UserNameProps) => {
     <span className="ml-2.5 text-subtle text-xs font-normal">{props.user.email}</span>
   )
   
-  const visualRoleSpan = visualRoleName && visualRole !== VisualRole.Visitor && (
+  const visualRoleSpan = visualRole && visualRole !== VisualRole.Visitor && (
     <span className="c-username--visualrole"></span>
   )
 

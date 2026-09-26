@@ -4,7 +4,7 @@ import { AvatarStack, Button } from "@fider/components"
 import { Fider } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { VotesModal } from "./VotesModal"
-import { HStack, VStack } from "@fider/components/layout"
+import { VStack } from "@fider/components/layout"
 import { Trans } from "@lingui/react/macro"
 
 interface VotesPanelProps {

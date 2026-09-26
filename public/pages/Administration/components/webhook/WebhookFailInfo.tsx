@@ -53,7 +53,7 @@ export const WebhookFailInfo = (props: WebhookFailInfoProps) => {
       <Modal.Window isOpen={props.isModalOpen} onClose={props.onModalClose} size="large">
         <Modal.Header>Webhook Failure Details</Modal.Header>
         <Modal.Content>
-          <VStack spacing={3}>
+          <VStack spacing={4}>
             <InfoProperty value={props.result.message} name="Message" info="Generic information about where it failed" />
             <InfoProperty value={props.result.error} name="Error" info="Detailed information about what failed" multiline />
             <InfoProperty value={props.result.url} name="URL" info="Parsed URL where the request has been made" />

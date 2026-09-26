@@ -86,7 +86,8 @@
     },
     "scripts": {
         "dev": "vite",
-        "build": "npm run build:sprites && vite build",
+        "build": "npm run typecheck && npm run build:sprites && vite build",
+        "typecheck": "tsc --project tsconfig.app.json",
         "build:sprites": "node scripts/build-sprites.js",
         "preview": "vite preview",
         "heroku-postbuild": "make build-ssr && npm run build"

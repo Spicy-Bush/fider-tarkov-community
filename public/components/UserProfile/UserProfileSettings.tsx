@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState } from "react"
 import { Modal, Form, Input, Button, Icon, Toggle } from "@fider/components"
 import { useUserProfile } from "./context"
 import { Trans } from "@lingui/react/macro"

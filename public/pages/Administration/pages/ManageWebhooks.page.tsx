@@ -5,7 +5,7 @@ import { actions, Failure } from "@fider/services"
 import { WebhookForm } from "../components/webhook/WebhookForm"
 import { WebhookListItem } from "../components/webhook/WebhookListItem"
 import { WebhookDocsPanel } from "../components/webhook/WebhookDocsPanel"
-import { VStack, HStack } from "@fider/components/layout"
+import { VStack } from "@fider/components/layout"
 import { PageConfig } from "@fider/components/layouts"
 
 export const pageConfig: PageConfig = {
@@ -37,7 +37,7 @@ const WebhooksList = (props: WebhooksListProps) => {
   return (
     <div>
       <h2 className="text-lg font-semibold text-foreground mb-4">My Webhooks</h2>
-      <VStack spacing={3}>
+      <VStack spacing={4}>
         {props.list.length === 0 ? (
           <div className="p-8 text-center bg-tertiary rounded-card border border-surface-alt">
             <p className="text-muted m-0">There aren&apos;t any webhooks yet.</p>

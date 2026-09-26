@@ -122,8 +122,3 @@ export interface CurrentUser {
   latestWarningId?: number
   latestMuteId?: number
 }
-
-export const getVisualRoleName = (visualRole?: VisualRole): string => {
-  if (visualRole === undefined || visualRole === VisualRole.None) return "";
-  return visualRole;
-}

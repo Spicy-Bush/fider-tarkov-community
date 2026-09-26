@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { Post } from "@fider/models"
 import { VoteCounter, Icon, Markdown } from "@fider/components"
 import { ResponseLozenge } from "@fider/components/post/ShowPostResponse"

@@ -2,7 +2,7 @@ import React from "react"
 import { PostResponse, PostStatus } from "@fider/models"
 import { Icon, Markdown } from "@fider/components"
 import { heroiconsDuplicate as HeroIconDuplicate, heroiconsCheckCircle as HeroIconCheck, heroiconsSparklesOutline as HeroIconSparkles, heroiconsThumbsup as HeroIconThumbsUp, heroiconsThumbsdown as HeroIconThumbsDown } from "@fider/icons.generated"
-import { HStack, VStack } from "../layout"
+import { HStack } from "../layout"
 import { timeSince } from "@fider/services"
 
 interface PostResponseProps {
