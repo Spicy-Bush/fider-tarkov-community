@@ -55,6 +55,37 @@ func TestSubscription_NoSettings(t *testing.T) {
 	Expect(subscribed.Result).IsFalse()
 }
 
+func TestSubscription_SelectedRecipients(t *testing.T) {
+	SetupDatabaseTest(t)
+	defer TeardownDatabaseTest()
+	post := &cmd.AddNewPost{Title: "Selected subscribers", Description: "Recipient selection"}
+	if err := bus.Dispatch(aryaStarkCtx, post); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []enum.NotificationEvent{enum.NotificationEventNewPost, enum.NotificationEventNewComment} {
+		for _, selection := range []struct {
+			ids []int
+			want int
+		}{
+			{nil, 1},
+			{[]int{}, 1},
+			{[]int{jonSnow.ID, -1, tonyStark.ID}, 1},
+			{[]int{aryaStark.ID, tonyStark.ID}, 0},
+		} {
+			q := &query.GetActiveSubscribers{
+				Number: post.Result.Number, Channel: enum.NotificationChannelWeb,
+				Event: event, UserIDs: selection.ids,
+			}
+			if err := bus.Dispatch(aryaStarkCtx, q); err != nil {
+				t.Fatal(err)
+			}
+			if len(q.Result) != selection.want || (len(q.Result) == 1 && q.Result[0].ID != jonSnow.ID) {
+				t.Fatalf("recipient selection %v returned %v", selection.ids, q.Result)
+			}
+		}
+	}
+}
+
 func TestSubscription_RemoveSubscriber(t *testing.T) {
 	SetupDatabaseTest(t)
 	defer TeardownDatabaseTest()

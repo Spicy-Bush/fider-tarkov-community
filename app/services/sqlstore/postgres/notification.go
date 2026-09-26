@@ -256,6 +256,7 @@ func getActiveSubscribers(ctx context.Context, q *query.GetActiveSubscribers) er
 				AND set.key = $1
 				WHERE u.tenant_id = $2
 				AND u.status = $5
+				AND (COALESCE(cardinality($6::int[]), 0) = 0 OR u.id = ANY($6))
 				%s
 				AND (
 					(set.value IS NULL AND u.role = ANY($3))
@@ -267,6 +268,7 @@ func getActiveSubscribers(ctx context.Context, q *query.GetActiveSubscribers) er
 				pq.Array(q.Event.DefaultEnabledUserRoles),
 				q.Channel,
 				enum.UserActive,
+				pq.Array(q.UserIDs),
 			)
 		} else {
 			// If the event requires a subscription, notify only those who subscribed
@@ -283,6 +285,7 @@ func getActiveSubscribers(ctx context.Context, q *query.GetActiveSubscribers) er
 				AND set.tenant_id = u.tenant_id
 		WHERE u.tenant_id = $4
 		AND u.status = $8
+		AND (COALESCE(cardinality($9::int[]), 0) = 0 OR u.id = ANY($9))
 		%s
 		AND ( sub.status = $2 OR (sub.status IS NULL AND NOT u.role = ANY($7)) )
 				AND (
@@ -298,6 +301,7 @@ func getActiveSubscribers(ctx context.Context, q *query.GetActiveSubscribers) er
 				q.Channel,
 				pq.Array(q.Event.RequiresSubscriptionUserRoles),
 				enum.UserActive,
+				pq.Array(q.UserIDs),
 			)
 		}
 

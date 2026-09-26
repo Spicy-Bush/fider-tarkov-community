@@ -23,6 +23,7 @@ type GetActiveNotifications struct {
 }
 
 type GetActiveSubscribers struct {
+	UserIDs []int
 	Number  int
 	Channel enum.NotificationChannel
 	Event   enum.NotificationEvent
