@@ -64,6 +64,10 @@ export const WebhookListItem = (props: WebhookListItemProps) => {
 
   const testWebhook = async () => {
     const result = await actions.testWebhook(props.webhook.id)
+    if (!result.ok) {
+      notify.error(result.error.errors?.[0]?.message || "Could not test webhook.")
+      return
+    }
     setTriggerResult(result.data)
     if (result.ok && result.data.success) {
       notify.success("Successfully triggered webhook")

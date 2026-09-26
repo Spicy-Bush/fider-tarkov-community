@@ -291,8 +291,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
           await loadGraph(editingCampId, { forceAssignments: true })
         }
       } else {
-        const msg = (result.data as { message?: string } | undefined)?.message
-        if (msg === "Conflict") {
+        if (result.status === 409) {
           notify.error("Campaign was modified elsewhere - reloading")
           await reloadCampaigns()
           await loadGraph(editingCampId, { forceAssignments: true })
@@ -456,8 +455,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
           await loadGraph(editingCampId, { forceAssignments: true })
         }
       } else {
-        const msg = (result.data as { message?: string } | undefined)?.message
-        if (msg === "Conflict") {
+        if (result.status === 409) {
           notify.error("Campaign was modified elsewhere - reloading")
           await reloadCampaigns()
           await loadGraph(editingCampId, { forceAssignments: true })

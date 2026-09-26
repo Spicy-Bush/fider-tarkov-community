@@ -90,6 +90,10 @@ const SignUpPage = () => {
     if (subdomain.name != "") {
       timer = window.setTimeout(() => {
         actions.checkAvailability(subdomain.name).then((result) => {
+          if (!result.ok) {
+            setSubdomain({ ...subdomain, isAvailable: false, message: "Could not check availability." })
+            return
+          }
           setSubdomain({
             ...subdomain,
             isAvailable: !result.data.message,

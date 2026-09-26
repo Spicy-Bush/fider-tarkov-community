@@ -44,6 +44,7 @@ const GeneralSettingsPage = () => {
     
     if (messageBannerResult.error) {
       setError(messageBannerResult.error);
+      return
     }
     
     if (result.ok) {

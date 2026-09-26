@@ -1,4 +1,4 @@
-import { analytics, notify, truncate } from "@fider/services"
+import { analytics, notify } from "@fider/services"
 
 export interface ErrorItem {
   field?: string
@@ -7,17 +7,42 @@ export interface ErrorItem {
 
 export interface Failure {
   errors?: ErrorItem[]
+  cause?: unknown
 }
 
-export interface Result<T = void> {
-  ok: boolean
-  data: T
-  error?: Failure
-  headers?: Headers
+export type Result<T = void> =
+  | { ok: true; data: T; error?: never; headers?: Headers }
+  | { ok: false; error: Failure; data?: never; status?: number; headers?: Headers }
+
+export class RequestError extends Error {
+  readonly cause: unknown
+
+  constructor(
+    readonly method: string,
+    readonly path: string,
+    readonly phase: "transport" | "response",
+    cause: unknown,
+    readonly status?: number
+  ) {
+    super(`Failed to ${method} ${path} (${phase}${status === undefined ? "" : `, HTTP ${status}`})`)
+    this.name = "RequestError"
+    Object.defineProperty(this, "cause", { value: cause, enumerable: false })
+  }
 }
 
-async function toResult<T>(response: Response, includeHeaders = false): Promise<Result<T>> {
-  const body = await response.json()
+async function toResult<T>(response: Response, method: string, path: string, includeHeaders = false): Promise<Result<T>> {
+  let body: any
+  let parseFailure: unknown
+  if (response.status !== 204) {
+    try {
+      body = await response.json()
+    } catch (cause) {
+      if (response.ok) {
+        throw new RequestError(method, path, "response", cause, response.status)
+      }
+      parseFailure = cause
+    }
+  }
 
   if (response.status < 400) {
     return {
@@ -27,7 +52,7 @@ async function toResult<T>(response: Response, includeHeaders = false): Promise<
     }
   }
 
-  if (response.status === 500) {
+  if (response.status >= 500) {
     notify.error("An unexpected error occurred while processing your request.")
   } else if (response.status === 401) {
     notify.error("You need to be authenticated to perform this operation.")
@@ -35,15 +60,23 @@ async function toResult<T>(response: Response, includeHeaders = false): Promise<
     notify.error("You are not authorized to perform this operation.")
   }
 
+  const failure: Failure = {
+    errors: Array.isArray(body?.errors)
+      ? body.errors.filter((item: ErrorItem) => item && typeof item.message === "string")
+      : [{ message: typeof body?.message === "string" ? body.message : `Request failed (HTTP ${response.status}).` }],
+  }
+  if (parseFailure !== undefined) {
+    Object.defineProperty(failure, "cause", { value: parseFailure, enumerable: false })
+  }
   return {
     ok: false,
-    data: body as T,
-    error: {
-      errors: body.errors,
-    },
+    status: response.status,
+    headers: includeHeaders ? response.headers : undefined,
+    error: failure,
   }
 }
 interface RequestOptions {
+  signal?: AbortSignal
   includeHeaders?: boolean
 }
 
@@ -52,18 +85,21 @@ async function request<T>(url: string, method: "GET" | "POST" | "PUT" | "DELETE"
     ["Accept", "application/json"],
     ["Content-Type", "application/json"],
   ]
+  const encodedBody = JSON.stringify(body)
+  const path = url.split(/[?#]/, 1)[0]
+  let response: Response
   try {
-    const response = await fetch(url, {
+    response = await fetch(url, {
       method,
       headers,
-      body: JSON.stringify(body),
+      body: encodedBody,
       credentials: "same-origin",
+      signal: options?.signal,
     })
-    return await toResult<T>(response, options?.includeHeaders)
-  } catch (err) {
-    const truncatedBody = truncate(body ? JSON.stringify(body) : "<empty>", 1000)
-    throw new Error(`Failed to ${method} ${url} with body '${truncatedBody}'`)
+  } catch (cause) {
+    throw new RequestError(method, path, "transport", cause)
   }
+  return toResult<T>(response, method, path, options?.includeHeaders)
 }
 
 export const http = {
@@ -73,8 +109,8 @@ export const http = {
   getWithHeaders: async <T = void>(url: string): Promise<Result<T>> => {
     return await request<T>(url, "GET", undefined, { includeHeaders: true })
   },
-  post: async <T = void>(url: string, body?: any): Promise<Result<T>> => {
-    return await request<T>(url, "POST", body)
+  post: async <T = void>(url: string, body?: any, options?: RequestOptions): Promise<Result<T>> => {
+    return await request<T>(url, "POST", body, options)
   },
   put: async <T = void>(url: string, body?: any): Promise<Result<T>> => {
     return await request<T>(url, "PUT", body)
