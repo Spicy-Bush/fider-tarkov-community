@@ -1,5 +1,3 @@
-// MultiImageUploader converted to Tailwind
-
 import React from "react"
 import { ImageUploader } from "./ImageUploader"
 import { ImageUpload } from "@fider/models"
@@ -10,103 +8,93 @@ interface MultiImageUploaderProps {
   field: string
   maxUploads: number
   bkeys?: string[]
+  initialUploads?: ImageUpload[]
+  disabled?: boolean
   onChange?: (uploads: ImageUpload[]) => void
 }
 
-interface MultiImageUploaderInstances {
-  [key: string]: {
-    element: JSX.Element
-    upload?: ImageUpload
-  }
+interface ImageEntry {
+  id: string
+  image: ImageUpload
 }
 
 interface MultiImageUploaderState {
-  count: number
-  instances: MultiImageUploaderInstances
-  removed: ImageUpload[]
+  entries: ImageEntry[]
 }
 
 export class MultiImageUploader extends React.Component<MultiImageUploaderProps, MultiImageUploaderState> {
+  private nextID = 0
+
   constructor(props: MultiImageUploaderProps) {
     super(props)
 
-    const instances = {}
-    if (props.bkeys) {
-      for (const bkey of props.bkeys) {
-        this.addNewElement(instances, bkey)
+    const saved = (props.bkeys || []).map((bkey) => ({ bkey, remove: false }))
+    const images = [...(props.initialUploads || []), ...saved]
+
+    this.state = {
+      entries: images.map((image) => ({
+        id: String(this.nextID++),
+        image,
+      })),
+    }
+  }
+
+  private imageUploaded = (image: ImageUpload, instanceID: string) => {
+    if (instanceID === String(this.nextID)) {
+      this.nextID++
+    }
+
+    this.setState(
+      (current) => {
+        const entries = [...current.entries]
+        const index = entries.findIndex((entry) => entry.id === instanceID)
+
+        if (image.remove && !image.bkey) {
+          entries.splice(index, 1)
+        } else if (index < 0) {
+          entries.push({ id: instanceID, image })
+        } else {
+          entries[index] = { id: instanceID, image }
+        }
+
+        return { entries }
+      },
+      () => {
+        const changes = this.state.entries
+          .map((entry) => entry.image)
+          .filter((image) => image.upload || image.remove)
+
+        this.props.onChange?.(changes)
       }
-    }
-
-    const actualAttachmentCount = this.getActualAttachmentCount(instances, [])
-    if (actualAttachmentCount < this.props.maxUploads) {
-      this.addNewElement(instances)
-    }
-
-    this.state = { instances, count: Object.keys(instances).length, removed: [] }
-  }
-
-  private getActualAttachmentCount(instances: MultiImageUploaderInstances, removed: ImageUpload[]): number {
-    const currentAttachments = Object.keys(instances)
-      .map((k) => instances[k].upload)
-      .filter((x) => x && (x.bkey || x.upload) && !x.remove) as ImageUpload[]
-    return currentAttachments.length
-  }
-
-  private getEmptyUploaderIds(instances: MultiImageUploaderInstances): string[] {
-    return Object.keys(instances).filter((k) => {
-      const upload = instances[k].upload
-      return !upload || (!upload.bkey && !upload.upload && !upload.remove)
-    })
-  }
-
-  private imageUploaded = (upload: ImageUpload, instanceID: string) => {
-    const instances = { ...this.state.instances }
-    const removed = [...this.state.removed]
-    
-    if (upload.remove) {
-      if (upload.bkey) {
-        removed.push(upload)
-      }
-      delete instances[instanceID]
-    } else {
-      instances[instanceID].upload = upload
-    }
-
-    const actualAttachmentCount = this.getActualAttachmentCount(instances, removed)
-    const emptyUploaderIds = this.getEmptyUploaderIds(instances)
-
-    if (actualAttachmentCount < this.props.maxUploads) {
-      if (emptyUploaderIds.length === 0) {
-        this.addNewElement(instances)
-      }
-    } else {
-      emptyUploaderIds.forEach((id) => {
-        delete instances[id]
-      })
-    }
-
-    this.setState({ instances, count: Object.keys(instances).length, removed }, this.triggerOnChange)
-  }
-
-  private triggerOnChange() {
-    if (this.props.onChange) {
-      const uploads = Object.keys(this.state.instances)
-        .map((k) => this.state.instances[k].upload)
-        .concat(this.state.removed)
-        .filter((x) => !!x) as ImageUpload[]
-      this.props.onChange(uploads)
-    }
-  }
-
-  private addNewElement(instances: MultiImageUploaderInstances, bkey?: string) {
-    const id = btoa(Math.random().toString())
-    instances[id] = {
-      element: <ImageUploader key={id} bkey={bkey} instanceID={id} field="attachment" onChange={this.imageUploaded} />,
-    }
+    )
   }
 
   public render() {
-    const elements = Object.keys(this.state.instances).map((k) => this.state.instances[k].element)
+    const visible = this.state.entries.filter((entry) => !entry.image.remove)
+    const uploaders = visible.map((entry) => (
+      <ImageUploader
+        key={entry.id}
+        instanceID={entry.id}
+        field="attachment"
+        bkey={entry.image.bkey}
+        initialUpload={entry.image}
+        disabled={this.props.disabled}
+        onChange={this.imageUploaded}
+      />
+    ))
+
+    if (visible.length < this.props.maxUploads) {
+      uploaders.push(
+        <ImageUploader
+          key={this.nextID}
+          instanceID={String(this.nextID)}
+          field="attachment"
+          disabled={this.props.disabled}
+          onChange={this.imageUploaded}
+        />
+      )
+    }
+
     return (
       <ValidationContext.Consumer>
         {(ctx) => (
@@ -116,7 +104,7 @@ export class MultiImageUploader extends React.Component<MultiImageUploaderProps,
               "has-error": hasError(this.props.field, ctx.error),
             })}
           >
-            <div className="flex flex-wrap gap-2.5">{elements}</div>
+            <div className="flex flex-wrap gap-2.5">{uploaders}</div>
             <DisplayError fields={[this.props.field]} error={ctx.error} />
           </div>
         )}

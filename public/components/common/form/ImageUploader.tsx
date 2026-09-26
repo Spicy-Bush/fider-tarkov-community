@@ -1,5 +1,3 @@
-// ImageUploader converted to Tailwind
-
 import React from "react"
 import { ValidationContext } from "./Form"
 import { DisplayError, hasError } from "./DisplayError"
@@ -17,6 +15,7 @@ interface ImageUploaderProps {
   label?: string
   bkey?: string
   previewURL?: string
+  initialUpload?: ImageUpload
   disabled?: boolean
   onChange(state: ImageUpload, instanceID?: string, previewURL?: string): void
 }
@@ -33,6 +32,7 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
     this.state = {
       upload: undefined,
       remove: false,
+      ...props.initialUpload,
       showModal: false,
     }
   }
