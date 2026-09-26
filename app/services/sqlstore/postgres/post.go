@@ -700,8 +700,8 @@ func addNewPost(ctx context.Context, c *cmd.AddNewPost) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var id int
 		err := trx.Get(&id,
-			`INSERT INTO posts (title, slug, number, description, tenant_id, user_id, created_at, status) 
-			 VALUES ($1, $2, (SELECT COALESCE(MAX(number), 0) + 1 FROM posts p WHERE p.tenant_id = $4), $3, $4, $5, $6, 0) 
+			`INSERT INTO posts (title, slug, description, tenant_id, user_id, created_at, status)
+			 VALUES ($1, $2, $3, $4, $5, $6, 0)
 			 RETURNING id`, c.Title, slug.Make(c.Title), c.Description, tenant.ID, user.ID, time.Now())
 		if err != nil {
 			return errors.Wrap(err, "failed add new post")
