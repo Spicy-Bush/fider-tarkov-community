@@ -56,7 +56,8 @@ func (p *Post) IsArchived() bool {
 
 // CanBeVoted returns true if this post can have its vote changed
 func (i *Post) CanBeVoted() bool {
-	return i.Status != enum.PostCompleted && i.Status != enum.PostDeclined && i.Status != enum.PostDuplicate
+	return i.Status != enum.PostCompleted && i.Status != enum.PostDeclined &&
+		i.Status != enum.PostDuplicate && i.Status != enum.PostDeleted
 }
 
 func (i *Post) Url(baseURL string) string {

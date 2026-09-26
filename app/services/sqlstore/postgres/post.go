@@ -612,6 +612,10 @@ func setPostResponse(ctx context.Context, c *cmd.SetPostResponse) error {
 
 func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if _, err := trx.Execute(`SELECT id FROM posts WHERE tenant_id = $1 AND id IN ($2, $3)
+			ORDER BY id FOR NO KEY UPDATE`, tenant.ID, c.Post.ID, c.Original.ID); err != nil {
+			return err
+		}
 		respondedAt := time.Now()
 		if c.Post.Status == enum.PostDuplicate && c.Post.Response != nil {
 			respondedAt = c.Post.Response.RespondedAt
@@ -639,35 +643,14 @@ func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error 
 			},
 		}
 
-		var votes []*struct {
-			UserID   int           `db:"user_id"`
-			VoteType enum.VoteType `db:"vote_type"`
-		}
-		err = trx.Select(&votes, "SELECT user_id, vote_type FROM post_votes WHERE post_id = $1 AND tenant_id = $2", c.Post.ID, tenant.ID)
+		_, err = trx.Execute(`INSERT INTO post_votes (user_id, post_id, tenant_id, vote_type, created_at)
+			SELECT user_id, $1, tenant_id, vote_type, NOW()
+			FROM post_votes WHERE post_id = $2 AND tenant_id = $3
+			ON CONFLICT (user_id, post_id) DO UPDATE
+			SET vote_type = EXCLUDED.vote_type, created_at = EXCLUDED.created_at
+			WHERE post_votes.vote_type IS DISTINCT FROM EXCLUDED.vote_type`, c.Original.ID, c.Post.ID, tenant.ID)
 		if err != nil {
-			return errors.Wrap(err, "failed to get votes of post with id '%d'", c.Post.ID)
-		}
-
-		for _, vote := range votes {
-			_, err = trx.Execute(`
-				DELETE FROM post_votes 
-				WHERE post_id = $1 AND user_id = $2 AND tenant_id = $3
-			`, c.Original.ID, vote.UserID, tenant.ID)
-
-			if err != nil {
-				return errors.Wrap(err, "failed to remove existing vote on original post")
-			}
-		}
-
-		for _, vote := range votes {
-			_, err = trx.Execute(`
-				INSERT INTO post_votes (user_id, post_id, tenant_id, vote_type, created_at) 
-				VALUES ($1, $2, $3, $4, NOW())
-			`, vote.UserID, c.Original.ID, tenant.ID, vote.VoteType)
-
-			if err != nil {
-				return errors.Wrap(err, "failed to transfer vote to original post")
-			}
+			return errors.Wrap(err, "failed to transfer votes to original post")
 		}
 
 		return nil

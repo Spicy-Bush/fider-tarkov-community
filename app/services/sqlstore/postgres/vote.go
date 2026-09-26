@@ -41,18 +41,20 @@ func (v *dbVote) toModel(ctx context.Context) *entity.Vote {
 
 func addVote(ctx context.Context, c *cmd.AddVote) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		if !c.Post.CanBeVoted() {
+		var current entity.Post
+		if err := trx.Scalar(&current.Status, "SELECT status FROM posts WHERE id = $1 AND tenant_id = $2 FOR NO KEY UPDATE", c.Post.ID, tenant.ID); err != nil {
+			return err
+		}
+		if !current.CanBeVoted() {
 			return nil
 		}
 
-		_, err := trx.Execute(`DELETE FROM post_votes WHERE user_id = $1 AND post_id = $2 AND tenant_id = $3`,
-			c.User.ID, c.Post.ID, tenant.ID)
-		if err != nil {
-			return errors.Wrap(err, "failed to remove existing vote")
-		}
-
-		_, err = trx.Execute(
-			`INSERT INTO post_votes (tenant_id, user_id, post_id, created_at, vote_type) VALUES ($1, $2, $3, $4, $5)`,
+		_, err := trx.Execute(
+			`INSERT INTO post_votes (tenant_id, user_id, post_id, created_at, vote_type)
+			 VALUES ($1, $2, $3, $4, $5)
+			 ON CONFLICT (post_id, user_id) DO UPDATE
+			 SET vote_type = EXCLUDED.vote_type, created_at = EXCLUDED.created_at
+			 WHERE post_votes.vote_type IS DISTINCT FROM EXCLUDED.vote_type`,
 			tenant.ID, c.User.ID, c.Post.ID, time.Now(), int(c.VoteType),
 		)
 
@@ -66,7 +68,11 @@ func addVote(ctx context.Context, c *cmd.AddVote) error {
 
 func removeVote(ctx context.Context, c *cmd.RemoveVote) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		if !c.Post.CanBeVoted() {
+		var current entity.Post
+		if err := trx.Scalar(&current.Status, "SELECT status FROM posts WHERE id = $1 AND tenant_id = $2 FOR NO KEY UPDATE", c.Post.ID, tenant.ID); err != nil {
+			return err
+		}
+		if !current.CanBeVoted() {
 			return nil
 		}
 
