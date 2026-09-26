@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react"
 import { Button, Modal, Select, TextArea, Form, SelectOption } from "@fider/components"
-import { Post, PostStatus, Tag } from "@fider/models"
+import { Post, PostStatus, Tag, isPostLocked } from "@fider/models"
 import { actions, Failure, postPermissions } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { Trans } from "@lingui/react/macro"
@@ -42,6 +42,7 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
   const [error, setError] = useState<Failure | undefined>()
   const prevDuplicateNumberRef = React.useRef(duplicateOriginalNumber)
 
+  const locked = isPostLocked(post)
   const canChangeStatus = postPermissions.canRespond()
   const canChangeToDuplicateOnly = postPermissions.canRespondDuplicateOnly()
   const canChangeAnyStatus = canChangeStatus || canChangeToDuplicateOnly
@@ -99,9 +100,11 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
 
   const handleLockSubmit = async () => {
     setError(undefined)
-    const result = post.lockedAt
+
+    const result = locked
       ? await actions.unlockPost(post.number)
       : await actions.lockPost(post.number, lockMessage)
+
     if (result.ok) {
       location.reload()
     } else {
@@ -157,7 +160,7 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
         )}
         {canLock && (
           <Button size="small" variant="secondary" onClick={() => setShowLockModal(true)}>
-            {post.lockedAt ? (
+            {locked ? (
               <Trans id="action.unlock">Unlock</Trans>
             ) : (
               <Trans id="action.lock">Lock</Trans>
@@ -285,7 +288,7 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
 
       <Modal.Window isOpen={showLockModal} onClose={() => setShowLockModal(false)} manageHistory={false}>
         <Modal.Header>
-          {post.lockedAt ? (
+          {locked ? (
             <Trans id="modal.unlockpost.header">Unlock Post</Trans>
           ) : (
             <Trans id="modal.lockpost.header">Lock Post</Trans>
@@ -293,7 +296,7 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
         </Modal.Header>
         <Modal.Content>
           <Form error={error}>
-            {post.lockedAt ? (
+            {locked ? (
               <p>
                 <Trans id="modal.unlockpost.text">
                   Unlocking this post will allow users to comment, vote, and edit it again.
@@ -318,8 +321,8 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
           </Form>
         </Modal.Content>
         <Modal.Footer>
-          <Button variant={post.lockedAt ? "primary" : "danger"} onClick={handleLockSubmit}>
-            {post.lockedAt ? (
+          <Button variant={locked ? "primary" : "danger"} onClick={handleLockSubmit}>
+            {locked ? (
               <Trans id="action.unlock">Unlock</Trans>
             ) : (
               <Trans id="action.lock">Lock</Trans>
