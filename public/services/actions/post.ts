@@ -1,5 +1,6 @@
 import { http, Result, querystring } from "@fider/services"
 import { Post, Vote, ImageUpload, UserNames, Comment } from "@fider/models"
+import { RequestError } from "@fider/services/http"
 
 export const getAllPosts = async (): Promise<Result<Post[]>> => {
   return await http.get<Post[]>("/api/v1/posts")
@@ -67,20 +68,26 @@ export const deletePost = async (postNumber: number, text: string): Promise<Resu
     .then(http.event("post", "delete"))
 }
 
-export const addVote = async (postNumber: number): Promise<Result> => {
-  return http.post(`/api/v1/posts/${postNumber}/up`).then(http.event("post", "upvote"))
+export interface VoteState {
+  direction: number
+  revision: number
+  upvotes: number
+  downvotes: number
+  applied: boolean
 }
 
-export const addDownVote = async (postNumber: number): Promise<Result> => {
-  return http.post(`/api/v1/posts/${postNumber}/down`).then(http.event("post", "downvote"))
-}
-
-export const removeVote = async (postNumber: number): Promise<Result> => {
-  return http.delete(`/api/v1/posts/${postNumber}/votes`).then(http.event("post", "unvote"))
-}
-
-export const toggleVote = async (postNumber: number, _direction?: "up" | "down"): Promise<Result> => {
-  return http.post(`/api/v1/posts/${postNumber}/votes/toggle`).then(http.event("post", "toggle-vote"))
+export const setVote = async (postNumber: number, direction: number, revision: number): Promise<Result<VoteState>> => {
+  const input = { revision }
+  const send = () => direction === 0
+    ? http.delete<VoteState>(`/api/v1/posts/${postNumber}/votes`, input)
+    : http.post<VoteState>(`/api/v1/posts/${postNumber}/${direction === 1 ? "up" : "down"}`, input)
+  try {
+    const result = await send()
+    if (result.ok || (result.status && result.status < 500)) return result
+  } catch (cause) {
+    if (!(cause instanceof RequestError)) throw cause
+  }
+  return send()
 }
 
 export const subscribe = async (postNumber: number): Promise<Result> => {

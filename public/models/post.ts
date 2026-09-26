@@ -11,6 +11,7 @@ export interface Post {
   status: string
   user: User
   voteType: number
+  voteRevision: number
   response: PostResponse | null
   votesCount: number
   commentsCount: number
@@ -45,10 +46,13 @@ export class PostStatus {
   public static Completed = new PostStatus("Completed", "completed", true, true, true)
   public static Declined = new PostStatus("Declined", "declined", true, true, true)
   public static Duplicate = new PostStatus("Duplicate", "duplicate", true, true, true)
-  public static Deleted = new PostStatus("Deleted", "deleted", false, true, true)
+  public static Deleted = new PostStatus("Deleted", "deleted", false, true, false)
   public static Archived = new PostStatus("Archived", "archived", true, false, true)
 
   public static Get(value: string): PostStatus {
+    if (value === PostStatus.Deleted.value) {
+      return PostStatus.Deleted
+    }
     for (const status of PostStatus.All) {
       if (status.value === value) {
         return status

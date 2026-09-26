@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from "react"
 import ReactDOM from "react-dom"
 import { Post, Tag, PostStatus, isPostLocked, Comment } from "@fider/models"
-import { actions, PAGINATION } from "@fider/services"
+import { actions, analytics, notify, PAGINATION } from "@fider/services"
+import { RequestError } from "@fider/services/http"
 import { Icon, Button, SignInModal } from "@fider/components"
 import { VStack, HStack } from "@fider/components/layout"
 import { SwipeCard } from "./SwipeCard"
@@ -66,6 +67,7 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
   const seenPostIds = useRef(new Set<number>())
   const hasInitializedRef = useRef(false)
   const loadedPostData = useRef(new Set<number>())
+  const voteInFlight = useRef(false)
 
   const handleStateChange = useCallback((state: SwipeState | null) => {
     if (state && typeof state.swipeIndex === "number") {
@@ -161,7 +163,7 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
   }, [isOpen, currentIndex, posts.length, hasMore, isLoadingMore, loadPosts])
 
   const handleVote = useCallback(async (direction: "left" | "right") => {
-    if (isNavigating.current) return
+    if (isNavigating.current || voteInFlight.current) return
     if (!fider.session.isAuthenticated) {
       setIsSignInModalOpen(true)
       return
@@ -172,14 +174,31 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
     const voteType = direction === "right" ? "up" : "down"
     const newIndex = currentIndexRef.current + 1
 
-    setVoteHistory(prev => [...prev, { post: currentPost, newVote: voteType }])
-    setCurrentIndex(newIndex)
-    pushState({ swipeIndex: newIndex })
-
-    if (voteType === "up") {
-      actions.addVote(currentPost.number)
-    } else {
-      actions.addDownVote(currentPost.number)
+    voteInFlight.current = true
+    try {
+      const desired = voteType === "up" ? 1 : -1
+      const result = await actions.setVote(currentPost.number, desired, currentPost.voteRevision)
+      if (!result.ok) {
+        notify.error(result.error.errors?.[0]?.message || "Your vote could not be saved.")
+        return
+      }
+      const { direction: savedDirection, revision, upvotes, downvotes } = result.data
+      setPosts((current) => current.map((post) => post.id === currentPost.id
+        ? { ...post, voteType: savedDirection, voteRevision: revision, upvotes, downvotes }
+        : post))
+      if (result.data.direction !== desired) {
+        notify.error("Your vote changed in another request. Please choose again.")
+        return
+      }
+      analytics.event("post", voteType === "up" ? "upvote" : "downvote")
+      setVoteHistory(prev => [...prev, { post: currentPost, newVote: voteType }])
+      setCurrentIndex(newIndex)
+      pushState({ swipeIndex: newIndex })
+    } catch (cause) {
+      if (!(cause instanceof RequestError)) throw cause
+      notify.error("Your vote has not been confirmed. Please try again.")
+    } finally {
+      voteInFlight.current = false
     }
   }, [fider.session.isAuthenticated, pushState])
 
