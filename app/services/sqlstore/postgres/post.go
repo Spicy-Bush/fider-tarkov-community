@@ -293,7 +293,7 @@ func buildCTE(q query.SearchPosts, tenantID int, userID int) cteResult {
 				FROM posts p
 				INNER JOIN (%s) matching ON matching.post_id = p.id
 				WHERE %s
-				ORDER BY ranking_score %s
+				ORDER BY ranking_score %s, p.id DESC
 			`, sort, tagFilter, strings.Join(conditions, " AND "), sortDir)
 		} else {
 			// OR logic . any of the tags
@@ -311,7 +311,7 @@ func buildCTE(q query.SearchPosts, tenantID int, userID int) cteResult {
 				FROM posts p
 				INNER JOIN (%s) matching ON matching.post_id = p.id
 				WHERE %s
-				ORDER BY ranking_score %s
+				ORDER BY ranking_score %s, p.id DESC
 			`, sort, tagFilter, strings.Join(conditions, " AND "), sortDir)
 		}
 	} else if q.MyVotesOnly && userID > 0 {
@@ -327,7 +327,7 @@ func buildCTE(q query.SearchPosts, tenantID int, userID int) cteResult {
 			FROM posts p
 			INNER JOIN (%s) my_votes ON my_votes.post_id = p.id
 			WHERE %s
-			ORDER BY ranking_score %s
+			ORDER BY ranking_score %s, p.id DESC
 		`, sort, voteFilter, strings.Join(conditions, " AND "), sortDir)
 	} else if q.NotMyVotes && userID > 0 {
 		// anti joining to use NOT EXISTS for "not my votes"
@@ -339,7 +339,7 @@ func buildCTE(q query.SearchPosts, tenantID int, userID int) cteResult {
 			SELECT p.id, (%s) AS ranking_score
 			FROM posts p
 			WHERE %s
-			ORDER BY ranking_score %s
+			ORDER BY ranking_score %s, p.id DESC
 		`, sort, strings.Join(conditions, " AND "), sortDir)
 	} else {
 		// if all other strategies fail, we'll use a dumb posts scan with status filter
@@ -347,7 +347,7 @@ func buildCTE(q query.SearchPosts, tenantID int, userID int) cteResult {
 			SELECT p.id, (%s) AS ranking_score
 			FROM posts p
 			WHERE %s
-			ORDER BY ranking_score %s
+			ORDER BY ranking_score %s, p.id DESC
 		`, sort, strings.Join(conditions, " AND "), sortDir)
 	}
 
@@ -373,7 +373,7 @@ func buildTextSearchCTE(searchQuery string, tenantID int, statuses []enum.PostSt
 			setweight(to_tsvector('english', COALESCE(p.title, '')), 'A') || 
 			setweight(to_tsvector('english', COALESCE(p.description, '')), 'B')
 		  ) @@ to_tsquery('english', $3)
-		ORDER BY ranking_score DESC
+		ORDER BY ranking_score DESC, p.id DESC
 	`, int(enum.PostDeleted))
 
 	return cteResult{SQL: cteSQL, Params: params}
@@ -408,7 +408,7 @@ func buildHydration(tenantID int, user *entity.User, cteName string, limit strin
 
 	orderClause := ""
 	if sortDir != "" {
-		orderClause = fmt.Sprintf("ORDER BY tp.ranking_score %s", sortDir)
+		orderClause = fmt.Sprintf("ORDER BY tp.ranking_score %s, tp.id DESC", sortDir)
 	}
 
 	limitClause := ""

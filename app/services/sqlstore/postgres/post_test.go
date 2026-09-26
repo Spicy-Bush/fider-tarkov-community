@@ -554,7 +554,7 @@ func TestGetPosts_Different_Statuses(t *testing.T) {
 			name:          "Default Search (Everything except declined, completed and duplicate)",
 			searchParams:  &query.SearchPosts{},
 			expectedCount: 3,
-			expectedIDs:   []int{newPost.Result.ID, startedPost.Result.ID, plannedPost.Result.ID},
+			expectedIDs:   []int{plannedPost.Result.ID, newPost.Result.ID, startedPost.Result.ID},
 		},
 		{
 			name: "Started and Completed",
@@ -593,7 +593,7 @@ func TestGetPosts_Different_Statuses(t *testing.T) {
 				},
 			},
 			expectedCount: 6,
-			expectedIDs:   []int{completedPost.Result.ID, newPost.Result.ID, duplicatePost.Result.ID, declinedPost.Result.ID, startedPost.Result.ID, plannedPost.Result.ID},
+			expectedIDs:   []int{plannedPost.Result.ID, declinedPost.Result.ID, duplicatePost.Result.ID, newPost.Result.ID, completedPost.Result.ID, startedPost.Result.ID},
 		},
 		{
 			name: "Completed, with bug tag",
@@ -611,7 +611,7 @@ func TestGetPosts_Different_Statuses(t *testing.T) {
 				Tags:     []string{addBug.Result.Slug},
 			},
 			expectedCount: 2,
-			expectedIDs:   []int{completedPost.Result.ID, newPost.Result.ID},
+			expectedIDs:   []int{newPost.Result.ID, completedPost.Result.ID},
 		},
 	}
 
@@ -620,7 +620,6 @@ func TestGetPosts_Different_Statuses(t *testing.T) {
 			err = bus.Dispatch(aryaStarkCtx, tc.searchParams)
 			Expect(err).IsNil()
 
-			// Better error reporting when length doesn't match
 			if len(tc.searchParams.Result) != tc.expectedCount {
 				t.Errorf("Test case '%s': Expected %d posts, got %d",
 					tc.name, tc.expectedCount, len(tc.searchParams.Result))
@@ -631,7 +630,6 @@ func TestGetPosts_Different_Statuses(t *testing.T) {
 				foundIDs[i] = post.ID
 			}
 
-			// Better error reporting for mismatched IDs
 			if len(foundIDs) != len(tc.expectedIDs) {
 				t.Errorf("Test case '%s': Expected IDs %v, got %v",
 					tc.name, tc.expectedIDs, foundIDs)
