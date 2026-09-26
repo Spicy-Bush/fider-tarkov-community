@@ -381,7 +381,14 @@ func buildTextSearchCTE(searchQuery string, tenantID int, statuses []enum.PostSt
 
 // buildHydration constructs the SELECT that fetches all post details
 // it takes a CTE name and produces the full hydration query
-func buildHydration(tenantID int, user *entity.User, cteName string, limit string, offset string, sortDir string) string {
+func buildHydration(tenantID int, user *entity.User, cteName string, limit string, offset string, sortDir string, params []interface{}) cteResult {
+	params = append(params, tenantID)
+	tenantParameter := len(params)
+	userParameter := 0
+	if user != nil {
+		params = append(params, user.ID)
+		userParameter = len(params)
+	}
 	tagCondition := "AND t.is_public = true"
 	if user != nil && (user.IsCollaborator() || user.IsModerator()) {
 		tagCondition = ""
@@ -396,14 +403,14 @@ func buildHydration(tenantID int, user *entity.User, cteName string, limit strin
 
 	voteTypeField := "NULL::int"
 	if user != nil {
-		voteTypeField = fmt.Sprintf("(SELECT vote_type FROM post_votes WHERE post_id = p.id AND user_id = %d LIMIT 1)", user.ID)
+		voteTypeField = fmt.Sprintf("(SELECT vote_type FROM post_votes WHERE post_id = p.id AND user_id = $%d LIMIT 1)", userParameter)
 	}
 
 	moderationFilter := ""
 	if user == nil {
 		moderationFilter = "AND p.moderation_pending = FALSE"
 	} else if !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
-		moderationFilter = fmt.Sprintf("AND (p.moderation_pending = FALSE OR p.user_id = %d)", user.ID)
+		moderationFilter = fmt.Sprintf("AND (p.moderation_pending = FALSE OR p.user_id = $%d)", userParameter)
 	}
 
 	orderClause := ""
@@ -416,7 +423,7 @@ func buildHydration(tenantID int, user *entity.User, cteName string, limit strin
 		limitClause = fmt.Sprintf("LIMIT %s OFFSET %s", limit, offset)
 	}
 
-	return fmt.Sprintf(`
+	sql := fmt.Sprintf(`
 		SELECT 
 			p.id,
 			p.number,
@@ -464,9 +471,9 @@ func buildHydration(tenantID int, user *entity.User, cteName string, limit strin
 			p.moderation_data
 		FROM %s tp
 		JOIN posts p ON p.id = tp.id %s
-		INNER JOIN users u ON u.id = p.user_id AND u.tenant_id = %d
-		LEFT JOIN users r ON r.id = p.response_user_id AND r.tenant_id = %d
-		LEFT JOIN posts d ON d.id = p.original_id AND d.tenant_id = %d
+		INNER JOIN users u ON u.id = p.user_id AND u.tenant_id = $%d
+		LEFT JOIN users r ON r.id = p.response_user_id AND r.tenant_id = $%d
+		LEFT JOIN posts d ON d.id = p.original_id AND d.tenant_id = $%d
 		LEFT JOIN LATERAL (
 			SELECT 
 				ARRAY_REMOVE(ARRAY_AGG(t.slug), NULL) AS tags,
@@ -475,12 +482,13 @@ func buildHydration(tenantID int, user *entity.User, cteName string, limit strin
 				) AS tag_dates
 			FROM post_tags pt
 			INNER JOIN tags t ON t.id = pt.tag_id AND t.tenant_id = pt.tenant_id
-			WHERE pt.post_id = p.id AND pt.tenant_id = %d %s
+			WHERE pt.post_id = p.id AND pt.tenant_id = $%d %s
 			GROUP BY pt.post_id
 		) agg_t ON true
 		%s
 		%s
-	`, tagDatesField, voteTypeField, cteName, moderationFilter, tenantID, tenantID, tenantID, tenantID, tagCondition, orderClause, limitClause)
+	`, tagDatesField, voteTypeField, cteName, moderationFilter, tenantParameter, tenantParameter, tenantParameter, tenantParameter, tagCondition, orderClause, limitClause)
+	return cteResult{SQL: sql, Params: params}
 }
 
 // this will combine the buildCTE and buildHydration into a complete query to search for posts
@@ -507,10 +515,10 @@ func buildSearchQuery(q query.SearchPosts, tenant *entity.Tenant, user *entity.U
 		}
 		cte := buildTextSearchCTE(q.Query, tenant.ID, statuses)
 		// text search always uses DESC, naybe we change later
-		hydration := buildHydration(tenant.ID, user, "top_posts", q.Limit, q.Offset, "DESC")
+		hydration := buildHydration(tenant.ID, user, "top_posts", q.Limit, q.Offset, "DESC", cte.Params)
 
-		fullSQL := fmt.Sprintf("WITH top_posts AS (%s LIMIT %s OFFSET %s) %s", cte.SQL, q.Limit, q.Offset, hydration)
-		return fullSQL, cte.Params
+		fullSQL := fmt.Sprintf("WITH top_posts AS (%s LIMIT %s OFFSET %s) %s", cte.SQL, q.Limit, q.Offset, hydration.SQL)
+		return fullSQL, hydration.Params
 	}
 
 	// build the CTE specifically for non text search queries
@@ -522,32 +530,34 @@ func buildSearchQuery(q query.SearchPosts, tenant *entity.Tenant, user *entity.U
 		cteWithLimit = fmt.Sprintf("%s LIMIT %s OFFSET %s", cte.SQL, q.Limit, q.Offset)
 	}
 
-	hydration := buildHydration(tenant.ID, user, "top_posts", "", "", sortDir)
-	fullSQL := fmt.Sprintf("WITH top_posts AS (%s) %s", cteWithLimit, hydration)
+	hydration := buildHydration(tenant.ID, user, "top_posts", "", "", sortDir, cte.Params)
+	fullSQL := fmt.Sprintf("WITH top_posts AS (%s) %s", cteWithLimit, hydration.SQL)
 
-	return fullSQL, cte.Params
+	return fullSQL, hydration.Params
 }
 
-func buildSinglePostQuery(tenant *entity.Tenant, user *entity.User, condition string) string {
+func buildSinglePostQuery(tenant *entity.Tenant, user *entity.User, condition string, value interface{}) cteResult {
 	cte := fmt.Sprintf(`
 		SELECT p.id, 0 AS ranking_score
 		FROM posts p
 		WHERE p.tenant_id = $1 AND %s
 	`, condition)
 
-	hydration := buildHydration(tenant.ID, user, "top_posts", "1", "0", "")
-	return fmt.Sprintf("WITH top_posts AS (%s) %s", cte, hydration)
+	hydration := buildHydration(tenant.ID, user, "top_posts", "1", "0", "", []interface{}{tenant.ID, value})
+	hydration.SQL = fmt.Sprintf("WITH top_posts AS (%s) %s", cte, hydration.SQL)
+	return hydration
 }
 
-func buildPostsByIDsQuery(tenant *entity.Tenant, user *entity.User) string {
+func buildPostsByIDsQuery(tenant *entity.Tenant, user *entity.User, statuses []enum.PostStatus, postIDs []int) cteResult {
 	cte := `
 		SELECT p.id, 0 AS ranking_score
 		FROM posts p
 		WHERE p.tenant_id = $1 AND p.status = ANY($2) AND p.id = ANY($3)
 	`
 
-	hydration := buildHydration(tenant.ID, user, "top_posts", "", "", "")
-	return fmt.Sprintf("WITH top_posts AS (%s) %s", cte, hydration)
+	hydration := buildHydration(tenant.ID, user, "top_posts", "", "", "", []interface{}{tenant.ID, pq.Array(statuses), pq.Array(postIDs)})
+	hydration.SQL = fmt.Sprintf("WITH top_posts AS (%s) %s", cte, hydration.SQL)
+	return hydration
 }
 
 func postIsReferenced(ctx context.Context, q *query.PostIsReferenced) error {
@@ -730,8 +740,8 @@ func updatePost(ctx context.Context, c *cmd.UpdatePost) error {
 
 func getPostByID(ctx context.Context, q *query.GetPostByID) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		sqlQuery := buildSinglePostQuery(tenant, user, "p.id = $2")
-		post, err := querySinglePost(ctx, trx, sqlQuery, tenant.ID, q.PostID)
+		sqlQuery := buildSinglePostQuery(tenant, user, "p.id = $2", q.PostID)
+		post, err := querySinglePost(ctx, trx, sqlQuery.SQL, sqlQuery.Params...)
 		if err != nil {
 			return errors.Wrap(err, "failed to get post with id '%d'", q.PostID)
 		}
@@ -742,8 +752,8 @@ func getPostByID(ctx context.Context, q *query.GetPostByID) error {
 
 func getPostBySlug(ctx context.Context, q *query.GetPostBySlug) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		sqlQuery := buildSinglePostQuery(tenant, user, "p.slug = $2")
-		post, err := querySinglePost(ctx, trx, sqlQuery, tenant.ID, q.Slug)
+		sqlQuery := buildSinglePostQuery(tenant, user, "p.slug = $2", q.Slug)
+		post, err := querySinglePost(ctx, trx, sqlQuery.SQL, sqlQuery.Params...)
 		if err != nil {
 			return errors.Wrap(err, "failed to get post with slug '%s'", q.Slug)
 		}
@@ -754,8 +764,8 @@ func getPostBySlug(ctx context.Context, q *query.GetPostBySlug) error {
 
 func getPostByNumber(ctx context.Context, q *query.GetPostByNumber) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		sqlQuery := buildSinglePostQuery(tenant, user, "p.number = $2")
-		post, err := querySinglePost(ctx, trx, sqlQuery, tenant.ID, q.Number)
+		sqlQuery := buildSinglePostQuery(tenant, user, "p.number = $2", q.Number)
+		post, err := querySinglePost(ctx, trx, sqlQuery.SQL, sqlQuery.Params...)
 		if err != nil {
 			return errors.Wrap(err, "failed to get post with number '%d'", q.Number)
 		}
@@ -929,10 +939,10 @@ func getPostsByIDs(ctx context.Context, q *query.GetPostsByIDs) error {
 			enum.PostDeclined,
 		}
 
-		sqlQuery := buildPostsByIDsQuery(tenant, user)
+		sqlQuery := buildPostsByIDsQuery(tenant, user, statuses, q.PostIDs)
 
 		var posts []*dbPost
-		err := trx.Select(&posts, sqlQuery, tenant.ID, pq.Array(statuses), pq.Array(q.PostIDs))
+		err := trx.Select(&posts, sqlQuery.SQL, sqlQuery.Params...)
 		if err != nil {
 			return errors.Wrap(err, "failed to get posts by IDs")
 		}
@@ -1195,12 +1205,12 @@ func getArchivablePosts(ctx context.Context, q *query.GetArchivablePosts) error 
 		`, whereClause, argNum, argNum+1)
 		args = append(args, q.PerPage, offset)
 
-		hydration := buildHydration(tenant.ID, user, "top_posts", "", "", "ASC")
+		hydration := buildHydration(tenant.ID, user, "top_posts", "", "", "ASC", args)
 
-		selectQuery := fmt.Sprintf("WITH top_posts AS (%s) %s", cte, hydration)
+		selectQuery := fmt.Sprintf("WITH top_posts AS (%s) %s", cte, hydration.SQL)
 
 		var posts []*dbPost
-		err = trx.Select(&posts, selectQuery, args...)
+		err = trx.Select(&posts, selectQuery, hydration.Params...)
 		if err != nil {
 			return errors.Wrap(err, "failed to get archivable posts")
 		}
