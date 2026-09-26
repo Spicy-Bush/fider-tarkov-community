@@ -30,3 +30,8 @@ type GetWebhookProps struct {
 
 	Result webhook.Props
 }
+
+type DeliverWebhook struct {
+	ID    int
+	Props webhook.Props
+}

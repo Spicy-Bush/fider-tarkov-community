@@ -59,6 +59,7 @@ var cDeleteSponsorshipCampaignHandler func(context.Context, *cmd.DeleteSponsorsh
 var cDeleteSponsorshipPackageHandler func(context.Context, *cmd.DeleteSponsorshipPackage) error
 var cDeleteTagHandler func(context.Context, *cmd.DeleteTag) error
 var cDeleteWarningHandler func(context.Context, *cmd.DeleteWarning) error
+var cDeliverWebhookHandler func(context.Context, *cmd.DeliverWebhook) error
 var cExpireMuteHandler func(context.Context, *cmd.ExpireMute) error
 var cExpireWarningHandler func(context.Context, *cmd.ExpireWarning) error
 var cFinishModerationHandler func(context.Context, *cmd.FinishModeration) error
@@ -360,6 +361,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cDeleteTagHandler = fn
 	case func(context.Context, *cmd.DeleteWarning) error:
 		cDeleteWarningHandler = fn
+	case func(context.Context, *cmd.DeliverWebhook) error:
+		cDeliverWebhookHandler = fn
 	case func(context.Context, *cmd.ExpireMute) error:
 		cExpireMuteHandler = fn
 	case func(context.Context, *cmd.ExpireWarning) error:
@@ -999,6 +1002,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.DeleteWarning")
 		}
 		return cDeleteWarningHandler(ctx, m)
+	case *cmd.DeliverWebhook:
+		if cDeliverWebhookHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.DeliverWebhook")
+		}
+		return cDeliverWebhookHandler(ctx, m)
 	case *cmd.ExpireMute:
 		if cExpireMuteHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.ExpireMute")

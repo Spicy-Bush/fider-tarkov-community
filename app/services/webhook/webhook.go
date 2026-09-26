@@ -6,6 +6,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -35,10 +39,31 @@ func (s Service) Enabled() bool {
 }
 
 func (s Service) Init() {
+	bus.AddHandler(deliverWebhook)
 	bus.AddHandler(testWebhook)
 	bus.AddHandler(triggerWebhooks)
 	bus.AddHandler(previewWebhook)
 	bus.AddHandler(getWebhookProps)
+}
+
+func deliverWebhook(ctx context.Context, c *cmd.DeliverWebhook) error {
+	q := &query.GetWebhook{ID: c.ID}
+	if err := bus.Dispatch(ctx, q); errors.Cause(err) == app.ErrNotFound {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if q.Result.Status != enum.WebhookEnabled {
+		return nil
+	}
+	result, err := triggerWebhook(ctx, q.Result, c.Props)
+	if err != nil {
+		return err
+	}
+	if !result.Success && result.Webhook.Status != enum.WebhookFailed {
+		return errors.New("webhook delivery failed: %s", result.Error)
+	}
+	return nil
 }
 
 func testWebhook(ctx context.Context, c *cmd.TestWebhook) error {
@@ -186,6 +211,7 @@ func resultWithError(ctx context.Context, message, error string, result *dto.Web
 		if err != nil {
 			return nil, err
 		}
+		result.Webhook.Status = enum.WebhookFailed
 	} else {
 		log.Warnf(ctx, "@{Message} (ID: @{ID:yellow}, Name: @{Name:blue}) - transient error, webhook remains enabled: @{Error:red}", dto.Props{
 			"Message": message,
