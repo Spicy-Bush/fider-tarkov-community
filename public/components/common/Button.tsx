@@ -90,10 +90,12 @@ export const Button: React.FC<ButtonProps> = ({ size = "default", variant = "sec
         setClicked(true)
       }
 
-      await onClickProp(event)
-
-      if (!isControlled && !unmountedContainer.current && event.canEnable()) {
-        setClicked(false)
+      try {
+        await onClickProp(event)
+      } finally {
+        if (!isControlled && !unmountedContainer.current && event.canEnable()) {
+          setClicked(false)
+        }
       }
     }
 
