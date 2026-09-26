@@ -1,12 +1,14 @@
 package postgres_test
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -28,6 +30,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/backup"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
@@ -1004,4 +1007,134 @@ func BenchmarkPostWorkflowCreate(b *testing.B) {
 			}
 		}
 	})
+}
+
+func TestPostWorkflowBackupSnapshot(t *testing.T) {
+	f := newPostWorkflow(t)
+	body := submissionBody(t, "backup", false)
+
+	recorder, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+	if err != nil || recorder.Code != http.StatusOK {
+		t.Fatalf("setup: %v %s", err, recorder.Body)
+	}
+
+	prepare := &cmd.ProcessPostNotification{
+		Prepare: func(context.Context, *entity.Post) ([]cmd.PostNotificationRecipient, error) {
+			return []cmd.PostNotificationRecipient{
+				{Channel: "email", ID: 2},
+			}, nil
+		},
+	}
+
+	if err := bus.Dispatch(f.ctx, prepare); err != nil {
+		t.Fatal(err)
+	}
+
+	blocker, err := dbx.Connection().Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer blocker.Rollback()
+
+	if _, err := blocker.Exec("LOCK TABLE post_subscribers IN ACCESS EXCLUSIVE MODE"); err != nil {
+		t.Fatal(err)
+	}
+
+	type result struct {
+		archive *bytes.Buffer
+		err     error
+	}
+
+	completed := make(chan result, 1)
+	ctx, cancel := context.WithTimeout(f.ctx, 10*time.Second)
+	defer cancel()
+
+	go func() {
+		archive, err := backup.Create(ctx)
+		completed <- result{
+			archive: archive,
+			err:     err,
+		}
+	}()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for workflowCount(t, `SELECT COUNT(*) FROM pg_stat_activity
+		WHERE datname = current_database() AND wait_event_type = 'Lock'
+		AND query LIKE 'SELECT * FROM %post_subscribers%'`) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("backup did not reach controlled export boundary")
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	_, err = dbx.Connection().Exec(`WITH inserted AS (
+		INSERT INTO posts (tenant_id, user_id, title, slug, description, created_at, status)
+		VALUES ($1, $2, $3, $3, $4, NOW(), $5) RETURNING id
+	) INSERT INTO post_votes (tenant_id, user_id, post_id, created_at, vote_type)
+		SELECT $1, $2, id, NOW(), $6 FROM inserted`,
+		f.tenant.ID, f.user.ID, "concurrent", "during backup", enum.PostOpen, enum.VoteTypeUp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := blocker.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	output := <-completed
+	if output.err != nil {
+		t.Fatal(output.err)
+	}
+
+	archive, err := zip.NewReader(bytes.NewReader(output.archive.Bytes()), int64(output.archive.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedFiles := map[string]int{
+		"posts.json":                        1,
+		"post_votes.json":                   1,
+		"post_vote_revisions.json":          1,
+		"post_notification_deliveries.json": 1,
+		"post_notification_recipients.json": 1,
+	}
+
+	for _, file := range archive.File {
+		expectedCount, expected := expectedFiles[file.Name]
+		if !expected {
+			continue
+		}
+
+		reader, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		content, err := io.ReadAll(reader)
+		reader.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var rows []map[string]any
+		if err := json.Unmarshal(content, &rows); err != nil {
+			t.Fatalf("invalid %s: %v", file.Name, err)
+		}
+
+		if len(rows) != expectedCount {
+			t.Fatalf("inconsistent %s: want %d rows, got %d", file.Name, expectedCount, len(rows))
+		}
+
+		if file.Name == "posts.json" && rows[0]["submission_id"] != "backup" {
+			t.Fatal("backup omitted submission identity")
+		}
+
+		delete(expectedFiles, file.Name)
+	}
+
+	if len(expectedFiles) != 0 {
+		t.Fatalf("backup omitted files: %v", expectedFiles)
+	}
 }

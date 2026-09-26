@@ -45,7 +45,11 @@ func Ping() error {
 
 // BeginTx returns a new SQL transaction
 func BeginTx(ctx context.Context) (*Trx, error) {
-	tx, err := conn.BeginTx(ctx, nil)
+	return BeginTxWithOptions(ctx, nil)
+}
+
+func BeginTxWithOptions(ctx context.Context, options *sql.TxOptions) (*Trx, error) {
+	tx, err := conn.BeginTx(ctx, options)
 	if err != nil {
 		return nil, wrap(err, "failed to start new transaction")
 	}

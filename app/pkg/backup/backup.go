@@ -4,15 +4,27 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"database/sql"
 	"fmt"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
-
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 )
 
 func Create(ctx context.Context) (*bytes.Buffer, error) {
+	trx, err := dbx.BeginTxWithOptions(ctx, &sql.TxOptions{
+		Isolation: sql.LevelRepeatableRead,
+		ReadOnly:  true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	defer trx.Rollback()
+	ctx = context.WithValue(ctx, app.TransactionCtxKey, trx)
 
 	buffer := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buffer)
@@ -27,6 +39,9 @@ func Create(ctx context.Context) (*bytes.Buffer, error) {
 		"post_subscribers",
 		"post_tags",
 		"post_votes",
+		"post_vote_revisions",
+		"post_notification_deliveries",
+		"post_notification_recipients",
 		"tags",
 		"tenants",
 		"user_providers",
@@ -51,9 +66,13 @@ func Create(ctx context.Context) (*bytes.Buffer, error) {
 		}
 	}
 
-	err := zipWriter.Close()
+	err = zipWriter.Close()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to close zip file")
+	}
+
+	if err := trx.Commit(); err != nil {
+		return nil, err
 	}
 
 	return buffer, nil

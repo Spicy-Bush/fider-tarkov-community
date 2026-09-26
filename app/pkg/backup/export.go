@@ -10,6 +10,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
+	"github.com/lib/pq"
 )
 
 func exportTable(ctx context.Context, tableName string) ([]byte, error) {
@@ -20,19 +21,31 @@ func exportTable(ctx context.Context, tableName string) ([]byte, error) {
 		columnName = "id"
 	}
 
-	rows, err := trx.Query(fmt.Sprintf("SELECT * FROM %s WHERE %s = $1", tableName, columnName), tenant.ID)
+	statement := fmt.Sprintf(
+		"SELECT * FROM %s WHERE %s = $1",
+		pq.QuoteIdentifier(tableName),
+		pq.QuoteIdentifier(columnName),
+	)
+
+	rows, err := trx.Query(statement, tenant.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	return json.Marshal(jsonify(rows))
+	data, err := jsonify(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(data)
 }
 
-func jsonify(rows *sql.Rows) []map[string]any {
+func jsonify(rows *sql.Rows) ([]map[string]any, error) {
 	defer rows.Close()
+
 	columns, err := rows.Columns()
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	allResults := make([]map[string]any, 0)
@@ -47,7 +60,7 @@ func jsonify(rows *sql.Rows) []map[string]any {
 
 		err = rows.Scan(scanArgs...)
 		if err != nil {
-			panic(err.Error())
+			return nil, err
 		}
 
 		for i, value := range values {
@@ -73,5 +86,5 @@ func jsonify(rows *sql.Rows) []map[string]any {
 		allResults = append(allResults, results)
 	}
 
-	return allResults
+	return allResults, rows.Err()
 }
