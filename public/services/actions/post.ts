@@ -1,3 +1,4 @@
+import type { PendingPostSubmission } from "@fider/services/postSubmission"
 import { http, Result, querystring } from "@fider/services"
 import { Post, Vote, ImageUpload, UserNames, Comment } from "@fider/models"
 import { RequestError } from "@fider/services/http"
@@ -156,8 +157,10 @@ interface CreatePostResponse {
   slug: string
 }
 
-export const createPost = async (title: string, description: string, attachments: ImageUpload[]): Promise<Result<CreatePostResponse>> => {
-  return http.post<CreatePostResponse>(`/api/v1/posts`, { title, description, attachments }).then(http.event("post", "create"))
+export const createPost = async (submission: PendingPostSubmission, signal: AbortSignal): Promise<Result<CreatePostResponse>> => {
+  const { submissionId, title, description, attachments } = submission
+
+  return http.post<CreatePostResponse>("/api/v1/posts", { submissionId, title, description, attachments }, { signal })
 }
 
 export const updatePost = async (postNumber: number, title: string, description: string, attachments: ImageUpload[]): Promise<Result> => {

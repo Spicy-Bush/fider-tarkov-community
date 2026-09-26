@@ -17,15 +17,19 @@ interface ImageUploaderProps {
   previewURL?: string
   initialUpload?: ImageUpload
   disabled?: boolean
+  onRead?: (image: Promise<ImageUpload | undefined>) => void
   onChange(state: ImageUpload, instanceID?: string, previewURL?: string): void
 }
 
 interface ImageUploaderState extends ImageUpload {
   showModal: boolean
+  reading?: boolean
+  failedFile?: File
 }
 
 export class ImageUploader extends React.Component<ImageUploaderProps, ImageUploaderState> {
   private fileSelector?: HTMLInputElement | null
+  private currentRead?: Promise<ImageUpload | undefined>
 
   constructor(props: ImageUploaderProps) {
     super(props)
@@ -51,25 +55,51 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
         return
       }
 
-      const base64 = await fileToBase64(file)
-      this.setState(
-        {
-          bkey: this.props.bkey,
-          upload: {
-            fileName: file.name,
-            content: base64,
-            contentType: file.type,
-          },
-          remove: false,
-        },
-        () => {
-          this.props.onChange(this.state, this.props.instanceID, this.previewURL)
-        }
-      )
+      this.readFile(file)
     }
   }
 
+  private readFile = (file: File) => {
+    const read = fileToBase64(file).then(
+      (content): ImageUpload => ({
+        bkey: this.props.bkey,
+        upload: {
+          fileName: file.name,
+          content,
+          contentType: file.type,
+        },
+        remove: false,
+      }),
+      () => undefined
+    )
+
+    this.currentRead = read
+    this.setState({ reading: true, failedFile: undefined })
+    this.props.onRead?.(read)
+
+    void read.then((image) => {
+      if (this.currentRead !== read) {
+        return
+      }
+
+      if (!image) {
+        this.setState({ reading: false, failedFile: file })
+        return
+      }
+
+      this.setState({ ...image, reading: false }, () => {
+        this.props.onChange(image, this.props.instanceID, this.previewURL)
+      })
+    })
+  }
+
+  public componentWillUnmount() {
+    this.currentRead = undefined
+  }
+
   public removeFile = async () => {
+    this.currentRead = undefined
+
     if (this.fileSelector) {
       this.fileSelector.value = ""
     }
@@ -79,6 +109,8 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
         bkey: this.props.bkey,
         remove: true,
         upload: undefined,
+        reading: false,
+        failedFile: undefined,
       },
       () => {
         this.props.onChange(
@@ -165,8 +197,19 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
               accept="image/png, image/jpeg, image/jpg, image/webp"
               className="hidden"
             />
-            {!hasFile && (
-              <Button variant="secondary" onClick={this.selectFile} disabled={this.props.disabled}>
+            {this.state.failedFile && (
+              <div role="alert">
+                <p>Could not read {this.state.failedFile.name}.</p>
+                <Button onClick={() => this.readFile(this.state.failedFile!)} disabled={this.props.disabled}>
+                  Retry image
+                </Button>
+                <Button onClick={this.removeFile} disabled={this.props.disabled}>
+                  Remove image
+                </Button>
+              </div>
+            )}
+            {!hasFile && !this.state.failedFile && (
+              <Button variant="secondary" onClick={this.selectFile} disabled={this.props.disabled} loading={this.state.reading}>
                 <Icon sprite={IconPhotograph} />
               </Button>
             )}

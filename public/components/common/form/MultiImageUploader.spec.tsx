@@ -141,3 +141,132 @@ test("an in-progress file read remains reflected in the parent when controls bec
   expect(view.container.querySelector("img")).toBeNull()
   expect(view.getAllByRole("button")).toHaveLength(1)
 })
+
+test("collecting attachments waits for the selected file and reserves its upload slot", async () => {
+  let reader: FileReader
+
+  jest.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {
+    reader = this
+  })
+
+  const uploader = React.createRef<MultiImageUploader>()
+  const view = render(<MultiImageUploader ref={uploader} field="attachments" maxUploads={1} />)
+
+  fireEvent.change(view.container.querySelector('input[type="file"]')!, {
+    target: {
+      files: [new File(["draft"], "draft.png", { type: "image/png" })],
+    },
+  })
+
+  const collected = jest.fn()
+  const pending = uploader.current!.readUploads().then(collected)
+
+  await act(async () => {})
+
+  expect(collected).not.toHaveBeenCalled()
+  expect(view.container.querySelectorAll('input[type="file"]')).toHaveLength(1)
+
+  await act(async () => {
+    Object.defineProperty(reader, "result", { value: "data:image/png;base64,ZHJhZnQ=" })
+    reader.dispatchEvent(new Event("load"))
+    await pending
+  })
+
+  expect(collected).toHaveBeenCalledWith([
+    {
+      bkey: undefined,
+      remove: false,
+      upload: {
+        fileName: "draft.png",
+        contentType: "image/png",
+        content: "ZHJhZnQ=",
+      },
+    },
+  ])
+})
+
+test("a failed file read can be retried or removed without silently submitting fewer attachments", async () => {
+  const readers: FileReader[] = []
+
+  jest.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {
+    readers.push(this)
+  })
+
+  const uploader = React.createRef<MultiImageUploader>()
+  const view = render(<MultiImageUploader ref={uploader} field="attachments" maxUploads={1} />)
+
+  fireEvent.change(view.container.querySelector('input[type="file"]')!, {
+    target: {
+      files: [new File(["draft"], "draft.png", { type: "image/png" })],
+    },
+  })
+
+  await act(async () => {
+    readers[0].dispatchEvent(new Event("error"))
+  })
+
+  await expect(uploader.current!.readUploads()).resolves.toBeUndefined()
+  expect(view.getByRole("alert")).toHaveTextContent("Could not read draft.png.")
+
+  fireEvent.click(view.getByRole("button", { name: "Retry image" }))
+
+  await act(async () => {
+    Object.defineProperty(readers[1], "result", { value: "data:image/png;base64,ZHJhZnQ=" })
+    readers[1].dispatchEvent(new Event("load"))
+  })
+
+  await expect(uploader.current!.readUploads()).resolves.toEqual([
+    expect.objectContaining({ upload: expect.objectContaining({ content: "ZHJhZnQ=" }) }),
+  ])
+
+  fireEvent.click(view.getByRole("button", { name: "X" }))
+  fireEvent.change(view.container.querySelector('input[type="file"]')!, {
+    target: {
+      files: [new File(["second"], "second.png", { type: "image/png" })],
+    },
+  })
+
+  await act(async () => {
+    readers[2].dispatchEvent(new Event("error"))
+  })
+
+  fireEvent.click(view.getByRole("button", { name: "Remove image" }))
+
+  await expect(uploader.current!.readUploads()).resolves.toEqual([])
+})
+
+test("a superseded file read cannot replace the newer selected image", async () => {
+  const readers: FileReader[] = []
+
+  jest.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {
+    readers.push(this)
+  })
+
+  const uploader = React.createRef<MultiImageUploader>()
+  const onChange = jest.fn()
+  const view = render(
+    <MultiImageUploader ref={uploader} field="attachments" maxUploads={1} onChange={onChange} />
+  )
+  const input = view.container.querySelector('input[type="file"]')!
+
+  for (const name of ["old", "new"]) {
+    fireEvent.change(input, {
+      target: {
+        files: [new File([name], `${name}.png`, { type: "image/png" })],
+      },
+    })
+  }
+
+  await act(async () => {
+    Object.defineProperty(readers[1], "result", { value: "data:image/png;base64,bmV3" })
+    readers[1].dispatchEvent(new Event("load"))
+    Object.defineProperty(readers[0], "result", { value: "data:image/png;base64,b2xk" })
+    readers[0].dispatchEvent(new Event("load"))
+  })
+
+  expect(onChange).toHaveBeenCalledTimes(1)
+  expect(view.container.querySelector("img")).toHaveAttribute("src", "data:image/png;base64,bmV3")
+  await expect(uploader.current!.readUploads()).resolves.toEqual([
+    expect.objectContaining({ upload: expect.objectContaining({ fileName: "new.png", content: "bmV3" }) }),
+  ])
+})

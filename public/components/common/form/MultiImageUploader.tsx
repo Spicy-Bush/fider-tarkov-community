@@ -16,6 +16,7 @@ interface MultiImageUploaderProps {
 interface ImageEntry {
   id: string
   image: ImageUpload
+  read?: Promise<ImageUpload | undefined>
 }
 
 interface MultiImageUploaderState {
@@ -37,6 +38,35 @@ export class MultiImageUploader extends React.Component<MultiImageUploaderProps,
         image,
       })),
     }
+  }
+
+  private imageReading = (read: Promise<ImageUpload | undefined>, instanceID: string) => {
+    if (instanceID === String(this.nextID)) {
+      this.nextID++
+    }
+
+    this.setState((current) => {
+      const entries = [...current.entries]
+      const index = entries.findIndex((entry) => entry.id === instanceID)
+
+      if (index < 0) {
+        entries.push({ id: instanceID, image: { remove: false }, read })
+      } else {
+        entries[index] = { ...entries[index], read }
+      }
+
+      return { entries }
+    })
+  }
+
+  public async readUploads(): Promise<ImageUpload[] | undefined> {
+    const images = await Promise.all(this.state.entries.map((entry) => entry.read || entry.image))
+
+    if (images.some((image) => !image)) {
+      return undefined
+    }
+
+    return (images as ImageUpload[]).filter((image) => image.upload || image.remove)
   }
 
   private imageUploaded = (image: ImageUpload, instanceID: string) => {
@@ -79,17 +109,21 @@ export class MultiImageUploader extends React.Component<MultiImageUploaderProps,
         bkey={entry.image.bkey}
         initialUpload={entry.image}
         disabled={this.props.disabled}
+        onRead={(read) => this.imageReading(read, entry.id)}
         onChange={this.imageUploaded}
       />
     ))
 
     if (visible.length < this.props.maxUploads) {
+      const instanceID = String(this.nextID)
+
       uploaders.push(
         <ImageUploader
-          key={this.nextID}
-          instanceID={String(this.nextID)}
+          key={instanceID}
+          instanceID={instanceID}
           field="attachment"
           disabled={this.props.disabled}
+          onRead={(read) => this.imageReading(read, instanceID)}
           onChange={this.imageUploaded}
         />
       )

@@ -56,11 +56,17 @@ func TestReactRenderer_RenderPages(t *testing.T) {
 	tests := []struct {
 		name, page, locale string
 		props              web.Map
+		user               web.Map
 		want               []string
 	}{
 		{
 			name: "English home", page: "Home/Home.page", locale: "en", props: homeProps,
 			want: []string{`id="p-home"`, "What can we do better? This is the place for you to vote, discuss and share ideas.", "No posts have been created yet."},
+		},
+		{
+			name: "Authenticated home", page: "Home/Home.page", locale: "en", props: homeProps,
+			user: web.Map{"id": 1, "name": "SSR user", "role": "administrator"},
+			want: []string{`id="p-home"`, `id="input-title"`},
 		},
 		{
 			name: "Portuguese home", page: "Home/Home.page", locale: "pt-BR", props: homeProps,
@@ -91,6 +97,7 @@ func TestReactRenderer_RenderPages(t *testing.T) {
 				"tenant":   &entity.Tenant{Locale: tt.locale},
 				"settings": web.Map{"locale": tt.locale, "environment": "production"},
 				"props":    tt.props,
+				"user":     tt.user,
 			})
 			if err != nil {
 				t.Fatalf("SSR render failed: %v", err)
