@@ -9,6 +9,7 @@ import (
 	"net"
 	gosmtp "net/smtp"
 	"net/url"
+	"net/textproto"
 	"strconv"
 	"time"
 
@@ -110,7 +111,15 @@ func sendMail(ctx context.Context, c *cmd.SendMail) {
 
 var Send = func(localName, serverAddress string, enableStartTLS bool, a gosmtp.Auth, from string, to []string, msg []byte) error {
 	host, _, _ := net.SplitHostPort(serverAddress)
-	c, err := gosmtp.Dial(serverAddress)
+	connection, err := net.DialTimeout("tcp", serverAddress, 30*time.Second)
+	if err != nil {
+		return err
+	}
+	defer connection.Close()
+	if err := connection.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		return err
+	}
+	c, err := gosmtp.NewClient(connection, host)
 	if err != nil {
 		return err
 	}
@@ -139,6 +148,9 @@ var Send = func(localName, serverAddress string, enableStartTLS bool, a gosmtp.A
 	}
 	for _, addr := range to {
 		if err = c.Rcpt(addr); err != nil {
+			if reply, ok := err.(*textproto.Error); ok && reply.Code >= 500 && reply.Code < 600 {
+				return &email.RecipientRejected{Cause: err}
+			}
 			return err
 		}
 	}
@@ -154,7 +166,9 @@ var Send = func(localName, serverAddress string, enableStartTLS bool, a gosmtp.A
 	if err != nil {
 		return err
 	}
-	return c.Quit()
+	// DATA was accepted; a failed QUIT must not cause another delivery.
+	_ = c.Quit()
+	return nil
 }
 
 func generateMessageID(localName string) string {
