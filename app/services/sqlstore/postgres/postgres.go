@@ -32,6 +32,7 @@ func (s Service) Init() {
 	bus.AddHandler(applyPostVote)
 	bus.AddHandler(schedulePostNotification)
 	bus.AddHandler(processPostNotification)
+	bus.AddHandler(getPushSubscription)
 	bus.AddHandler(storeEvent)
 
 	bus.AddHandler(purgeExpiredNotifications)

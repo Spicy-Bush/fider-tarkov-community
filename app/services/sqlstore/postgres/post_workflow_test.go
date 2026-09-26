@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,6 +19,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/apiv1"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/jobs"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
@@ -683,5 +685,118 @@ func TestPostWorkflowTransientFailurePreservesEmailBatch(t *testing.T) {
 	}
 	if workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries") != 0 {
 		t.Fatal("successful batch retained pending work")
+	}
+}
+
+func TestPostWorkflowNotificationRecovery(t *testing.T) {
+	f := newPostWorkflow(t)
+
+	emailType := env.Config.Email.Type
+	env.Config.Email.Type = "smtp"
+	t.Cleanup(func() {
+		env.Config.Email.Type = emailType
+	})
+
+	f.queuePostNotification(t)
+
+	emailRecipients := []*entity.User{
+		{ID: 2, Email: "accepted@example.com"},
+		{ID: 3, Email: "recover@example.com"},
+	}
+
+	bus.AddHandler(func(ctx context.Context, q *query.GetActiveSubscribers) error {
+		if q.Channel == enum.NotificationChannelWeb {
+			q.Result = []*entity.User{{ID: 2}}
+		} else if q.Channel == enum.NotificationChannelEmail {
+			for _, user := range emailRecipients {
+				if len(q.UserIDs) == 0 || slices.Contains(q.UserIDs, user.ID) {
+					q.Result = append(q.Result, user)
+				}
+			}
+		}
+
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, q *query.ListActiveWebhooksByType) error {
+		q.Result = []*entity.Webhook{{ID: 1}, {ID: 2}}
+		return nil
+	})
+
+	accepted, recovered, hooks := 0, 0, 0
+	fail := true
+
+	bus.AddHandler(func(ctx context.Context, c *cmd.SendMail) error {
+		if len(c.To) != 1 {
+			t.Fatalf("delivery bundles independent recipients: %d", len(c.To))
+		}
+
+		if c.To[0].Address == "accepted@example.com" {
+			accepted++
+		} else if fail {
+			return fmt.Errorf("injected delivery failure")
+		} else {
+			recovered++
+		}
+
+		return nil
+	})
+
+	bus.AddHandler(func(context.Context, *cmd.DeliverWebhook) error {
+		hooks++
+		return nil
+	})
+
+	t.Cleanup(func() {
+		bus.Init(postgres.Service{}, blobsql.Service{})
+	})
+
+	dbx.Connection().SetMaxOpenConns(1)
+	t.Cleanup(func() {
+		dbx.Connection().SetMaxOpenConns(env.Config.Database.MaxOpenConns)
+	})
+
+	job := &jobs.PostNotificationDeliveryJob{}
+	job.Run()
+
+	if accepted != 1 || recovered != 0 || hooks != 2 {
+		t.Fatalf("partial delivery blocked healthy work: accepted=%d recovered=%d hooks=%d", accepted, recovered, hooks)
+	}
+
+	if workflowCount(t, "SELECT COUNT(*) FROM notifications") != 1 {
+		t.Fatal("web notification was not delivered exactly once")
+	}
+
+	for attempt := 0; attempt < 3; attempt++ {
+		if _, err := dbx.Connection().Exec("UPDATE post_notification_recipients SET available_at = NOW()"); err != nil {
+			t.Fatal(err)
+		}
+
+		job.Run()
+	}
+
+	if accepted != 1 || hooks != 2 {
+		t.Fatalf("retry repeated completed work: accepted=%d hooks=%d", accepted, hooks)
+	}
+
+	if workflowCount(t, "SELECT COUNT(*) FROM post_notification_recipients") != 1 {
+		t.Fatal("retry discarded the failed recipient")
+	}
+
+	fail = false
+	if _, err := dbx.Connection().Exec("UPDATE post_notification_recipients SET available_at = NOW()"); err != nil {
+		t.Fatal(err)
+	}
+
+	job.Run()
+
+	if accepted != 1 || recovered != 1 || hooks != 2 {
+		t.Fatalf("recovery duplicated or lost delivery: %d %d %d", accepted, recovered, hooks)
+	}
+
+	pendingDeliveries := workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries")
+	pendingRecipients := workflowCount(t, "SELECT COUNT(*) FROM post_notification_recipients")
+	if pendingDeliveries != 0 || pendingRecipients != 0 {
+		t.Fatal("completed delivery retained queue data")
 	}
 }

@@ -5,22 +5,20 @@ import (
 	"html/template"
 	"testing"
 
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/webhook"
-
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
-
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/mock"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/webhook"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/worker"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/services/email/emailmock"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/tasks"
 )
 
-func TestNotifyAboutNewPostTask(t *testing.T) {
+func TestDeliverPendingPostNotification(t *testing.T) {
 	RegisterT(t)
 	bus.Init(emailmock.Service{})
 
@@ -34,16 +32,21 @@ func TestNotifyAboutNewPostTask(t *testing.T) {
 		q.Result = []*entity.User{
 			mock.AryaStark,
 		}
+
+		if len(q.UserIDs) == 0 {
+			q.Result = append(q.Result, mock.JonSnow)
+		}
+
 		return nil
 	})
 
-	var triggerWebhooks *cmd.TriggerWebhooks
-	bus.AddHandler(func(ctx context.Context, c *cmd.TriggerWebhooks) error {
+	var triggerWebhooks *cmd.DeliverWebhook
+	bus.AddHandler(func(ctx context.Context, c *cmd.DeliverWebhook) error {
 		triggerWebhooks = c
 		return nil
 	})
 
-	worker := mock.NewWorker()
+	runner := mock.NewWorker()
 	post := &entity.Post{
 		ID:          1,
 		Number:      1,
@@ -51,15 +54,43 @@ func TestNotifyAboutNewPostTask(t *testing.T) {
 		Slug:        "add-support-for-typescript",
 		Description: "TypeScript is great, please add support for it",
 	}
-	task := tasks.NotifyAboutNewPost(post)
 
-	err := worker.
+	bus.AddHandler(func(ctx context.Context, q *query.ListActiveWebhooksByType) error {
+		q.Result = []*entity.Webhook{{ID: 1}}
+		return nil
+	})
+
+	bus.AddHandler(func(ctx context.Context, c *cmd.ProcessPostNotification) error {
+		recipients, err := c.Prepare(ctx, post)
+		if err != nil {
+			return err
+		}
+
+		for _, recipient := range recipients {
+			if err := c.Send(ctx, post, []cmd.PostNotificationRecipient{recipient}); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	task := worker.Task{
+		Name: "deliver",
+		Job: func(ctx *worker.Context) error {
+			_, err := tasks.DeliverPendingPostNotification(ctx)
+			return err
+		},
+	}
+
+	err := runner.
 		OnTenant(mock.DemoTenant).
 		AsUser(mock.JonSnow).
 		WithBaseURL("http://domain.com").
 		Execute(task)
 
 	Expect(err).IsNil()
+
 	Expect(emailmock.MessageHistory).HasLen(1)
 	Expect(emailmock.MessageHistory[0].TemplateName).Equals("new_post")
 	Expect(emailmock.MessageHistory[0].Tenant).Equals(mock.DemoTenant)
@@ -73,9 +104,11 @@ func TestNotifyAboutNewPostTask(t *testing.T) {
 		"change":   "<a href='http://domain.com/profile#settings'>change your notification preferences</a>",
 		"logo":     "https://fider.io/images/logo-100x100.png",
 	})
+
 	Expect(emailmock.MessageHistory[0].From).Equals(dto.Recipient{
 		Name: "Jon Snow",
 	})
+
 	Expect(emailmock.MessageHistory[0].To).HasLen(1)
 	Expect(emailmock.MessageHistory[0].To[0]).Equals(dto.Recipient{
 		Name:    "Arya Stark",
@@ -90,7 +123,7 @@ func TestNotifyAboutNewPostTask(t *testing.T) {
 	Expect(addNewNotification.User).Equals(mock.AryaStark)
 
 	Expect(triggerWebhooks).IsNotNil()
-	Expect(triggerWebhooks.Type).Equals(enum.WebhookNewPost)
+	Expect(triggerWebhooks.ID).Equals(1)
 	Expect(triggerWebhooks.Props).ContainsProps(webhook.Props{
 		"post_id":          post.ID,
 		"post_number":      post.Number,

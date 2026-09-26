@@ -21,3 +21,7 @@ type HasPushSubscription struct {
 	Result bool
 }
 
+type GetPushSubscription struct {
+	ID     int
+	Result *entity.PushSubscription
+}

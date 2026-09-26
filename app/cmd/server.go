@@ -88,6 +88,7 @@ func startJobs(ctx context.Context) {
 	_ = c.AddJob(jobs.NewJob(ctx, "RefreshPostStatsJob", jobs.RefreshPostStatsJobHandler{}))
 	_ = c.AddJob(jobs.NewJob(ctx, "RefreshCrawlerIPsJob", jobs.RefreshCrawlerIPsJobHandler{}))
 	_ = c.AddJob(jobs.NewJob(ctx, "PublishScheduledPagesJob", jobs.PublishScheduledPagesJobHandler{}))
+	_ = c.AddJob("* * * * * *", &jobs.PostNotificationDeliveryJob{})
 
 	if env.IsBillingEnabled() {
 		_ = c.AddJob(jobs.NewJob(ctx, "LockExpiredTenantsJob", jobs.LockExpiredTenantsJobHandler{}))

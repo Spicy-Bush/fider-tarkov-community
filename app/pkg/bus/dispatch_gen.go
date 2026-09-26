@@ -206,6 +206,7 @@ var qGetPostByNumberHandler func(context.Context, *query.GetPostByNumber) error
 var qGetPostBySlugHandler func(context.Context, *query.GetPostBySlug) error
 var qGetPostsByIDsHandler func(context.Context, *query.GetPostsByIDs) error
 var qGetPrunableFilesHandler func(context.Context, *query.GetPrunableFiles) error
+var qGetPushSubscriptionHandler func(context.Context, *query.GetPushSubscription) error
 var qGetPushSubscriptionsByUserHandler func(context.Context, *query.GetPushSubscriptionsByUser) error
 var qGetPushSubscriptionsByUsersHandler func(context.Context, *query.GetPushSubscriptionsByUsers) error
 var qGetReportByIDHandler func(context.Context, *query.GetReportByID) error
@@ -658,6 +659,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		qGetPostsByIDsHandler = fn
 	case func(context.Context, *query.GetPrunableFiles) error:
 		qGetPrunableFilesHandler = fn
+	case func(context.Context, *query.GetPushSubscription) error:
+		qGetPushSubscriptionHandler = fn
 	case func(context.Context, *query.GetPushSubscriptionsByUser) error:
 		qGetPushSubscriptionsByUserHandler = fn
 	case func(context.Context, *query.GetPushSubscriptionsByUsers) error:
@@ -1746,6 +1749,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.GetPrunableFiles")
 		}
 		return qGetPrunableFilesHandler(ctx, m)
+	case *query.GetPushSubscription:
+		if qGetPushSubscriptionHandler == nil {
+			return fmt.Errorf("handler not registered: query.GetPushSubscription")
+		}
+		return qGetPushSubscriptionHandler(ctx, m)
 	case *query.GetPushSubscriptionsByUser:
 		if qGetPushSubscriptionsByUserHandler == nil {
 			return fmt.Errorf("handler not registered: query.GetPushSubscriptionsByUser")

@@ -173,3 +173,11 @@ func hasPushSubscription(ctx context.Context, q *query.HasPushSubscription) erro
 	})
 }
 
+func getPushSubscription(ctx context.Context, q *query.GetPushSubscription) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		q.Result = &entity.PushSubscription{}
+
+		return trx.Get(q.Result, `SELECT id, tenant_id, user_id, endpoint, key_p256dh, key_auth, created_at
+			FROM push_subscriptions WHERE id = $1 AND tenant_id = $2`, q.ID, tenant.ID)
+	})
+}
