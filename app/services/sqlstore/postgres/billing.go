@@ -40,7 +40,7 @@ func (s *dbBillingState) toModel(ctx context.Context) *entity.BillingState {
 }
 
 func getBillingState(ctx context.Context, q *query.GetBillingState) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = nil
 
 		state := dbBillingState{}
@@ -64,7 +64,7 @@ func getBillingState(ctx context.Context, q *query.GetBillingState) error {
 }
 
 func activateBillingSubscription(ctx context.Context, c *cmd.ActivateBillingSubscription) error {
-	return using(ctx, func(trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE tenants_billing
 			SET subscription_ends_at = null, paddle_subscription_id = $2, paddle_plan_id = $3, status = $4
@@ -88,7 +88,7 @@ func activateBillingSubscription(ctx context.Context, c *cmd.ActivateBillingSubs
 }
 
 func cancelBillingSubscription(ctx context.Context, c *cmd.CancelBillingSubscription) error {
-	return using(ctx, func(trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE tenants_billing
 			SET subscription_ends_at = $2, status = $3
@@ -102,7 +102,7 @@ func cancelBillingSubscription(ctx context.Context, c *cmd.CancelBillingSubscrip
 }
 
 func lockExpiredTenants(ctx context.Context, c *cmd.LockExpiredTenants) error {
-	return using(ctx, func(trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
 		now := time.Now()
 
 		type tenant struct {
@@ -148,7 +148,7 @@ func lockExpiredTenants(ctx context.Context, c *cmd.LockExpiredTenants) error {
 }
 
 func getTrialingTenantContacts(ctx context.Context, q *query.GetTrialingTenantContacts) error {
-	return using(ctx, func(trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
 		var users []*dbUser
 		err := trx.Select(&users, `
 			SELECT

@@ -52,7 +52,7 @@ func (r *dbAdPlacement) toModel() *entity.AdPlacement {
 }
 
 func listAdPlacements(ctx context.Context, q *query.ListAdPlacements) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = []*entity.AdPlacement{}
 		rows := []*dbAdPlacement{}
 		err := trx.Select(&rows, `
@@ -80,7 +80,7 @@ type dbAdCandidate struct {
 }
 
 func getActiveAdCandidates(ctx context.Context, q *query.GetActiveAdCandidates) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = []adsselect.Candidate{}
 		if len(q.PlacementIDs) == 0 {
 			return nil
@@ -151,7 +151,7 @@ func (r *dbCreativeVersion) toModel() *entity.CreativeVersion {
 }
 
 func getCreativeVersionsByIDs(ctx context.Context, q *query.GetCreativeVersionsByIDs) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = map[int]*entity.CreativeVersion{}
 		if len(q.IDs) == 0 {
 			return nil
@@ -191,7 +191,7 @@ func bumpCampaignConfigVersion(trx *dbx.Trx, tenantID, campaignID, configVersion
 }
 
 func createCreativeVersion(ctx context.Context, c *cmd.CreateCreativeVersion) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if err := bumpCampaignConfigVersion(trx, tenant.ID, c.CampaignID, c.ConfigVersion); err != nil {
 			return err
 		}
@@ -222,7 +222,7 @@ func createCreativeVersion(ctx context.Context, c *cmd.CreateCreativeVersion) er
 }
 
 func saveSponsorshipCampaignGraph(ctx context.Context, c *cmd.SaveSponsorshipCampaignGraph) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		now := time.Now().UTC()
 		start := c.StartAt.UTC()
 		end := c.EndAt.UTC()
@@ -300,7 +300,7 @@ func saveSponsorshipCampaignGraph(ctx context.Context, c *cmd.SaveSponsorshipCam
 }
 
 func listCreativeVersionsByCampaign(ctx context.Context, q *query.ListCreativeVersionsByCampaign) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = []*entity.CreativeVersion{}
 		rows := []*dbCreativeVersion{}
 		err := trx.Select(&rows, `
@@ -321,7 +321,7 @@ func listCreativeVersionsByCampaign(ctx context.Context, q *query.ListCreativeVe
 }
 
 func listCampaignAssignmentsByCampaign(ctx context.Context, q *query.ListCampaignAssignmentsByCampaign) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = []*entity.CampaignAssignment{}
 		type row struct {
 			ID                int    `db:"id"`
@@ -351,7 +351,7 @@ func listCampaignAssignmentsByCampaign(ctx context.Context, q *query.ListCampaig
 }
 
 func updateAdPlacement(ctx context.Context, c *cmd.UpdateAdPlacement) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		policy := strings.TrimSpace(c.EmptyPolicy)
 		if policy == "" {
 			policy = "collapse"

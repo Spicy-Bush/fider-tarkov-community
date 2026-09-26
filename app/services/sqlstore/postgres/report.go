@@ -130,7 +130,7 @@ func (r *dbReportReason) toModel() *entity.ReportReason {
 }
 
 func createReport(ctx context.Context, c *cmd.CreateReport) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var reporterID interface{}
 		if c.ReporterID != nil {
 			reporterID = *c.ReporterID
@@ -155,7 +155,7 @@ func createReport(ctx context.Context, c *cmd.CreateReport) error {
 }
 
 func assignReport(ctx context.Context, c *cmd.AssignReport) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE reports 
 			SET assigned_to = $1, assigned_at = NOW(), status = 'in_review'
@@ -169,7 +169,7 @@ func assignReport(ctx context.Context, c *cmd.AssignReport) error {
 }
 
 func unassignReport(ctx context.Context, c *cmd.UnassignReport) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE reports 
 			SET assigned_to = NULL, assigned_at = NULL, status = 'pending'
@@ -183,7 +183,7 @@ func unassignReport(ctx context.Context, c *cmd.UnassignReport) error {
 }
 
 func resolveReport(ctx context.Context, c *cmd.ResolveReport) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE reports 
 			SET status = $1, resolved_at = NOW(), resolved_by = $2, resolution_note = $3
@@ -197,7 +197,7 @@ func resolveReport(ctx context.Context, c *cmd.ResolveReport) error {
 }
 
 func deleteReport(ctx context.Context, c *cmd.DeleteReport) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			DELETE FROM reports WHERE id = $1 AND tenant_id = $2
 		`, c.ReportID, tenant.ID)
@@ -209,7 +209,7 @@ func deleteReport(ctx context.Context, c *cmd.DeleteReport) error {
 }
 
 func getReportByID(ctx context.Context, q *query.GetReportByID) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		report := dbReport{}
 		err := trx.Get(&report, `
 			SELECT 
@@ -238,7 +238,7 @@ func getReportByID(ctx context.Context, q *query.GetReportByID) error {
 }
 
 func listReports(ctx context.Context, q *query.ListReports) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if q.Page < 1 {
 			q.Page = 1
 		}
@@ -312,7 +312,7 @@ func listReports(ctx context.Context, q *query.ListReports) error {
 }
 
 func countPendingReports(ctx context.Context, q *query.CountPendingReports) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		err := trx.Scalar(&q.Result, `
 			SELECT COUNT(*) FROM reports 
 			WHERE tenant_id = $1 AND status IN ('pending', 'in_review')
@@ -325,7 +325,7 @@ func countPendingReports(ctx context.Context, q *query.CountPendingReports) erro
 }
 
 func getReportReasons(ctx context.Context, q *query.GetReportReasons) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var reasons []*dbReportReason
 		err := trx.Select(&reasons, `
 			SELECT id, slug, title, description, sort_order, is_active
@@ -346,7 +346,7 @@ func getReportReasons(ctx context.Context, q *query.GetReportReasons) error {
 }
 
 func countUserReportsToday(ctx context.Context, q *query.CountUserReportsToday) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		err := trx.Scalar(&q.Result, `
 			SELECT COUNT(*) FROM reports 
 			WHERE tenant_id = $1 AND reporter_id = $2 AND created_at >= CURRENT_DATE
@@ -359,7 +359,7 @@ func countUserReportsToday(ctx context.Context, q *query.CountUserReportsToday) 
 }
 
 func hasUserReportedTarget(ctx context.Context, q *query.HasUserReportedTarget) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var count int
 		err := trx.Scalar(&count, `
 			SELECT COUNT(*) FROM reports 
@@ -378,7 +378,7 @@ type dbReportedCommentID struct {
 }
 
 func getUserReportedItemsOnPost(ctx context.Context, q *query.GetUserReportedItemsOnPost) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var postCount int
 		err := trx.Scalar(&postCount, `
 			SELECT COUNT(*) FROM reports 
@@ -418,7 +418,7 @@ func nullIfEmpty(s string) interface{} {
 }
 
 func listAllReportReasons(ctx context.Context, q *query.ListAllReportReasons) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var reasons []*dbReportReason
 		err := trx.Select(&reasons, `
 			SELECT id, slug, title, description, sort_order, is_active
@@ -439,7 +439,7 @@ func listAllReportReasons(ctx context.Context, q *query.ListAllReportReasons) er
 }
 
 func createReportReason(ctx context.Context, c *cmd.CreateReportReason) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var maxSortOrder int
 		err := trx.Scalar(&maxSortOrder, `
 			SELECT COALESCE(MAX(sort_order), 0) FROM report_reasons WHERE tenant_id = $1
@@ -466,7 +466,7 @@ func createReportReason(ctx context.Context, c *cmd.CreateReportReason) error {
 }
 
 func updateReportReason(ctx context.Context, c *cmd.UpdateReportReason) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE report_reasons 
 			SET title = $1, description = $2, is_active = $3
@@ -480,7 +480,7 @@ func updateReportReason(ctx context.Context, c *cmd.UpdateReportReason) error {
 }
 
 func deleteReportReason(ctx context.Context, c *cmd.DeleteReportReason) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			DELETE FROM report_reasons WHERE id = $1 AND tenant_id = $2
 		`, c.ID, tenant.ID)
@@ -511,7 +511,7 @@ func generateSlug(title string) string {
 }
 
 func reorderReportReasons(ctx context.Context, c *cmd.ReorderReportReasons) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		for i, id := range c.IDs {
 			_, err := trx.Execute(`
 				UPDATE report_reasons 

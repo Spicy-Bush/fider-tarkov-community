@@ -103,7 +103,7 @@ func (p *dbPage) toModel(ctx context.Context) *entity.Page {
 }
 
 func getPageBySlug(ctx context.Context, q *query.GetPageBySlug) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		page := &dbPage{}
 		err := trx.Get(page, `
 			SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.banner_image_bkey,
@@ -135,7 +135,7 @@ func getPageBySlug(ctx context.Context, q *query.GetPageBySlug) error {
 }
 
 func getPageByID(ctx context.Context, q *query.GetPageByID) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		page := &dbPage{}
 		err := trx.Get(page, `
 			SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.banner_image_bkey,
@@ -248,7 +248,7 @@ func loadPageRelations(ctx context.Context, trx *dbx.Trx, user *entity.User, pag
 }
 
 func createPage(ctx context.Context, c *cmd.CreatePage) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		slug, err := pages.GenerateSlug(ctx, c.Title, c.Slug, 0)
 		if err != nil {
 			return errors.Wrap(err, "failed to generate slug")
@@ -332,7 +332,7 @@ func createPage(ctx context.Context, c *cmd.CreatePage) error {
 }
 
 func updatePage(ctx context.Context, c *cmd.UpdatePage) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		slug, err := pages.GenerateSlug(ctx, c.Title, c.Slug, c.PageID)
 		if err != nil {
 			return errors.Wrap(err, "failed to generate slug")
@@ -407,7 +407,7 @@ func updatePage(ctx context.Context, c *cmd.UpdatePage) error {
 }
 
 func deletePage(ctx context.Context, c *cmd.DeletePage) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute("DELETE FROM pages WHERE id = $1 AND tenant_id = $2", c.PageID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to delete page")
@@ -482,7 +482,7 @@ func getPublishedAt(status entity.PageStatus) *time.Time {
 }
 
 func listPages(ctx context.Context, q *query.ListPages) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		conditions := []string{"p.tenant_id = $1"}
 		args := []interface{}{tenant.ID}
 		argCount := 1
@@ -587,7 +587,7 @@ func listPages(ctx context.Context, q *query.ListPages) error {
 }
 
 func togglePageReaction(ctx context.Context, c *cmd.TogglePageReaction) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var added bool
 		err := trx.Scalar(&added, `
 			WITH toggle_reaction AS (
@@ -619,7 +619,7 @@ func togglePageReaction(ctx context.Context, c *cmd.TogglePageReaction) error {
 }
 
 func togglePageSubscription(ctx context.Context, c *cmd.TogglePageSubscription) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var subscribed bool
 		err := trx.Scalar(&subscribed, `
 			WITH toggle_sub AS (
@@ -651,7 +651,7 @@ func togglePageSubscription(ctx context.Context, c *cmd.TogglePageSubscription) 
 }
 
 func userSubscribedToPage(ctx context.Context, q *query.UserSubscribedToPage) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if user == nil {
 			q.Result = false
 			return nil
@@ -668,7 +668,7 @@ func userSubscribedToPage(ctx context.Context, q *query.UserSubscribedToPage) er
 }
 
 func getPageSubscribers(ctx context.Context, q *query.GetPageSubscribers) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		users := []*dbUser{}
 		err := trx.Select(&users, `
 			SELECT u.id, u.name, u.email, u.role, u.status
@@ -691,7 +691,7 @@ func getPageSubscribers(ctx context.Context, q *query.GetPageSubscribers) error 
 }
 
 func savePageDraft(ctx context.Context, c *cmd.SavePageDraft) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		draftDataJSON, _ := json.Marshal(c.DraftData)
 
 		_, err := trx.Execute(`
@@ -717,7 +717,7 @@ func savePageDraft(ctx context.Context, c *cmd.SavePageDraft) error {
 }
 
 func getPageDraft(ctx context.Context, q *query.GetPageDraft) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		draft := struct {
 			ID              int            `db:"id"`
 			PageID          int            `db:"page_id"`
@@ -777,7 +777,7 @@ func getPageDraft(ctx context.Context, q *query.GetPageDraft) error {
 }
 
 func publishScheduledPages(ctx context.Context, c *cmd.PublishScheduledPages) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var count int
 		err := trx.Get(&count, `
 			WITH updated AS (
@@ -800,7 +800,7 @@ func publishScheduledPages(ctx context.Context, c *cmd.PublishScheduledPages) er
 }
 
 func getAllPublishedPages(ctx context.Context, q *query.GetAllPublishedPages) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		pages := []*dbPage{}
 		err := trx.Select(&pages, `
 			SELECT id, title, slug, visibility, updated_at
@@ -829,7 +829,7 @@ func getAllPublishedPages(ctx context.Context, q *query.GetAllPublishedPages) er
 }
 
 func getCommentsByPage(ctx context.Context, q *query.GetCommentsByPage) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]*entity.Comment, 0)
 
 		comments := []*dbComment{}
@@ -890,7 +890,7 @@ func getCommentsByPage(ctx context.Context, q *query.GetCommentsByPage) error {
 }
 
 func addPageComment(ctx context.Context, c *cmd.AddPageComment) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var id int
 		if err := trx.Get(&id, `
 			INSERT INTO comments (tenant_id, page_id, content, user_id, created_at)
@@ -911,7 +911,7 @@ func addPageComment(ctx context.Context, c *cmd.AddPageComment) error {
 }
 
 func refreshPageEmbeddedData(ctx context.Context, c *cmd.RefreshPageEmbeddedData) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var content string
 		if err := trx.Get(&content, `
 			SELECT content FROM pages WHERE id = $1 AND tenant_id = $2

@@ -109,7 +109,7 @@ type dbUserSetting struct {
 }
 
 func countUsers(ctx context.Context, q *query.CountUsers) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var count int
 		err := trx.Scalar(&count, "SELECT COUNT(*) FROM users WHERE tenant_id = $1", tenant.ID)
 		if err != nil {
@@ -121,7 +121,7 @@ func countUsers(ctx context.Context, q *query.CountUsers) error {
 }
 
 func blockUser(ctx context.Context, c *cmd.BlockUser) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if _, err := trx.Execute(
 			"UPDATE users SET status = $3 WHERE id = $1 AND tenant_id = $2",
 			c.UserID, tenant.ID, enum.UserBlocked,
@@ -133,7 +133,7 @@ func blockUser(ctx context.Context, c *cmd.BlockUser) error {
 }
 
 func unblockUser(ctx context.Context, c *cmd.UnblockUser) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if _, err := trx.Execute(
 			"UPDATE users SET status = $3 WHERE id = $1 AND tenant_id = $2",
 			c.UserID, tenant.ID, enum.UserActive,
@@ -145,7 +145,7 @@ func unblockUser(ctx context.Context, c *cmd.UnblockUser) error {
 }
 
 func deleteCurrentUser(ctx context.Context, c *cmd.DeleteCurrentUser) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if _, err := trx.Execute(
 			"UPDATE users SET role = $3, status = $4, name = '', email = '', api_key = null, api_key_date = null WHERE id = $1 AND tenant_id = $2",
 			user.ID, tenant.ID, enum.RoleVisitor, enum.UserDeleted,
@@ -186,7 +186,7 @@ func deleteCurrentUser(ctx context.Context, c *cmd.DeleteCurrentUser) error {
 }
 
 func regenerateAPIKey(ctx context.Context, c *cmd.RegenerateAPIKey) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		apiKey := entity.GenerateEmailVerificationKey()
 
 		if _, err := trx.Execute(
@@ -202,7 +202,7 @@ func regenerateAPIKey(ctx context.Context, c *cmd.RegenerateAPIKey) error {
 }
 
 func getUserByAPIKey(ctx context.Context, q *query.GetUserByAPIKey) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		result, err := queryUser(ctx, trx, "api_key = $1 AND tenant_id = $2", q.APIKey, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get user with API Key '%s'", q.APIKey)
@@ -213,7 +213,7 @@ func getUserByAPIKey(ctx context.Context, q *query.GetUserByAPIKey) error {
 }
 
 func userSubscribedTo(ctx context.Context, q *query.UserSubscribedTo) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if user == nil {
 			q.Result = false
 			return nil
@@ -249,7 +249,7 @@ func userSubscribedTo(ctx context.Context, q *query.UserSubscribedTo) error {
 }
 
 func changeUserRole(ctx context.Context, c *cmd.ChangeUserRole) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		cmd := "UPDATE users SET role = $3 WHERE id = $1 AND tenant_id = $2"
 		_, err := trx.Execute(cmd, c.UserID, tenant.ID, c.Role)
 		if err != nil {
@@ -260,7 +260,7 @@ func changeUserRole(ctx context.Context, c *cmd.ChangeUserRole) error {
 }
 
 func changeUserVisualRole(ctx context.Context, c *cmd.ChangeUserVisualRole) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE users 
 			SET visual_role = $1
@@ -274,7 +274,7 @@ func changeUserVisualRole(ctx context.Context, c *cmd.ChangeUserVisualRole) erro
 }
 
 func changeUserEmail(ctx context.Context, c *cmd.ChangeUserEmail) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		cmd := "UPDATE users SET email = $3, email_supressed_at = NULL WHERE id = $1 AND tenant_id = $2"
 		_, err := trx.Execute(cmd, c.UserID, tenant.ID, strings.ToLower(c.Email))
 		if err != nil {
@@ -285,7 +285,7 @@ func changeUserEmail(ctx context.Context, c *cmd.ChangeUserEmail) error {
 }
 
 func updateCurrentUserSettings(ctx context.Context, c *cmd.UpdateCurrentUserSettings) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if user != nil && c.Settings != nil && len(c.Settings) > 0 {
 			query := `
 			INSERT INTO user_settings (tenant_id, user_id, key, value)
@@ -305,7 +305,7 @@ func updateCurrentUserSettings(ctx context.Context, c *cmd.UpdateCurrentUserSett
 }
 
 func getCurrentUserSettings(ctx context.Context, q *query.GetCurrentUserSettings) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make(map[string]string)
 
 		var settings []*dbUserSetting
@@ -331,7 +331,7 @@ func getCurrentUserSettings(ctx context.Context, q *query.GetCurrentUserSettings
 }
 
 func registerUser(ctx context.Context, c *cmd.RegisterUser) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, _ *entity.User) error {
 		now := time.Now()
 		c.User.Status = enum.UserActive
 		c.User.Email = strings.ToLower(strings.TrimSpace(c.User.Email))
@@ -353,7 +353,7 @@ func registerUser(ctx context.Context, c *cmd.RegisterUser) error {
 }
 
 func registerUserProvider(ctx context.Context, c *cmd.RegisterUserProvider) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		cmd := "INSERT INTO user_providers (tenant_id, user_id, provider, provider_uid, created_at) VALUES ($1, $2, $3, $4, $5)"
 		_, err := trx.Execute(cmd, tenant.ID, c.UserID, c.ProviderName, c.ProviderUID, time.Now())
 		if err != nil {
@@ -364,7 +364,7 @@ func registerUserProvider(ctx context.Context, c *cmd.RegisterUserProvider) erro
 }
 
 func updateCurrentUser(ctx context.Context, c *cmd.UpdateCurrentUser) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		blobKey := ""
 		if c.Avatar != nil {
 			if c.Avatar.Remove {
@@ -393,7 +393,7 @@ func updateCurrentUser(ctx context.Context, c *cmd.UpdateCurrentUser) error {
 }
 
 func getUserByID(ctx context.Context, q *query.GetUserByID) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		u, err := queryUser(ctx, trx, "id = $1 AND tenant_id = $2", q.UserID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get user with id '%d'", q.UserID)
@@ -404,7 +404,7 @@ func getUserByID(ctx context.Context, q *query.GetUserByID) error {
 }
 
 func getUserByEmail(ctx context.Context, q *query.GetUserByEmail) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		email := strings.ToLower(q.Email)
 		u, err := queryUser(ctx, trx, "email = $1 AND tenant_id = $2", email, tenant.ID)
 		if err != nil {
@@ -416,7 +416,7 @@ func getUserByEmail(ctx context.Context, q *query.GetUserByEmail) error {
 }
 
 func getUserByProvider(ctx context.Context, q *query.GetUserByProvider) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var userID int
 		if err := trx.Scalar(&userID, `
 			SELECT user_id 
@@ -438,7 +438,7 @@ func getUserByProvider(ctx context.Context, q *query.GetUserByProvider) error {
 }
 
 func getAllUserProviders(ctx context.Context, q *query.GetAllUserProviders) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		err := trx.Select(&q.Result, `
             SELECT user_id, provider, provider_uid
             FROM user_providers
@@ -454,7 +454,7 @@ func getAllUserProviders(ctx context.Context, q *query.GetAllUserProviders) erro
 }
 
 func getAllUsers(ctx context.Context, q *query.GetAllUsers) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var users []*dbUser
 		err := trx.Select(&users, `
 			SELECT id, name, email, tenant_id, role, status, avatar_type, avatar_bkey, visual_role
@@ -475,7 +475,7 @@ func getAllUsers(ctx context.Context, q *query.GetAllUsers) error {
 }
 
 func getAllUsersNames(ctx context.Context, q *query.GetAllUsersNames) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var users []*dbUser
 		query := `
 			SELECT id, name
@@ -524,7 +524,7 @@ func getAllUsersNames(ctx context.Context, q *query.GetAllUsersNames) error {
 }
 
 func getUsersByIDs(ctx context.Context, q *query.GetUsersByIDs) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if len(q.UserIDs) == 0 {
 			q.Result = []*entity.User{}
 			return nil
@@ -578,7 +578,7 @@ func queryUser(ctx context.Context, trx *dbx.Trx, filter string, args ...any) (*
 }
 
 func getUserProfileStats(ctx context.Context, q *query.GetUserProfileStats) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var postCount int
 		err := trx.Scalar(&postCount, `
 			SELECT COUNT(*) 
@@ -617,7 +617,7 @@ func getUserProfileStats(ctx context.Context, q *query.GetUserProfileStats) erro
 }
 
 func getUserProfileStanding(ctx context.Context, q *query.GetUserProfileStanding) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		// Get warnings
 		var warnings []*dbUserWarning
 		err := trx.Select(&warnings, `
@@ -697,7 +697,7 @@ func getUserProfileStanding(ctx context.Context, q *query.GetUserProfileStanding
 }
 
 func searchUserContent(ctx context.Context, q *query.SearchUserContent) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if q.Limit <= 0 || q.Limit > 10 {
 			q.Limit = 10
 		}
@@ -854,7 +854,7 @@ func searchUserContent(ctx context.Context, q *query.SearchUserContent) error {
 }
 
 func muteUser(ctx context.Context, c *cmd.MuteUser) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		// Ensure we have a valid expiration time
 		if c.ExpiresAt.IsZero() {
 			c.ExpiresAt = time.Now().Add(24 * time.Hour) // Default to 24 hours if not specified
@@ -880,7 +880,7 @@ func muteUser(ctx context.Context, c *cmd.MuteUser) error {
 }
 
 func warnUser(ctx context.Context, c *cmd.WarnUser) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var expiresAt sql.NullTime
 		if c.ExpiresAt.IsZero() {
 			// If no expiration time is set, keep it as NULL
@@ -901,7 +901,7 @@ func warnUser(ctx context.Context, c *cmd.WarnUser) error {
 }
 
 func updateUserAvatar(ctx context.Context, c *cmd.UpdateUserAvatar) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, _ *entity.User) error {
 		blobKey := ""
 		if c.Avatar != nil {
 			if c.Avatar.Remove {
@@ -920,7 +920,7 @@ func updateUserAvatar(ctx context.Context, c *cmd.UpdateUserAvatar) error {
 }
 
 func updateUser(ctx context.Context, c *cmd.UpdateUser) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, _ *entity.User) error {
 		cmd := "UPDATE users SET name = $3 WHERE id = $1 AND tenant_id = $2"
 		_, err := trx.Execute(cmd, c.UserID, tenant.ID, c.Name)
 		if err != nil {
@@ -931,7 +931,7 @@ func updateUser(ctx context.Context, c *cmd.UpdateUser) error {
 }
 
 func isAvatarPublished(ctx context.Context, q *query.IsAvatarPublished) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		return trx.Scalar(&q.Result, `SELECT EXISTS (
          SELECT 1 FROM users WHERE tenant_id = $1 AND avatar_bkey = $2 AND avatar_bkey <> '' AND avatar_type = 3
      )`, tenant.ID, q.Key)

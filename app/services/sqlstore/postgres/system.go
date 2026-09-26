@@ -12,7 +12,7 @@ import (
 )
 
 func getSystemSettings(ctx context.Context, q *query.GetSystemSettings) error {
-	return using(ctx, func(trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
 
 		var value string
 		err := trx.Scalar(&value, `SELECT value FROM system_settings WHERE key = $1`, q.Key)
@@ -26,7 +26,7 @@ func getSystemSettings(ctx context.Context, q *query.GetSystemSettings) error {
 }
 
 func setSystemSettings(ctx context.Context, c *cmd.SetSystemSettings) error {
-	return using(ctx, func(trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
 
 		_, err := trx.Execute(`
 			INSERT INTO system_settings (key, value) VALUES ($1, $2)

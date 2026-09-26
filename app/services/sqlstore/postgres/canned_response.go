@@ -14,7 +14,7 @@ import (
 
 // Create a new canned response
 func createCannedResponse(ctx context.Context, c *cmd.CreateCannedResponse) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var createdByID *int
 		if user != nil {
 			userID := user.ID
@@ -48,7 +48,7 @@ func createCannedResponse(ctx context.Context, c *cmd.CreateCannedResponse) erro
 
 // Update an existing canned response
 func updateCannedResponse(ctx context.Context, c *cmd.UpdateCannedResponse) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE canned_responses 
 			SET type = $1, title = $2, content = $3, duration = $4, is_active = $5
@@ -81,7 +81,7 @@ func updateCannedResponse(ctx context.Context, c *cmd.UpdateCannedResponse) erro
 
 // Delete a canned response
 func deleteCannedResponse(ctx context.Context, c *cmd.DeleteCannedResponse) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			DELETE FROM canned_responses 
 			WHERE id = $1 AND tenant_id = $2
@@ -95,7 +95,7 @@ func deleteCannedResponse(ctx context.Context, c *cmd.DeleteCannedResponse) erro
 
 // Get a canned response by ID
 func getCannedResponseByID(ctx context.Context, q *query.GetCannedResponseByID) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		response := &entity.CannedResponse{}
 
 		err := trx.Get(response, `
@@ -114,7 +114,7 @@ func getCannedResponseByID(ctx context.Context, q *query.GetCannedResponseByID) 
 
 // List all canned responses of a specific type
 func listCannedResponses(ctx context.Context, q *query.ListCannedResponses) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		rows, err := trx.Query(`
             SELECT id, type, title, content, duration, is_active, created_at, created_by_id 
             FROM canned_responses 

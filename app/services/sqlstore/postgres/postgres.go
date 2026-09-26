@@ -279,25 +279,12 @@ func (s Service) Init() {
 	bus.AddHandler(saveNavigationLinks)
 }
 
-type SqlHandler func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error
+type SqlHandler func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error
 
 func using(ctx context.Context, handler SqlHandler) error {
-	trx, owned, err := dbx.GetOrBeginTx(ctx)
-	if err != nil {
-		return err
-	}
-
-	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
-	user, _ := ctx.Value(app.UserCtxKey).(*entity.User)
-	err = handler(trx, tenant, user)
-
-	if owned {
-		if err != nil {
-			trx.MustRollback()
-		} else {
-			trx.MustCommit()
-		}
-	}
-
-	return err
+	return dbx.InTransaction(ctx, func(ctx context.Context, trx *dbx.Trx) error {
+		tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+		user, _ := ctx.Value(app.UserCtxKey).(*entity.User)
+		return handler(ctx, trx, tenant, user)
+	})
 }

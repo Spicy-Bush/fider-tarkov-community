@@ -10,7 +10,7 @@ import (
 )
 
 func getWebhook(ctx context.Context, q *query.GetWebhook) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		webhook := &entity.Webhook{}
 		err := trx.Get(webhook, `
 			SELECT id, name, type, status, url, content, http_method, http_headers 
@@ -26,7 +26,7 @@ func getWebhook(ctx context.Context, q *query.GetWebhook) error {
 }
 
 func listAllWebhooks(ctx context.Context, q *query.ListAllWebhooks) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		webhooks := []*entity.Webhook{}
 		err := trx.Select(&webhooks, `
 			SELECT id, name, type, status, url, content, http_method, http_headers 
@@ -43,7 +43,7 @@ func listAllWebhooks(ctx context.Context, q *query.ListAllWebhooks) error {
 }
 
 func listAllWebhooksByType(ctx context.Context, q *query.ListAllWebhooksByType) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		webhooks := []*entity.Webhook{}
 		err := trx.Select(&webhooks, `
 			SELECT id, name, type, status, url, content, http_method, http_headers 
@@ -60,7 +60,7 @@ func listAllWebhooksByType(ctx context.Context, q *query.ListAllWebhooksByType) 
 }
 
 func listActiveWebhooksByType(ctx context.Context, q *query.ListActiveWebhooksByType) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		webhooks := []*entity.Webhook{}
 		err := trx.Select(&webhooks, `
 			SELECT id, name, type, status, url, content, http_method, http_headers 
@@ -77,7 +77,7 @@ func listActiveWebhooksByType(ctx context.Context, q *query.ListActiveWebhooksBy
 }
 
 func createEditWebhook(ctx context.Context, q *query.CreateEditWebhook) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var err error
 		id := q.ID
 
@@ -102,7 +102,7 @@ func createEditWebhook(ctx context.Context, q *query.CreateEditWebhook) error {
 }
 
 func deleteWebhook(ctx context.Context, q *query.DeleteWebhook) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			DELETE FROM webhooks 
 			WHERE tenant_id = $1 AND id = $2`, tenant.ID, q.ID)
@@ -111,7 +111,7 @@ func deleteWebhook(ctx context.Context, q *query.DeleteWebhook) error {
 }
 
 func markWebhookAsFailed(ctx context.Context, q *query.MarkWebhookAsFailed) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE webhooks 
 			SET status = $3 

@@ -12,7 +12,7 @@ import (
 )
 
 func storeEvent(ctx context.Context, c *cmd.StoreEvent) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		dbClientIP := sql.NullString{
 			String: c.ClientIP,
 			Valid:  len(c.ClientIP) > 0,

@@ -56,7 +56,7 @@ func (c *dbComment) toModel(ctx context.Context) *entity.Comment {
 }
 
 func addNewComment(ctx context.Context, c *cmd.AddNewComment) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var id int
 		if err := trx.Get(&id, `
 			INSERT INTO comments (tenant_id, post_id, content, user_id, created_at) 
@@ -77,7 +77,7 @@ func addNewComment(ctx context.Context, c *cmd.AddNewComment) error {
 }
 
 func toggleCommentReaction(ctx context.Context, c *cmd.ToggleCommentReaction) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var added bool
 		err := trx.Scalar(&added, `
 			WITH toggle_reaction AS (
@@ -109,7 +109,7 @@ func toggleCommentReaction(ctx context.Context, c *cmd.ToggleCommentReaction) er
 }
 
 func updateComment(ctx context.Context, c *cmd.UpdateComment) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE comments SET content = $1, edited_at = $2, edited_by_id = $3 
 			WHERE id = $4 AND tenant_id = $5`, c.Content, time.Now(), user.ID, c.CommentID, tenant.ID)
@@ -121,7 +121,7 @@ func updateComment(ctx context.Context, c *cmd.UpdateComment) error {
 }
 
 func deleteComment(ctx context.Context, c *cmd.DeleteComment) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if _, err := trx.Execute(
 			"UPDATE comments SET deleted_at = $1, deleted_by_id = $2 WHERE id = $3 AND tenant_id = $4",
 			time.Now(), user.ID, c.CommentID, tenant.ID,
@@ -133,7 +133,7 @@ func deleteComment(ctx context.Context, c *cmd.DeleteComment) error {
 }
 
 func getCommentByID(ctx context.Context, q *query.GetCommentByID) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = nil
 
 		comment := dbComment{}
@@ -179,7 +179,7 @@ func getCommentByID(ctx context.Context, q *query.GetCommentByID) error {
 }
 
 func getCommentsByPost(ctx context.Context, q *query.GetCommentsByPost) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]*entity.Comment, 0)
 
 		comments := []*dbComment{}

@@ -57,18 +57,10 @@ type dbBlob struct {
 func listBlobs(ctx context.Context, q *query.ListBlobs) error {
 	blob.EnsureAuthorizedPrefix(ctx, q.Prefix)
 
-	return using(ctx, func(tenantID sql.NullInt64) error {
-		trx, owned, err := dbx.GetOrBeginTx(ctx)
-		if err != nil {
-			return errors.Wrap(err, "failed to open transaction")
-		}
-
+	return using(ctx, func(trx *dbx.Trx, tenantID sql.NullInt64) error {
 		blobs := []*dbBlob{}
-		err = trx.Select(&blobs, "SELECT key FROM blobs WHERE key LIKE $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", q.Prefix+"%", tenantID)
+		err := trx.Select(&blobs, "SELECT key FROM blobs WHERE key LIKE $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", q.Prefix+"%", tenantID)
 		if err != nil {
-			if owned {
-				trx.MustRollback()
-			}
 			return errors.Wrap(err, "failed list blobs")
 		}
 
@@ -80,9 +72,6 @@ func listBlobs(ctx context.Context, q *query.ListBlobs) error {
 		sort.Strings(files)
 		q.Result = files
 
-		if owned {
-			trx.MustCommit()
-		}
 		return nil
 	})
 }
@@ -99,18 +88,10 @@ func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
 	}
 	blob.EnsureAuthorizedPrefix(ctx, q.Key)
 
-	return using(ctx, func(tenantID sql.NullInt64) error {
-		trx, owned, err := dbx.GetOrBeginTx(ctx)
-		if err != nil {
-			return errors.Wrap(err, "failed to open transaction")
-		}
-
+	return using(ctx, func(trx *dbx.Trx, tenantID sql.NullInt64) error {
 		b := dbBlob{}
-		err = trx.Get(&b, "SELECT file, content_type, size FROM blobs WHERE key = $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", q.Key, tenantID)
+		err := trx.Get(&b, "SELECT file, content_type, size FROM blobs WHERE key = $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", q.Key, tenantID)
 		if err != nil {
-			if owned {
-				trx.MustRollback()
-			}
 			if err == app.ErrNotFound {
 				return blob.ErrNotFound
 			}
@@ -123,9 +104,6 @@ func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
 			Content:     b.Content,
 		}
 
-		if owned {
-			trx.MustCommit()
-		}
 		return nil
 	})
 }
@@ -137,28 +115,17 @@ func storeBlob(ctx context.Context, c *cmd.StoreBlob) error {
 		return errors.Wrap(err, "failed to validate blob key '%s'", c.Key)
 	}
 
-	return using(ctx, func(tenantID sql.NullInt64) error {
-		trx, owned, err := dbx.GetOrBeginTx(ctx)
-		if err != nil {
-			return errors.Wrap(err, "failed to open transaction")
-		}
-
+	return using(ctx, func(trx *dbx.Trx, tenantID sql.NullInt64) error {
 		now := time.Now()
-		_, err = trx.Execute(`
+		_, err := trx.Execute(`
 		INSERT INTO blobs (tenant_id, key, size, content_type, file, created_at, modified_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (tenant_id, key)
 		DO UPDATE SET size = $3, content_type = $4, file = $5, modified_at = $7
 		`, tenantID, c.Key, int64(len(c.Content)), c.ContentType, c.Content, now, now)
 		if err != nil {
-			if owned {
-				trx.MustRollback()
-			}
 			return errors.Wrap(err, "failed to store blob with key '%s'", c.Key)
 		}
 
-		if owned {
-			trx.MustCommit()
-		}
 		return nil
 	})
 }
@@ -166,32 +133,23 @@ func storeBlob(ctx context.Context, c *cmd.StoreBlob) error {
 func deleteBlob(ctx context.Context, c *cmd.DeleteBlob) error {
 	blob.EnsureAuthorizedPrefix(ctx, c.Key)
 
-	return using(ctx, func(tenantID sql.NullInt64) error {
-		trx, owned, err := dbx.GetOrBeginTx(ctx)
+	return using(ctx, func(trx *dbx.Trx, tenantID sql.NullInt64) error {
+		_, err := trx.Execute("DELETE FROM blobs WHERE key = $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", c.Key, tenantID)
 		if err != nil {
-			return errors.Wrap(err, "failed to open transaction")
-		}
-
-		_, err = trx.Execute("DELETE FROM blobs WHERE key = $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", c.Key, tenantID)
-		if err != nil {
-			if owned {
-				trx.MustRollback()
-			}
 			return errors.Wrap(err, "failed to delete blob with key '%s'", c.Key)
 		}
 
-		if owned {
-			trx.MustCommit()
-		}
 		return nil
 	})
 }
 
-func using(ctx context.Context, handler func(tenantId sql.NullInt64) error) error {
+func using(ctx context.Context, handler func(*dbx.Trx, sql.NullInt64) error) error {
 	var tenantID sql.NullInt64
 	tenant, ok := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 	if ok {
 		_ = tenantID.Scan(tenant.ID)
 	}
-	return handler(tenantID)
+	return dbx.InTransaction(ctx, func(_ context.Context, trx *dbx.Trx) error {
+		return handler(trx, tenantID)
+	})
 }

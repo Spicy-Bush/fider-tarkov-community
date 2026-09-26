@@ -23,7 +23,7 @@ const replaceModerationCheck = `
      attempts = 0, next_attempt_at = NOW(), last_error = '', result = NULL, updated_at = NOW()`
 
 func scheduleModeration(ctx context.Context, c *cmd.ScheduleModeration) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if !env.IsOpenAIModerationEnabled() {
 			return cancelModerationCheck(trx, tenant.ID, c.ContentID, c.ContentType)
 		}
@@ -327,7 +327,7 @@ func finishModeration(ctx context.Context, c *cmd.FinishModeration) error {
 }
 
 func listModerationFailures(ctx context.Context, c *cmd.ListModerationFailures) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		c.Result = []cmd.ModerationCheck{}
 		var counts struct {
 			Total  int `db:"total"`
@@ -369,7 +369,7 @@ func listModerationFailures(ctx context.Context, c *cmd.ListModerationFailures) 
 }
 
 func retryModerationFailures(ctx context.Context, c *cmd.RetryModerationFailures) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var err error
 		c.Count, err = trx.Execute(`
             UPDATE moderation_checks
@@ -380,7 +380,7 @@ func retryModerationFailures(ctx context.Context, c *cmd.RetryModerationFailures
 }
 
 func saveProfileName(ctx context.Context, c *cmd.SaveProfileName) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var current string
 
 		if err := trx.Scalar(&current, `
@@ -419,7 +419,7 @@ func saveProfileName(ctx context.Context, c *cmd.SaveProfileName) error {
 }
 
 func saveProfileAvatar(ctx context.Context, c *cmd.SaveProfileAvatar) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var current struct {
 			Key  string          `db:"avatar_bkey"`
 			Type enum.AvatarType `db:"avatar_type"`
@@ -484,7 +484,7 @@ func cancelModerationCheck(trx *dbx.Trx, tenantID, contentID int, kind string) e
 }
 
 func getProfileModeration(ctx context.Context, c *cmd.GetProfileModeration) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		c.Result = []cmd.ModerationCheck{}
 		rows, err := trx.Query(`
             SELECT content_type, revision, state, text_content, blob_keys

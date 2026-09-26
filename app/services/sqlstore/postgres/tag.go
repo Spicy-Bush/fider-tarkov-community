@@ -32,7 +32,7 @@ func (t *dbTag) toModel() *entity.Tag {
 }
 
 func getTagBySlug(ctx context.Context, q *query.GetTagBySlug) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		tag, err := queryTagBySlug(trx, tenant, q.Slug)
 		q.Result = tag
 		return err
@@ -40,7 +40,7 @@ func getTagBySlug(ctx context.Context, q *query.GetTagBySlug) error {
 }
 
 func getAssignedTags(ctx context.Context, q *query.GetAssignedTags) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]*entity.Tag, 0)
 
 		tags, err := queryTags(trx, `
@@ -63,7 +63,7 @@ func getAssignedTags(ctx context.Context, q *query.GetAssignedTags) error {
 }
 
 func getAllTags(ctx context.Context, q *query.GetAllTags) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]*entity.Tag, 0)
 
 		condition := `AND t.is_public = true`
@@ -88,7 +88,7 @@ func getAllTags(ctx context.Context, q *query.GetAllTags) error {
 }
 
 func addNewTag(ctx context.Context, c *cmd.AddNewTag) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		c.Result = nil
 		newSlug := slug.Make(c.Name)
 
@@ -107,7 +107,7 @@ func addNewTag(ctx context.Context, c *cmd.AddNewTag) error {
 }
 
 func updateTag(ctx context.Context, c *cmd.UpdateTag) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		c.Result = nil
 		newSlug := slug.Make(c.Name)
 
@@ -124,7 +124,7 @@ func updateTag(ctx context.Context, c *cmd.UpdateTag) error {
 }
 
 func deleteTag(ctx context.Context, c *cmd.DeleteTag) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`DELETE FROM post_tags WHERE tag_id = $1 AND tenant_id = $2`, c.Tag.ID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to remove tag with id '%d' from all posts", c.Tag.ID)
@@ -139,7 +139,7 @@ func deleteTag(ctx context.Context, c *cmd.DeleteTag) error {
 }
 
 func assignTag(ctx context.Context, c *cmd.AssignTag) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		alreadyAssigned, err := trx.Exists("SELECT 1 FROM post_tags WHERE post_id = $1 AND tag_id = $2 AND tenant_id = $3", c.Post.ID, c.Tag.ID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to check if tag is already assigned")
@@ -162,7 +162,7 @@ func assignTag(ctx context.Context, c *cmd.AssignTag) error {
 }
 
 func unassignTag(ctx context.Context, c *cmd.UnassignTag) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(
 			`DELETE FROM post_tags WHERE tag_id = $1 AND post_id = $2 AND tenant_id = $3`,
 			c.Tag.ID, c.Post.ID, tenant.ID,

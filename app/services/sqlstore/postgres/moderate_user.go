@@ -10,7 +10,7 @@ import (
 )
 
 func deleteWarning(ctx context.Context, c *cmd.DeleteWarning) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			DELETE FROM user_warnings 
 			WHERE id = $1 AND user_id = $2 AND tenant_id = $3
@@ -23,7 +23,7 @@ func deleteWarning(ctx context.Context, c *cmd.DeleteWarning) error {
 }
 
 func deleteMute(ctx context.Context, c *cmd.DeleteMute) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			DELETE FROM user_mutes 
 			WHERE id = $1 AND user_id = $2 AND tenant_id = $3
@@ -36,7 +36,7 @@ func deleteMute(ctx context.Context, c *cmd.DeleteMute) error {
 }
 
 func expireWarning(ctx context.Context, c *cmd.ExpireWarning) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE user_warnings 
 			SET expires_at = NOW()
@@ -50,7 +50,7 @@ func expireWarning(ctx context.Context, c *cmd.ExpireWarning) error {
 }
 
 func expireMute(ctx context.Context, c *cmd.ExpireMute) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE user_mutes 
 			SET expires_at = NOW()

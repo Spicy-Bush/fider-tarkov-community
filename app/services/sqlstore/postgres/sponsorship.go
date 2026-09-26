@@ -14,7 +14,7 @@ import (
 )
 
 func listSponsorshipPackages(ctx context.Context, q *query.ListSponsorshipPackages) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = []*entity.SponsorshipPackage{}
 		err := trx.Select(&q.Result, `
 			SELECT id, slug, name, description, slots, duration_days, sort, created_at
@@ -29,7 +29,7 @@ func listSponsorshipPackages(ctx context.Context, q *query.ListSponsorshipPackag
 }
 
 func getSponsorshipPackageByID(ctx context.Context, q *query.GetSponsorshipPackageByID) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		pkg := &entity.SponsorshipPackage{}
 		err := trx.Get(pkg, `
 			SELECT id, slug, name, description, slots, duration_days, sort, created_at
@@ -43,7 +43,7 @@ func getSponsorshipPackageByID(ctx context.Context, q *query.GetSponsorshipPacka
 }
 
 func createSponsorshipPackage(ctx context.Context, c *cmd.CreateSponsorshipPackage) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var id int
 		now := time.Now().UTC()
 		err := trx.Get(&id, `
@@ -62,7 +62,7 @@ func createSponsorshipPackage(ctx context.Context, c *cmd.CreateSponsorshipPacka
 }
 
 func updateSponsorshipPackage(ctx context.Context, c *cmd.UpdateSponsorshipPackage) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE sponsorship_packages
 			SET slug=$1, name=$2, description=$3, slots=$4, duration_days=$5, sort=$6
@@ -80,7 +80,7 @@ func updateSponsorshipPackage(ctx context.Context, c *cmd.UpdateSponsorshipPacka
 }
 
 func deleteSponsorshipPackage(ctx context.Context, c *cmd.DeleteSponsorshipPackage) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`DELETE FROM sponsorship_packages WHERE id=$1 AND tenant_id=$2`, c.ID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to delete sponsorship package")
@@ -126,7 +126,7 @@ const campaignSelect = `
 	FROM sponsorship_campaigns`
 
 func listSponsorshipCampaigns(ctx context.Context, q *query.ListSponsorshipCampaigns) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		rows := []*dbCampaign{}
 		err := trx.Select(&rows, campaignSelect+` WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY start_at DESC, id DESC`, tenant.ID)
 		if err != nil {
@@ -141,7 +141,7 @@ func listSponsorshipCampaigns(ctx context.Context, q *query.ListSponsorshipCampa
 }
 
 func getSponsorshipCampaignByID(ctx context.Context, q *query.GetSponsorshipCampaignByID) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		row := &dbCampaign{}
 		err := trx.Get(row, campaignSelect+` WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`, q.ID, tenant.ID)
 		if err != nil {
@@ -153,7 +153,7 @@ func getSponsorshipCampaignByID(ctx context.Context, q *query.GetSponsorshipCamp
 }
 
 func createSponsorshipCampaign(ctx context.Context, c *cmd.CreateSponsorshipCampaign) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		now := time.Now().UTC()
 		start := c.StartAt.UTC()
 		end := c.EndAt.UTC()
@@ -218,7 +218,7 @@ func createSponsorshipCampaign(ctx context.Context, c *cmd.CreateSponsorshipCamp
 }
 
 func updateSponsorshipCampaign(ctx context.Context, c *cmd.UpdateSponsorshipCampaign) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		now := time.Now().UTC()
 		start := c.StartAt.UTC()
 		end := c.EndAt.UTC()
@@ -248,7 +248,7 @@ func updateSponsorshipCampaign(ctx context.Context, c *cmd.UpdateSponsorshipCamp
 }
 
 func deleteSponsorshipCampaign(ctx context.Context, c *cmd.DeleteSponsorshipCampaign) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		// Soft-delete: keep creative_versions (RESTRICT FK). Selection skips deleted_at.
 		_, err := trx.Execute(`
 			UPDATE sponsorship_campaigns
@@ -263,7 +263,7 @@ func deleteSponsorshipCampaign(ctx context.Context, c *cmd.DeleteSponsorshipCamp
 }
 
 func incrementSponsorshipClick(ctx context.Context, c *cmd.IncrementSponsorshipClick) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		now := time.Now().UTC()
 		rows, err := trx.Execute(`
 			UPDATE sponsorship_campaigns SET clicks = clicks + 1, updated_at = $3

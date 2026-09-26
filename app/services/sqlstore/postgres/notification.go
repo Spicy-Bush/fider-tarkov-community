@@ -16,7 +16,7 @@ import (
 )
 
 func purgeExpiredNotifications(ctx context.Context, c *cmd.PurgeExpiredNotifications) error {
-	return using(ctx, func(trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
 		count, err := trx.Execute("DELETE FROM notifications WHERE CREATED_AT <= NOW() - INTERVAL '365 days'")
 		if err != nil {
 			return errors.Wrap(err, "failed to delete expired notifications")
@@ -27,7 +27,7 @@ func purgeExpiredNotifications(ctx context.Context, c *cmd.PurgeExpiredNotificat
 }
 
 func markAllNotificationsAsRead(ctx context.Context, c *cmd.MarkAllNotificationsAsRead) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if user == nil {
 			return nil
 		}
@@ -43,7 +43,7 @@ func markAllNotificationsAsRead(ctx context.Context, c *cmd.MarkAllNotifications
 }
 
 func countUnreadNotifications(ctx context.Context, q *query.CountUnreadNotifications) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = 0
 
 		if user != nil {
@@ -57,7 +57,7 @@ func countUnreadNotifications(ctx context.Context, q *query.CountUnreadNotificat
 }
 
 func markNotificationAsRead(ctx context.Context, c *cmd.MarkNotificationAsRead) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if user == nil {
 			return nil
 		}
@@ -74,7 +74,7 @@ func markNotificationAsRead(ctx context.Context, c *cmd.MarkNotificationAsRead) 
 }
 
 func getNotificationByID(ctx context.Context, q *query.GetNotificationByID) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = nil
 		notification := &entity.Notification{}
 
@@ -93,7 +93,7 @@ func getNotificationByID(ctx context.Context, q *query.GetNotificationByID) erro
 }
 
 func getActiveNotifications(ctx context.Context, q *query.GetActiveNotifications) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if q.Page < 1 {
 			q.Page = 1
 		}
@@ -153,7 +153,7 @@ func getActiveNotifications(ctx context.Context, q *query.GetActiveNotifications
 }
 
 func purgeReadNotifications(ctx context.Context, c *cmd.PurgeReadNotifications) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if user == nil {
 			return nil
 		}
@@ -176,7 +176,7 @@ func purgeReadNotifications(ctx context.Context, c *cmd.PurgeReadNotifications) 
 }
 
 func addNewNotification(ctx context.Context, c *cmd.AddNewNotification) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		c.Result = nil
 		if user.ID == c.User.ID {
 			return nil
@@ -210,13 +210,13 @@ func addNewNotification(ctx context.Context, c *cmd.AddNewNotification) error {
 }
 
 func addSubscriber(ctx context.Context, c *cmd.AddSubscriber) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		return internalAddSubscriber(trx, c.Post, tenant, c.User, true)
 	})
 }
 
 func removeSubscriber(ctx context.Context, c *cmd.RemoveSubscriber) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			INSERT INTO post_subscribers (tenant_id, user_id, post_id, created_at, updated_at, status)
 			VALUES ($1, $2, $3, $4, $4, $5) ON CONFLICT (user_id, post_id)
@@ -231,7 +231,7 @@ func removeSubscriber(ctx context.Context, c *cmd.RemoveSubscriber) error {
 }
 
 func getActiveSubscribers(ctx context.Context, q *query.GetActiveSubscribers) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]*entity.User, 0)
 
 		var (
@@ -331,7 +331,7 @@ func internalAddSubscriber(trx *dbx.Trx, post *entity.Post, tenant *entity.Tenan
 }
 
 func supressEmail(ctx context.Context, c *cmd.SupressEmail) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		cmd := "UPDATE users SET email_supressed_at = $1 WHERE email = ANY($2) AND email_supressed_at IS NULL"
 		rowsCount, err := trx.Execute(cmd, time.Now(), pq.Array(c.EmailAddresses))
 		if err != nil {
@@ -344,7 +344,7 @@ func supressEmail(ctx context.Context, c *cmd.SupressEmail) error {
 
 // GetUsersToNotify retrieves users who should receive notifications
 func getUsersToNotify(ctx context.Context, q *query.GetUsersToNotify) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var users []*dbUser
 		err := trx.Select(&users, `
 			SELECT DISTINCT u.id, u.name, u.email, u.tenant_id, u.role, u.status

@@ -10,7 +10,7 @@ import (
 )
 
 func setModerationPending(ctx context.Context, c *cmd.SetModerationPending) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var table string
 		switch c.ContentType {
 		case "post":

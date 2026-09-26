@@ -12,7 +12,7 @@ import (
 )
 
 func getPageTopics(ctx context.Context, q *query.GetPageTopics) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		topics := []*entity.PageTopic{}
 		err := trx.Select(&topics, `
 			SELECT id, name, slug, description, color
@@ -31,7 +31,7 @@ func getPageTopics(ctx context.Context, q *query.GetPageTopics) error {
 }
 
 func getPageTopicByID(ctx context.Context, q *query.GetPageTopicByID) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		topic := &entity.PageTopic{}
 		err := trx.Get(topic, `
 			SELECT id, name, slug, description, color
@@ -49,7 +49,7 @@ func getPageTopicByID(ctx context.Context, q *query.GetPageTopicByID) error {
 }
 
 func createPageTopic(ctx context.Context, c *cmd.CreatePageTopic) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		slug, err := pages.GenerateSlug(ctx, c.Name, c.Slug, 0)
 		if err != nil {
 			return errors.Wrap(err, "failed to generate slug")
@@ -79,7 +79,7 @@ func createPageTopic(ctx context.Context, c *cmd.CreatePageTopic) error {
 }
 
 func updatePageTopic(ctx context.Context, c *cmd.UpdatePageTopic) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		slug, err := pages.GenerateSlug(ctx, c.Name, c.Slug, c.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to generate slug")
@@ -96,7 +96,7 @@ func updatePageTopic(ctx context.Context, c *cmd.UpdatePageTopic) error {
 }
 
 func deletePageTopic(ctx context.Context, c *cmd.DeletePageTopic) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute("DELETE FROM page_topics WHERE id = $1 AND tenant_id = $2", c.ID, tenant.ID)
 		return errors.Wrap(err, "failed to delete page topic")
 	})

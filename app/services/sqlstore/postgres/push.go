@@ -12,7 +12,7 @@ import (
 )
 
 func savePushSubscription(ctx context.Context, c *cmd.SavePushSubscription) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if user == nil || tenant == nil {
 			return errors.New("user and tenant are required")
 		}
@@ -32,7 +32,7 @@ func savePushSubscription(ctx context.Context, c *cmd.SavePushSubscription) erro
 }
 
 func deletePushSubscription(ctx context.Context, c *cmd.DeletePushSubscription) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if user == nil || tenant == nil {
 			return nil
 		}
@@ -50,7 +50,7 @@ func deletePushSubscription(ctx context.Context, c *cmd.DeletePushSubscription) 
 }
 
 func deleteAllPushSubscriptions(ctx context.Context, c *cmd.DeleteAllPushSubscriptions) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if user == nil || tenant == nil {
 			return nil
 		}
@@ -68,7 +68,7 @@ func deleteAllPushSubscriptions(ctx context.Context, c *cmd.DeleteAllPushSubscri
 }
 
 func deletePushSubscriptionByEndpoint(ctx context.Context, c *cmd.DeletePushSubscriptionByEndpoint) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if tenant == nil {
 			return nil
 		}
@@ -86,7 +86,7 @@ func deletePushSubscriptionByEndpoint(ctx context.Context, c *cmd.DeletePushSubs
 }
 
 func getPushSubscriptionsByUser(ctx context.Context, q *query.GetPushSubscriptionsByUser) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]*entity.PushSubscription, 0)
 
 		if tenant == nil {
@@ -107,7 +107,7 @@ func getPushSubscriptionsByUser(ctx context.Context, q *query.GetPushSubscriptio
 }
 
 func getPushSubscriptionsByUsers(ctx context.Context, q *query.GetPushSubscriptionsByUsers) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]*entity.PushSubscription, 0)
 
 		if tenant == nil || len(q.UserIDs) == 0 {
@@ -128,7 +128,7 @@ func getPushSubscriptionsByUsers(ctx context.Context, q *query.GetPushSubscripti
 }
 
 func getAllPushSubscriptions(ctx context.Context, q *query.GetAllPushSubscriptions) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]*entity.PushSubscription, 0)
 
 		if tenant == nil {
@@ -149,7 +149,7 @@ func getAllPushSubscriptions(ctx context.Context, q *query.GetAllPushSubscriptio
 }
 
 func hasPushSubscription(ctx context.Context, q *query.HasPushSubscription) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = false
 
 		if tenant == nil {

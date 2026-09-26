@@ -18,7 +18,7 @@ import (
 )
 
 func setAttachments(ctx context.Context, c *cmd.SetAttachments) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		postID := c.Post.ID
 		var commentID sql.NullInt64
 		if c.Comment != nil {
@@ -51,7 +51,7 @@ func setAttachments(ctx context.Context, c *cmd.SetAttachments) error {
 }
 
 func getAttachments(ctx context.Context, q *query.GetAttachments) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]string, 0)
 
 		postID := q.Post.ID

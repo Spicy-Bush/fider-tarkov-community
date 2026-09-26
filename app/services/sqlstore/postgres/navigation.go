@@ -12,7 +12,7 @@ import (
 )
 
 func getNavigationLinks(ctx context.Context, q *query.GetNavigationLinks) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var links []*entity.NavigationLink
 		err := trx.Select(&links, `
 			SELECT id, title, url, display_order, location, created_at, updated_at
@@ -31,7 +31,7 @@ func getNavigationLinks(ctx context.Context, q *query.GetNavigationLinks) error 
 }
 
 func saveNavigationLinks(ctx context.Context, c *cmd.SaveNavigationLinks) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute("DELETE FROM navigation_links WHERE tenant_id = $1", tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to delete existing navigation links")

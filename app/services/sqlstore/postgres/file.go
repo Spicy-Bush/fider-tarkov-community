@@ -73,7 +73,7 @@ func getNameFromBlobKey(ctx context.Context, q *query.GetNameFromBlobKey) error 
 }
 
 func isImageFileInUse(ctx context.Context, q *query.IsImageFileInUse) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		usageLocations := []string{}
 		q.Result = false
 
@@ -325,7 +325,7 @@ func renameImageFile(ctx context.Context, c *cmd.RenameImageFile) error {
 func deleteImageFileReferences(ctx context.Context, c *cmd.DeleteImageFileReferences) error {
 	blob.EnsureAuthorizedPrefix(ctx, c.BlobKey)
 
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if err := lockModerationFileContent(trx, tenant.ID, c.BlobKey); err != nil {
 			return err
 		}
@@ -406,7 +406,7 @@ func updateImageFileReferences(ctx context.Context, c *cmd.UpdateImageFileRefere
 	blob.EnsureAuthorizedPrefix(ctx, c.OldBlobKey)
 	blob.EnsureAuthorizedPrefix(ctx, c.NewBlobKey)
 
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if err := lockModerationFileContent(trx, tenant.ID, c.OldBlobKey); err != nil {
 			return err
 		}
@@ -462,7 +462,7 @@ func updateImageFileReferences(ctx context.Context, c *cmd.UpdateImageFileRefere
 }
 
 func listImageFiles(ctx context.Context, q *query.ListImageFiles) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		validPrefixes := []string{"files/", "attachments/", "avatars/", "logos/"}
 
 		orderColumn := "created_at"
@@ -833,7 +833,7 @@ func extractNameFromBlobKey(blobKey string) string {
 }
 
 func getPrunableFiles(ctx context.Context, q *query.GetPrunableFiles) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = []string{}
 
 		rows, err := trx.Query(`

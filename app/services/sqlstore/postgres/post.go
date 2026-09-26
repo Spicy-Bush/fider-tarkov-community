@@ -551,7 +551,7 @@ func buildPostsByIDsQuery(tenant *entity.Tenant, user *entity.User) string {
 }
 
 func postIsReferenced(ctx context.Context, q *query.PostIsReferenced) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = false
 
 		exists, err := trx.Exists(`
@@ -571,7 +571,7 @@ func postIsReferenced(ctx context.Context, q *query.PostIsReferenced) error {
 }
 
 func setPostResponse(ctx context.Context, c *cmd.SetPostResponse) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if c.Status == enum.PostDuplicate {
 			return errors.New("Use MarkAsDuplicate to change an post status to Duplicate")
 		}
@@ -601,7 +601,7 @@ func setPostResponse(ctx context.Context, c *cmd.SetPostResponse) error {
 }
 
 func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		respondedAt := time.Now()
 		if c.Post.Status == enum.PostDuplicate && c.Post.Response != nil {
 			respondedAt = c.Post.Response.RespondedAt
@@ -665,7 +665,7 @@ func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error 
 }
 
 func countPostPerStatus(ctx context.Context, q *query.CountPostPerStatus) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 
 		type dbStatusCount struct {
 			Status enum.PostStatus `db:"status"`
@@ -687,7 +687,7 @@ func countPostPerStatus(ctx context.Context, q *query.CountPostPerStatus) error 
 }
 
 func addNewPost(ctx context.Context, c *cmd.AddNewPost) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var id int
 		err := trx.Get(&id,
 			`INSERT INTO posts (title, slug, number, description, tenant_id, user_id, created_at, status) 
@@ -712,7 +712,7 @@ func addNewPost(ctx context.Context, c *cmd.AddNewPost) error {
 }
 
 func updatePost(ctx context.Context, c *cmd.UpdatePost) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`UPDATE posts SET title = $1, slug = $2, description = $3 
 													 WHERE id = $4 AND tenant_id = $5`, c.Title, slug.Make(c.Title), c.Description, c.Post.ID, tenant.ID)
 		if err != nil {
@@ -729,7 +729,7 @@ func updatePost(ctx context.Context, c *cmd.UpdatePost) error {
 }
 
 func getPostByID(ctx context.Context, q *query.GetPostByID) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		sqlQuery := buildSinglePostQuery(tenant, user, "p.id = $2")
 		post, err := querySinglePost(ctx, trx, sqlQuery, tenant.ID, q.PostID)
 		if err != nil {
@@ -741,7 +741,7 @@ func getPostByID(ctx context.Context, q *query.GetPostByID) error {
 }
 
 func getPostBySlug(ctx context.Context, q *query.GetPostBySlug) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		sqlQuery := buildSinglePostQuery(tenant, user, "p.slug = $2")
 		post, err := querySinglePost(ctx, trx, sqlQuery, tenant.ID, q.Slug)
 		if err != nil {
@@ -753,7 +753,7 @@ func getPostBySlug(ctx context.Context, q *query.GetPostBySlug) error {
 }
 
 func getPostByNumber(ctx context.Context, q *query.GetPostByNumber) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		sqlQuery := buildSinglePostQuery(tenant, user, "p.number = $2")
 		post, err := querySinglePost(ctx, trx, sqlQuery, tenant.ID, q.Number)
 		if err != nil {
@@ -765,7 +765,7 @@ func getPostByNumber(ctx context.Context, q *query.GetPostByNumber) error {
 }
 
 func getUserPostCount(ctx context.Context, q *query.GetUserPostCount) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, currentUser *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, currentUser *entity.User) error {
 		var count int
 
 		sqlQuery := `
@@ -787,7 +787,7 @@ func getUserPostCount(ctx context.Context, q *query.GetUserPostCount) error {
 }
 
 func getUserCommentCount(ctx context.Context, q *query.GetUserCommentCount) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, currentUser *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, currentUser *entity.User) error {
 		var count int
 
 		sqlQuery := `
@@ -808,7 +808,7 @@ func getUserCommentCount(ctx context.Context, q *query.GetUserCommentCount) erro
 }
 
 func countUntaggedPosts(ctx context.Context, q *query.CountUntaggedPosts) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if user != nil && user.IsHelper() && !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
 			if q.Date == "" {
 				q.Date = "7d"
@@ -862,7 +862,7 @@ func countUntaggedPosts(ctx context.Context, q *query.CountUntaggedPosts) error 
 }
 
 func searchPosts(ctx context.Context, q *query.SearchPosts) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		// Apply helper restrictions for untagged queries
 		if user != nil && user.IsHelper() && !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
 			if q.Untagged && q.Date == "" {
@@ -904,7 +904,7 @@ func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 }
 
 func getAllPosts(ctx context.Context, q *query.GetAllPosts) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		searchQuery := &query.SearchPosts{View: "all", Limit: "all"}
 		if err := searchPosts(ctx, searchQuery); err != nil {
 			return errors.Wrap(err, "failed to get all posts")
@@ -915,7 +915,7 @@ func getAllPosts(ctx context.Context, q *query.GetAllPosts) error {
 }
 
 func getPostsByIDs(ctx context.Context, q *query.GetPostsByIDs) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if len(q.PostIDs) == 0 {
 			q.Result = []*entity.Post{}
 			return nil
@@ -956,7 +956,7 @@ func querySinglePost(ctx context.Context, trx *dbx.Trx, query string, args ...an
 }
 
 func lockPost(ctx context.Context, c *cmd.LockPost) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		lockedSettings := map[string]interface{}{
 			"locked":   true,
 			"lockedAt": time.Now(),
@@ -991,7 +991,7 @@ func lockPost(ctx context.Context, c *cmd.LockPost) error {
 }
 
 func unlockPost(ctx context.Context, c *cmd.UnlockPost) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE posts 
 			SET locked_settings = NULL
@@ -1007,7 +1007,7 @@ func unlockPost(ctx context.Context, c *cmd.UnlockPost) error {
 }
 
 func refreshPostStats(ctx context.Context, c *cmd.RefreshPostStats) error {
-	return using(ctx, func(trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
 		baseQuery := `
 			UPDATE posts p SET
 				recent_votes = COALESCE((
@@ -1042,7 +1042,7 @@ func refreshPostStats(ctx context.Context, c *cmd.RefreshPostStats) error {
 }
 
 func archivePost(ctx context.Context, c *cmd.ArchivePost) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute(`
 			UPDATE posts 
 			SET status = $3, archived_at = NOW(), archived_from_status = status
@@ -1063,7 +1063,7 @@ func archivePost(ctx context.Context, c *cmd.ArchivePost) error {
 }
 
 func unarchivePost(ctx context.Context, c *cmd.UnarchivePost) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var previousStatus int
 		err := trx.Get(&previousStatus, `
 			SELECT COALESCE(archived_from_status, 0) FROM posts WHERE id = $1 AND tenant_id = $2
@@ -1088,7 +1088,7 @@ func unarchivePost(ctx context.Context, c *cmd.UnarchivePost) error {
 }
 
 func bulkArchivePosts(ctx context.Context, c *cmd.BulkArchivePosts) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if len(c.PostIDs) == 0 {
 			return nil
 		}
@@ -1107,7 +1107,7 @@ func bulkArchivePosts(ctx context.Context, c *cmd.BulkArchivePosts) error {
 }
 
 func getArchivablePosts(ctx context.Context, q *query.GetArchivablePosts) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		conditions := []string{"p.tenant_id = $1", "p.status NOT IN ($2, $3)"}
 		args := []interface{}{tenant.ID, int(enum.PostDeleted), int(enum.PostArchived)}
 		argNum := 4
@@ -1215,7 +1215,7 @@ func getArchivablePosts(ctx context.Context, q *query.GetArchivablePosts) error 
 }
 
 func countVotesSinceArchive(ctx context.Context, q *query.CountVotesSinceArchive) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		err := trx.Get(&q.Result, `
 			SELECT COALESCE(SUM(vote_type), 0) 
 			FROM post_votes 

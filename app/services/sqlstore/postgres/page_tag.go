@@ -12,7 +12,7 @@ import (
 )
 
 func getPageTags(ctx context.Context, q *query.GetPageTags) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		tags := []*entity.PageTag{}
 		err := trx.Select(&tags, `
 			SELECT id, name, slug
@@ -31,7 +31,7 @@ func getPageTags(ctx context.Context, q *query.GetPageTags) error {
 }
 
 func getPageTagByID(ctx context.Context, q *query.GetPageTagByID) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		tag := &entity.PageTag{}
 		err := trx.Get(tag, `
 			SELECT id, name, slug
@@ -49,7 +49,7 @@ func getPageTagByID(ctx context.Context, q *query.GetPageTagByID) error {
 }
 
 func createPageTag(ctx context.Context, c *cmd.CreatePageTag) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		slug, err := pages.GenerateSlug(ctx, c.Name, c.Slug, 0)
 		if err != nil {
 			return errors.Wrap(err, "failed to generate slug")
@@ -77,7 +77,7 @@ func createPageTag(ctx context.Context, c *cmd.CreatePageTag) error {
 }
 
 func updatePageTag(ctx context.Context, c *cmd.UpdatePageTag) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		slug, err := pages.GenerateSlug(ctx, c.Name, c.Slug, c.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to generate slug")
@@ -94,7 +94,7 @@ func updatePageTag(ctx context.Context, c *cmd.UpdatePageTag) error {
 }
 
 func deletePageTag(ctx context.Context, c *cmd.DeletePageTag) error {
-	return using(ctx, func(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		_, err := trx.Execute("DELETE FROM page_tags WHERE id = $1 AND tenant_id = $2", c.ID, tenant.ID)
 		return errors.Wrap(err, "failed to delete page tag")
 	})
