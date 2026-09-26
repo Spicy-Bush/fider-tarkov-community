@@ -470,10 +470,10 @@ func buildHydration(tenantID int, user *entity.User, cteName string, limit strin
 			p.moderation_pending,
 			p.moderation_data
 		FROM %s tp
-		JOIN posts p ON p.id = tp.id %s
+		JOIN visible_posts p ON p.id = tp.id %s
 		INNER JOIN users u ON u.id = p.user_id AND u.tenant_id = $%d
 		LEFT JOIN users r ON r.id = p.response_user_id AND r.tenant_id = $%d
-		LEFT JOIN posts d ON d.id = p.original_id AND d.tenant_id = $%d
+		LEFT JOIN visible_posts d ON d.id = p.original_id AND d.tenant_id = $%d
 		LEFT JOIN LATERAL (
 			SELECT 
 				ARRAY_REMOVE(ARRAY_AGG(t.slug), NULL) AS tags,
