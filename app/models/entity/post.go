@@ -24,13 +24,16 @@ type Post struct {
 	Status            enum.PostStatus       `json:"status"`
 	Response          *PostResponse         `json:"response,omitempty"`
 	Tags              []string              `json:"tags"`
-	TagDates          string                `json:"tagDates,omitempty"`
+	FirstTaggedAt     *time.Time            `json:"-"`
 	LockedSettings    *PostLockedSettings   `json:"lockedSettings,omitempty"`
 	ArchivedSettings  *PostArchivedSettings `json:"archivedSettings,omitempty"`
 	Upvotes           int                   `json:"upvotes"`
 	Downvotes         int                   `json:"downvotes"`
 	ModerationPending bool                  `json:"moderationPending,omitempty"`
 	ModerationData    string                `json:"moderationData,omitempty"`
+
+	DiscussionPermissions DiscussionPermissions `json:"discussionPermissions"`
+	Permissions           PostPermissions       `json:"permissions"`
 }
 
 type PostLockedSettings struct {

@@ -1,7 +1,6 @@
 import React from "react"
-import { isAdministrator, isCollaborator, isHelper, isModerator, UserRole, VisualRole } from "@fider/models"
+import { isAdministrator, isCollaborator, isHelper, isModerator, UserPermissions, UserRole, VisualRole } from "@fider/models"
 import { classSet } from "@fider/services"
-import { useFider } from "@fider/hooks"
 
 interface UserNameProps {
   user: {
@@ -10,13 +9,13 @@ interface UserNameProps {
     role?: UserRole
     visualRole?: VisualRole | string
     email?: string
+    permissions: Pick<UserPermissions, "readProfile">
   }
   showEmail?: boolean
   clickable?: boolean
 }
 
 export const UserName = (props: UserNameProps) => {
-  const fider = useFider()
   const isStaff = props.user.role && isCollaborator(props.user.role)
   const isHelp = props.user.role && isHelper(props.user.role)
   const isMod = props.user.role && isModerator(props.user.role)
@@ -45,13 +44,7 @@ export const UserName = (props: UserNameProps) => {
     <span className="c-username--visualrole"></span>
   )
 
-  const canViewProfile = fider.session.isAuthenticated && (
-    isAdministrator(fider.session.user.role) || 
-    isModerator(fider.session.user.role) || 
-    isCollaborator(fider.session.user.role)
-  )
-
-  if (canViewProfile && props.user.id && clickable) {
+  if (props.user.permissions.readProfile && props.user.id && clickable) {
     return (
       <>
         <div className="font-semibold inline-flex items-center">

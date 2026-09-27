@@ -48,9 +48,12 @@ func TestDiscussionNotificationRecipients(t *testing.T) {
 					settings["event_notification_mention"] = "0"
 				}
 
-				ctx := context.WithValue(jonSnowCtx, app.UserCtxKey, user)
-				if err := bus.Dispatch(ctx, &cmd.UpdateCurrentUserSettings{Settings: settings}); err != nil {
-					t.Fatal(err)
+				for key, value := range settings {
+					_, err := trx.Execute(`INSERT INTO user_settings (tenant_id, user_id, key, value)
+						VALUES ($1, $2, $3, $4)`, demoTenant.ID, user.ID, key, value)
+					if err != nil {
+						t.Fatal(err)
+					}
 				}
 			}
 
@@ -198,14 +201,16 @@ func TestDiscussionNotificationDeliveryRecoversWithoutRepeatingHealthyRecipients
 		}
 
 		ctx := context.WithValue(f.ctx, app.UserCtxKey, user)
-		if err := bus.Dispatch(ctx,
-			&cmd.TogglePageSubscription{PageID: page.Result.ID},
-			&cmd.UpdateCurrentUserSettings{Settings: map[string]string{
-				"event_notification_new_comment": "3",
-				"event_notification_mention":     "3",
-			}},
-		); err != nil {
+		if err := bus.Dispatch(ctx, &cmd.TogglePageSubscription{PageID: page.Result.ID}); err != nil {
 			t.Fatal(err)
+		}
+
+		for _, key := range []string{"event_notification_new_comment", "event_notification_mention"} {
+			_, err := dbx.Connection().Exec(`INSERT INTO user_settings (tenant_id, user_id, key, value)
+				VALUES ($1, $2, $3, '3')`, f.tenant.ID, user.ID, key)
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 

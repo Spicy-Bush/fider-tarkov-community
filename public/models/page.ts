@@ -6,6 +6,12 @@ export type PageVisibility = "public" | "private" | "unlisted"
 export type PinnedLocation = "footer" | "subheader"
 
 export interface Page {
+  permissions: {
+    edit: boolean
+    delete: boolean
+    react: boolean
+    subscribe: boolean
+  }
   id: number
   title: string
   slug: string

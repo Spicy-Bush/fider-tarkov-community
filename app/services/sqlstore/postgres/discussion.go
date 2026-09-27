@@ -15,7 +15,7 @@ import (
 	"github.com/lib/pq"
 )
 
-var visibleCommentOwners = `
+const visibleCommentOwners = `
     WITH visible_pages AS (
         SELECT id FROM pages p
         WHERE p.tenant_id = $1 AND (
@@ -28,9 +28,9 @@ var visibleCommentOwners = `
         )
     ), visible_comment_owners AS (
         SELECT c.id FROM comments c
-        LEFT JOIN posts post ON post.id = c.post_id AND post.tenant_id = c.tenant_id
+        LEFT JOIN visible_posts_for($1, $2, $3) post ON post.id = c.post_id
         WHERE c.tenant_id = $1 AND (
-            (post.id IS NOT NULL AND ` + postVisibility("post", 2, 3) + `)
+            post.id IS NOT NULL
             OR c.page_id IN (SELECT id FROM visible_pages)
         )
     )

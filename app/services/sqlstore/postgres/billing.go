@@ -152,6 +152,7 @@ func getTrialingTenantContacts(ctx context.Context, q *query.GetTrialingTenantCo
 		var users []*dbUser
 		err := trx.Select(&users, `
 			SELECT
+				u.id,
 				u.name,
 				u.email,
 				u.role,

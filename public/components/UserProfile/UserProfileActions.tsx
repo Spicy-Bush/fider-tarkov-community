@@ -96,7 +96,7 @@ export const UserProfileActions: React.FC = () => {
             )}
           </div>
         )}
-        {canModerate && !isBlocked && (
+        {canModerate && (
           <div className="flex gap-2 max-md:flex-wrap max-md:justify-center">
             <Button variant="danger" onClick={openMuteModal}>
               <Trans id="action.mute">Mute User</Trans>

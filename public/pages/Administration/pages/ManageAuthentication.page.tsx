@@ -91,7 +91,7 @@ const ManageAuthenticationPage: React.FC<ManageAuthenticationPageProps> = (props
             <Toggle
               field="isEmailAuthAllowed"
               label={isEmailAuthAllowed ? "Yes" : "No"}
-              disabled={!Fider.session.user.isAdministrator || !canDisableEmailAuth}
+              disabled={!Fider.session.permissions.manageAuthentication || !canDisableEmailAuth}
               active={isEmailAuthAllowed}
               onToggle={toggleEmailAuth}
             />
@@ -125,7 +125,7 @@ const ManageAuthenticationPage: React.FC<ManageAuthenticationPageProps> = (props
                 </HStack>
                 {o.isCustomProvider && (
                   <HStack>
-                    {Fider.session.user.isAdministrator && (
+                    {Fider.session.permissions.manageAuthentication && (
                       <Button variant="secondary" onClick={() => edit(o.provider)} size="small">
                         <Icon sprite={IconPencilAlt} />
                         <span>Edit</span>
@@ -148,7 +148,7 @@ const ManageAuthenticationPage: React.FC<ManageAuthenticationPageProps> = (props
             </div>
           ))}
           <div className="c-admin-actions">
-            {Fider.session.user.isAdministrator && (
+            {Fider.session.permissions.manageAuthentication && (
               <Button variant="primary" onClick={addNew}>
                 Add new
               </Button>

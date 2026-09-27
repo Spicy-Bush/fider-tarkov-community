@@ -1,15 +1,10 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react"
-import { Report, ReportStatus, ReportType, ReportReason, Post, DiscussionComment, UserRole, UserStatus } from "@fider/models"
+import { Report, ReportStatus, ReportType, ReportReason, Post, DiscussionComment } from "@fider/models"
+import { UserData } from "@fider/components/UserProfile"
 import { actions, Failure, PAGINATION } from "@fider/services"
 import { ReportViewers } from "@fider/services/actions/report"
 
-export interface ViewingUserType {
-  id: number
-  name: string
-  avatarURL: string
-  role: number | UserRole
-  status: number | UserStatus
-}
+export type ViewingUserType = UserData
 
 interface UseReportsStateResult {
   reports: Report[]

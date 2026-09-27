@@ -2,9 +2,9 @@ package postgres
 
 import (
 	"context"
-	"strconv"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
@@ -15,25 +15,32 @@ import (
 
 type dbVote struct {
 	User *struct {
-		ID            int    `db:"id"`
-		Name          string `db:"name"`
-		Email         string `db:"email"`
-		AvatarType    int64  `db:"avatar_type"`
-		AvatarBlobKey string `db:"avatar_bkey"`
+		ID            int             `db:"id"`
+		Name          string          `db:"name"`
+		Email         string          `db:"email"`
+		Role          enum.Role       `db:"role"`
+		Status        enum.UserStatus `db:"status"`
+		AvatarType    int64           `db:"avatar_type"`
+		AvatarBlobKey string          `db:"avatar_bkey"`
 	} `db:"user"`
 	CreatedAt time.Time `db:"created_at"`
 	VoteType  int       `db:"vote_type"`
 }
 
 func (v *dbVote) toModel(ctx context.Context) *entity.Vote {
+	viewer, _ := ctx.Value(app.UserCtxKey).(*entity.User)
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	author := &entity.User{ID: v.User.ID, Role: v.User.Role, Status: v.User.Status}
+
 	vote := &entity.Vote{
 		CreatedAt: v.CreatedAt,
 		VoteType:  enum.VoteType(v.VoteType),
 		User: &entity.VoteUser{
-			ID:        v.User.ID,
-			Name:      v.User.Name,
-			Email:     v.User.Email,
-			AvatarURL: buildAvatarURL(ctx, enum.AvatarType(v.User.AvatarType), v.User.ID, v.User.Name, v.User.AvatarBlobKey),
+			Permissions: author.AllowedActions(viewer, tenant),
+			ID:          v.User.ID,
+			Name:        v.User.Name,
+			Email:       v.User.Email,
+			AvatarURL:   buildAvatarURL(ctx, enum.AvatarType(v.User.AvatarType), v.User.ID, v.User.Name, v.User.AvatarBlobKey),
 		},
 	}
 	return vote
@@ -88,14 +95,9 @@ func removeVote(ctx context.Context, c *cmd.RemoveVote) error {
 func listPostVotes(ctx context.Context, q *query.ListPostVotes) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]*entity.Vote, 0)
-		sqlLimit := "ALL"
+		var limit *int
 		if q.Limit > 0 {
-			sqlLimit = strconv.Itoa(q.Limit)
-		}
-
-		emailColumn := "''"
-		if q.IncludeEmail {
-			emailColumn = "u.email"
+			limit = &q.Limit
 		}
 
 		votes := []*dbVote{}
@@ -105,7 +107,9 @@ func listPostVotes(ctx context.Context, q *query.ListPostVotes) error {
 			pv.vote_type,
 			u.id AS user_id,
 			u.name AS user_name,
-			`+emailColumn+` AS user_email,
+			CASE WHEN $3 THEN u.email ELSE '' END AS user_email,
+			u.role AS user_role,
+			u.status AS user_status,
 			u.avatar_type AS user_avatar_type,
 			u.avatar_bkey AS user_avatar_bkey
 		FROM post_votes pv
@@ -115,7 +119,7 @@ func listPostVotes(ctx context.Context, q *query.ListPostVotes) error {
 		WHERE pv.post_id = $1  
 		AND pv.tenant_id = $2
 		ORDER BY pv.created_at
-		LIMIT `+sqlLimit, q.PostID, tenant.ID)
+		LIMIT $4`, q.PostID, tenant.ID, q.IncludeEmail, limit)
 		if err != nil {
 			return errors.Wrap(err, "failed to get votes of post")
 		}

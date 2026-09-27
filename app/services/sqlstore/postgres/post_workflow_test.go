@@ -379,7 +379,7 @@ func TestPostWorkflowVoteVisibilityAndPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 	visitor := f
-	visitor.user = &entity.User{ID: 2, Role: enum.RoleVisitor}
+	visitor.user = &entity.User{ID: 2, Role: enum.RoleVisitor, Status: enum.UserActive}
 	if _, err := dbx.Connection().Exec("UPDATE posts SET moderation_pending = TRUE"); err != nil {
 		t.Fatal(err)
 	}
@@ -451,7 +451,7 @@ func TestPostWorkflowVoteRequiresRevision(t *testing.T) {
 	for _, role := range []enum.Role{enum.RoleVisitor, enum.RoleHelper, enum.RoleModerator, enum.RoleCollaborator, enum.RoleAdministrator} {
 		t.Run(role.String(), func(t *testing.T) {
 			actor := f
-			actor.user = &entity.User{ID: 2, Role: role}
+			actor.user = &entity.User{ID: 2, Role: role, Status: enum.UserActive}
 			actor.user.Muted = true
 
 			for _, endpoint := range []struct {

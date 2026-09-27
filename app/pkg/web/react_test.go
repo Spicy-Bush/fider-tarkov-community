@@ -5,9 +5,11 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -53,11 +55,32 @@ func TestReactRenderer_RenderPages(t *testing.T) {
 		"tags":           []web.Map{},
 		"countPerStatus": web.Map{},
 	}
+	postAuthor := &entity.User{
+		ID:     1,
+		Name:   "SSR author",
+		Role:   enum.RoleVisitor,
+		Status: enum.UserActive,
+	}
+	post := &entity.Post{
+		ID:             1,
+		Number:         1,
+		Slug:           "ssr-test",
+		Title:          "SSR café 日本語 🎯",
+		Description:    "SSR **markdown** content.",
+		CreatedAt:      time.Date(2026, time.March, 24, 12, 0, 0, 0, time.UTC),
+		LastActivityAt: time.Date(2026, time.March, 24, 12, 0, 0, 0, time.UTC),
+		Status:         enum.PostOpen,
+		User:           postAuthor,
+		Tags:           []string{},
+	}
+
 	tests := []struct {
-		name, page, locale string
-		props              web.Map
-		user               web.Map
-		want               []string
+		name   string
+		page   string
+		locale string
+		props  web.Map
+		user   *entity.User
+		want   []string
 	}{
 		{
 			name: "English home", page: "Home/Home.page", locale: "en", props: homeProps,
@@ -65,7 +88,7 @@ func TestReactRenderer_RenderPages(t *testing.T) {
 		},
 		{
 			name: "Authenticated home", page: "Home/Home.page", locale: "en", props: homeProps,
-			user: web.Map{"id": 1, "name": "SSR user", "role": "administrator"},
+			user: &entity.User{ID: 1, Name: "SSR user", Role: enum.RoleAdministrator, Status: enum.UserActive},
 			want: []string{`id="p-home"`, `id="input-title"`},
 		},
 		{
@@ -75,13 +98,7 @@ func TestReactRenderer_RenderPages(t *testing.T) {
 		{
 			name: "Post with Unicode and markdown", page: "ShowPost/ShowPost.page", locale: "en",
 			props: web.Map{
-				"post": web.Map{
-					"id": 1, "number": 1, "slug": "ssr-test",
-					"title": "SSR café 日本語 🎯", "description": "SSR **markdown** content.",
-					"createdAt": "2026-03-24T12:00:00Z", "lastActivityAt": "2026-03-24T12:00:00Z",
-					"status": "open", "user": web.Map{"id": 1, "name": "SSR author", "role": "visitor"},
-					"tags": []string{}, "votesCount": 0, "commentsCount": 0, "response": nil,
-				},
+				"post": post,
 				"comments": []web.Map{}, "tags": []web.Map{}, "votes": []web.Map{},
 				"attachments": []string{}, "subscribed": false,
 			},
@@ -92,12 +109,23 @@ func TestReactRenderer_RenderPages(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			u, _ := url.Parse("https://demo.test.fider.io")
+			tenant := &entity.Tenant{ID: 1, Locale: tt.locale, Status: enum.TenantActive}
+			if tt.user != nil {
+				tt.user.Permissions = tt.user.AllowedActions(tt.user, tenant)
+			}
+			if post, ok := tt.props["post"].(*entity.Post); ok {
+				post.User.Permissions = post.User.AllowedActions(tt.user, tenant)
+				post.Permissions = post.AllowedActions(tt.user, tenant, post.CreatedAt)
+				post.DiscussionPermissions = entity.PostDiscussion(post).Permissions(tt.user, tenant)
+			}
+
 			html, err := r.Render(u, web.Map{
-				"page":     tt.page,
-				"tenant":   &entity.Tenant{Locale: tt.locale},
-				"settings": web.Map{"locale": tt.locale, "environment": "production"},
-				"props":    tt.props,
-				"user":     tt.user,
+				"page":        tt.page,
+				"tenant":      tenant,
+				"settings":    web.Map{"locale": tt.locale, "environment": "production"},
+				"props":       tt.props,
+				"user":        tt.user,
+				"permissions": entity.PermissionsFor(tt.user, tenant),
 			})
 			if err != nil {
 				t.Fatalf("SSR render failed: %v", err)

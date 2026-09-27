@@ -58,6 +58,8 @@ jest.mock("@fider/services/discussion", () => ({
   loadComments: jest.fn(),
 }))
 
+const ownerPermissions = { comment: false, react: false, images: false }
+
 const owner = { kind: "page" as const, id: 1, title: "Page", url: "/pages/page" }
 
 function response(id: number): Result<CommentContext> {
@@ -98,7 +100,7 @@ test.each(["success", "failure", "exception"])("late context %s cannot replace a
   })
   jest.mocked(loadCommentContext).mockReturnValueOnce(first).mockResolvedValueOnce(response(2))
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
 
   await act(async () => {
     window.history.replaceState(null, "", "/pages/page#comment-2")
@@ -126,7 +128,7 @@ test("returning to the full discussion invalidates a pending thread response", a
     complete = resolve
   }))
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
 
   await act(async () => {
     window.history.replaceState(null, "", "/pages/page")
@@ -146,15 +148,15 @@ test("a stalled old sort cannot block the newly selected order", async () => {
     complete = resolve
   })).mockResolvedValueOnce(response(2))
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
-  expect(loadComments).toHaveBeenCalledWith(owner, "liked", undefined, undefined, 5)
+  expect(loadComments).toHaveBeenCalledWith(owner, "liked", undefined, undefined, 5, expect.any(AbortSignal))
 
   fireEvent.change(screen.getByRole("combobox", { name: "Sort discussion" }), { target: { value: "latest" } })
   fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
   await act(async () => {})
 
-  expect(loadComments).toHaveBeenCalledWith(owner, "latest", undefined, undefined, 5)
+  expect(loadComments).toHaveBeenCalledWith(owner, "latest", undefined, undefined, 5, expect.any(AbortSignal))
   expect(screen.getByText("Comment 2")).toBeVisible()
 
   await act(async () => complete(response(1)))
@@ -166,7 +168,7 @@ test("a stalled old sort cannot block the newly selected order", async () => {
 test("changing sort preserves the linked comment after clearing the previous order", async () => {
   jest.mocked(loadCommentContext).mockResolvedValue(response(1))
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   await screen.findByText("Comment 1")
 
   fireEvent.change(screen.getByRole("combobox", { name: "Sort discussion" }), { target: { value: "replies" } })
@@ -179,7 +181,7 @@ test("changing sort preserves the linked comment after clearing the previous ord
 test("a reaction result preserves confirmed edit content", async () => {
   jest.mocked(loadCommentContext).mockResolvedValue(response(1))
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   await screen.findByText("Comment 1")
 
   fireEvent.click(screen.getByRole("button", { name: "Edit comment 1" }))
@@ -192,7 +194,7 @@ test("a reaction result preserves confirmed edit content", async () => {
 test("a repeated creation receipt preserves later edits and reactions", async () => {
   jest.mocked(loadCommentContext).mockResolvedValue(response(1))
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   await screen.findByText("Comment 1")
 
   fireEvent.click(screen.getByRole("button", { name: "Edit comment 1" }))
@@ -223,7 +225,7 @@ test.each<[string, string | undefined, boolean]>([
   mockEditedAt = incoming
   jest.mocked(loadCommentContext).mockResolvedValue(initial)
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   await screen.findByText("Comment 1")
   fireEvent.click(screen.getByRole("button", { name: "Edit comment 1" }))
 
@@ -241,7 +243,7 @@ test("unhiding restores reaction permission without undoing a confirmed report",
   initial.data.comments[0].permissions.react = false
   jest.mocked(loadCommentContext).mockResolvedValue(initial)
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   await screen.findByText("Comment 1")
   expect(screen.getByRole("button", { name: "Reaction control" })).toBeDisabled()
 
@@ -275,12 +277,12 @@ test("a prefetched chain retains a reply saved after the read began", async () =
     complete = resolve
   }))
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   await screen.findByText("Comment 2")
 
   const loaders = screen.getAllByRole("button", { name: "Load more comments" })
   fireEvent.click(loaders[loaders.length - 1])
-  expect(loadComments).toHaveBeenCalledWith(owner, "liked", 1, undefined, 4)
+  expect(loadComments).toHaveBeenCalledWith(owner, "liked", 1, undefined, 4, expect.any(AbortSignal))
 
   fireEvent.click(screen.getByRole("button", { name: "Save reply to 2" }))
   expect(screen.getByText("New reply")).toBeVisible()
@@ -293,7 +295,7 @@ test("a prefetched chain retains a reply saved after the read began", async () =
 
 test.each(["list", "context"])("a late %s response cannot replace a confirmed edit", async (source) => {
   jest.mocked(loadCommentContext).mockResolvedValueOnce(response(1))
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   await screen.findByText("Comment 1")
 
   let complete!: (result: Result<CommentContext>) => void

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -35,11 +36,11 @@ func applyPostVote(ctx context.Context, c *cmd.ApplyPostVote) error {
 		}
 
 		post := entity.Post{ID: eligibility.ID, Number: c.Number, Status: eligibility.Status}
-		if eligibility.Locked && !user.IsCollaborator() {
-			return validate.Unauthorized()
+		if eligibility.Locked {
+			post.LockedSettings = &entity.PostLockedSettings{Locked: true}
 		}
 
-		if !post.CanBeVoted() || user.IsMuted() {
+		if !post.AllowedActions(user, tenant, time.Now()).Vote {
 			return validate.Unauthorized()
 		}
 

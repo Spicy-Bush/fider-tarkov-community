@@ -236,8 +236,7 @@ func ManageMembers() web.HandlerFunc {
 			}
 		}
 
-		// Only administrators and collaborators can see emails
-		canSeeEmail := c.User().IsCollaborator() || c.User().IsAdministrator()
+		canSeeEmail := entity.Can(c.User(), c.Tenant(), entity.ReadUserEmails)
 
 		allUsersWithEmail := make([]entity.UserWithEmail, len(allUsers.Result))
 		for i, user := range allUsers.Result {

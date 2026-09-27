@@ -27,7 +27,8 @@ type InviteUsers struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *InviteUsers) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsCollaborator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageInvitations)
 }
 
 // Validate if current model is valid

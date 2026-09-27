@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
@@ -93,15 +94,13 @@ func (p *dbPage) toModel(ctx context.Context) *entity.Page {
 	if p.CanonicalURL.Valid {
 		page.CanonicalURL = p.CanonicalURL.String
 	}
-	if p.CachedEmbeddedData.Valid && p.CachedEmbeddedData.String != "" {
-		cachedData, err := pages.UnmarshalCachedData(p.CachedEmbeddedData.String)
-		if err == nil && cachedData != nil {
-			page.EmbeddedPosts = cachedData.Posts
-		}
-	}
 	if p.CachedAt.Valid {
 		page.CachedAt = &p.CachedAt.Time
 	}
+
+	user, _ := ctx.Value(app.UserCtxKey).(*entity.User)
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	page.Permissions = page.AllowedActions(user, tenant)
 
 	return page
 }
@@ -134,7 +133,7 @@ func getPageBySlug(ctx context.Context, q *query.GetPageBySlug) error {
 		}
 
 		q.Result = page.toModel(ctx)
-		return loadPageRelations(ctx, trx, user, q.Result)
+		return loadPageRelations(ctx, trx, user, q.Result, page.CachedEmbeddedData.String)
 	})
 }
 
@@ -166,13 +165,45 @@ func getPageByID(ctx context.Context, q *query.GetPageByID) error {
 		}
 
 		q.Result = page.toModel(ctx)
-		return loadPageRelations(ctx, trx, user, q.Result)
+		return loadPageRelations(ctx, trx, user, q.Result, page.CachedEmbeddedData.String)
 	})
 }
 
-func loadPageRelations(ctx context.Context, trx *dbx.Trx, user *entity.User, page *entity.Page) error {
+func loadPageRelations(ctx context.Context, trx *dbx.Trx, user *entity.User, page *entity.Page, cachedEmbeddedData string) error {
+	cached, err := pages.UnmarshalCachedData(cachedEmbeddedData)
+	if err != nil {
+		return err
+	}
+	if cached != nil && len(cached.PostIDs) > 0 {
+		tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+		statuses := []enum.PostStatus{
+			enum.PostOpen,
+			enum.PostStarted,
+			enum.PostPlanned,
+			enum.PostCompleted,
+			enum.PostDeclined,
+			enum.PostDuplicate,
+			enum.PostArchived,
+		}
+		selection := buildPostsByIDsQuery(tenant, user, statuses, cached.PostIDs)
+		var records []*dbPost
+		if err := trx.Select(&records, selection.SQL, selection.Params...); err != nil {
+			return errors.Wrap(err, "failed to load embedded posts")
+		}
+
+		postsByID := make(map[int]*entity.Post, len(records))
+		for _, record := range records {
+			postsByID[record.ID] = record.toModel(ctx)
+		}
+		for _, id := range cached.PostIDs {
+			if post, visible := postsByID[id]; visible {
+				page.EmbeddedPosts = append(page.EmbeddedPosts, post)
+			}
+		}
+	}
+
 	var dbAuthors []*dbUser
-	err := trx.Select(&dbAuthors, `
+	err = trx.Select(&dbAuthors, `
 		SELECT u.id, u.name, u.email, u.role, u.status, u.avatar_type, u.avatar_bkey
 		FROM users u
 		INNER JOIN page_authors pa ON pa.user_id = u.id
@@ -568,7 +599,8 @@ func listPages(ctx context.Context, q *query.ListPages) error {
 		pages := []*dbPage{}
 		err = trx.Select(&pages, fmt.Sprintf(`
 			SELECT p.id, p.title, p.slug, p.excerpt, p.banner_image_bkey,
-				p.status, p.visibility, p.published_at, p.created_at, p.updated_at,
+				p.status, p.visibility, p.allowed_roles, p.allow_reactions,
+				p.published_at, p.created_at, p.updated_at,
 				cb.id AS created_by_id, cb.name AS created_by_name,
 				(SELECT COUNT(*) FROM comments WHERE page_id = p.id AND deleted_at IS NULL) as comments_count
 			FROM pages p
@@ -634,13 +666,12 @@ func togglePageReaction(ctx context.Context, c *cmd.TogglePageReaction) error {
 
 func togglePageSubscription(ctx context.Context, c *cmd.TogglePageSubscription) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		if user == nil {
-			return validate.Unauthorized()
-		}
-
 		owner := &query.GetDiscussion{PageID: c.PageID, LockOwner: true}
 		if err := getDiscussion(ctx, owner); err != nil {
 			return err
+		}
+		if !owner.Result.CanSubscribeToPage(user, tenant) {
+			return validate.Unauthorized()
 		}
 
 		var subscribed bool

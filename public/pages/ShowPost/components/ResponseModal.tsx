@@ -7,7 +7,6 @@ import { heroiconsCheck as IconCheck, heroiconsDuplicate as IconCopy } from "@fi
 import { HStack } from "@fider/components/layout"
 import { DuplicateSearchPanel } from "./DuplicateSearchPanel"
 import { useResponseModal } from "../hooks"
-import { postPermissions } from "@fider/services"
 
 interface ResponseModalProps {
   post: Post
@@ -26,7 +25,7 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
   onCloseModal,
   hasCopiedContent: initialCopiedContent,
 }) => {
-  const duplicateOnly = postPermissions.canRespondDuplicateOnly()
+  const duplicateOnly = post.permissions.respond.length === 1 && post.permissions.respond[0] === PostStatus.Duplicate.value
   
   const modal = useResponseModal({
     post,
@@ -45,8 +44,7 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
 
   const options = useMemo(() => {
     return PostStatus.All
-      .filter((s) => s.value !== PostStatus.Archived.value)
-      .filter((s) => !duplicateOnly || s.value === PostStatus.Duplicate.value)
+      .filter((s) => post.permissions.respond.includes(s.value))
       .map((s) => {
         const id = `enum.poststatus.${s.value.toString()}`
         return {
@@ -54,11 +52,12 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
           label: i18n._(id, { message: s.title }),
         }
       })
-  }, [duplicateOnly])
+  }, [post.permissions.respond])
 
   const handleStatusChange = (opt?: { value: string }) => {
-    if (opt) {
-      modal.handleStatusChange(opt.value)
+    const allowed = post.permissions.respond.find((value) => value === opt?.value)
+    if (allowed) {
+      modal.handleStatusChange(allowed)
     }
   }
 

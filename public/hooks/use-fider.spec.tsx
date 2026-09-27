@@ -1,3 +1,4 @@
+import { noSessionPermissions, noUserPermissions } from "@fider/services/testing/permissions"
 import React, { useState } from "react"
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react"
 import { beforeEach, expect, test } from "@jest/globals"
@@ -10,19 +11,20 @@ import { useCurrentUser, useFider } from "./use-fider"
 jest.mock("@fider/services/actions")
 
 const initial = {
+  permissions: { ...noSessionPermissions, createPosts: true },
   title: "Home",
   page: "Home/Home.page",
   contextID: "home",
   props: {},
   settings: { locale: "en", environment: "development" },
   tenant: { id: 1, name: "Before", status: 1 },
-  user: { id: 7, role: "visitor", isAdministrator: false, isMuted: false },
+  user: { permissions: noUserPermissions, id: 7, role: "visitor", isAdministrator: false, isMuted: false },
 } as ServerData
 
 beforeEach(() => {
   jest.restoreAllMocks()
   Fider.initialize(initial)
-  jest.mocked(actions.getUserProfileStanding).mockReset().mockResolvedValue({ ok: true, data: { warnings: [], mutes: [] } })
+  jest.mocked(actions.getUserProfileStanding).mockReset().mockResolvedValue({ ok: true, data: { sessionPermissions: noSessionPermissions, warnings: [], mutes: [] } })
 })
 
 function Editor() {
@@ -73,12 +75,28 @@ test("anonymous consumers receive tenant and settings changes", () => {
   expect(result.current).toEqual({ name: "After", locale: "de", user: undefined })
 })
 
+test("standing refresh publishes server permissions without deriving them from role or mute", () => {
+  const { result } = renderHook(() => useFider().session.permissions)
+  expect(result.current.createPosts).toBe(true)
+
+  act(() => Fider.session.updateUserStanding({
+    warnings: [],
+    mutes: [],
+    sessionPermissions: { ...noSessionPermissions, manageQueue: true },
+  }))
+
+  expect(Fider.session.user.role).toBe("visitor")
+  expect(Fider.session.user.isMuted).toBe(false)
+  expect(result.current.createPosts).toBe(false)
+  expect(result.current.manageQueue).toBe(true)
+})
+
 test("standing follows fresh server mute status and ignores details from an older page", async () => {
   const { result } = renderHook(useUserStanding, { wrapper: UserStandingProvider })
   const oldPage = result.current.refetch
   const mute = { id: 1, reason: "Review", createdAt: "2026-01-01T00:00:00Z", isActive: true }
 
-  jest.mocked(actions.getUserProfileStanding).mockResolvedValueOnce({ ok: true, data: { warnings: [], mutes: [mute] } })
+  jest.mocked(actions.getUserProfileStanding).mockResolvedValueOnce({ ok: true, data: { sessionPermissions: noSessionPermissions, warnings: [], mutes: [mute] } })
   await act(() => result.current.refetch())
   expect(result.current).toMatchObject({ isMuted: true, muteReason: "Review" })
   expect(Fider.session.user.isMuted).toBe(true)
@@ -107,7 +125,7 @@ test("standing uses server activity despite clock skew and recovers when a mute 
   }
 
   try {
-    jest.mocked(actions.getUserProfileStanding).mockResolvedValueOnce({ ok: true, data: { warnings: [], mutes: [mute] } })
+    jest.mocked(actions.getUserProfileStanding).mockResolvedValueOnce({ ok: true, data: { sessionPermissions: noSessionPermissions, warnings: [], mutes: [mute] } })
     await act(() => result.current.refetch())
     expect(result.current.isMuted).toBe(true)
     expect(result.current.muteReason).toBe("Server-active mute")
@@ -123,7 +141,7 @@ test("standing uses server activity despite clock skew and recovers when a mute 
 test("standing publishes active warnings and mutes together, then clears both when removed", async () => {
   const warning = { id: 2, reason: "Warning", createdAt: "2026-01-01T00:00:00Z", isActive: true }
   const mute = { ...warning, id: 3, reason: "Mute" }
-  jest.mocked(actions.getUserProfileStanding).mockResolvedValueOnce({ ok: true, data: { warnings: [warning], mutes: [mute] } })
+  jest.mocked(actions.getUserProfileStanding).mockResolvedValueOnce({ ok: true, data: { sessionPermissions: noSessionPermissions, warnings: [warning], mutes: [mute] } })
   const { result } = renderHook(() => ({ standing: useUserStanding(), user: useCurrentUser() }), { wrapper: UserStandingProvider })
 
   await act(() => result.current.standing.refetch())
@@ -155,6 +173,7 @@ test("an older standing response cannot overwrite a newer refresh on the same pa
   expect(firstSignal.aborted).toBe(true)
   await act(async () => {
     resolveFirst!({ ok: true, data: {
+      sessionPermissions: noSessionPermissions,
       warnings: [],
       mutes: [{ id: 9, reason: "Old response", createdAt: "2026-01-01T00:00:00Z", isActive: true }],
     } })

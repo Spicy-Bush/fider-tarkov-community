@@ -1,12 +1,11 @@
-import { useCurrentUser } from "@fider/hooks"
 import React, { useEffect, useCallback, useState } from "react"
 
 import { LockStatus } from "./components/LockStatus"
 import { ArchiveStatus } from "./components/ArchiveStatus"
 import { HiddenStatus } from "./components/HiddenStatus"
 import { PostLockingModal } from "./components/PostLockingModal"
-import { Post, Tag, Vote, PostStatus, isPostLocked, isPostArchived, isPostHidden, ReportReason } from "@fider/models"
-import { actions, Fider, notify, formatDate, postPermissions } from "@fider/services"
+import { Post, Tag, Vote, isPostLocked, isPostArchived, isPostHidden, ReportReason } from "@fider/models"
+import { actions, Fider, notify, formatDate } from "@fider/services"
 import { heroiconsDotsHorizontal as IconDotsHorizontal, heroiconsChevronUp as IconChevronUp } from "@fider/icons.generated"
 
 import {
@@ -56,7 +55,6 @@ interface ShowPostPageProps {
 }
 
 const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
-  const user = useCurrentUser()
   const state = useShowPostState({
     initialTitle: props.post.title,
     initialDescription: props.post.description,
@@ -120,11 +118,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
     }
   }, [props.post.number, state.newTitle, state.newDescription, state.attachments, state.setError])
 
-  const canDeletePost = useCallback(() => {
-    const status = PostStatus.Get(props.post.status)
-    if (status.closed) return false
-    return postPermissions.canDelete(props.post)
-  }, [props.post.status, props.post.user.role])
+  const canDeletePost = props.post.permissions.delete
 
   const onActionSelected = useCallback(
     (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report" | "archive" | "unarchive" | "hide" | "unhide") => async () => {
@@ -201,7 +195,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                   {!state.editMode && (
                     <HStack spacing={1} className="items-center">
                       <ReportButton
-                        reportedUserId={props.post.user.id}
+                        allowed={props.post.permissions.report}
                         size="medium"
                         hasReported={props.reportStatus?.hasReportedPost ?? false}
                         dailyLimitReached={props.reportStatus?.dailyLimitReached ?? false}
@@ -214,17 +208,17 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                         <Dropdown.ListItem onClick={onActionSelected("copy")}>
                           <Trans id="action.copylink">Copy link</Trans>
                         </Dropdown.ListItem>
-                        {postPermissions.canRespondAny() && (
+                        {props.post.permissions.respond.length > 0 && (
                           <Dropdown.ListItem onClick={onActionSelected("status")}>
                             <Trans id="action.respond">Respond</Trans>
                           </Dropdown.ListItem>
                         )}
-                        {postPermissions.canEdit(props.post) && (
+                        {props.post.permissions.edit && (
                           <>
                             <Dropdown.ListItem onClick={onActionSelected("edit")}>
                               <Trans id="action.edit">Edit</Trans>
                             </Dropdown.ListItem>
-                            {postPermissions.canLock(user) && (
+                            {props.post.permissions.lock && (
                               <>
                                 {!isPostLocked(props.post) ? (
                                   <Dropdown.ListItem onClick={onActionSelected("lock")}>
@@ -237,7 +231,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                                 )}
                               </>
                             )}
-                            {postPermissions.canArchive() && (
+                            {props.post.permissions.archive && (
                               <>
                                 {!isPostArchived(props.post) ? (
                                   <Dropdown.ListItem onClick={onActionSelected("archive")}>
@@ -250,7 +244,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                                 )}
                               </>
                             )}
-                            {postPermissions.canHide() && (
+                            {props.post.permissions.moderate && (
                               <>
                                 {!isPostHidden(props.post) ? (
                                   <Dropdown.ListItem onClick={onActionSelected("hide")}>
@@ -265,7 +259,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                             )}
                           </>
                         )}
-                        {canDeletePost() && (
+                        {canDeletePost && (
                           <Dropdown.ListItem onClick={onActionSelected("delete")} className="text-danger">
                             <Trans id="action.delete">Delete</Trans>
                           </Dropdown.ListItem>
@@ -331,13 +325,13 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                     </div>
                   ) : (
                     <HStack>
-                      <Button variant="primary" onClick={saveChanges} disabled={Fider.isReadOnly}>
+                      <Button variant="primary" onClick={saveChanges} disabled={!props.post.permissions.edit}>
                         <Icon sprite={IconThumbsUp} />{" "}
                         <span>
                           <Trans id="action.save">Save</Trans>
                         </span>
                       </Button>
-                      <Button variant="tertiary" onClick={state.cancelEdit} disabled={Fider.isReadOnly}>
+                      <Button variant="tertiary" onClick={state.cancelEdit}>
                         <Icon sprite={IconX} />
                         <span>
                           <Trans id="action.cancel">Cancel</Trans>
@@ -378,7 +372,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
           </div>
         </div>
       </div>
-      {postPermissions.canRespondAny() && (
+      {props.post.permissions.respond.length > 0 && (
         <ResponseModal
           onCloseModal={state.closeModal}
           showModal={state.isModalOpen("response")}

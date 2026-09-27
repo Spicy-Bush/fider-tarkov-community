@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -17,7 +18,7 @@ func FilterContext() web.MiddlewareFunc {
 			// Will also need to migrate to a new table in the database instead of using the tenant
 
 			user := c.User()
-			if user == nil || (!user.IsAdministrator() && !user.IsCollaborator()) {
+			if !entity.Can(user, tenant, entity.ReadSettings) {
 				tenantCopy := *tenant
 				tenantCopy.ProfanityWords = ""
 				c.Set(app.TenantCtxKey, &tenantCopy)

@@ -3,193 +3,130 @@ package dbx
 import (
 	"fmt"
 	"reflect"
-	"strings"
 	"sync"
 
 	"github.com/lib/pq"
 )
 
 type RowMapper struct {
-	cache sync.Map
+	types sync.Map
+}
+
+type mappedField struct {
+	indices  []int
+	indirect bool
+	array    bool
+}
+
+type rowMapping struct {
+	fields  []mappedField
+	targets []any
 }
 
 func NewRowMapper() *RowMapper {
 	return &RowMapper{}
 }
 
-// columnKey creates a cache key from column names
-// uses \x00 as separator since it can't appear in column names
-func columnKey(columns []string) string {
-	return strings.Join(columns, "\x00")
-}
-
-// cachedMapping holds pre-computed field indices for a type+columns combination
-type cachedMapping struct {
-	fieldIndices [][]int // indices for each column
-	isSlice      []bool  // whether field is a slice (needs pq.Array)
-	hasPtr       []bool  // whether field path has a pointer that might be nil
-}
-
-func (m *RowMapper) Map(dest any, columns []string, scanner func(dest ...any) error) error {
-	destVal := reflect.ValueOf(dest).Elem()
-	t := destVal.Type()
-
-	// gotta handle non struct types (e.g., int, string) so we'll just scan directly into dest for now
-	if t.Kind() != reflect.Struct {
-		if len(columns) == 1 {
-			return scanner(dest)
-		}
-		return fmt.Errorf("cannot map %d columns to non-struct type %s", len(columns), t.Name())
+func (mapper *RowMapper) Map(destination any, columns []string, scan func(...any) error) error {
+	row := reflect.ValueOf(destination).Elem()
+	mapping, err := mapper.prepare(row.Type(), columns)
+	if err != nil {
+		return err
 	}
 
-	// try to get cached mapping for this type+columns combo
-	// use \x00 separator since it can't appear in type names or column names.. hopefully??????
-	cacheKey := t.String() + "\x00" + columnKey(columns)
+	return mapping.scan(row, scan)
+}
 
-	var mapping *cachedMapping
-	if cached, ok := m.cache.Load(cacheKey); ok {
-		mapping = cached.(*cachedMapping)
+func (mapper *RowMapper) prepare(rowType reflect.Type, columns []string) (rowMapping, error) {
+	if rowType.Kind() != reflect.Struct {
+		if len(columns) != 1 {
+			return rowMapping{}, fmt.Errorf("cannot map %d columns to non-struct type %s", len(columns), rowType.Name())
+		}
+
+		return rowMapping{targets: make([]any, 1)}, nil
+	}
+
+	var fields map[string]mappedField
+	if cached, ok := mapper.types.Load(rowType); ok {
+		fields = cached.(map[string]mappedField)
 	} else {
-		// Build mapping
-		mapping = m.buildMapping(t, columns)
-		m.cache.Store(cacheKey, mapping)
+		fields = make(map[string]mappedField)
+		mapFields(rowType, "", nil, false, fields)
+		cached, _ := mapper.types.LoadOrStore(rowType, fields)
+		fields = cached.(map[string]mappedField)
 	}
 
-	// build pointers slice using cached indices
-	pointers := make([]any, len(columns))
-	for i := range columns {
-		field := destVal
-
-		indices := mapping.fieldIndices[i]
-		if mapping.hasPtr[i] {
-			// slow path need to check/init nil pointers along the way
-			for _, idx := range indices {
-				field = field.Field(idx)
-				if field.Kind() == reflect.Ptr {
-					if field.IsNil() {
-						field.Set(reflect.New(field.Type().Elem()))
-					}
-					field = field.Elem()
-				}
-			}
-		} else {
-			// zoomie path, direct field access, no pointers yipeee
-			for _, idx := range indices {
-				field = field.Field(idx)
-			}
-		}
-
-		if mapping.isSlice[i] {
-			// reset slice to empty
-			field.Set(reflect.MakeSlice(field.Type(), 0, 0))
-			pointers[i] = pq.Array(field.Addr().Interface())
-		} else {
-			pointers[i] = field.Addr().Interface()
-		}
+	mapping := rowMapping{
+		fields:  make([]mappedField, len(columns)),
+		targets: make([]any, len(columns)),
 	}
 
-	return scanner(pointers...)
-}
-
-func (m *RowMapper) buildMapping(t reflect.Type, columns []string) *cachedMapping {
-	// first get the TypeMapper for field name lookups
-	var typeMapper TypeMapper
-	if cached, ok := m.cache.Load(t); ok {
-		typeMapper = cached.(TypeMapper)
-	} else {
-		typeMapper = NewTypeMapper(t)
-		m.cache.Store(t, typeMapper)
-	}
-
-	mapping := &cachedMapping{
-		fieldIndices: make([][]int, len(columns)),
-		isSlice:      make([]bool, len(columns)),
-		hasPtr:       make([]bool, len(columns)),
-	}
-
-	for i, c := range columns {
-		fieldInfo, exists := typeMapper.Fields[c]
+	for i, column := range columns {
+		field, exists := fields[column]
 		if !exists {
-			panic(fmt.Sprintf("Column %s not found in type %s", c, t.Name()))
+			panic(fmt.Sprintf("Column %s not found in type %s", column, rowType.Name()))
 		}
 
-		indices := make([]int, 0, len(fieldInfo.FieldName))
-		hasPtr := false
-
-		currentType := t
-		for _, fname := range fieldInfo.FieldName {
-			if currentType.Kind() == reflect.Ptr {
-				currentType = currentType.Elem()
-				hasPtr = true
-			}
-			f, ok := currentType.FieldByName(fname)
-			if !ok {
-				panic(fmt.Sprintf("Field %s not found in type %s for column %s", fname, t.Name(), c))
-			}
-			indices = append(indices, f.Index[0])
-			currentType = f.Type
-		}
-
-		mapping.fieldIndices[i] = indices
-		mapping.hasPtr[i] = hasPtr
-
-		// check if it's a slice type (but not []byte)
-		finalType := currentType
-		if finalType.Kind() == reflect.Ptr {
-			finalType = finalType.Elem()
-		}
-		mapping.isSlice[i] = finalType.Kind() == reflect.Slice && finalType.Elem().Kind() != reflect.Uint8
+		mapping.fields[i] = field
 	}
 
-	return mapping
+	return mapping, nil
 }
 
-type TypeMapper struct {
-	Type   reflect.Type
-	Fields map[string]FieldInfo
-}
-
-func NewTypeMapper(t reflect.Type) TypeMapper {
-	all := make(map[string]FieldInfo)
-
-	if t.Kind() != reflect.Struct {
-		return TypeMapper{
-			Type:   t,
-			Fields: all,
-		}
+func mapFields(rowType reflect.Type, prefix string, parent []int, indirect bool, fields map[string]mappedField) {
+	if rowType.Kind() != reflect.Struct {
+		return
 	}
 
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		columnName := field.Tag.Get("db")
-		if columnName != "" {
-			fieldType := field.Type
-			fieldKind := fieldType.Kind()
+	for i := 0; i < rowType.NumField(); i++ {
+		field := rowType.Field(i)
+		name := field.Tag.Get("db")
+		if name == "" {
+			continue
+		}
 
-			if fieldKind == reflect.Ptr {
-				fieldType = field.Type.Elem()
-				mapper := NewTypeMapper(fieldType)
-				for _, f := range mapper.Fields {
-					all[columnName+"_"+f.ColumnName] = FieldInfo{
-						ColumnName: columnName + "_" + f.ColumnName,
-						FieldName:  append([]string{field.Name}, f.FieldName...),
-					}
+		indices := make([]int, len(parent)+1)
+		copy(indices, parent)
+		indices[len(parent)] = i
+		column := prefix + name
+		if field.Type.Kind() == reflect.Ptr {
+			mapFields(field.Type.Elem(), column+"_", indices, true, fields)
+			continue
+		}
+
+		fields[column] = mappedField{
+			indices:  indices,
+			indirect: indirect,
+			array:    field.Type.Kind() == reflect.Slice && field.Type.Elem().Kind() != reflect.Uint8,
+		}
+	}
+}
+
+// Scan targets belong to one result set and are reused only after Scan returns.
+func (mapping *rowMapping) scan(row reflect.Value, scan func(...any) error) error {
+	if mapping.fields == nil {
+		mapping.targets[0] = row.Addr().Interface()
+		return scan(mapping.targets...)
+	}
+
+	for i, column := range mapping.fields {
+		field := row
+		for _, index := range column.indices {
+			field = field.Field(index)
+			if column.indirect && field.Kind() == reflect.Ptr {
+				if field.IsNil() {
+					field.Set(reflect.New(field.Type().Elem()))
 				}
-			} else {
-				all[columnName] = FieldInfo{
-					FieldName:  []string{field.Name},
-					ColumnName: columnName,
-				}
+				field = field.Elem()
 			}
 		}
-	}
-	return TypeMapper{
-		Type:   t,
-		Fields: all,
-	}
-}
 
-type FieldInfo struct {
-	FieldName  []string
-	ColumnName string
+		if column.array {
+			mapping.targets[i] = pq.Array(field.Addr().Interface())
+		} else {
+			mapping.targets[i] = field.Addr().Interface()
+		}
+	}
+
+	return scan(mapping.targets...)
 }

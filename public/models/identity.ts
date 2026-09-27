@@ -1,3 +1,5 @@
+import { SessionPermissions, UserPermissions } from "./permissions"
+
 export interface Tenant {
   id: number
   name: string
@@ -55,6 +57,7 @@ export interface User {
   role: UserRole
   visualRole?: VisualRole
   status: UserStatus
+  permissions: UserPermissions
   avatarURL: string
   providers?: Array<{
     name: string
@@ -113,6 +116,7 @@ export interface CurrentUser {
   role: UserRole
   visualRole?: VisualRole
   status: UserStatus
+  permissions: UserPermissions
   isAdministrator: boolean
   isCollaborator: boolean
   isModerator: boolean
@@ -134,4 +138,8 @@ export interface StandingEntry {
 export interface UserProfileStanding {
   warnings: StandingEntry[]
   mutes: StandingEntry[]
+}
+
+export interface UserProfileStandingResponse extends UserProfileStanding {
+  sessionPermissions: SessionPermissions
 }

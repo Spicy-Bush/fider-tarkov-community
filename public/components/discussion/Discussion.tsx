@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Button, SignInModal } from "@fider/components"
 import { useFider } from "@fider/hooks"
-import { CommentContext, DiscussionComment, DiscussionOwner, DiscussionPage, DiscussionPermissions, DiscussionSort, ReactionCount } from "@fider/models"
+import { DiscussionComment, DiscussionOwner, DiscussionPage, DiscussionPermissions, DiscussionSort, ReactionCount } from "@fider/models"
 import { isNegativelyRated, loadCommentContext, loadCommentRecords, loadComments } from "@fider/services/discussion"
 import { savedReadingPosition, useReadingPosition } from "@fider/services/readingPosition"
 import { RequestError } from "@fider/services/http"
@@ -11,15 +11,20 @@ import { DiscussionRow, DiscussionViewport } from "./DiscussionViewport"
 
 interface Branch {
   ids: number[]
-  loaded: boolean
-  next?: string
-  error?: string
+  page: { next?: string } | null
 }
+
+type BranchRead =
+  | { status: "pending"; controller: AbortController }
+  | { status: "failed"; message: string }
 
 interface DiscussionState {
   comments: Record<number, DiscussionComment | PendingComment>
   branches: Record<number, Branch>
-  permissions?: DiscussionPermissions
+  permissions: DiscussionPermissions
+  permissionRead: number
+  recordVersions: Record<number, number>
+  reads: Record<number, BranchRead>
 }
 
 interface PendingComment {
@@ -33,7 +38,7 @@ interface PendingComment {
 interface DiscussionPosition {
   sort: DiscussionSort
   comments: PendingComment[]
-  branches: Record<number, Branch>
+  branches: Record<number, { ids: number[]; next?: string }>
   collapsed: Record<number, boolean>
   expanded: Record<number, boolean>
   measurements: [string, number][]
@@ -43,24 +48,51 @@ interface DiscussionPosition {
 
 interface DiscussionProps {
   owner: DiscussionOwner
+  ownerPermissions: DiscussionPermissions
   onCommentAdded?: () => void
   headerActions?: React.ReactNode
 }
 
-function mergeRecords(
-  state: DiscussionState,
-  comments: DiscussionComment[],
-  beforeRead?: DiscussionState["comments"]
-): DiscussionState {
-  const next = { ...state, comments: { ...state.comments } }
+interface ThreadContext {
+  commentId: number
+  rootId?: number
+  nextAncestorId?: number
+}
+
+function mergeRecords(state: DiscussionState, comments: DiscussionComment[], version: number): DiscussionState {
+  const next = { ...state, comments: { ...state.comments }, recordVersions: { ...state.recordVersions } }
 
   for (const comment of comments) {
-    if (!beforeRead || !state.comments[comment.id] || state.comments[comment.id] === beforeRead[comment.id]) {
-      next.comments[comment.id] = comment
+    const current = state.comments[comment.id]
+    const currentVersion = state.recordVersions[comment.id] || 0
+    let accepted = currentVersion > version ? current : comment
+
+    if (current && !("pending" in current)) {
+      if (current.state === "deleted") {
+        accepted = current
+      } else if (comment.state === "deleted") {
+        accepted = comment
+      } else if (current.state === "visible" && comment.state === "visible" && (current.editedAt || comment.editedAt)) {
+        const edited = hasNewerEdit(comment, current) ? comment : current
+        accepted = {
+          ...accepted,
+          content: edited.content,
+          attachments: edited.attachments,
+          editedAt: edited.editedAt,
+          editedBy: edited.editedBy,
+        }
+      }
     }
+
+    next.comments[comment.id] = accepted
+    next.recordVersions[comment.id] = Math.max(currentVersion, version)
   }
 
   return next
+}
+
+function acceptPermissions(state: DiscussionState, page: DiscussionPage, read: number): DiscussionState {
+  return read < state.permissionRead ? state : { ...state, permissionRead: read, permissions: page.permissions }
 }
 
 function connectComments(state: DiscussionState, comments: DiscussionComment[]): DiscussionState {
@@ -80,7 +112,7 @@ function connectComments(state: DiscussionState, comments: DiscussionComment[]):
   const branches = { ...state.branches }
 
   for (const [parent, incoming] of additions) {
-    const branch = branches[parent] || { ids: [], loaded: false }
+    const branch = branches[parent] || { ids: [], page: null }
     branches[parent] = { ...branch, ids: [...new Set([...branch.ids, ...incoming])] }
   }
 
@@ -108,7 +140,7 @@ function hasNewerEdit(incoming: DiscussionComment, current: DiscussionComment): 
 }
 
 export function discussionRows(
-  state: DiscussionState,
+  state: Pick<DiscussionState, "comments" | "branches">,
   collapsed: Record<number, boolean>,
   focusedRoot?: number,
   expanded: Record<number, boolean> = {}
@@ -135,7 +167,7 @@ export function discussionRows(
     if (row.kind === "branch") {
       const branch = state.branches[row.parentId]
 
-      if (!branch?.loaded || branch.next) {
+      if (!branch?.page || branch.page.next) {
         pending.push({ kind: "load", parentId: row.parentId, depth: row.depth, levels: row.limit - row.depth + 1 })
       }
 
@@ -179,86 +211,58 @@ export function discussionRows(
   return rows
 }
 
-function LoadComments(props: { branch?: Branch; load: () => Promise<void> }) {
+function LoadComments(props: { read?: BranchRead; load: () => Promise<void> }) {
   const ref = useRef<HTMLDivElement>(null)
-  const [loading, setLoading] = useState(false)
-  const load = async () => {
-    if (loading) {
-      return
-    }
-
-    setLoading(true)
-
-    try {
-      await props.load()
-    } finally {
-      setLoading(false)
-    }
-  }
+  const loading = props.read?.status === "pending"
+  const error = props.read?.status === "failed" ? props.read.message : undefined
 
   useEffect(() => {
-    if (!ref.current || props.branch?.error || loading) {
+    if (!ref.current || error || loading) {
       return
     }
 
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) {
-        void load()
+        void props.load()
       }
     }, { rootMargin: "300px" })
 
     observer.observe(ref.current)
     return () => observer.disconnect()
-  }, [props.load, props.branch?.error, loading])
+  }, [props.load, error, loading])
 
   return (
     <div ref={ref} className="py-3">
-      {props.branch?.error && <p role="alert" className="text-danger">{props.branch.error}</p>}
-      <Button size="small" loading={loading} onClick={load}>
-        {props.branch?.error ? "Retry loading comments" : "Load more comments"}
+      {error && <p role="alert" className="text-danger">{error}</p>}
+      <Button size="small" loading={loading} onClick={props.load}>
+        {error ? "Retry loading comments" : "Load more comments"}
       </Button>
     </div>
   )
 }
 
-export function Discussion(props: DiscussionProps) {
-  const positionKey = `discussion:${props.owner.kind}:${props.owner.id}`
-  const [sort, setSort] = useState<DiscussionSort>(() => savedReadingPosition<DiscussionPosition>(positionKey)?.sort ?? "liked")
-
-  return (
-    <section aria-label="Discussion" className="mt-4">
-      <div className="flex items-center flex-wrap gap-3 mb-3">
-        <h2 className="flex-1 text-lg font-semibold">Discussion</h2>
-        {props.headerActions}
-        <label className="flex items-center gap-2 text-sm">
-          Sort by
-          <select
-            aria-label="Sort discussion"
-            value={sort}
-            onChange={(event) => setSort(event.target.value as DiscussionSort)}
-            className="cursor-pointer rounded border border-border bg-elevated px-2 py-1.5"
-          >
-            <option value="liked">Most liked</option>
-            <option value="disliked">Most disliked</option>
-            <option value="replies">Most replies</option>
-            <option value="latest">Latest</option>
-          </select>
-        </label>
-      </div>
-      <DiscussionThreads key={`${props.owner.kind}:${props.owner.id}`} {...props} sort={sort} />
-    </section>
-  )
+function linkedComment(): number | undefined {
+  const match = /^#comment-(\d+)$/.exec(window.location.hash)
+  return match ? Number(match[1]) : undefined
 }
 
-function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { sort: DiscussionSort }) {
+export function Discussion(props: DiscussionProps) {
+  return <DiscussionThreads key={`${props.owner.kind}:${props.owner.id}`} {...props} />
+}
+
+function DiscussionThreads({ owner, ownerPermissions, onCommentAdded, headerActions }: DiscussionProps) {
   const fider = useFider()
-  const container = useRef<HTMLDivElement>(null)
-  const reading = useReadingPosition<DiscussionPosition>(`discussion:${owner.kind}:${owner.id}`, (): DiscussionPosition => {
+  const container = useRef<HTMLElement>(null)
+  const positionKey = `discussion:${owner.kind}:${owner.id}`
+  const [sort, setSort] = useState<DiscussionSort>(() => savedReadingPosition<DiscussionPosition>(positionKey)?.sort ?? "liked")
+  const reading = useReadingPosition<DiscussionPosition>(positionKey, (): DiscussionPosition => {
     const anchor = [...(container.current?.querySelectorAll<HTMLElement>(".discussion-row article[id]") ?? [])]
       .find((element) => element.getBoundingClientRect().bottom > 0)
     const viewport = container.current?.querySelector(".discussion-threads")?.getBoundingClientRect()
     const branches = Object.fromEntries(
-      Object.entries(state.branches).filter(([, branch]) => branch.ids.length > 0)
+      Object.entries(state.branches)
+        .filter(([, branch]) => branch.ids.length > 0)
+        .map(([id, branch]) => [id, { ids: branch.ids, next: branch.page?.next }])
     )
 
     return {
@@ -278,18 +282,40 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
       anchor: anchor ? { id: Number(anchor.id.slice("comment-".length)), top: anchor.getBoundingClientRect().top } : undefined,
     }
   })
-  const [state, setState] = useState<DiscussionState>(() => ({
+  const [state, renderState] = useState<DiscussionState>(() => ({
     comments: Object.fromEntries(reading.saved?.comments.map((comment) => [comment.id, comment]) ?? []),
-    branches: reading.saved?.branches ?? {},
+    branches: Object.fromEntries(
+      Object.entries(reading.saved?.branches ?? {}).map(([id, branch]) => [
+        id,
+        { ids: branch.ids, page: { next: branch.next } },
+      ])
+    ),
+    reads: {},
+    recordVersions: {},
+    permissionRead: 0,
+    permissions: ownerPermissions,
   }))
+  const stateRef = useRef(state)
+  const setState = useCallback((change: (previous: DiscussionState) => DiscussionState) => {
+    stateRef.current = change(stateRef.current)
+    renderState(stateRef.current)
+  }, [])
+  const nextVersion = useRef(0)
+
+  useLayoutEffect(() => {
+    const permissionRead = ++nextVersion.current
+    setState((previous) => ({ ...previous, permissions: ownerPermissions, permissionRead }))
+  }, [ownerPermissions, setState])
+
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>(reading.saved?.collapsed ?? {})
   const [expanded, setExpanded] = useState<Record<number, boolean>>(reading.saved?.expanded ?? {})
   const measurements = useRef(new Map(reading.saved?.measurements))
+  const initialViewport = useRef(reading.saved?.viewport)
   const [readingTarget, setReadingTarget] = useState(reading.saved?.anchor?.id)
   const [recordsError, setRecordsError] = useState<string>()
   const [visibleRecords, setVisibleRecords] = useState<number[]>([])
-  const [context, setContext] = useState<CommentContext>()
-  const [target, setTarget] = useState<number>()
+  const [context, setContext] = useState<ThreadContext>()
+  const [target, setTarget] = useState(linkedComment)
   const [contextError, setContextError] = useState<string>()
   const [signIn, setSignIn] = useState(false)
   const [interactions, setInteractions] = useState<Record<number, CommentInteraction>>({})
@@ -297,27 +323,104 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
   const [entering, setEntering] = useState<ReadonlySet<number>>(new Set())
   const activeActions = useRef(new Set<number>())
   const reportedComments = useRef(new Set<number>())
-  const activeLoads = useRef(new Set<number>())
-  const branchGeneration = useRef(0)
-  const contextRequest = useRef(0)
-  const stateRef = useRef(state)
-  stateRef.current = state
+  const recordRequest = useRef<AbortController>()
+  const contextRequest = useRef<AbortController>()
+  const unread = useMemo(() => visibleRecords.filter((id) => {
+    const comment = state.comments[id]
+    return comment && "pending" in comment && comment.pending === "unloaded"
+  }).slice(0, 50), [visibleRecords, state.comments])
 
   useEffect(() => {
-    if (recordsError) {
+    initialViewport.current = undefined
+  }, [])
+
+  const abortReads = useCallback(() => {
+    for (const read of Object.values(stateRef.current.reads)) {
+      if (read.status === "pending") {
+        read.controller.abort()
+      }
+    }
+    recordRequest.current?.abort()
+    recordRequest.current = undefined
+    contextRequest.current?.abort()
+  }, [])
+
+  useEffect(() => abortReads, [abortReads])
+
+  const loadBranch = useCallback(async (parentId: number, levels: number) => {
+    if (stateRef.current.reads[parentId]?.status === "pending") {
       return
     }
 
-    const ids = visibleRecords.filter((id) => {
-      const comment = state.comments[id]
-      return comment && "pending" in comment && comment.pending === "unloaded"
-    }).slice(0, 50)
+    const controller = new AbortController()
+    const read = ++nextVersion.current
+    const branch = stateRef.current.branches[parentId]
+    setState((previous) => ({
+      ...previous,
+      reads: { ...previous.reads, [parentId]: { status: "pending", controller } },
+    }))
 
-    if (ids.length === 0) {
+    const failed = (message: string) => setState((previous) => ({
+      ...previous,
+      reads: { ...previous.reads, [parentId]: { status: "failed", message } },
+    }))
+
+    try {
+      const result = await loadComments(owner, sort, parentId || undefined, branch?.page?.next, levels, controller.signal)
+
+      if (controller.signal.aborted) {
+        return
+      }
+
+      if (!result.ok) {
+        failed(result.error.errors?.[0]?.message || "Could not load comments.")
+        return
+      }
+
+      setState((previous) => {
+        const prefetched = result.data.replies || []
+        const records = mergeRecords(previous, [...result.data.comments, ...prefetched], read)
+        const connected = connectComments(records, prefetched)
+        const next = acceptPermissions(connected, result.data, read)
+        const incoming = result.data.comments.map((comment) => comment.id)
+        const existing = previous.branches[parentId]?.ids || []
+        const ids = branch?.page?.next
+          ? [...new Set([...existing, ...incoming])]
+          : [...new Set([...incoming, ...existing])]
+
+        next.branches[parentId] = { ids, page: { next: result.data.next } }
+        next.reads = { ...next.reads }
+        delete next.reads[parentId]
+
+        for (const reply of prefetched) {
+          const parent = reply.parentId!
+          next.branches[parent] = { ...next.branches[parent], page: {} }
+        }
+
+        return next
+      })
+    } catch (cause) {
+      if (controller.signal.aborted) {
+        return
+      }
+
+      if (!(cause instanceof RequestError)) {
+        throw cause
+      }
+
+      failed("Could not load comments. Please try again.")
+    }
+  }, [owner.kind, owner.id, owner.number, sort, setState])
+
+  useEffect(() => {
+    if (recordRequest.current || recordsError || unread.length === 0) {
       return
     }
 
+    const ids = unread
     const request = new AbortController()
+    recordRequest.current = request
+    const read = ++nextVersion.current
     const hydrate = async () => {
       try {
         const result = await loadCommentRecords(owner, ids, request.signal)
@@ -332,18 +435,25 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
         }
 
         setState((previous) => {
-          const comments = { ...previous.comments }
-          const found = new Map(result.data.comments.map((comment) => [comment.id, comment]))
+          const next = mergeRecords(previous, result.data.comments, read)
+          const found = new Set(result.data.comments.map((comment) => comment.id))
 
           for (const id of ids) {
-            const current = comments[id]
+            const current = next.comments[id]
 
-            if (current && "pending" in current) {
-              comments[id] = found.get(id) ?? { ...current, hasReplies: false, pending: "unavailable" }
+            if (!found.has(id) && current && "pending" in current) {
+              next.comments[id] = { ...current, hasReplies: false, pending: "unavailable" }
+            }
+
+            const saved = previous.comments[id]
+            const branch = next.branches[id]
+
+            if (saved && "pending" in saved && !("pending" in current) && current.hasReplies && branch && branch.ids.length === 0) {
+              next.branches = { ...next.branches, [id]: { ...branch, page: null } }
             }
           }
 
-          return { ...previous, comments, permissions: result.data.permissions }
+          return acceptPermissions(next, result.data, read)
         })
       } catch (cause) {
         if (request.signal.aborted) {
@@ -355,12 +465,15 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
         }
 
         setRecordsError("Could not load comments. Please try again.")
+      } finally {
+        if (recordRequest.current === request) {
+          recordRequest.current = undefined
+        }
       }
     }
 
     void hydrate()
-    return () => request.abort()
-  }, [visibleRecords, state.comments, recordsError, owner.kind, owner.id, owner.number])
+  }, [unread, recordsError, owner.kind, owner.id, owner.number, sort])
 
   const visible = useCallback((ids: number[]) => {
     setVisibleRecords((previous) => {
@@ -421,110 +534,36 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
     return () => cancelAnimationFrame(frame)
   }, [state, visibleRecords, recordsError, readingTarget, reading.saved, reading.restored])
 
-  const previousSort = useRef(sort)
-
-  useEffect(() => {
-    if (previousSort.current === sort) {
-      return
-    }
-
-    previousSort.current = sort
-    branchGeneration.current++
-    activeLoads.current.clear()
-    setState((previous) => ({ ...previous, branches: {} }))
+  const changeSort = (next: DiscussionSort) => {
+    abortReads()
+    setSort(next)
+    setState((previous) => ({ ...previous, branches: {}, reads: {} }))
+    setVisibleRecords([])
+    setRecordsError(undefined)
+    setReadingTarget(undefined)
+    reading.restored()
     setContext(undefined)
-  }, [sort])
+  }
 
-  const accept = useCallback((page: DiscussionPage, beforeRead?: DiscussionState["comments"]) => {
-    setState((previous) => ({
-      ...connectComments(mergeRecords(previous, page.comments, beforeRead), page.comments),
-      permissions: page.permissions,
-    }))
-  }, [])
-
-  const loadBranch = useCallback(async (parentId: number, levels: number) => {
-    if (activeLoads.current.has(parentId)) {
-      return
-    }
-
-    activeLoads.current.add(parentId)
-    const generation = branchGeneration.current
-    const beforeRead = stateRef.current
-    const branch = beforeRead.branches[parentId]
-    const failed = (message: string) => {
-      setState((previous) => ({
-        ...previous,
-        branches: {
-          ...previous.branches,
-          [parentId]: {
-            ...(previous.branches[parentId] || { ids: [], loaded: false }),
-            error: message,
-          },
-        },
-      }))
-    }
-
-    try {
-      const result = await loadComments(owner, sort, parentId || undefined, branch?.next, levels)
-
-      if (generation !== branchGeneration.current) {
-        return
-      }
-
-      if (!result.ok) {
-        failed(result.error.errors?.[0]?.message || "Could not load comments.")
-        return
-      }
-
-      setState((previous) => {
-        const prefetched = result.data.replies || []
-        const next = connectComments(mergeRecords(previous, [...result.data.comments, ...prefetched], beforeRead.comments), prefetched)
-        next.permissions = result.data.permissions
-        const incoming = result.data.comments.map((comment) => comment.id)
-        const existing = previous.branches[parentId]?.ids || []
-        const ids = branch?.loaded
-          ? [...new Set([...existing, ...incoming])]
-          : [...new Set([...incoming, ...existing])]
-
-        next.branches[parentId] = {
-          ids,
-          loaded: true,
-          next: result.data.next,
-        }
-
-        for (const reply of prefetched) {
-          const parent = reply.parentId!
-          next.branches[parent] = { ...next.branches[parent], loaded: true }
-        }
-
-        return next
-      })
-    } catch (cause) {
-      if (generation !== branchGeneration.current) {
-        return
-      }
-
-      if (!(cause instanceof RequestError)) {
-        throw cause
-      }
-
-      failed("Could not load comments. Please try again.")
-    } finally {
-      if (generation === branchGeneration.current) {
-        activeLoads.current.delete(parentId)
-      }
-    }
-  }, [owner.kind, owner.id, owner.number, sort])
+  const accept = useCallback((page: DiscussionPage, read: number) => {
+    setState((previous) => {
+      const records = mergeRecords(previous, page.comments, read)
+      const connected = connectComments(records, page.comments)
+      return acceptPermissions(connected, page, read)
+    })
+  }, [setState])
 
   const readContext = useCallback(async (id: number) => {
-    const request = ++contextRequest.current
-    const beforeRead = stateRef.current.comments
+    contextRequest.current?.abort()
+    const request = new AbortController()
+    contextRequest.current = request
+    const read = ++nextVersion.current
     setContextError(undefined)
 
     try {
-      const result = await loadCommentContext(id)
+      const result = await loadCommentContext(id, request.signal)
 
-      if (request !== contextRequest.current) {
+      if (request.signal.aborted) {
         return
       }
 
@@ -533,8 +572,12 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
         return
       }
 
-      accept(result.data, beforeRead)
-      setContext(result.data)
+      accept(result.data, read)
+      setContext({
+        commentId: result.data.commentId,
+        rootId: result.data.comments[0]?.id,
+        nextAncestorId: result.data.nextAncestorId,
+      })
       setCollapsed((previous) => {
         const next = { ...previous }
 
@@ -545,7 +588,7 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
         return next
       })
     } catch (cause) {
-      if (request !== contextRequest.current) {
+      if (request.signal.aborted) {
         return
       }
 
@@ -559,14 +602,13 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
 
   useEffect(() => {
     const hashChanged = () => {
-      const match = /^#comment-(\d+)$/.exec(window.location.hash)
-      const id = match ? Number(match[1]) : undefined
+      const id = linkedComment()
       setTarget(id)
 
       if (id) {
         void readContext(id)
       } else {
-        contextRequest.current++
+        contextRequest.current?.abort()
         setContext(undefined)
         setContextError(undefined)
       }
@@ -575,14 +617,14 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
     hashChanged()
     window.addEventListener("hashchange", hashChanged)
     return () => {
-      contextRequest.current++
+      contextRequest.current?.abort()
       window.removeEventListener("hashchange", hashChanged)
     }
   }, [readContext])
 
   const rows = useMemo(
-    () => discussionRows(state, collapsed, context?.comments[0]?.id, expanded),
-    [state, collapsed, context, expanded]
+    () => discussionRows(state, collapsed, context?.rootId, expanded),
+    [state.comments, state.branches, collapsed, context?.rootId, expanded]
   )
   const rowsRef = useRef(rows)
   rowsRef.current = rows
@@ -593,8 +635,9 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
 
   const created = useCallback((comment: DiscussionComment) => {
     const existed = !!stateRef.current.comments[comment.id]
+    const version = ++nextVersion.current
     setState((previous) => {
-      const next = previous.comments[comment.id] ? previous : mergeRecords(previous, [comment])
+      const next = previous.comments[comment.id] ? previous : mergeRecords(previous, [comment], version)
       return connectComments(next, [comment])
     })
 
@@ -619,6 +662,7 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
   }, [])
 
   const changed = useCallback((comment: DiscussionComment, change: CommentChange) => {
+    const version = ++nextVersion.current
     if (change === "report") {
       reportedComments.current.add(comment.id)
     }
@@ -627,7 +671,7 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
       const current = previous.comments[comment.id]
 
       if (!current || "pending" in current || change === "delete") {
-        return mergeRecords(previous, [comment])
+        return mergeRecords(previous, [comment], version)
       }
 
       if (current.state === "deleted") {
@@ -663,11 +707,12 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
         updated = { ...current, permissions: { ...current.permissions, report: false } }
       }
 
-      return mergeRecords(previous, [updated])
+      return mergeRecords(previous, [updated], version)
     })
   }, [])
 
   const reactionsChanged = useCallback((id: number, reactions: ReactionCount[]) => {
+    const version = ++nextVersion.current
     setState((previous) => {
       const comment = previous.comments[id]
 
@@ -675,7 +720,7 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
         return previous
       }
 
-      return mergeRecords(previous, [{ ...comment, reactionCounts: reactions }])
+      return mergeRecords(previous, [{ ...comment, reactionCounts: reactions }], version)
     })
   }, [])
 
@@ -723,7 +768,25 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
   }, [interact])
 
   return (
-    <div ref={container} className="c-comment-list">
+    <section ref={container} aria-label="Discussion" className="c-comment-list mt-4">
+      <div className="flex items-center flex-wrap gap-3 mb-3">
+        <h2 className="flex-1 text-lg font-semibold">Discussion</h2>
+        {headerActions}
+        <label className="flex items-center gap-2 text-sm">
+          Sort by
+          <select
+            aria-label="Sort discussion"
+            value={sort}
+            onChange={(event) => changeSort(event.target.value as DiscussionSort)}
+            className="cursor-pointer rounded border border-border bg-elevated px-2 py-1.5"
+          >
+            <option value="liked">Most liked</option>
+            <option value="disliked">Most disliked</option>
+            <option value="replies">Most replies</option>
+            <option value="latest">Latest</option>
+          </select>
+        </label>
+      </div>
       <SignInModal isOpen={signIn} onClose={() => setSignIn(false)} />
       {target && (
         <div className="flex gap-3 my-3">
@@ -749,7 +812,7 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
         target={target}
         readingTarget={readingTarget}
         measurements={measurements.current}
-        initialViewport={reading.saved?.viewport}
+        initialViewport={initialViewport.current}
         onVisible={visible}
         onCollapse={collapse}
       >
@@ -769,8 +832,8 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
           if (row.kind === "load") {
             return (
               <LoadComments
-                key={`${sort}:${state.branches[row.parentId]?.next || "first"}`}
-                branch={state.branches[row.parentId]}
+                key={`${sort}:${state.branches[row.parentId]?.page?.next || "first"}`}
+                read={state.reads[row.parentId]}
                 load={() => loadBranch(row.parentId, row.levels)}
               />
             )
@@ -801,7 +864,7 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
             <DiscussionCommentCard
               owner={owner}
               comment={comment}
-              images={!!state.permissions?.images}
+              images={state.permissions.images}
               collapsed={row.collapsed}
               highlighted={row.id === target}
               entering={entering.has(row.id)}
@@ -816,12 +879,12 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
           )
         }}
       </DiscussionViewport>
-      {state.permissions?.comment && <CommentComposer owner={owner} images={state.permissions.images} onSaved={created} />}
-      {state.permissions && !state.permissions.comment && (
+      {state.permissions.comment && <CommentComposer owner={owner} images={state.permissions.images} onSaved={created} />}
+      {!state.permissions.comment && (
         fider.session.isAuthenticated
           ? <p className="text-muted my-4">New comments are unavailable here.</p>
           : <Button onClick={() => setSignIn(true)}>Sign in to comment</Button>
       )}
-    </div>
+    </section>
   )
 }

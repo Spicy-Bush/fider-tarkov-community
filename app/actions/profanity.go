@@ -20,7 +20,8 @@ func NewUpdateProfanityWords() *UpdateProfanityWords {
 }
 
 func (action *UpdateProfanityWords) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageProfanity)
 }
 
 func (action *UpdateProfanityWords) Validate(ctx context.Context, user *entity.User) *validate.Result {

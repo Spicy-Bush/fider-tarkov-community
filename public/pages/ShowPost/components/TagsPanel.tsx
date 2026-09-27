@@ -1,9 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react"
-import { Post, Tag, UserRole } from "@fider/models"
-import { actions, postPermissions, permissions } from "@fider/services"
+import { Post, Tag } from "@fider/models"
+import { actions } from "@fider/services"
 import { ShowTag, Button, Input } from "@fider/components"
 import { TagListItem } from "./TagListItem"
-import { useFider } from "@fider/hooks"
 
 import { HStack, VStack } from "@fider/components/layout"
 import { Trans } from "@lingui/react/macro"
@@ -16,37 +15,8 @@ export interface TagsPanelProps {
 }
 
 export const TagsPanel = (props: TagsPanelProps) => {
-  const fider = useFider()
-  const isHelper = fider.session.isAuthenticated && permissions.hasRole(fider.session.user.role, UserRole.Helper) && !fider.session.user.isCollaborator && !fider.session.user.isModerator && !fider.session.user.isAdministrator
-  const canEdit = postPermissions.canTag() && props.tags.length > 0
-
-  const helperCanEditTags = useMemo(() => {
-    if (!isHelper) return true
-
-    const now = new Date()
-    const postCreatedAt = new Date(props.post.createdAt)
-    const postAgeDays = (now.getTime() - postCreatedAt.getTime()) / (1000 * 60 * 60 * 24)
-    if (postAgeDays > 7) return false
-
-    if (!props.post.tagDates) return true
-    
-    try {
-      const tagDatesArray = JSON.parse(props.post.tagDates);
-      if (!tagDatesArray || tagDatesArray.length === 0) return true;
-      
-      const oldestDate = tagDatesArray.reduce((oldest: Date | null, current: { slug: string; created_at: string }) => {
-        const currentDate = new Date(current.created_at);
-        return oldest && oldest < currentDate ? oldest : currentDate;
-      }, null);
-      
-      if (!oldestDate) return true;
-      
-      const hoursDiff = (now.getTime() - oldestDate.getTime()) / (1000 * 60 * 60);
-      return hoursDiff <= 24;
-    } catch (e) {
-      return false;
-    }
-  }, [isHelper, props.post.createdAt, props.post.tagDates]);
+  const assignableTags = useMemo(() => props.tags.filter((tag) => tag.permissions.assign), [props.tags])
+  const canEdit = props.post.permissions.tag && assignableTags.length > 0
 
   const [isEditing, setIsEditing] = useState(false)
   const [assignedTags, setAssignedTags] = useState(props.tags.filter((t) => props.post.tags.indexOf(t.slug) >= 0))
@@ -63,13 +33,13 @@ export const TagsPanel = (props: TagsPanelProps) => {
     if (isEditing) {
       try {
         const recentTagSlugs = JSON.parse(localStorage.getItem("fider_recent_tags") || "[]")
-        const recentTags = props.tags.filter(tag => recentTagSlugs.includes(tag.slug))
+        const recentTags = assignableTags.filter(tag => recentTagSlugs.includes(tag.slug))
         setRecentlyUsedTags(recentTags.slice(0, 5))
       } catch (e) {
         console.error("Failed to load recent tags", e)
       }
     }
-  }, [isEditing, props.tags])
+  }, [isEditing, assignableTags])
 
   const saveRecentTag = (tag: Tag) => {
     try {
@@ -86,6 +56,8 @@ export const TagsPanel = (props: TagsPanelProps) => {
   }
 
   const assignOrUnassignTag = useCallback(async (tag: Tag) => {
+    if (!canEdit || !tag.permissions.assign) return
+
     const isAssigned = assignedTagSlugs.has(tag.slug)
     let nextAssignedTags: Tag[] = []
 
@@ -109,10 +81,10 @@ export const TagsPanel = (props: TagsPanelProps) => {
     }
 
     setAssignedTags(nextAssignedTags)
-  }, [assignedTags, assignedTagSlugs, props.post.number, props.onTagsChanged])
+  }, [canEdit, assignedTags, assignedTagSlugs, props.post.number, props.onTagsChanged])
 
   const onSubtitleClick = () => {
-    if ((canEdit && !isHelper) || (isHelper && helperCanEditTags)) {
+    if (canEdit) {
       setIsEditing(!isEditing)
       if (!isEditing) {
         setSearchQuery("")
@@ -126,7 +98,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
     
     const removedTags: Tag[] = []
     
-    for (const tag of assignedTags) {
+    for (const tag of assignedTags.filter((tag) => tag.permissions.assign)) {
       const response = await actions.unassignTag(tag.slug, props.post.number)
       if (!response.ok) {
         if (removedTags.length > 0) {
@@ -138,7 +110,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
       removedTags.push(tag)
     }
     
-    setAssignedTags([])
+    setAssignedTags(assignedTags.filter((tag) => !removedTags.includes(tag)))
     props.onTagsChanged?.(props.post.number)
   }, [assignedTags, props.post.number, props.onTagsChanged])
 
@@ -146,7 +118,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
 
   const filteredTags = useMemo(() => {
     const query = searchQuery.toLowerCase().trim()
-    let tags = props.tags
+    let tags = assignableTags
     
     if (query) {
       tags = tags.filter(
@@ -155,7 +127,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
     }
     
     return tags
-  }, [props.tags, searchQuery])
+  }, [assignableTags, searchQuery])
 
   const nonRecentTags = useMemo(() => {
     if (searchQuery.trim()) return filteredTags
@@ -170,7 +142,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
     <div className="flex flex-wrap gap-2 items-center">
       {assignedTags.length > 0 &&
         assignedTags.map((tag) => <ShowTag key={tag.id} tag={tag} link />)}
-      {(canEdit && !isHelper) || (isHelper && helperCanEditTags) ? (
+      {canEdit ? (
         <span className="text-link cursor-pointer whitespace-nowrap" onClick={onSubtitleClick}>
           <Trans id="label.edittags">Edit tags</Trans>
         </span>
@@ -264,7 +236,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
     </div>
   )
 
-  if (fider.isReadOnly) {
+  if (!canEdit) {
     return (
       <VStack>
         <HStack spacing={2} className="text-category">

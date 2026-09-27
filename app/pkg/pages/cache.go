@@ -16,9 +16,8 @@ import (
 )
 
 type CachedEmbeddedData struct {
-	Posts    []*entity.Post `json:"posts,omitempty"`
-	CachedAt time.Time      `json:"cachedAt"`
-	PostIDs  []int          `json:"postIds,omitempty"`
+	CachedAt time.Time `json:"cachedAt"`
+	PostIDs  []int     `json:"postIds,omitempty"`
 }
 
 func RefreshEmbeddedData(ctx context.Context, content string) (*CachedEmbeddedData, error) {
@@ -27,7 +26,6 @@ func RefreshEmbeddedData(ctx context.Context, content string) (*CachedEmbeddedDa
 		return nil, nil
 	}
 
-	allPosts := make([]*entity.Post, 0)
 	allPostIDs := make([]int, 0)
 
 	for _, embedded := range embeddedContent {
@@ -54,18 +52,16 @@ func RefreshEmbeddedData(ctx context.Context, content string) (*CachedEmbeddedDa
 			return nil, errors.Wrap(err, "failed to fetch embedded posts")
 		}
 
-		allPosts = append(allPosts, posts...)
 		for _, post := range posts {
 			allPostIDs = append(allPostIDs, post.ID)
 		}
 	}
 
-	if len(allPosts) == 0 {
+	if len(allPostIDs) == 0 {
 		return nil, nil
 	}
 
 	return &CachedEmbeddedData{
-		Posts:    allPosts,
 		CachedAt: time.Now(),
 		PostIDs:  allPostIDs,
 	}, nil

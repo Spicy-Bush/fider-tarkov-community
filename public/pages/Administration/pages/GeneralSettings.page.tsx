@@ -24,12 +24,12 @@ const GeneralSettingsPage = () => {
   const [locale, setLocale] = useState<string>(fider.session.tenant.locale)
   const [error, setError] = useState<Failure | undefined>(undefined)
 
-  const isAdmin = fider.session.user.isAdministrator
+  const canManageSettings = fider.session.permissions.manageSettings
 
   const handleSave = async (e: ButtonClickEvent) => {
     let result: any = { ok: true };
     
-    if (isAdmin) {
+    if (canManageSettings) {
       result = await actions.updateTenantSettings({ 
         title, 
         cname, 
@@ -71,7 +71,7 @@ const GeneralSettingsPage = () => {
 
   return (
     <Form error={error}>
-      {isAdmin && (
+      {canManageSettings && (
         <>
           <Input field="title" label="Your Fider board's title" maxLength={60} value={title} onChange={setTitle}>
             <p className="text-muted">Keep it short and snappy. Your product / service name is usually best.</p>
@@ -87,7 +87,7 @@ const GeneralSettingsPage = () => {
         onChange={setMessageBanner}
       ></TextArea>
 
-      {isAdmin && (
+      {canManageSettings && (
         <>
           <TextArea
             field="welcomeMessage"

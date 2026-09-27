@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/i18n"
@@ -45,7 +45,8 @@ func (input *CreateUpdatePage) Initialize() interface{} {
 }
 
 func (action *CreateUpdatePage) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManagePages)
 }
 
 func (action *CreateUpdatePage) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -122,10 +123,10 @@ func (action *CreateUpdatePage) Validate(ctx context.Context, user *entity.User)
 		}
 
 		foundIDs := make(map[int]bool)
+		tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 		for _, u := range getUsersByIDs.Result {
-			if u.Role != enum.RoleAdministrator && u.Role != enum.RoleCollaborator {
-				result.AddFieldFailure("authors", "Authors must be administrators or collaborators")
-				break
+			if !entity.Can(u, tenant, entity.ManagePages) {
+				result.AddFieldFailure("authors", "Authors must have permission to manage pages")
 			}
 			foundIDs[u.ID] = true
 		}
@@ -143,7 +144,8 @@ type DeletePage struct {
 }
 
 func (action *DeletePage) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManagePages)
 }
 
 func (action *DeletePage) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -158,7 +160,8 @@ type CreatePageTopic struct {
 }
 
 func (action *CreatePageTopic) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManagePageTopics)
 }
 
 func (action *CreatePageTopic) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -190,7 +193,8 @@ type UpdatePageTopic struct {
 }
 
 func (action *UpdatePageTopic) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManagePageTopics)
 }
 
 func (action *UpdatePageTopic) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -218,7 +222,8 @@ type DeletePageTopic struct {
 }
 
 func (action *DeletePageTopic) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManagePageTopics)
 }
 
 func (action *DeletePageTopic) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -231,7 +236,8 @@ type CreatePageTag struct {
 }
 
 func (action *CreatePageTag) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManagePageTopics)
 }
 
 func (action *CreatePageTag) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -253,7 +259,8 @@ type UpdatePageTag struct {
 }
 
 func (action *UpdatePageTag) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManagePageTopics)
 }
 
 func (action *UpdatePageTag) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -273,7 +280,8 @@ type DeletePageTag struct {
 }
 
 func (action *DeletePageTag) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManagePageTopics)
 }
 
 func (action *DeletePageTag) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -324,7 +332,8 @@ type SavePageDraft struct {
 }
 
 func (action *SavePageDraft) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManagePages)
 }
 
 func (action *SavePageDraft) Validate(ctx context.Context, user *entity.User) *validate.Result {

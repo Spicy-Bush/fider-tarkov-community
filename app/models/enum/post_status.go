@@ -1,5 +1,7 @@
 package enum
 
+import "fmt"
+
 // PostStatus is the status of a given post
 type PostStatus int
 
@@ -50,7 +52,11 @@ func (status PostStatus) MarshalText() ([]byte, error) {
 
 // UnmarshalText parse string into a post status
 func (status *PostStatus) UnmarshalText(text []byte) error {
-	*status = postStatusNames[string(text)]
+	parsed, ok := postStatusNames[string(text)]
+	if !ok {
+		return fmt.Errorf("invalid post status %q", text)
+	}
+	*status = parsed
 	return nil
 }
 

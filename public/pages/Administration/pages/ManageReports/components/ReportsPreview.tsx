@@ -5,7 +5,7 @@ import {
   heroiconsChevronUp as IconChevronUp,
   heroiconsArrowLeft as IconArrowLeft,
 } from "@fider/icons.generated"
-import { Report, Post, DiscussionComment, User } from "@fider/models"
+import { Report, Post, DiscussionComment } from "@fider/models"
 import { UserProfile } from "@fider/components/UserProfile"
 import { ContentPreview } from "./ContentPreview"
 import { ViewingUserType } from "../hooks/useReportsState"
@@ -63,7 +63,7 @@ export const ReportsPreview: React.FC<ReportsPreviewProps> = ({
           <UserProfile
             key={profileKey}
             userId={viewingUser.id}
-            user={viewingUser as User}
+            user={viewingUser}
             embedded
             compact
             onUserUpdate={onUserUpdate}

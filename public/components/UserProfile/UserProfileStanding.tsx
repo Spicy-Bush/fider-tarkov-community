@@ -7,7 +7,7 @@ import { i18n } from "@lingui/core"
 import { heroiconsCalendar as IconCalendar, heroiconsExclamation as IconWarning, heroiconsMuted as IconVolumeOff, heroiconsThumbsup as IconThumbsUp } from "@fider/icons.generated"
 
 const UserProfileStandingComponent: React.FC = () => {
-  const { user, standing, canDeleteModeration, canModerate, refreshStanding, refreshProfile, isViewingOwnProfile, isLoading, error } = useUserProfile()
+  const { user, standing, canDeleteModeration, canExpireModeration, refreshStanding, refreshProfile, isViewingOwnProfile, isLoading, error } = useUserProfile()
 
   if (!user) return null
 
@@ -113,7 +113,7 @@ const UserProfileStandingComponent: React.FC = () => {
                     <span className={`px-2 py-1 rounded text-xs font-medium ${warning.isActive ? "bg-warning-light text-warning" : "bg-surface-alt text-muted"}`}>
                       {warning.isActive ? "Active" : "Expired"}
                     </span>
-                    {warning.isActive && canModerate && (
+                    {warning.isActive && canExpireModeration && (
                       <Button variant="secondary" size="small" onClick={() => handleExpireWarning(warning.id)}>
                         <Trans id="action.removeWarning">Remove</Trans>
                       </Button>
@@ -164,7 +164,7 @@ const UserProfileStandingComponent: React.FC = () => {
                     <span className={`px-2 py-1 rounded text-xs font-medium ${mute.isActive ? "bg-warning-light text-warning" : "bg-surface-alt text-muted"}`}>
                       {mute.isActive ? "Active" : "Expired"}
                     </span>
-                    {mute.isActive && canModerate && (
+                    {mute.isActive && canExpireModeration && (
                       <Button variant="secondary" size="small" onClick={() => handleExpireMute(mute.id)}>
                         <Trans id="action.unmute">Unmute</Trans>
                       </Button>

@@ -71,7 +71,7 @@ const ContentSettingsPage: React.FC = () => {
 
   const { roles } = useAdminLayout()
   
-  const canEdit = (fider.session.user.isAdministrator || fider.session.user.isCollaborator)
+  const canEdit = fider.session.permissions.manageContentSettings
 
   const handleSave = async (e: ButtonClickEvent) => {
     const result = await actions.updateGeneralSettings({ settings })

@@ -259,15 +259,23 @@ func (trx *Trx) Select(data any, command string, args ...any) error {
 	items := reflect.New(sliceType).Elem()
 	itemType := sliceType.Elem().Elem()
 	var columns []string
+	var mapping rowMapping
+
 	for rows.Next() {
 		if columns == nil {
 			columns, err = rows.Columns()
 			if err != nil {
 				return wrap(err, "failed to read result columns")
 			}
+
+			mapping, err = rowMapper.prepare(itemType, columns)
+			if err != nil {
+				return wrap(err, "failed to map result to model")
+			}
 		}
+
 		item := reflect.New(itemType)
-		if err = rowMapper.Map(item.Interface(), columns, rows.Scan); err != nil {
+		if err = mapping.scan(item.Elem(), rows.Scan); err != nil {
 			return wrap(err, "failed to map result to model")
 		}
 		items = reflect.Append(items, item)

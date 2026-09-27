@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react"
-import { UserStatus, UserAvatarType, UserRole, VisualRole, UserProfileStanding } from "@fider/models"
-import { actions, userPermissions } from "@fider/services"
+import { UserStatus, UserAvatarType, UserRole, VisualRole, UserPermissions, UserProfileStanding } from "@fider/models"
+import { actions } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { useUserStanding } from "@fider/contexts/UserStandingContext"
 import { RequestError } from "@fider/services/http"
@@ -14,6 +14,7 @@ export interface UserData {
   visualRole?: VisualRole | string
   avatarURL: string
   status: UserStatus | number
+  permissions: UserPermissions
   avatarType?: UserAvatarType
 }
 
@@ -48,6 +49,7 @@ interface UserProfileContextType extends UserProfileState {
   canModerate: boolean
   canBlock: boolean
   canDeleteModeration: boolean
+  canExpireModeration: boolean
   canEditName: boolean
   canEditAvatar: boolean
 }
@@ -82,10 +84,19 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
   const [activeTab, setActiveTabState] = useState<ProfileTab>("search")
 
   useEffect(() => {
-    if (!isViewingOwnProfile && initialUser && initialUser.visualRole !== otherUser?.visualRole) {
-      setOtherUser((prev) => (prev ? { ...prev, visualRole: initialUser.visualRole } : initialUser))
+    if (!isViewingOwnProfile && initialUser) {
+      setOtherUser((previous) => {
+        if (!previous) return initialUser
+
+        return {
+          ...previous,
+          role: initialUser.role,
+          visualRole: initialUser.visualRole,
+          permissions: initialUser.permissions,
+        }
+      })
     }
-  }, [initialUser?.visualRole])
+  }, [initialUser?.role, initialUser?.visualRole, initialUser?.permissions, isViewingOwnProfile])
 
   const globalStanding = useUserStanding()
   const refreshOwnStanding = globalStanding.refetch
@@ -256,11 +267,12 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
     updateUserAvatar,
     updateUserVisualRole,
     isViewingOwnProfile,
-    canModerate: user ? userPermissions.canModerate(user) : false,
-    canBlock: user ? userPermissions.canBlock(user) : false,
-    canDeleteModeration: user ? userPermissions.canDeleteModeration(user) : false,
-    canEditName: user ? userPermissions.canEditName(user) : false,
-    canEditAvatar: user ? userPermissions.canEditAvatar(user) : false,
+    canModerate: user ? user.permissions.moderate : false,
+    canBlock: user ? user.permissions.block : false,
+    canDeleteModeration: user ? user.permissions.deleteModeration : false,
+    canExpireModeration: user ? user.permissions.expireModeration : false,
+    canEditName: user ? user.permissions.editName : false,
+    canEditAvatar: user ? user.permissions.editAvatar : false,
   }
 
   return <UserProfileContext.Provider value={contextValue}>{children}</UserProfileContext.Provider>

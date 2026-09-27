@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react"
 import ReactDOM from "react-dom"
-import { Post, Tag, PostStatus, isPostLocked } from "@fider/models"
+import { Post, Tag } from "@fider/models"
 import { actions, analytics, notify, PAGINATION } from "@fider/services"
 import { RequestError } from "@fider/services/http"
 import { Icon, Button, SignInModal } from "@fider/components"
@@ -35,14 +35,8 @@ function useLatest<T>(value: T): React.MutableRefObject<T> {
   return ref
 }
 
-function canVoteOnPost(post: Post, isReadOnly: boolean): boolean {
-  const status = PostStatus.Get(post.status)
-  const locked = isPostLocked(post) || post.lockedSettings?.locked
-  return !status.closed && !isReadOnly && !locked
-}
-
-function filterVotablePosts(posts: Post[], isReadOnly: boolean): Post[] {
-  return posts.filter(p => p.voteType === 0 && canVoteOnPost(p, isReadOnly))
+function filterVotablePosts(posts: Post[]): Post[] {
+  return posts.filter((post) => post.voteType === 0 && post.permissions.vote)
 }
 
 export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) => {
@@ -112,7 +106,7 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
           uniquePosts.push(post)
         }
       }
-      const votable = filterVotablePosts(uniquePosts, fider.isReadOnly)
+      const votable = filterVotablePosts(uniquePosts)
       if (reset) {
         setPosts(votable)
         setCurrentIndex(0)
@@ -123,7 +117,7 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
       offsetRef.current += newPosts.length
     }
     setIsLoadingMore(false)
-  }, [fider.isReadOnly])
+  }, [])
 
   useEffect(() => {
     if (isOpen) {

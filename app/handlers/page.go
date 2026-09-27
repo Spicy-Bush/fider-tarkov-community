@@ -46,8 +46,9 @@ func ViewPage() web.HandlerFunc {
 			Title:       page.Title,
 			Description: metaDesc,
 			Data: web.Map{
-				"page":       page,
-				"subscribed": isSubscribed.Result,
+				"page":                  page,
+				"subscribed":            isSubscribed.Result,
+				"discussionPermissions": entity.PageDiscussion(page).Permissions(c.User(), c.Tenant()),
 			},
 		})
 	}
@@ -152,7 +153,16 @@ func EditPagePage() web.HandlerFunc {
 		getTopics := &query.GetPageTopics{}
 		getTags := &query.GetPageTags{}
 		getUsers := &query.GetAllUsers{}
-		bus.Dispatch(c, getTopics, getTags, getUsers)
+		if err := bus.Dispatch(c, getTopics, getTags, getUsers); err != nil {
+			return c.Failure(err)
+		}
+
+		authors := make([]*entity.User, 0, len(getUsers.Result))
+		for _, user := range getUsers.Result {
+			if entity.Can(user, c.Tenant(), entity.ManagePages) {
+				authors = append(authors, user)
+			}
+		}
 
 		title := "Create Page"
 		if page != nil {
@@ -168,7 +178,7 @@ func EditPagePage() web.HandlerFunc {
 				"topics": getTopics.Result,
 				"tags":   getTags.Result,
 				"roles":  []string{"visitor", "collaborator", "moderator", "administrator", "helper"},
-				"users":  getUsers.Result,
+				"users":  authors,
 			},
 		})
 	}

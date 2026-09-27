@@ -4,7 +4,6 @@ import React from "react"
 import { heroiconsShieldcheck as IconShield } from "@fider/icons.generated"
 import { useFider } from "@fider/hooks"
 import { Icon } from "../common"
-import { UserRole } from "@fider/models"
 import { useUnreadCounts } from "@fider/contexts/UnreadCountsContext"
 import { classSet } from "@fider/services"
 
@@ -13,9 +12,7 @@ export const ModIndicator = () => {
   const { counts } = useUnreadCounts()
   const pendingCount = counts.pendingReports
 
-  const canViewReports = fider.session.isAuthenticated && 
-    fider.session.user.role !== UserRole.Helper &&
-    fider.session.user.role !== UserRole.Visitor
+  const canViewReports = fider.session.permissions.manageReports
 
   if (!canViewReports) {
     return null

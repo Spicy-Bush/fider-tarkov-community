@@ -23,7 +23,7 @@ export const TagListItem = (props: TagListItemProps) => {
   const startEdit = async () => setState("edit")
   const resetState = async () => setState("view")
 
-  const canEdit = (fider.session.user.isAdministrator || fider.session.user.isCollaborator)
+  const canEdit = fider.session.permissions.manageTags
 
   const deleteTag = async () => {
     const result = await actions.deleteTag(tag.slug)

@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
@@ -50,15 +51,19 @@ func (input *CreateNewPost) OnPreExecute(ctx context.Context) error {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *CreateNewPost) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil {
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	if !entity.Can(user, tenant, entity.CreatePosts) {
 		return false
-	} else if env.Config.PostCreationWithTagsEnabled && (!user.IsCollaborator() || !user.IsModerator()) {
+	}
+
+	if env.Config.PostCreationWithTagsEnabled {
 		for _, tag := range action.Tags {
-			if !tag.IsPublic {
+			if !tag.IsPublic && !tag.AllowedActions(user, tenant).Assign {
 				return false
 			}
 		}
 	}
+
 	return true
 }
 
@@ -69,16 +74,9 @@ func (action *CreateNewPost) Validate(ctx context.Context, user *entity.User) *v
 	tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 	generalSettings := tenant.GeneralSettings
 
-	if generalSettings != nil && generalSettings.PostingGloballyDisabled && !(user.IsCollaborator() || user.IsAdministrator()) {
-		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.postinggloballydisabled"))
+	if !entity.Can(user, tenant, entity.CreatePosts) {
+		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.postingdisabled"))
 		return result
-	}
-
-	for _, role := range generalSettings.PostingDisabledFor {
-		if user.Role.String() == role {
-			result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.postingdisabled"))
-			return result
-		}
 	}
 
 	if !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
@@ -160,27 +158,8 @@ func (input *UpdatePost) OnPreExecute(ctx context.Context) error {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (input *UpdatePost) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil || input.Post == nil {
-		return false
-	}
-
-	// If user is collaborator or admin, they can edit any post
-	if user.IsCollaborator() || user.IsAdministrator() {
-		return true
-	}
-
-	if input.Post.User == nil {
-		return false
-	}
-
-	// If user is moderator, they can only edit posts from regular users
-	if user.IsModerator() {
-		return input.Post.User.Role == enum.RoleVisitor || input.Post.User.Role == enum.RoleHelper
-	}
-
-	// Regular users can only edit their own posts within 1 hour
-	timeAgo := time.Now().UTC().Sub(input.Post.CreatedAt)
-	return input.Post.User.ID == user.ID && timeAgo <= 1*time.Hour
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return input.Post.AllowedActions(user, tenant, time.Now()).Edit
 }
 
 // Validate if current model is valid
@@ -189,11 +168,6 @@ func (action *UpdatePost) Validate(ctx context.Context, user *entity.User) *vali
 
 	tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 	generalSettings := tenant.GeneralSettings
-
-	if generalSettings != nil && generalSettings.PostingGloballyDisabled && !(user.IsCollaborator() || user.IsAdministrator()) {
-		result.AddFieldFailure("title", i18n.T(ctx, "validation.custom.postinggloballydisabled"))
-		return result
-	}
 
 	// TODO: refactor these if else blocks >.<
 	if action.Title == "" {
@@ -239,32 +213,35 @@ func (action *UpdatePost) Validate(ctx context.Context, user *entity.User) *vali
 
 // SetResponse represents the action to update an post response
 type SetResponse struct {
-	Number         int             `route:"number"`
-	Status         enum.PostStatus `json:"status"`
-	Text           string          `json:"text"`
-	OriginalNumber int             `json:"originalNumber"`
+	Number         int              `route:"number"`
+	Status         *enum.PostStatus `json:"status"`
+	Text           string           `json:"text"`
+	OriginalNumber int              `json:"originalNumber"`
 
 	Original *entity.Post
 }
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *SetResponse) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator() || user.IsModerator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.RespondToPosts)
 }
 
 // Validate if current model is valid
 func (action *SetResponse) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	result := validate.Success()
+	if action.Status == nil {
+		result.AddFieldFailure("status", propertyIsRequired(ctx, "status"))
+		return result
+	}
 
-	if action.Status < enum.PostOpen || action.Status > enum.PostDuplicate {
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	if !slices.Contains(entity.AllowedPostResponses(user, tenant), *action.Status) {
 		result.AddFieldFailure("status", propertyIsInvalid(ctx, "status"))
+		return result
 	}
 
-	if user.IsModerator() && !user.IsAdministrator() && !user.IsCollaborator() && action.Status != enum.PostDuplicate {
-		result.AddFieldFailure("status", i18n.T(ctx, "validation.custom.moderatorduplicateonly"))
-	}
-
-	if action.Status == enum.PostDuplicate {
+	if *action.Status == enum.PostDuplicate {
 		if action.OriginalNumber == action.Number {
 			result.AddFieldFailure("originalNumber", i18n.T(ctx, "validation.custom.selfduplicate"))
 		}
@@ -308,25 +285,8 @@ func (action *DeletePost) OnPreExecute(ctx context.Context) error {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *DeletePost) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil || action.Post == nil {
-		return false
-	}
-
-	// If user is collaborator or admin, they can delete any post
-	if user.IsCollaborator() || user.IsAdministrator() {
-		return true
-	}
-
-	if action.Post.User == nil {
-		return false
-	}
-
-	// If user is moderator, they can only delete posts from regular users
-	if user.IsModerator() {
-		return action.Post.User.Role == enum.RoleVisitor || action.Post.User.Role == enum.RoleHelper
-	}
-
-	return false
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return action.Post.AllowedActions(user, tenant, time.Now()).Delete
 }
 
 // Validate if current model is valid
@@ -365,7 +325,8 @@ func (input *LockPost) OnPreExecute(ctx context.Context) error {
 }
 
 func (action *LockPost) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return action.Post.AllowedActions(user, tenant, time.Now()).Lock
 }
 
 func (action *LockPost) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -395,7 +356,8 @@ func (input *UnlockPost) OnPreExecute(ctx context.Context) error {
 }
 
 func (action *UnlockPost) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator() || user.IsModerator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return action.Post.AllowedActions(user, tenant, time.Now()).Lock
 }
 
 func (action *UnlockPost) Validate(ctx context.Context, user *entity.User) *validate.Result {

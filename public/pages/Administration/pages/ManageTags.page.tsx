@@ -66,7 +66,7 @@ const ManageTagsPage: React.FC<ManageTagsPageProps> = (props) => {
   const privateTagList = getTagList((t) => !t.isPublic)
 
   const form =
-    Fider.session.user.isAdministrator &&
+    Fider.session.permissions.manageTags &&
     (isAdding ? (
       <TagForm onSave={saveNewTag} onCancel={cancelAdd} />
     ) : (

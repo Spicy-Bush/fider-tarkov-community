@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from "react"
 import { Button, Modal, Select, TextArea, Form, SelectOption } from "@fider/components"
-import { Post, PostStatus, Tag, isPostLocked } from "@fider/models"
-import { actions, Failure, postPermissions } from "@fider/services"
-import { useFider } from "@fider/hooks"
+import { Post, PostStatus, PostStatusValue, Tag, isPostLocked } from "@fider/models"
+import { actions, Failure } from "@fider/services"
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
 
@@ -31,7 +30,6 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
   onEditPost,
   isEditMode,
 }) => {
-  const fider = useFider()
   const [showStatusModal, setShowStatusModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showLockModal, setShowLockModal] = useState(false)
@@ -43,20 +41,16 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
   const prevDuplicateNumberRef = React.useRef(duplicateOriginalNumber)
 
   const locked = isPostLocked(post)
-  const canChangeStatus = postPermissions.canRespond()
-  const canChangeToDuplicateOnly = postPermissions.canRespondDuplicateOnly()
-  const canChangeAnyStatus = canChangeStatus || canChangeToDuplicateOnly
-  const canLock = fider.session.user.isCollaborator || fider.session.user.isAdministrator
-  const canDelete = fider.session.user.isCollaborator || fider.session.user.isAdministrator || fider.session.user.isModerator
-  
-  const isHelper = fider.session.user.isHelper && !fider.session.user.isModerator && !fider.session.user.isCollaborator && !fider.session.user.isAdministrator
-  const hasAnyAction = canChangeAnyStatus || canLock || canDelete
-  if (!hasAnyAction || isHelper) return null
+  const canChangeStatus = post.permissions.respond.length > 0
+  const canLock = post.permissions.lock
+  const canDelete = post.permissions.delete
+  const hasAnyAction = canChangeStatus || canLock || canDelete || post.permissions.edit
 
   const handleStatusChange = (opt?: SelectOption) => {
-    if (opt) {
-      setStatus(opt.value)
-      if (opt.value === PostStatus.Duplicate.value) {
+    const allowed = post.permissions.respond.find((value) => value === opt?.value)
+    if (allowed) {
+      setStatus(allowed)
+      if (allowed === PostStatus.Duplicate.value) {
         setShowStatusModal(false)
         onShowDuplicateSearch()
       }
@@ -73,6 +67,13 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
     }
     prevDuplicateNumberRef.current = duplicateOriginalNumber
   }, [duplicateOriginalNumber])
+
+  React.useEffect(() => {
+    if (showStatusModal && !post.permissions.respond.includes(status)) {
+      const firstStatus = post.permissions.respond[0]
+      if (firstStatus) setStatus(firstStatus)
+    }
+  }, [showStatusModal, post.permissions.respond, status])
 
   const handleStatusSubmit = async () => {
     setError(undefined)
@@ -114,7 +115,7 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
 
   const statusOptions = useMemo(() => {
     return PostStatus.All
-      .filter((s) => !canChangeToDuplicateOnly || s.value === PostStatus.Duplicate.value)
+      .filter((s) => post.permissions.respond.includes(s.value))
       .map((s) => {
         const id = `enum.poststatus.${s.value.toString()}`
         return {
@@ -122,7 +123,7 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
           label: i18n._(id, { message: s.title }),
         }
       })
-  }, [canChangeToDuplicateOnly])
+  }, [post.permissions.respond])
 
   const handleDecline = () => {
     setStatus(PostStatus.Declined.value)
@@ -134,16 +135,18 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
     onShowDuplicateSearch()
   }
 
+  if (!hasAnyAction) return null
+
   return (
     <div className="p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt bg-surface-alt last:border-b-0">
       <h4 className="text-base font-semibold text-foreground m-0 mb-3">Actions</h4>
       <div className="flex flex-wrap gap-2">
-        {canChangeAnyStatus && (
+        {post.permissions.respond.includes(PostStatusValue.Duplicate) && (
           <Button size="small" variant="secondary" onClick={handleDuplicate}>
             <Trans id="action.duplicate">Duplicate</Trans>
           </Button>
         )}
-        {canChangeAnyStatus && (
+        {post.permissions.edit && (
           <Button size="small" variant="secondary" onClick={onEditPost} disabled={isEditMode}>
             <Trans id="action.edit">Edit</Trans>
           </Button>
@@ -153,7 +156,7 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
             <Trans id="action.changestatus">Status</Trans>
           </Button>
         )}
-        {canChangeStatus && (
+        {post.permissions.respond.includes(PostStatusValue.Declined) && (
           <Button size="small" variant="secondary" onClick={handleDecline}>
             <Trans id="action.decline">Decline</Trans>
           </Button>

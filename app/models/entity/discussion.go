@@ -75,14 +75,18 @@ func (discussion *Discussion) CanView(user *User) bool {
 		return canViewPage(discussion.PageStatus, discussion.Visibility, discussion.AllowedRoles, user)
 	}
 
-	if discussion.PostStatus == enum.PostDeleted {
+	return canViewPost(discussion.PostStatus, discussion.postHidden, discussion.postAuthorID, user)
+}
+
+func canViewPost(status enum.PostStatus, hidden bool, authorID int, user *User) bool {
+	if status == enum.PostDeleted {
 		return false
 	}
-	if !discussion.postHidden {
+	if !hidden {
 		return true
 	}
 
-	return user != nil && (user.ID == discussion.postAuthorID || user.IsCollaborator() || user.IsModerator())
+	return user != nil && (user.ID == authorID || user.IsCollaborator() || user.IsModerator())
 }
 
 type DiscussionPermissions struct {
@@ -98,7 +102,7 @@ func (discussion *Discussion) Permissions(user *User, tenant *Tenant) Discussion
 	}
 
 	permissions.Images = discussion.AllowImages
-	if user == nil || user.IsMuted() || user.Status == enum.UserBlocked {
+	if !canAct(user, tenant) || user.IsMuted() {
 		return permissions
 	}
 
@@ -108,6 +112,10 @@ func (discussion *Discussion) Permissions(user *User, tenant *Tenant) Discussion
 	if discussion.Locked && !user.IsCollaborator() {
 		permissions.Comment = false
 		permissions.React = false
+	}
+
+	if tenant == nil {
+		return permissions
 	}
 
 	settings := tenant.GeneralSettings
@@ -139,7 +147,7 @@ type CommentPermissions struct {
 
 func (comment *Comment) AllowedActions(user *User, discussion *Discussion, tenant *Tenant, now time.Time) CommentPermissions {
 	permissions := CommentPermissions{}
-	if user == nil || user.Status == enum.UserBlocked || !discussion.CanView(user) {
+	if !canAct(user, tenant) || !discussion.CanView(user) {
 		return permissions
 	}
 
@@ -152,7 +160,10 @@ func (comment *Comment) AllowedActions(user *User, discussion *Discussion, tenan
 	}
 
 	canEdit := canModerate || (own && !now.After(comment.CreatedAt.Add(time.Hour)))
-	settings := tenant.GeneralSettings
+	var settings *GeneralSettings
+	if tenant != nil {
+		settings = tenant.GeneralSettings
+	}
 
 	if settings != nil && settings.CommentingGloballyDisabled && !user.IsCollaborator() {
 		canEdit = false
@@ -173,7 +184,7 @@ func (comment *Comment) AllowedActions(user *User, discussion *Discussion, tenan
 }
 
 func (comment *Comment) canModerate(user *User) bool {
-	if user == nil || user.Status == enum.UserBlocked {
+	if !canAct(user, nil) {
 		return false
 	}
 

@@ -5,15 +5,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
 var allowedLocales = map[string]bool{"all": true, "en": true, "ru": true}
-
-func isCollaboratorPlus(user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
-}
 
 type CreateSponsorshipPackage struct {
 	Slug         string `json:"slug"`
@@ -25,7 +22,8 @@ type CreateSponsorshipPackage struct {
 }
 
 func (a *CreateSponsorshipPackage) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return isCollaboratorPlus(user)
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageSponsorship)
 }
 
 func (a *CreateSponsorshipPackage) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -53,7 +51,8 @@ type UpdateSponsorshipPackage struct {
 }
 
 func (a *UpdateSponsorshipPackage) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return isCollaboratorPlus(user)
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageSponsorship)
 }
 
 func (a *UpdateSponsorshipPackage) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -78,7 +77,8 @@ type DeleteSponsorshipPackage struct {
 }
 
 func (a *DeleteSponsorshipPackage) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return isCollaboratorPlus(user)
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageSponsorship)
 }
 
 func (a *DeleteSponsorshipPackage) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -114,7 +114,8 @@ type CreateSponsorshipCampaign struct {
 }
 
 func (a *CreateSponsorshipCampaign) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return isCollaboratorPlus(user)
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageSponsorship)
 }
 
 func (a *CreateSponsorshipCampaign) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -170,7 +171,8 @@ type UpdateSponsorshipCampaign struct {
 }
 
 func (a *UpdateSponsorshipCampaign) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return isCollaboratorPlus(user)
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageSponsorship)
 }
 
 func (a *UpdateSponsorshipCampaign) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -190,7 +192,8 @@ type DeleteSponsorshipCampaign struct {
 }
 
 func (a *DeleteSponsorshipCampaign) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return isCollaboratorPlus(user)
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageSponsorship)
 }
 
 func (a *DeleteSponsorshipCampaign) Validate(ctx context.Context, user *entity.User) *validate.Result {

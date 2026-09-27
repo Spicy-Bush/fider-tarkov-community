@@ -4,6 +4,7 @@ import { Page, PageTopic, PageTag } from "@fider/models"
 import { Button, Input, Modal, Icon } from "@fider/components"
 import { HStack, VStack } from "@fider/components/layout"
 import { deletePage, createPageTopic, updatePageTopic, deletePageTopic, createPageTag, updatePageTag, deletePageTag } from "@fider/services/pages"
+import { useFider } from "@fider/hooks"
 import { notify } from "@fider/services"
 import { heroiconsPencilAlt as IconEdit, heroiconsTrash as IconTrash, heroiconsPlus as IconPlus } from "@fider/icons.generated"
 
@@ -17,6 +18,7 @@ type Tab = "pages" | "configuration"
 const PAGE_TABS: Tab[] = ["pages", "configuration"]
 
 const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initialTags }: ManagePagesProps) => {
+  const { permissions } = useFider().session
   const [activeTab, setActiveTab] = useState<Tab>("pages")
   const [pages, setPages] = useState(initialPages)
   const [topics, setTopics] = useState(initialTopics)
@@ -157,7 +159,7 @@ const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initial
     <div className="container p-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-display">Manage Pages</h1>
-        {activeTab === "pages" && (
+        {activeTab === "pages" && permissions.managePages && (
           <Button variant="primary" href="/admin/pages/new" size="small">
             Create New Page
           </Button>
@@ -236,18 +238,22 @@ const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initial
                         </td>
                         <td className="px-6 py-4">
                           <HStack spacing={4}>
-                            <a href={`/admin/pages/edit/${page.id}`} className="text-link">
-                              Edit
-                            </a>
+                            {page.permissions.edit && (
+                              <a href={`/admin/pages/edit/${page.id}`} className="text-link">
+                                Edit
+                              </a>
+                            )}
                             <a href={`/pages/${page.slug}`} className="text-link" target="_blank">
                               View
                             </a>
-                            <button
-                              onClick={() => handleDelete(page.id)}
-                              className="text-danger hover:text-danger-dark cursor-pointer"
-                            >
-                              Delete
-                            </button>
+                            {page.permissions.delete && (
+                              <button
+                                onClick={() => handleDelete(page.id)}
+                                className="text-danger hover:text-danger-dark cursor-pointer"
+                              >
+                                Delete
+                              </button>
+                            )}
                           </HStack>
                         </td>
                       </tr>
@@ -277,18 +283,22 @@ const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initial
                       <span>{new Date(page.updatedAt).toLocaleDateString()}</span>
                     </div>
                     <div className="flex items-center gap-4 pt-3 border-t border-border">
-                      <a href={`/admin/pages/edit/${page.id}`} className="text-sm text-link font-medium">
-                        Edit
-                      </a>
+                      {page.permissions.edit && (
+                        <a href={`/admin/pages/edit/${page.id}`} className="text-sm text-link font-medium">
+                          Edit
+                        </a>
+                      )}
                       <a href={`/pages/${page.slug}`} className="text-sm text-link" target="_blank">
                         View
                       </a>
-                      <button
-                        onClick={() => handleDelete(page.id)}
-                        className="text-sm text-danger hover:text-danger-dark cursor-pointer ml-auto"
-                      >
-                        Delete
-                      </button>
+                      {page.permissions.delete && (
+                        <button
+                          onClick={() => handleDelete(page.id)}
+                          className="text-sm text-danger hover:text-danger-dark cursor-pointer ml-auto"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -307,7 +317,7 @@ const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initial
               <div className="bg-elevated border border-border rounded-panel p-4">
                 <HStack justify="between" className="mb-4">
                   <h2 className="text-lg font-semibold">Topics</h2>
-                  <Button size="small" variant="secondary" onClick={() => openTopicModal()}>
+                  <Button size="small" variant="secondary" disabled={!permissions.managePageTopics} onClick={() => openTopicModal()}>
                     <Icon sprite={IconPlus} className="h-4 w-4 mr-1" /> Add
                   </Button>
                 </HStack>
@@ -319,10 +329,10 @@ const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initial
                       <div key={topic.id} className="flex items-center justify-between p-2 bg-tertiary rounded-card">
                         <span className="text-sm">{topic.name}</span>
                         <HStack spacing={2}>
-                          <button onClick={() => openTopicModal(topic)} className="text-muted hover:text-foreground cursor-pointer">
+                          <button disabled={!permissions.managePageTopics} onClick={() => openTopicModal(topic)} className="text-muted hover:text-foreground cursor-pointer">
                             <Icon sprite={IconEdit} className="h-4 w-4" />
                           </button>
-                          <button onClick={() => handleDeleteTopic(topic.id)} className="text-muted hover:text-danger cursor-pointer">
+                          <button disabled={!permissions.managePageTopics} onClick={() => handleDeleteTopic(topic.id)} className="text-muted hover:text-danger cursor-pointer">
                             <Icon sprite={IconTrash} className="h-4 w-4" />
                           </button>
                         </HStack>
@@ -335,7 +345,7 @@ const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initial
               <div className="bg-elevated border border-border rounded-panel p-4">
                 <HStack justify="between" className="mb-4">
                   <h2 className="text-lg font-semibold">Tags</h2>
-                  <Button size="small" variant="secondary" onClick={() => openTagModal()}>
+                  <Button size="small" variant="secondary" disabled={!permissions.managePageTopics} onClick={() => openTagModal()}>
                     <Icon sprite={IconPlus} className="h-4 w-4 mr-1" /> Add
                   </Button>
                 </HStack>
@@ -347,10 +357,10 @@ const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initial
                       <div key={tag.id} className="flex items-center justify-between p-2 bg-tertiary rounded-card">
                         <span className="text-sm">{tag.name}</span>
                         <HStack spacing={2}>
-                          <button onClick={() => openTagModal(tag)} className="text-muted hover:text-foreground cursor-pointer">
+                          <button disabled={!permissions.managePageTopics} onClick={() => openTagModal(tag)} className="text-muted hover:text-foreground cursor-pointer">
                             <Icon sprite={IconEdit} className="h-4 w-4" />
                           </button>
-                          <button onClick={() => handleDeleteTag(tag.id)} className="text-muted hover:text-danger cursor-pointer">
+                          <button disabled={!permissions.managePageTopics} onClick={() => handleDeleteTag(tag.id)} className="text-muted hover:text-danger cursor-pointer">
                             <Icon sprite={IconTrash} className="h-4 w-4" />
                           </button>
                         </HStack>

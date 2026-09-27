@@ -251,11 +251,10 @@ func TestSubscription_VisitorEnabledNewPost(t *testing.T) {
 	err := bus.Dispatch(jonSnowCtx, newPost)
 	Expect(err).IsNil()
 
-	err = bus.Dispatch(aryaStarkCtx, &cmd.UpdateCurrentUserSettings{
-		Settings: map[string]string{
-			enum.NotificationEventNewPost.UserSettingsKeyName: strconv.Itoa(int(enum.NotificationChannelEmail | enum.NotificationChannelWeb)),
-		},
-	})
+	_, err = trx.Execute(`INSERT INTO user_settings (tenant_id, user_id, key, value)
+		VALUES ($1, $2, $3, $4)`, demoTenant.ID, aryaStark.ID,
+		enum.NotificationEventNewPost.UserSettingsKeyName,
+		strconv.Itoa(int(enum.NotificationChannelEmail|enum.NotificationChannelWeb)))
 	Expect(err).IsNil()
 
 	newPostWebSubscribers := &query.GetActiveSubscribers{Number: newPost.Result.Number, Channel: enum.NotificationChannelWeb, Event: enum.NotificationEventNewPost}
@@ -351,12 +350,10 @@ func TestSubscription_EmailSupressed(t *testing.T) {
 	SetupDatabaseTest(t)
 	defer TeardownDatabaseTest()
 
-	// Enable email notifications for new comments
-	err := bus.Dispatch(aryaStarkCtx, &cmd.UpdateCurrentUserSettings{
-		Settings: map[string]string{
-			enum.NotificationEventNewComment.UserSettingsKeyName: strconv.Itoa(int(enum.NotificationChannelEmail)),
-		},
-	})
+	_, err := trx.Execute(`INSERT INTO user_settings (tenant_id, user_id, key, value)
+		VALUES ($1, $2, $3, $4)`, demoTenant.ID, aryaStark.ID,
+		enum.NotificationEventNewComment.UserSettingsKeyName,
+		strconv.Itoa(int(enum.NotificationChannelEmail)))
 	Expect(err).IsNil()
 
 	newPost1 := &cmd.AddNewPost{Title: "Post #1", Description: "Description #1"}

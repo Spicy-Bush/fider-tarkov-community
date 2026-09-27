@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	stdErrors "errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -256,6 +257,11 @@ func (c *Context) BindTo(i actions.Actionable) *validate.Result {
 		if err == ErrContentTypeNotAllowed {
 			return validate.Failed(err.Error())
 		}
+
+		if stdErrors.Is(err, ErrInvalidRequestBody) {
+			return validate.Failed(ErrInvalidRequestBody.Error())
+		}
+
 		return validate.Error(errors.Wrap(err, "failed to bind request to action"))
 	}
 
@@ -430,6 +436,10 @@ func (c *Context) User() *entity.User {
 // SetUser update HTTP context with current user
 func (c *Context) SetUser(user *entity.User) {
 	if user != nil {
+		viewer := *user
+		viewer.Permissions = viewer.AllowedActions(&viewer, c.Tenant())
+		user = &viewer
+
 		log.WithProperty(c, log.PropertyKeyUserID, user.ID)
 	}
 	c.Set(app.UserCtxKey, user)

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from "react"
 import { usePageAutosave } from "@fider/hooks"
 import { Button, ImageUploader, Input, Modal, TextArea, Icon } from "@fider/components"
-import { Page, PageTopic, PageTag, PageDraft, User, UserRole } from "@fider/models"
+import { Page, PageTopic, PageTag, PageDraft, User } from "@fider/models"
 import { Failure, http, markdown } from "@fider/services"
 import { PageConfig } from "@fider/components/layouts"
 import { PageContentDocsPanel } from "../components/page/PageContentDocsPanel"
@@ -432,7 +432,6 @@ const EditPagePage = (props: EditPagePageProps) => {
               <p className="text-xs text-muted mb-2">Select users to display as authors of this page</p>
               <div className="space-y-2">
                 {props.users
-                  .filter((user) => user.role === UserRole.Administrator || user.role === UserRole.Collaborator)
                   .map((user) => (
                     <label key={user.id} className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -447,7 +446,7 @@ const EditPagePage = (props: EditPagePageProps) => {
                       <span className="text-sm">{user.name}</span>
                     </label>
                   ))}
-                {props.users.filter((user) => user.role === UserRole.Administrator || user.role === UserRole.Collaborator).length === 0 && (
+                {props.users.length === 0 && (
                   <span className="text-sm text-muted">No eligible users available</span>
                 )}
               </div>

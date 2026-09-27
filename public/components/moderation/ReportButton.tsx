@@ -3,11 +3,10 @@
 import React from "react"
 import { Icon } from "@fider/components"
 import { classSet } from "@fider/services"
-import { useFider } from "@fider/hooks"
 import { heroiconsFlag as IconFlag } from "@fider/icons.generated"
 
 interface ReportButtonProps {
-  reportedUserId: number
+  allowed: boolean
   size?: "small" | "medium"
   hasReported: boolean
   dailyLimitReached: boolean
@@ -15,15 +14,13 @@ interface ReportButtonProps {
 }
 
 export const ReportButton: React.FC<ReportButtonProps> = ({
-  reportedUserId,
+  allowed,
   size = "small",
   hasReported,
   dailyLimitReached,
   onReport,
 }) => {
-  const fider = useFider()
-
-  if (!fider.session.isAuthenticated || fider.session.user.id === reportedUserId) {
+  if (!allowed) {
     return null
   }
 

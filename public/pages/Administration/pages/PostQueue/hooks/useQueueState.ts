@@ -31,7 +31,7 @@ interface UseQueueStateResult {
   deselectPost: () => void
   loadPosts: () => Promise<void>
   loadPostDetails: (postNumber: number, refreshPost?: boolean) => Promise<void>
-  updatePost: (updatedPost: Post) => void
+  updatePost: (updatedPost: Pick<Post, "id" | "title" | "description">) => void
   removeTaggedPostFromList: (post: Post | null) => void
 }
 
@@ -39,7 +39,7 @@ export const useQueueState = (): UseQueueStateResult => {
   const fider = useFider()
   const perPage = PAGINATION.QUEUE_LIMIT
   const user = fider.session.user
-  const isHelperOnly = user.isHelper && !user.isCollaborator && !user.isModerator && !user.isAdministrator
+  const defaultDate = fider.settings.queueDefaultDate
 
   const [posts, setPosts] = useState<Post[]>([])
   const [total, setTotal] = useState(0)
@@ -72,7 +72,7 @@ export const useQueueState = (): UseQueueStateResult => {
       limit: perPage,
       offset: (page - 1) * perPage,
       view: sortOption,
-      date: isHelperOnly ? "7d" : undefined,
+      date: defaultDate,
       includeCount: true,
     })
     if (result.ok) {
@@ -85,7 +85,7 @@ export const useQueueState = (): UseQueueStateResult => {
       }
     }
     setIsLoading(false)
-  }, [page, perPage, sortOption, isHelperOnly])
+  }, [page, perPage, sortOption, defaultDate])
 
   const loadPostDetails = useCallback(async (postNumber: number, refreshPost = false) => {
     const [attachmentsResult, postResult] = await Promise.all([
@@ -122,9 +122,10 @@ export const useQueueState = (): UseQueueStateResult => {
     setSelectedPost(null)
   }, [])
 
-  const updatePost = useCallback((updatedPost: Post) => {
-    setSelectedPost(updatedPost)
-    setPosts((prev) => prev.map((p) => (p.id === updatedPost.id ? updatedPost : p)))
+  const updatePost = useCallback((updatedPost: Pick<Post, "id" | "title" | "description">) => {
+    const content = { title: updatedPost.title, description: updatedPost.description }
+    setSelectedPost((current) => current?.id === updatedPost.id ? { ...current, ...content } : current)
+    setPosts((current) => current.map((post) => post.id === updatedPost.id ? { ...post, ...content } : post))
   }, [])
 
   return {
@@ -157,4 +158,3 @@ export const useQueueState = (): UseQueueStateResult => {
     removeTaggedPostFromList,
   }
 }
-

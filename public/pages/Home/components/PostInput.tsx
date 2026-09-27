@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from "react"
-import { Button, Input, Form, TextArea, MultiImageUploader } from "@fider/components"
+import { Button, Input, Form, TextArea, MultiImageUploader, SignInModal } from "@fider/components"
 import { PreviewPostModal } from "./PreviewPostModal"
 import { SavedPostRecovery } from "./SavedPostRecovery"
 import { cache, Failure } from "@fider/services"
 import { postSubmissions, PendingPostSubmission, newSubmissionID, sendPostSubmission, SubmissionStorageError } from "@fider/services/postSubmission"
 import { RequestError } from "@fider/services/http"
-import { CurrentUser, ImageUpload, Post } from "@fider/models"
+import { ImageUpload, Post } from "@fider/models"
 import { useFider } from "@fider/hooks"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
@@ -23,20 +23,16 @@ type SubmissionState =
 export const PostInput = (props: PostInputProps) => {
   const fider = useFider()
 
-  if (!fider.session.isAuthenticated) {
-    return null
-  }
+  const account = `${fider.session.tenant.id}:${fider.session.isAuthenticated ? fider.session.user.id : "anonymous"}`
 
-  const user = fider.session.user
-  const account = `${fider.session.tenant.id}:${user.id}`
-
-  return <AuthenticatedPostInput key={account} {...props} account={account} user={user} />
+  return <PostDraft key={account} {...props} account={account} />
 }
 
-const AuthenticatedPostInput = (props: PostInputProps & { account: string; user: CurrentUser }) => {
+const PostDraft = (props: PostInputProps & { account: string }) => {
   const fider = useFider()
   const { isMuted, muteReason } = useUserStanding()
-  const { account, user } = props
+  const { account } = props
+  const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
   const titleCacheKey = "PostInput-Title"
   const descriptionCacheKey = "PostInput-Description"
   const submissionCacheKey = "PostInput-Submission"
@@ -68,13 +64,6 @@ const AuthenticatedPostInput = (props: PostInputProps & { account: string; user:
     descriptionLengthMin: 150,
     descriptionLengthMax: 1000,
     maxImagesPerPost: 3,
-    maxImagesPerComment: 2,
-    postLimits: {} as Record<string, { count: number; hours: number }>,
-    commentLimits: {} as Record<string, { count: number; hours: number }>,
-    postingDisabledFor: [] as string[],
-    commentingDisabledFor: [] as string[],
-    postingGloballyDisabled: false,
-    commentingGloballyDisabled: false
   }
   
   const { 
@@ -82,15 +71,10 @@ const AuthenticatedPostInput = (props: PostInputProps & { account: string; user:
     titleLengthMax, 
     descriptionLengthMin, 
     descriptionLengthMax, 
-    postingGloballyDisabled,
     maxImagesPerPost
   } = settings
   
-  const isPostingDisabled = isMuted || (
-    user.role !== "administrator" && (
-      postingGloballyDisabled || settings.postingDisabledFor?.includes(user.role)
-    )
-  )
+  const isPostingDisabled = fider.session.isAuthenticated && !fider.session.permissions.createPosts
 
   const finishSubmission = (receipt: Pick<Post, "number" | "slug">) => {
     cache.session.remove(titleCacheKey, descriptionCacheKey, submissionCacheKey, editingCacheKey)
@@ -103,6 +87,11 @@ const AuthenticatedPostInput = (props: PostInputProps & { account: string; user:
   }, [title])
   
   useEffect(() => {
+    if (!fider.session.isAuthenticated) {
+      setState({ phase: "idle" })
+      return
+    }
+
     let mounted = true
     setState({ phase: "loading" })
 
@@ -200,6 +189,11 @@ const AuthenticatedPostInput = (props: PostInputProps & { account: string; user:
   }
   
   const submitPost = () => {
+    if (!fider.session.isAuthenticated) {
+      setIsSignInModalOpen(true)
+      return
+    }
+
     setError(undefined)
 
     setState((current) => {
@@ -379,6 +373,11 @@ const AuthenticatedPostInput = (props: PostInputProps & { account: string; user:
   }, [phase])
 
   const submit = () => {
+    if (!fider.session.isAuthenticated) {
+      setIsSignInModalOpen(true)
+      return
+    }
+
     if (title && phase === "idle") {
       setRemainingSeconds(30)
       setState({ phase: "countdown" })
@@ -410,21 +409,18 @@ const AuthenticatedPostInput = (props: PostInputProps & { account: string; user:
     title.length < titleLengthMin ||
     titleValidation.isOverMax ||
     (description.length > 0 && description.length < descriptionLengthMin) ||
-    descValidation.isOverMax ||
-    isPostingDisabled
+    descValidation.isOverMax
   )
 
   const progressPercentage = ((30 - remainingSeconds) / 30) * 100
 
   return (
     <>
-      <SavedPostRecovery account={account} submissions={otherSubmissions} />
+      {fider.session.isAuthenticated && <SavedPostRecovery account={account} submissions={otherSubmissions} />}
+      <SignInModal isOpen={isSignInModalOpen} onClose={() => setIsSignInModalOpen(false)} />
       <Form error={error}>
         {phase === "load-failed" && (
           <Button onClick={() => setLoadVersion((version) => version + 1)}>Reload saved submission</Button>
-        )}
-        {phase === "unconfirmed" && isPostingDisabled && (
-          <Button onClick={submitPost}>Retry submission</Button>
         )}
         {isPostingDisabled && (
           <div className="p-3 bg-warning/10 border border-warning rounded text-warning">
@@ -439,106 +435,102 @@ const AuthenticatedPostInput = (props: PostInputProps & { account: string; user:
             )}
           </div>
         )}
-        {!isPostingDisabled && (
+        <div className="relative">
+          <Input
+            field="title"
+            disabled={isFrozen}
+            maxLength={titleLengthMax}
+            value={title}
+            onChange={handleTitleChange}
+            placeholder={props.placeholder}
+          />
+          {titleValidation.showMinCounter && (
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
+              {titleLengthMin - title.length}
+            </div>
+          )}
+          {titleValidation.showMaxCounter && (
+            <div className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs ${titleValidation.isOverMax ? 'text-danger' : 'text-muted'}`}>
+              {titleLengthMax - title.length}
+            </div>
+          )}
+        </div>
+        {title && (
           <>
             <div className="relative">
-              <Input
-                field="title"
-                disabled={fider.isReadOnly || isPostingDisabled || isFrozen}
-                maxLength={titleLengthMax}
-                value={title}
-                onChange={handleTitleChange}
-                placeholder={props.placeholder}
+              <TextArea
+                field="description"
+                onChange={handleDescriptionChange}
+                value={description}
+                minRows={5}
+                disabled={isFrozen}
+                placeholder={i18n._("home.postinput.description.placeholder", { message: "Describe your suggestion..." })}
               />
-              {titleValidation.showMinCounter && (
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
-                  {titleLengthMin - title.length}
+              {descValidation.showMinCounter && (
+                <div className="absolute right-2 bottom-2 text-xs text-muted">
+                  {descriptionLengthMin - description.length}
                 </div>
               )}
-              {titleValidation.showMaxCounter && (
-                <div className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs ${titleValidation.isOverMax ? 'text-danger' : 'text-muted'}`}>
-                  {titleLengthMax - title.length}
+              {descValidation.showMaxCounter && (
+                <div className={`absolute right-2 bottom-2 text-xs ${descValidation.isOverMax ? 'text-danger' : 'text-muted'}`}>
+                  {descriptionLengthMax - description.length}
                 </div>
               )}
             </div>
-            {title && (
-              <>
-                <div className="relative">
-                  <TextArea
-                    field="description"
-                    onChange={handleDescriptionChange}
-                    value={description}
-                    minRows={5}
-                    disabled={isPostingDisabled || isFrozen}
-                    placeholder={i18n._("home.postinput.description.placeholder", { message: "Describe your suggestion..." })}
-                  />
-                  {descValidation.showMinCounter && (
-                    <div className="absolute right-2 bottom-2 text-xs text-muted">
-                      {descriptionLengthMin - description.length}
-                    </div>
-                  )}
-                  {descValidation.showMaxCounter && (
-                    <div className={`absolute right-2 bottom-2 text-xs ${descValidation.isOverMax ? 'text-danger' : 'text-muted'}`}>
-                      {descriptionLengthMax - description.length}
-                    </div>
-                  )}
+            {phase !== "loading" && (
+              <MultiImageUploader
+                ref={uploader}
+                field="attachments"
+                maxUploads={maxImagesPerPost}
+                initialUploads={attachments}
+                disabled={isFrozen}
+                onChange={handleAttachmentsChange}
+              />
+            )}
+
+            {isPendingSubmission ? (
+              <div className="flex justify-between items-center">
+                <div className="flex gap-2">
+                  <Button type="button" variant="secondary" onClick={submitPost}>
+                    <Trans id="action.sendnow">Send Now</Trans>
+                  </Button>
+                  <Button type="button" variant="danger" onClick={cancelSubmission}>
+                    <Trans id="action.cancel">Cancel</Trans>
+                  </Button>
                 </div>
-                {phase !== "loading" && (
-                  <MultiImageUploader
-                    ref={uploader}
-                    field="attachments"
-                    maxUploads={maxImagesPerPost}
-                    initialUploads={attachments}
-                    disabled={isFrozen}
-                    onChange={handleAttachmentsChange}
-                  />
-                )}
                 
-                {isPendingSubmission ? (
-                  <div className="flex justify-between items-center">
-                    <div className="flex gap-2">
-                      <Button type="button" variant="secondary" onClick={submitPost}>
-                        <Trans id="action.sendnow">Send Now</Trans>
-                      </Button>
-                      <Button type="button" variant="danger" onClick={cancelSubmission}>
-                        <Trans id="action.cancel">Cancel</Trans>
-                      </Button>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <div className="mr-2 inline-block">
-                        <svg width="12" height="12" viewBox="0 0 24 24">
-                          <circle 
-                            cx="12" cy="12" r="10" 
-                            fill="none" stroke="currentColor" strokeWidth="4" 
-                            strokeDasharray={Math.PI * 2 * 10}
-                            strokeDashoffset={(Math.PI * 2 * 10) * (1 - progressPercentage / 100)}
-                            transform="rotate(-90 12 12)"
-                          />
-                        </svg>
-                      </div>
-                      <span className="text-sm text-muted">
-                        <Trans id="action.submitting">Submitting in {remainingSeconds}s...</Trans>
-                      </span>
-                    </div>
+                <div className="flex items-center">
+                  <div className="mr-2 inline-block">
+                    <svg width="12" height="12" viewBox="0 0 24 24">
+                      <circle
+                        cx="12" cy="12" r="10"
+                        fill="none" stroke="currentColor" strokeWidth="4"
+                        strokeDasharray={Math.PI * 2 * 10}
+                        strokeDashoffset={(Math.PI * 2 * 10) * (1 - progressPercentage / 100)}
+                        transform="rotate(-90 12 12)"
+                      />
+                    </svg>
                   </div>
-                ) : (
-                  <div className="flex justify-between items-center">
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      loading={isSending}
-                      disabled={phase !== "unconfirmed" && (isSubmitDisabled || isFrozen)}
-                      onClick={phase === "unconfirmed" ? submitPost : submit}
-                    >
-                      {phase === "unconfirmed" ? "Retry submission" : <Trans id="action.submit">Submit</Trans>}
-                    </Button>
-                    <Button type="button" variant="secondary" disabled={isSubmitDisabled} onClick={showPreview}>
-                      <Trans id="action.preview">Preview</Trans>
-                    </Button>
-                  </div>
-                )}
-              </>
+                  <span className="text-sm text-muted">
+                    <Trans id="action.submitting">Submitting in {remainingSeconds}s...</Trans>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={isSending}
+                  disabled={phase !== "unconfirmed" && (isSubmitDisabled || isFrozen)}
+                  onClick={phase === "unconfirmed" ? submitPost : submit}
+                >
+                  {phase === "unconfirmed" ? "Retry submission" : <Trans id="action.submit">Submit</Trans>}
+                </Button>
+                <Button type="button" variant="secondary" disabled={isSubmitDisabled} onClick={showPreview}>
+                  <Trans id="action.preview">Preview</Trans>
+                </Button>
+              </div>
             )}
           </>
         )}

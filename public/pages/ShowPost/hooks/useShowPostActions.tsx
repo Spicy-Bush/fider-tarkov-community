@@ -1,7 +1,6 @@
-import { useCurrentUser } from "@fider/hooks"
 import { useCallback } from "react"
-import { Post, ImageUpload, PostStatus } from "@fider/models"
-import { actions, notify, Failure, postPermissions } from "@fider/services"
+import { Post, ImageUpload } from "@fider/models"
+import { actions, notify, Failure } from "@fider/services"
 import React from "react"
 import { Trans } from "@lingui/react/macro"
 
@@ -26,7 +25,6 @@ interface UseShowPostActionsResult {
 }
 
 export const useShowPostActions = (config: UseShowPostActionsConfig): UseShowPostActionsResult => {
-  const user = useCurrentUser()
   const { post, newTitle, newDescription, attachments, setError, startEdit, openModal } = config
 
   const saveChanges = useCallback(async () => {
@@ -38,15 +36,11 @@ export const useShowPostActions = (config: UseShowPostActionsConfig): UseShowPos
     }
   }, [post.number, newTitle, newDescription, attachments, setError])
 
-  const canEdit = postPermissions.canEdit(post)
-  const canDelete = (() => {
-    const status = PostStatus.Get(post.status)
-    if (status.closed) return false
-    return postPermissions.canDelete(post)
-  })()
-  const canRespond = postPermissions.canRespondAny()
-  const canLock = postPermissions.canLock(user)
-  const canArchive = postPermissions.canArchive()
+  const canEdit = post.permissions.edit
+  const canDelete = post.permissions.delete
+  const canRespond = post.permissions.respond.length > 0
+  const canLock = post.permissions.lock
+  const canArchive = post.permissions.archive
 
   const onActionSelected = useCallback(
     (action: "copy" | "delete" | "status" | "edit" | "lock" | "unlock" | "report" | "archive" | "unarchive") => async () => {

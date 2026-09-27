@@ -8,6 +8,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/api"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/webhooks"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/middlewares"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
@@ -209,214 +210,390 @@ func routes(r *web.Engine) *web.Engine {
 		membersApi.Post("/api/pages/:id/comments", api.CreateDiscussionComment())
 	}
 
-	helper := r.Group()
+	queue := membersApi.Group()
 	{
-		helper.Use(middlewares.IsAuthenticated())
-		helper.Use(middlewares.IsAuthorized(enum.RoleHelper, enum.RoleCollaborator, enum.RoleAdministrator, enum.RoleModerator))
-		helper.Use(middlewares.BlockLockedTenants())
+		queue.Use(middlewares.RequirePermission(entity.ManageQueue))
 
-		// post queue
-		helper.Get("/admin/queue", handlers.PostQueuePage())
-		helper.Post("/api/queue/:id/heartbeat", handlers.QueuePostHeartbeat())
-		helper.Delete("/api/mod/queue-viewing", handlers.StopViewingQueuePost())
-		helper.Get("/api/mod/queue-events", handlers.QueueSSE())
-
-		// tags
-		helper.Post("/api/posts/:number/tags/:slug", api.AssignTag())
-		helper.Delete("/api/posts/:number/tags/:slug", api.UnassignTag())
+		queue.Get("/admin/queue", handlers.PostQueuePage())
+		queue.Post("/api/queue/:id/heartbeat", handlers.QueuePostHeartbeat())
+		queue.Delete("/api/mod/queue-viewing", handlers.StopViewingQueuePost())
+		queue.Get("/api/mod/queue-events", handlers.QueueSSE())
 	}
 
-	// Available to both collaborators, administrators and moderators
-	staff := r.Group()
+	postTags := membersApi.Group()
 	{
-		staff.Use(middlewares.IsAuthenticated())
-		staff.Use(middlewares.IsAuthorized(enum.RoleCollaborator, enum.RoleAdministrator, enum.RoleModerator))
-		staff.Use(middlewares.BlockLockedTenants())
+		postTags.Use(middlewares.RequirePermission(entity.TagPosts))
 
-		// user profiles
-		staff.Get("/profile/:id", handlers.ViewUserProfile())
-		staff.Post("/api/users/:userID/name", handlers.UpdateUserName())
-		staff.Post("/api/users/:userID/avatar", handlers.UpdateUserAvatar())
-
-		// user moderation
-		staff.Post("/api/admin/users/:userID/mute", handlers.MuteUser())
-		staff.Post("/api/admin/users/:userID/warn", handlers.WarnUser())
-		staff.Post("/api/admin/users/:userID/warnings/:warningID/expire", handlers.ExpireWarning())
-		staff.Post("/api/admin/users/:userID/mutes/:muteID/expire", handlers.ExpireMute())
-		staff.Get("/api/responses/:type", api.ListCannedResponses())
-		staff.Get("/admin/members", handlers.ManageMembers())
-		staff.Get("/api/users", api.ListUsers())
-
-		// posts
-		staff.Get("/api/posts/:number/votes", api.ListVotes())
-		staff.Delete("/api/posts/:number", api.DeletePost())
-		staff.Put("/api/posts/:number/status", api.SetResponse())
-
-		// reports
-		staff.Get("/admin/reports", handlers.ManageReportsPage())
-		staff.Get("/api/admin/moderation/checks", handlers.ListModerationChecks())
-		staff.Post("/api/admin/moderation/retry", handlers.RetryModerationChecks())
-		staff.Get("/api/reports", handlers.ListReports())
-		staff.Get("/api/reports/:id", handlers.GetReport())
-		staff.Get("/api/reports/:id/details", handlers.GetReportDetails())
-		staff.Post("/api/reports/:id/assign", handlers.AssignReport())
-		staff.Delete("/api/reports/:id/assign", handlers.UnassignReport())
-		staff.Put("/api/reports/:id/resolve", handlers.ResolveReport())
-		staff.Post("/api/reports/:id/heartbeat", handlers.ReportHeartbeat())
-		staff.Delete("/api/mod/viewing", handlers.StopViewingReport())
-		staff.Get("/api/mod/report-events", handlers.ReportsSSE())
-
-		// content moderation
-		staff.Post("/api/admin/moderation/posts/:id/approve", handlers.ApprovePostModeration())
-		staff.Post("/api/admin/moderation/comments/:id/approve", handlers.ApproveCommentModeration())
-		staff.Post("/api/admin/moderation/posts/:id/hide", handlers.HidePostModeration())
-		staff.Post("/api/admin/moderation/comments/:id/hide", handlers.HideCommentModeration())
+		postTags.Post("/api/posts/:number/tags/:slug", api.AssignTag())
+		postTags.Delete("/api/posts/:number/tags/:slug", api.UnassignTag())
 	}
 
-	// Operations available only to collaborators and administrators
-	collabAdmin := r.Group()
+	profiles := membersApi.Group()
 	{
-		collabAdmin.Use(middlewares.SetLocale("en"))
-		collabAdmin.Use(middlewares.IsAuthenticated())
-		collabAdmin.Use(middlewares.IsAuthorized(enum.RoleCollaborator, enum.RoleAdministrator))
-		collabAdmin.Use(middlewares.BlockLockedTenants())
+		profiles.Use(middlewares.RequirePermission(entity.ReadProfiles))
 
-		// admin pages
-		collabAdmin.Get("/admin", handlers.GeneralSettingsPage())
-
-		collabAdmin.Get("/admin/content-settings", handlers.ContentSettingsPage())
-		collabAdmin.Post("/api/admin/settings/content-settings", handlers.UpdateContentSettings())
-
-		collabAdmin.Post("/api/admin/settings/message-banner", handlers.UpdateMessageBanner())
-
-		collabAdmin.Get("/admin/responses", handlers.ManageCannedResponses())
-		collabAdmin.Post("/api/responses", api.CreateCannedResponse())
-		collabAdmin.Put("/api/responses/:id", api.UpdateCannedResponse())
-		collabAdmin.Delete("/api/responses/:id", api.DeleteCannedResponse())
-
-		collabAdmin.Get("/api/report-reasons/all", handlers.ListAllReportReasons())
-		collabAdmin.Post("/api/report-reasons", handlers.CreateReportReason())
-
-		collabAdmin.Get("/admin/archive", handlers.ArchivePostsPage())
-		collabAdmin.Get("/api/archive/posts", handlers.ListArchivablePosts())
-		collabAdmin.Post("/api/posts/:number/archive", handlers.ArchivePost())
-		collabAdmin.Post("/api/posts/:number/unarchive", handlers.UnarchivePost())
-
-		collabAdmin.Get("/admin/pages", handlers.ManagePages())
-		collabAdmin.Get("/admin/pages/new", handlers.EditPagePage())
-		collabAdmin.Get("/admin/pages/edit/:id", handlers.EditPagePage())
-		collabAdmin.Post("/api/pages", api.CreatePage())
-		collabAdmin.Put("/api/pages/:id", api.UpdatePage())
-		collabAdmin.Delete("/api/pages/:id", api.DeletePage())
-		collabAdmin.Post("/api/pages/:id/draft", api.SavePageDraft())
-		collabAdmin.Get("/api/pages/:id/draft", api.GetPageDraft())
-		collabAdmin.Post("/api/archive/bulk", handlers.BulkArchive())
-		collabAdmin.Put("/api/report-reasons/:id", handlers.UpdateReportReason())
-		collabAdmin.Delete("/api/report-reasons/:id", handlers.DeleteReportReason())
-		collabAdmin.Put("/api/admin/report-reasons-order", handlers.ReorderReportReasons())
-
-		collabAdmin.Get("/admin/tags", handlers.ManageTags())
-		collabAdmin.Get("/admin/sponsorship", handlers.ManageSponsorshipPage())
-		collabAdmin.Get("/api/sponsorship/packages", api.ListSponsorshipPackages())
-		collabAdmin.Post("/api/sponsorship/packages", api.CreateSponsorshipPackage())
-		collabAdmin.Put("/api/sponsorship/packages/:id", api.UpdateSponsorshipPackage())
-		collabAdmin.Delete("/api/sponsorship/packages/:id", api.DeleteSponsorshipPackage())
-		collabAdmin.Get("/api/sponsorship/campaigns", api.ListSponsorshipCampaigns())
-		collabAdmin.Post("/api/sponsorship/campaigns", api.CreateSponsorshipCampaign())
-		collabAdmin.Put("/api/sponsorship/campaigns/:id", api.UpdateSponsorshipCampaign())
-		collabAdmin.Put("/api/sponsorship/campaigns/:id/graph", api.SaveCampaignGraph())
-		collabAdmin.Delete("/api/sponsorship/campaigns/:id", api.DeleteSponsorshipCampaign())
-		collabAdmin.Get("/api/ads/placements", api.ListAdPlacements())
-		collabAdmin.Put("/api/ads/placements/:id", api.UpdateAdPlacement())
-		collabAdmin.Get("/api/sponsorship/campaigns/:id/versions", api.ListCreativeVersions())
-		collabAdmin.Post("/api/sponsorship/campaigns/:id/versions", api.CreateCreativeVersion())
-		collabAdmin.Get("/api/sponsorship/campaigns/:id/assignments", api.ListCampaignAssignments())
-		collabAdmin.Post("/api/tags", api.CreateEditTag())
-		collabAdmin.Put("/api/tags/:slug", api.CreateEditTag())
-		collabAdmin.Delete("/api/tags/:slug", api.DeleteTag())
-
-		collabAdmin.Get("/admin/webhooks", handlers.ManageWebhooks())
-		collabAdmin.Post("/api/admin/webhook", handlers.CreateWebhook())
-		collabAdmin.Put("/api/admin/webhook/:id", handlers.UpdateWebhook())
-		collabAdmin.Delete("/api/admin/webhook/:id", handlers.DeleteWebhook())
-		collabAdmin.Get("/api/admin/webhook/test/:id", handlers.TestWebhook())
-		collabAdmin.Post("/api/admin/webhook/preview", handlers.PreviewWebhook())
-		collabAdmin.Get("/api/admin/webhook/props/:type", handlers.GetWebhookProps())
-
-		// user moderation
-		collabAdmin.Post("/api/admin/visualroles/:visualRole/users", handlers.ChangeUserVisualRole())
-
-		collabAdmin.Put("/api/admin/users/:userID/block", handlers.BlockUser())
-		collabAdmin.Delete("/api/admin/users/:userID/block", handlers.UnblockUser())
-
-		collabAdmin.Delete("/api/admin/users/:userID/warnings/:warningID", handlers.DeleteWarning())
-		collabAdmin.Delete("/api/admin/users/:userID/mutes/:muteID", handlers.DeleteMute())
-
-		collabAdmin.Put("/api/posts/:number/lock", api.LockOrUnlockPost())
-		collabAdmin.Delete("/api/posts/:number/lock", api.LockOrUnlockPost())
+		profiles.Get("/profile/:id", handlers.ViewUserProfile())
 	}
 
-	// Only available to administrators
-	adminOnly := r.Group()
+	profileEdits := membersApi.Group()
 	{
-		adminOnly.Use(middlewares.SetLocale("en"))
-		adminOnly.Use(middlewares.IsAuthenticated())
-		adminOnly.Use(middlewares.IsAuthorized(enum.RoleAdministrator))
-		adminOnly.Use(middlewares.BlockLockedTenants())
+		profileEdits.Use(middlewares.RequirePermission(entity.EditUserProfiles))
 
-		// admin pages
-		adminOnly.Post("/api/admin/settings/general", handlers.UpdateSettings()) // General Page
+		profileEdits.Post("/api/users/:userID/name", handlers.UpdateUserName())
+		profileEdits.Post("/api/users/:userID/avatar", handlers.UpdateUserAvatar())
+	}
 
-		adminOnly.Get("/admin/privacy", handlers.Page("Privacy · Site Settings", "", "Administration/pages/PrivacySettings.page"))
-		adminOnly.Post("/api/admin/settings/privacy", handlers.UpdatePrivacy())
+	userModeration := membersApi.Group()
+	{
+		userModeration.Use(middlewares.RequirePermission(entity.ModerateUsers))
 
-		adminOnly.Get("/admin/advanced", handlers.AdvancedSettingsPage())
-		adminOnly.Post("/api/admin/settings/advanced", handlers.UpdateAdvancedSettings())
+		userModeration.Post("/api/admin/users/:userID/mute", handlers.MuteUser())
+		userModeration.Post("/api/admin/users/:userID/warn", handlers.WarnUser())
+	}
 
-		adminOnly.Post("/api/page-topics", api.CreatePageTopic())
-		adminOnly.Put("/api/page-topics/:id", api.UpdatePageTopic())
-		adminOnly.Delete("/api/page-topics/:id", api.DeletePageTopic())
-		adminOnly.Post("/api/page-tags", api.CreatePageTag())
-		adminOnly.Put("/api/page-tags/:id", api.UpdatePageTag())
-		adminOnly.Delete("/api/page-tags/:id", api.DeletePageTag())
-		adminOnly.Post("/api/admin/navigation", api.SaveNavigationLinks())
-		adminOnly.Post("/api/admin/settings/profanity", handlers.UpdateProfanityWords())
+	expireModeration := membersApi.Group()
+	{
+		expireModeration.Use(middlewares.RequirePermission(entity.ExpireUserModeration))
 
-		adminOnly.Get("/admin/invitations", handlers.Page("Invitations · Site Settings", "", "Administration/pages/Invitations.page"))
-		adminOnly.Post("/api/invitations/send", api.SendInvites())
-		adminOnly.Post("/api/invitations/sample", api.SendSampleInvite())
+		expireModeration.Post("/api/admin/users/:userID/warnings/:warningID/expire", handlers.ExpireWarning())
+		expireModeration.Post("/api/admin/users/:userID/mutes/:muteID/expire", handlers.ExpireMute())
+	}
 
-		adminOnly.Get("/admin/authentication", handlers.ManageAuthentication())
-		adminOnly.Post("/api/admin/oauth", handlers.SaveOAuthConfig())
-		adminOnly.Get("/api/admin/oauth/:provider", handlers.GetOAuthConfig())
-		adminOnly.Post("/api/admin/settings/emailauth", handlers.UpdateEmailAuthAllowed())
+	readResponses := membersApi.Group()
+	{
+		readResponses.Use(middlewares.RequirePermission(entity.ReadResponses))
 
-		if env.IsBillingEnabled() {
-			adminOnly.Get("/admin/billing", handlers.ManageBilling())
-			adminOnly.Post("/api/billing/checkout-link", handlers.GenerateCheckoutLink())
+		readResponses.Get("/api/responses/:type", api.ListCannedResponses())
+	}
+
+	members := membersApi.Group()
+	{
+		members.Use(middlewares.RequirePermission(entity.ManageMembers))
+
+		members.Get("/admin/members", handlers.ManageMembers())
+		members.Get("/api/users", api.ListUsers())
+	}
+
+	postVotes := membersApi.Group()
+	{
+		postVotes.Use(middlewares.RequirePermission(entity.ViewPostVotes))
+
+		postVotes.Get("/api/posts/:number/votes", api.ListVotes())
+	}
+
+	deletePosts := membersApi.Group()
+	{
+		deletePosts.Use(middlewares.RequirePermission(entity.DeletePosts))
+
+		deletePosts.Delete("/api/posts/:number", api.DeletePost())
+	}
+
+	postResponses := membersApi.Group()
+	{
+		postResponses.Use(middlewares.RequirePermission(entity.RespondToPosts))
+
+		postResponses.Put("/api/posts/:number/status", api.SetResponse())
+	}
+
+	reports := membersApi.Group()
+	{
+		reports.Use(middlewares.RequirePermission(entity.ManageReports))
+
+		reports.Get("/admin/reports", handlers.ManageReportsPage())
+		reports.Get("/api/reports", handlers.ListReports())
+		reports.Get("/api/reports/:id", handlers.GetReport())
+		reports.Get("/api/reports/:id/details", handlers.GetReportDetails())
+		reports.Post("/api/reports/:id/assign", handlers.AssignReport())
+		reports.Delete("/api/reports/:id/assign", handlers.UnassignReport())
+		reports.Put("/api/reports/:id/resolve", handlers.ResolveReport())
+		reports.Post("/api/reports/:id/heartbeat", handlers.ReportHeartbeat())
+		reports.Delete("/api/mod/viewing", handlers.StopViewingReport())
+		reports.Get("/api/mod/report-events", handlers.ReportsSSE())
+	}
+
+	contentModeration := membersApi.Group()
+	{
+		contentModeration.Use(middlewares.RequirePermission(entity.ModeratePosts))
+
+		contentModeration.Get("/api/admin/moderation/checks", handlers.ListModerationChecks())
+		contentModeration.Post("/api/admin/moderation/retry", handlers.RetryModerationChecks())
+		contentModeration.Post("/api/admin/moderation/posts/:id/approve", handlers.ApprovePostModeration())
+		contentModeration.Post("/api/admin/moderation/comments/:id/approve", handlers.ApproveCommentModeration())
+		contentModeration.Post("/api/admin/moderation/posts/:id/hide", handlers.HidePostModeration())
+		contentModeration.Post("/api/admin/moderation/comments/:id/hide", handlers.HideCommentModeration())
+	}
+
+	readSettings := membersApi.Group()
+	{
+		readSettings.Use(middlewares.SetLocale("en"))
+		readSettings.Use(middlewares.RequirePermission(entity.ReadSettings))
+
+		readSettings.Get("/admin", handlers.GeneralSettingsPage())
+	}
+
+	contentSettings := membersApi.Group()
+	{
+		contentSettings.Use(middlewares.SetLocale("en"))
+		contentSettings.Use(middlewares.RequirePermission(entity.ManageContentSettings))
+
+		contentSettings.Get("/admin/content-settings", handlers.ContentSettingsPage())
+		contentSettings.Post("/api/admin/settings/content-settings", handlers.UpdateContentSettings())
+		contentSettings.Post("/api/admin/settings/message-banner", handlers.UpdateMessageBanner())
+	}
+
+	responses := membersApi.Group()
+	{
+		responses.Use(middlewares.SetLocale("en"))
+		responses.Use(middlewares.RequirePermission(entity.ManageResponses))
+
+		responses.Get("/admin/responses", handlers.ManageCannedResponses())
+		responses.Post("/api/responses", api.CreateCannedResponse())
+		responses.Put("/api/responses/:id", api.UpdateCannedResponse())
+		responses.Delete("/api/responses/:id", api.DeleteCannedResponse())
+	}
+
+	reportReasons := membersApi.Group()
+	{
+		reportReasons.Use(middlewares.SetLocale("en"))
+		reportReasons.Use(middlewares.RequirePermission(entity.ManageReportReasons))
+
+		reportReasons.Get("/api/report-reasons/all", handlers.ListAllReportReasons())
+		reportReasons.Post("/api/report-reasons", handlers.CreateReportReason())
+		reportReasons.Put("/api/report-reasons/:id", handlers.UpdateReportReason())
+		reportReasons.Delete("/api/report-reasons/:id", handlers.DeleteReportReason())
+		reportReasons.Put("/api/admin/report-reasons-order", handlers.ReorderReportReasons())
+	}
+
+	archive := membersApi.Group()
+	{
+		archive.Use(middlewares.SetLocale("en"))
+		archive.Use(middlewares.RequirePermission(entity.ManageArchive))
+
+		archive.Get("/admin/archive", handlers.ArchivePostsPage())
+		archive.Get("/api/archive/posts", handlers.ListArchivablePosts())
+		archive.Post("/api/posts/:number/archive", handlers.ArchivePost())
+		archive.Post("/api/posts/:number/unarchive", handlers.UnarchivePost())
+		archive.Post("/api/archive/bulk", handlers.BulkArchive())
+	}
+
+	pages := membersApi.Group()
+	{
+		pages.Use(middlewares.SetLocale("en"))
+		pages.Use(middlewares.RequirePermission(entity.ManagePages))
+
+		pages.Get("/admin/pages", handlers.ManagePages())
+		pages.Get("/admin/pages/new", handlers.EditPagePage())
+		pages.Get("/admin/pages/edit/:id", handlers.EditPagePage())
+		pages.Post("/api/pages", api.CreatePage())
+		pages.Put("/api/pages/:id", api.UpdatePage())
+		pages.Delete("/api/pages/:id", api.DeletePage())
+		pages.Post("/api/pages/:id/draft", api.SavePageDraft())
+		pages.Get("/api/pages/:id/draft", api.GetPageDraft())
+	}
+
+	tags := membersApi.Group()
+	{
+		tags.Use(middlewares.SetLocale("en"))
+		tags.Use(middlewares.RequirePermission(entity.ManageTags))
+
+		tags.Get("/admin/tags", handlers.ManageTags())
+		tags.Post("/api/tags", api.CreateEditTag())
+		tags.Put("/api/tags/:slug", api.CreateEditTag())
+		tags.Delete("/api/tags/:slug", api.DeleteTag())
+	}
+
+	sponsorship := membersApi.Group()
+	{
+		sponsorship.Use(middlewares.SetLocale("en"))
+		sponsorship.Use(middlewares.RequirePermission(entity.ManageSponsorship))
+
+		sponsorship.Get("/admin/sponsorship", handlers.ManageSponsorshipPage())
+		sponsorship.Get("/api/sponsorship/packages", api.ListSponsorshipPackages())
+		sponsorship.Post("/api/sponsorship/packages", api.CreateSponsorshipPackage())
+		sponsorship.Put("/api/sponsorship/packages/:id", api.UpdateSponsorshipPackage())
+		sponsorship.Delete("/api/sponsorship/packages/:id", api.DeleteSponsorshipPackage())
+		sponsorship.Get("/api/sponsorship/campaigns", api.ListSponsorshipCampaigns())
+		sponsorship.Post("/api/sponsorship/campaigns", api.CreateSponsorshipCampaign())
+		sponsorship.Put("/api/sponsorship/campaigns/:id", api.UpdateSponsorshipCampaign())
+		sponsorship.Put("/api/sponsorship/campaigns/:id/graph", api.SaveCampaignGraph())
+		sponsorship.Delete("/api/sponsorship/campaigns/:id", api.DeleteSponsorshipCampaign())
+		sponsorship.Get("/api/ads/placements", api.ListAdPlacements())
+		sponsorship.Put("/api/ads/placements/:id", api.UpdateAdPlacement())
+		sponsorship.Get("/api/sponsorship/campaigns/:id/versions", api.ListCreativeVersions())
+		sponsorship.Post("/api/sponsorship/campaigns/:id/versions", api.CreateCreativeVersion())
+		sponsorship.Get("/api/sponsorship/campaigns/:id/assignments", api.ListCampaignAssignments())
+	}
+
+	webhooks := membersApi.Group()
+	{
+		webhooks.Use(middlewares.SetLocale("en"))
+		webhooks.Use(middlewares.RequirePermission(entity.ManageWebhooks))
+
+		webhooks.Get("/admin/webhooks", handlers.ManageWebhooks())
+		webhooks.Post("/api/admin/webhook", handlers.CreateWebhook())
+		webhooks.Put("/api/admin/webhook/:id", handlers.UpdateWebhook())
+		webhooks.Delete("/api/admin/webhook/:id", handlers.DeleteWebhook())
+		webhooks.Get("/api/admin/webhook/test/:id", handlers.TestWebhook())
+		webhooks.Post("/api/admin/webhook/preview", handlers.PreviewWebhook())
+		webhooks.Get("/api/admin/webhook/props/:type", handlers.GetWebhookProps())
+	}
+
+	visualRoles := membersApi.Group()
+	{
+		visualRoles.Use(middlewares.SetLocale("en"))
+		visualRoles.Use(middlewares.RequirePermission(entity.ChangeUserVisualRoles))
+
+		visualRoles.Post("/api/admin/visualroles/:visualRole/users", handlers.ChangeUserVisualRole())
+	}
+
+	blocks := membersApi.Group()
+	{
+		blocks.Use(middlewares.SetLocale("en"))
+		blocks.Use(middlewares.RequirePermission(entity.BlockUsers))
+
+		blocks.Put("/api/admin/users/:userID/block", handlers.BlockUser())
+		blocks.Delete("/api/admin/users/:userID/block", handlers.UnblockUser())
+	}
+
+	deleteModeration := membersApi.Group()
+	{
+		deleteModeration.Use(middlewares.SetLocale("en"))
+		deleteModeration.Use(middlewares.RequirePermission(entity.DeleteUserModeration))
+
+		deleteModeration.Delete("/api/admin/users/:userID/warnings/:warningID", handlers.DeleteWarning())
+		deleteModeration.Delete("/api/admin/users/:userID/mutes/:muteID", handlers.DeleteMute())
+	}
+
+	postLocks := membersApi.Group()
+	{
+		postLocks.Use(middlewares.SetLocale("en"))
+		postLocks.Use(middlewares.RequirePermission(entity.LockPosts))
+
+		postLocks.Put("/api/posts/:number/lock", api.LockOrUnlockPost())
+		postLocks.Delete("/api/posts/:number/lock", api.LockOrUnlockPost())
+	}
+
+	settings := membersApi.Group()
+	{
+		settings.Use(middlewares.SetLocale("en"))
+		settings.Use(middlewares.RequirePermission(entity.ManageSettings))
+
+		settings.Post("/api/admin/settings/general", handlers.UpdateSettings()) // General Page
+		settings.Get("/admin/privacy", handlers.Page("Privacy · Site Settings", "", "Administration/pages/PrivacySettings.page"))
+		settings.Post("/api/admin/settings/privacy", handlers.UpdatePrivacy())
+		settings.Get("/admin/advanced", handlers.AdvancedSettingsPage())
+		settings.Post("/api/admin/settings/advanced", handlers.UpdateAdvancedSettings())
+	}
+
+	pageTopics := membersApi.Group()
+	{
+		pageTopics.Use(middlewares.SetLocale("en"))
+		pageTopics.Use(middlewares.RequirePermission(entity.ManagePageTopics))
+
+		pageTopics.Post("/api/page-topics", api.CreatePageTopic())
+		pageTopics.Put("/api/page-topics/:id", api.UpdatePageTopic())
+		pageTopics.Delete("/api/page-topics/:id", api.DeletePageTopic())
+		pageTopics.Post("/api/page-tags", api.CreatePageTag())
+		pageTopics.Put("/api/page-tags/:id", api.UpdatePageTag())
+		pageTopics.Delete("/api/page-tags/:id", api.DeletePageTag())
+	}
+
+	navigation := membersApi.Group()
+	{
+		navigation.Use(middlewares.SetLocale("en"))
+		navigation.Use(middlewares.RequirePermission(entity.ManageNavigation))
+
+		navigation.Post("/api/admin/navigation", api.SaveNavigationLinks())
+	}
+
+	profanity := membersApi.Group()
+	{
+		profanity.Use(middlewares.SetLocale("en"))
+		profanity.Use(middlewares.RequirePermission(entity.ManageProfanity))
+
+		profanity.Post("/api/admin/settings/profanity", handlers.UpdateProfanityWords())
+	}
+
+	invitations := membersApi.Group()
+	{
+		invitations.Use(middlewares.SetLocale("en"))
+		invitations.Use(middlewares.RequirePermission(entity.ManageInvitations))
+
+		invitations.Get("/admin/invitations", handlers.Page("Invitations · Site Settings", "", "Administration/pages/Invitations.page"))
+		invitations.Post("/api/invitations/send", api.SendInvites())
+		invitations.Post("/api/invitations/sample", api.SendSampleInvite())
+	}
+
+	authentication := membersApi.Group()
+	{
+		authentication.Use(middlewares.SetLocale("en"))
+		authentication.Use(middlewares.RequirePermission(entity.ManageAuthentication))
+
+		authentication.Get("/admin/authentication", handlers.ManageAuthentication())
+		authentication.Post("/api/admin/oauth", handlers.SaveOAuthConfig())
+		authentication.Get("/api/admin/oauth/:provider", handlers.GetOAuthConfig())
+		authentication.Post("/api/admin/settings/emailauth", handlers.UpdateEmailAuthAllowed())
+	}
+
+	if env.IsBillingEnabled() {
+		billing := membersApi.Group()
+		{
+			billing.Use(middlewares.SetLocale("en"))
+			billing.Use(middlewares.RequirePermission(entity.ManageBilling))
+
+			billing.Get("/admin/billing", handlers.ManageBilling())
+			billing.Post("/api/billing/checkout-link", handlers.GenerateCheckoutLink())
 		}
+	}
 
-		adminOnly.Get("/admin/files", handlers.FileManagementPage())
-		adminOnly.Get("/api/admin/files", handlers.ListFiles())
-		adminOnly.Post("/api/admin/files", handlers.UploadFile())
-		adminOnly.Post("/api/admin/files-bulk/delete", handlers.BulkDeleteFiles())
-		adminOnly.Get("/api/admin/files-bulk/prunable-count", handlers.GetPrunableFilesCount())
-		adminOnly.Post("/api/admin/files-bulk/prune", handlers.PruneUnusedFiles())
-		adminOnly.Put("/api/admin/files/:blobKey/*path", handlers.RenameFile())
-		adminOnly.Delete("/api/admin/files/:blobKey/*path", handlers.DeleteFile())
-		adminOnly.Get("/api/admin/files/:blobKey/usage/*path", handlers.GetFileUsage())
+	files := membersApi.Group()
+	{
+		files.Use(middlewares.SetLocale("en"))
+		files.Use(middlewares.RequirePermission(entity.ManageFiles))
 
-		// user management
-		adminOnly.Post("/api/users", api.CreateUser())
-		adminOnly.Post("/api/admin/roles/:role/users", handlers.ChangeUserRole())
+		files.Get("/admin/files", handlers.FileManagementPage())
+		files.Get("/api/admin/files", handlers.ListFiles())
+		files.Post("/api/admin/files", handlers.UploadFile())
+		files.Post("/api/admin/files-bulk/delete", handlers.BulkDeleteFiles())
+		files.Get("/api/admin/files-bulk/prunable-count", handlers.GetPrunableFilesCount())
+		files.Post("/api/admin/files-bulk/prune", handlers.PruneUnusedFiles())
+		files.Put("/api/admin/files/:blobKey/*path", handlers.RenameFile())
+		files.Delete("/api/admin/files/:blobKey/*path", handlers.DeleteFile())
+		files.Get("/api/admin/files/:blobKey/usage/*path", handlers.GetFileUsage())
+	}
 
-		// export
-		adminOnly.Get("/admin/export", handlers.Page("Export · Site Settings", "", "Administration/pages/Export.page"))
-		adminOnly.Get("/admin/export/posts.csv", handlers.ExportPostsToCSV())
-		adminOnly.Get("/admin/export/backup.zip", handlers.ExportBackupZip())
+	createUsers := membersApi.Group()
+	{
+		createUsers.Use(middlewares.SetLocale("en"))
+		createUsers.Use(middlewares.RequirePermission(entity.CreateUsers))
 
-		// dev
-		adminOnly.Get("/_design", handlers.Page("Design System", "A preview of Fider UI elements", "DesignSystem/DesignSystem.page"))
+		createUsers.Post("/api/users", api.CreateUser())
+	}
+
+	roles := membersApi.Group()
+	{
+		roles.Use(middlewares.SetLocale("en"))
+		roles.Use(middlewares.RequirePermission(entity.ChangeUserRoles))
+
+		roles.Post("/api/admin/roles/:role/users", handlers.ChangeUserRole())
+	}
+
+	exports := membersApi.Group()
+	{
+		exports.Use(middlewares.SetLocale("en"))
+		exports.Use(middlewares.RequirePermission(entity.ExportBackup))
+
+		exports.Get("/admin/export", handlers.Page("Export · Site Settings", "", "Administration/pages/Export.page"))
+		exports.Get("/admin/export/posts.csv", handlers.ExportPostsToCSV())
+		exports.Get("/admin/export/backup.zip", handlers.ExportBackupZip())
+	}
+
+	designSystem := membersApi.Group()
+	{
+		designSystem.Use(middlewares.SetLocale("en"))
+		designSystem.Use(middlewares.RequirePermission(entity.ViewDesignSystem))
+
+		designSystem.Get("/_design", handlers.Page("Design System", "A preview of Fider UI elements", "DesignSystem/DesignSystem.page"))
 	}
 
 	return r

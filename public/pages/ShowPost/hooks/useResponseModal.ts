@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react"
-import { Post, PostStatus } from "@fider/models"
+import { Post, PostStatus, PostStatusValue } from "@fider/models"
 import { actions, Failure, notify } from "@fider/services"
 
 interface UseResponseModalConfig {
@@ -11,8 +11,8 @@ interface UseResponseModalConfig {
 }
 
 interface UseResponseModalResult {
-  status: string
-  setStatus: (status: string) => void
+  status: PostStatusValue
+  setStatus: (status: PostStatusValue) => void
   text: string
   setText: (text: string) => void
   originalNumber: number
@@ -28,7 +28,7 @@ interface UseResponseModalResult {
   editingOriginalAttachments: string[]
   isLoadingOriginalPost: boolean
   submit: () => Promise<void>
-  handleStatusChange: (value: string) => void
+  handleStatusChange: (value: PostStatusValue) => void
   handleDuplicateSelect: (postNumber: number) => Promise<void>
   handleDuplicateCancel: () => void
   handleCopyContent: () => Promise<void>
@@ -65,6 +65,13 @@ export const useResponseModal = (config: UseResponseModalConfig): UseResponseMod
       setError(undefined)
     }
   }, [post.number, post.status, post.response?.text])
+
+  useEffect(() => {
+    if (showModal && !post.permissions.respond.includes(status)) {
+      const firstStatus = post.permissions.respond[0]
+      if (firstStatus) setStatus(firstStatus)
+    }
+  }, [showModal, post.permissions.respond, status])
 
   useEffect(() => {
     if (showModal) {
@@ -107,7 +114,7 @@ export const useResponseModal = (config: UseResponseModalConfig): UseResponseMod
     }
   }, [post.number, status, text, originalNumber])
 
-  const handleStatusChange = useCallback((value: string) => {
+  const handleStatusChange = useCallback((value: PostStatusValue) => {
     setStatus(value)
   }, [])
 

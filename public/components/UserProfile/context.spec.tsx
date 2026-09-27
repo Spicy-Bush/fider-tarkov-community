@@ -1,4 +1,5 @@
 import React from "react"
+import { noSessionPermissions, noUserPermissions } from "@fider/services/testing/permissions"
 import { act, render, renderHook, screen, waitFor } from "@testing-library/react"
 import { expect, jest, test } from "@jest/globals"
 import { UserRole, UserStatus } from "@fider/models"
@@ -11,16 +12,16 @@ import { UserProfile } from "./UserProfile"
 jest.mock("@fider/services/actions")
 
 test.each([7, 8])("profile %i retries both stats and standing after a failed initial read", async (userId) => {
-  const user = {
+  const user = { permissions: { ...noUserPermissions, editAvatar: true },
     id: 7,
     name: "Member",
     role: UserRole.Visitor,
     status: UserStatus.Active,
     avatarURL: "",
   }
-  Fider.initialize({ user, contextID: "profile", tenant: {}, settings: {} })
+  Fider.initialize({ permissions: noSessionPermissions, user, contextID: "profile", tenant: {}, settings: {} })
 
-  jest.mocked(actions.getUserProfileStanding).mockReset().mockResolvedValue({ ok: true, data: { warnings: [], mutes: [] } })
+  jest.mocked(actions.getUserProfileStanding).mockReset().mockResolvedValue({ ok: true, data: { warnings: [], mutes: [], sessionPermissions: noSessionPermissions } })
   jest.mocked(actions.getUserProfileStats).mockReset()
     .mockRejectedValueOnce(new RequestError("GET", `/api/user/profile/${userId}/stats`, "transport", new Error("Disconnected")))
     .mockResolvedValue({ ok: true, data: { posts: 3, comments: 5, votes: 8 } })
@@ -44,8 +45,8 @@ test.each([7, 8])("profile %i retries both stats and standing after a failed ini
 })
 
 test("switching embedded profiles discards the previous identity and its pending stats", async () => {
-  const user = { id: 7, name: "Member", role: UserRole.Visitor, status: UserStatus.Active, avatarURL: "" }
-  Fider.initialize({ user, contextID: "profile", tenant: {}, settings: {} })
+  const user = { permissions: { ...noUserPermissions, editAvatar: true }, id: 7, name: "Member", role: UserRole.Visitor, status: UserStatus.Active, avatarURL: "" }
+  Fider.initialize({ permissions: noSessionPermissions, user, contextID: "profile", tenant: {}, settings: {} })
 
   let completeOld: (result: Awaited<ReturnType<typeof actions.getUserProfileStats>>) => void
   jest.mocked(actions.getUserProfileStats).mockReset()
@@ -53,7 +54,7 @@ test("switching embedded profiles discards the previous identity and its pending
       completeOld = resolve
     }))
     .mockResolvedValue({ ok: true, data: { posts: 9, comments: 0, votes: 0 } })
-  jest.mocked(actions.getUserProfileStanding).mockReset().mockResolvedValue({ ok: true, data: { warnings: [], mutes: [] } })
+  jest.mocked(actions.getUserProfileStanding).mockReset().mockResolvedValue({ ok: true, data: { warnings: [], mutes: [], sessionPermissions: noSessionPermissions } })
 
   const ProfileIdentity = () => {
     const profile = useUserProfile()
@@ -76,4 +77,40 @@ test("switching embedded profiles discards the previous identity and its pending
   })
 
   expect(screen.getByText("9:9")).toBeVisible()
+})
+
+test("a confirmed role receipt replaces target permissions while the profile stays mounted", async () => {
+  const actor = { id: 7, name: "Admin", role: UserRole.Administrator, permissions: noUserPermissions }
+  const target = {
+    id: 8,
+    name: "Member",
+    role: UserRole.Helper,
+    status: UserStatus.Active,
+    avatarURL: "",
+    permissions: { ...noUserPermissions, moderate: true, block: true },
+  }
+  Fider.initialize({ permissions: noSessionPermissions, user: actor, contextID: "profile", tenant: {}, settings: {} })
+  jest.mocked(actions.getUserProfileStanding).mockReset().mockResolvedValue({
+    ok: true,
+    data: { warnings: [], mutes: [], sessionPermissions: noSessionPermissions },
+  })
+  jest.mocked(actions.getUserProfileStats).mockReset().mockResolvedValue({ ok: true, data: { posts: 0, comments: 0, votes: 0 } })
+
+  const Access = () => {
+    const profile = useUserProfile()
+    return <output>{profile.activeTab}:{String(profile.canModerate)}:{String(profile.canBlock)}</output>
+  }
+  const show = (user: typeof target) => (
+    <UserStandingProvider>
+      <UserProfileProvider userId={user.id} user={user} embedded>
+        <Access />
+      </UserProfileProvider>
+    </UserStandingProvider>
+  )
+  const { rerender } = render(show(target))
+  expect(screen.getByText("search:true:true")).toBeVisible()
+
+  rerender(show({ ...target, role: UserRole.Administrator, permissions: noUserPermissions }))
+  await waitFor(() => expect(screen.getByText("search:false:false")).toBeVisible())
+  expect(actions.getUserProfileStats).toHaveBeenCalledTimes(1)
 })

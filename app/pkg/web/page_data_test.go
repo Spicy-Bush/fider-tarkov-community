@@ -54,7 +54,7 @@ func TestPageDataMatchesDocument(t *testing.T) {
 
 		ctx.SetTenant(&entity.Tenant{ID: 1, Name: "Review", Locale: "en"})
 		if role != 0 {
-			ctx.SetUser(&entity.User{ID: 7, Name: "Reviewer", Role: enum.Role(role), Muted: true})
+			ctx.SetUser(&entity.User{ID: 7, Name: "Reviewer", Role: enum.Role(role), Status: enum.UserActive, Muted: true})
 		}
 
 		if err := ctx.Page(http.StatusOK, props); err != nil {

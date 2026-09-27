@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Post, PostStatus, isPostArchived, isPostLocked } from "@fider/models"
+import { Post, PostStatus, isPostArchived } from "@fider/models"
 import { actions, analytics, notify } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { RequestError } from "@fider/services/http"
@@ -22,7 +22,7 @@ export function usePostVote(post: Post, onChange?: (upvotes: number, downvotes: 
   }), [post.id, tenantID, userID])
   const [snapshot, setSnapshot] = useState(() => ({ owner, vote: owner.vote, desired: owner.desired }))
   const status = PostStatus.Get(post.status)
-  const isDisabled = status.closed || fider.isReadOnly || isPostLocked(post)
+  const isDisabled = fider.session.isAuthenticated && !post.permissions.vote
 
   const publish = (current: typeof owner) => {
     if (current.attached) {

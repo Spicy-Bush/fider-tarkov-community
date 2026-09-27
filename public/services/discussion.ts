@@ -15,7 +15,14 @@ export function discussionURL(owner: DiscussionOwner): string {
     : `/api/pages/${owner.id}/comments`
 }
 
-export function loadComments(owner: DiscussionOwner, sort: DiscussionSort, parentId?: number, cursor?: string, depth = 1) {
+export function loadComments(
+  owner: DiscussionOwner,
+  sort: DiscussionSort,
+  parentId?: number,
+  cursor?: string,
+  depth = 1,
+  signal?: AbortSignal
+) {
   const parameters = new URLSearchParams({ sort })
 
   if (parentId !== undefined) {
@@ -27,11 +34,11 @@ export function loadComments(owner: DiscussionOwner, sort: DiscussionSort, paren
     parameters.set("after", cursor)
   }
 
-  return http.get<DiscussionPage>(`${discussionURL(owner)}?${parameters}`, { notifyOnError: false })
+  return http.get<DiscussionPage>(`${discussionURL(owner)}?${parameters}`, { notifyOnError: false, signal })
 }
 
-export function loadCommentContext(id: number) {
-  return http.get<CommentContext>(`/api/comments/${id}`, { notifyOnError: false })
+export function loadCommentContext(id: number, signal?: AbortSignal) {
+  return http.get<CommentContext>(`/api/comments/${id}`, { notifyOnError: false, signal })
 }
 
 export function loadCommentRecords(owner: DiscussionOwner, ids: number[], signal: AbortSignal) {

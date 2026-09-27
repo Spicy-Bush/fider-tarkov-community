@@ -3,17 +3,31 @@ package actions
 import (
 	"context"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/utils"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
+func userTargetPermissions(ctx context.Context, viewer *entity.User, userID int) entity.UserPermissions {
+	if viewer == nil {
+		return entity.UserPermissions{}
+	}
+
+	target := &query.GetUserByID{UserID: userID}
+	if err := bus.Dispatch(ctx, target); err != nil {
+		return entity.UserPermissions{}
+	}
+
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return target.Result.AllowedActions(viewer, tenant)
+}
+
 // MuteUser represents the action to mute a user
 type MuteUser struct {
-	UserID      int    `json:"userID"`
+	UserID      int    `json:"-" route:"userID"`
 	Reason      string `json:"reason"`
 	Duration    int    `json:"-"`
 	DurationStr string `json:"duration"`
@@ -21,33 +35,7 @@ type MuteUser struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (a *MuteUser) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil {
-		return false
-	}
-
-	getUser := &query.GetUserByID{UserID: a.UserID}
-	if err := bus.Dispatch(ctx, getUser); err != nil {
-		return false
-	}
-	targetUser := getUser.Result
-
-	if user.ID == targetUser.ID {
-		return false
-	}
-
-	if targetUser.Role == enum.RoleAdministrator {
-		return false
-	}
-
-	if user.Role == enum.RoleModerator {
-		return targetUser.Role == enum.RoleVisitor || targetUser.Role == enum.RoleHelper
-	}
-
-	if user.Role == enum.RoleCollaborator {
-		return targetUser.Role == enum.RoleVisitor || targetUser.Role == enum.RoleModerator || targetUser.Role == enum.RoleHelper
-	}
-
-	return user.Role == enum.RoleAdministrator
+	return userTargetPermissions(ctx, user, a.UserID).Moderate
 }
 
 // Validate if current action is valid
@@ -83,7 +71,7 @@ func (a *MuteUser) Validate(ctx context.Context, user *entity.User) *validate.Re
 
 // WarnUser represents the action to warn a user
 type WarnUser struct {
-	UserID      int    `json:"userID"`
+	UserID      int    `json:"-" route:"userID"`
 	Reason      string `json:"reason"`
 	Duration    int    `json:"-"`        // Used internally after parsing DurationStr
 	DurationStr string `json:"duration"` // String representation (can be "0" for permanent or "30m", "1h", "1d", etc.)
@@ -91,33 +79,7 @@ type WarnUser struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (a *WarnUser) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil {
-		return false
-	}
-
-	getUser := &query.GetUserByID{UserID: a.UserID}
-	if err := bus.Dispatch(ctx, getUser); err != nil {
-		return false
-	}
-	targetUser := getUser.Result
-
-	if user.ID == targetUser.ID {
-		return false
-	}
-
-	if targetUser.Role == enum.RoleAdministrator {
-		return false
-	}
-
-	if user.Role == enum.RoleModerator {
-		return targetUser.Role == enum.RoleVisitor || targetUser.Role == enum.RoleHelper
-	}
-
-	if user.Role == enum.RoleCollaborator {
-		return targetUser.Role == enum.RoleVisitor || targetUser.Role == enum.RoleModerator || targetUser.Role == enum.RoleHelper
-	}
-
-	return user.Role == enum.RoleAdministrator
+	return userTargetPermissions(ctx, user, a.UserID).Moderate
 }
 
 // Validate if current action is valid
@@ -154,35 +116,13 @@ func (a *WarnUser) Validate(ctx context.Context, user *entity.User) *validate.Re
 
 // DeleteWarning represents the action to delete a warning
 type DeleteWarning struct {
-	UserID    int `json:"userID"`
-	WarningID int `json:"warningID"`
+	UserID    int `json:"-" route:"userID"`
+	WarningID int `json:"-" route:"warningID"`
 }
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (a *DeleteWarning) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil {
-		return false
-	}
-
-	getUser := &query.GetUserByID{UserID: a.UserID}
-	if err := bus.Dispatch(ctx, getUser); err != nil {
-		return false
-	}
-	targetUser := getUser.Result
-
-	if user.ID == targetUser.ID {
-		return false // cannot moderate yourself
-	}
-
-	if targetUser.Role == enum.RoleAdministrator {
-		return false // cannot moderate administrators
-	}
-
-	if user.Role == enum.RoleCollaborator {
-		return true
-	}
-
-	return user.Role == enum.RoleAdministrator
+	return userTargetPermissions(ctx, user, a.UserID).DeleteModeration
 }
 
 // Validate if current action is valid
@@ -202,35 +142,13 @@ func (a *DeleteWarning) Validate(ctx context.Context, user *entity.User) *valida
 
 // DeleteMute represents the action to delete a mute
 type DeleteMute struct {
-	UserID int `json:"userID"`
-	MuteID int `json:"muteID"`
+	UserID int `json:"-" route:"userID"`
+	MuteID int `json:"-" route:"muteID"`
 }
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (a *DeleteMute) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	if user == nil {
-		return false
-	}
-
-	getUser := &query.GetUserByID{UserID: a.UserID}
-	if err := bus.Dispatch(ctx, getUser); err != nil {
-		return false
-	}
-	targetUser := getUser.Result
-
-	if user.ID == targetUser.ID {
-		return false // cannot moderate yourself
-	}
-
-	if targetUser.Role == enum.RoleAdministrator {
-		return false // cannot moderate administrators
-	}
-
-	if user.Role == enum.RoleCollaborator {
-		return true
-	}
-
-	return user.Role == enum.RoleAdministrator
+	return userTargetPermissions(ctx, user, a.UserID).DeleteModeration
 }
 
 // Validate if current action is valid

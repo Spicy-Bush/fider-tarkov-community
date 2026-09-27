@@ -1,6 +1,20 @@
 import { User } from "./identity"
+import { DiscussionPermissions } from "./discussion"
+
+export enum PostStatusValue {
+  Open = "open",
+  Planned = "planned",
+  Started = "started",
+  Completed = "completed",
+  Declined = "declined",
+  Duplicate = "duplicate",
+  Deleted = "deleted",
+  Archived = "archived",
+}
 
 export interface Post {
+  discussionPermissions: DiscussionPermissions
+  permissions: PostPermissions
   id: number
   number: number
   slug: string
@@ -8,7 +22,7 @@ export interface Post {
   description: string
   createdAt: string
   lastActivityAt: string
-  status: string
+  status: PostStatusValue
   user: User
   voteType: number
   voteRevision: number
@@ -16,13 +30,26 @@ export interface Post {
   votesCount: number
   commentsCount: number
   tags: string[]
-  tagDates?: string
   lockedSettings?: PostLockedSettings
   archivedSettings?: PostArchivedSettings
   upvotes?: number
   downvotes?: number
   moderationPending?: boolean
   moderationData?: string
+}
+
+export interface PostPermissions {
+  edit: boolean
+  delete: boolean
+  respond: PostStatusValue[]
+  lock: boolean
+  archive: boolean
+  moderate: boolean
+  tag: boolean
+  report: boolean
+  viewVotes: boolean
+  vote: boolean
+  follow: boolean
 }
 
 export function isPostHidden(post: Post): boolean {
@@ -38,16 +65,16 @@ export function isPostArchived(post: Post): boolean {
 }
 
 export class PostStatus {
-  constructor(public title: string, public value: string, public show: boolean, public closed: boolean, public filterable: boolean) {}
+  constructor(public title: string, public value: PostStatusValue, public show: boolean, public closed: boolean, public filterable: boolean) {}
 
-  public static Open = new PostStatus("Open", "open", false, false, true)
-  public static Planned = new PostStatus("Planned", "planned", true, false, true)
-  public static Started = new PostStatus("Started", "started", true, false, true)
-  public static Completed = new PostStatus("Completed", "completed", true, true, true)
-  public static Declined = new PostStatus("Declined", "declined", true, true, true)
-  public static Duplicate = new PostStatus("Duplicate", "duplicate", true, true, true)
-  public static Deleted = new PostStatus("Deleted", "deleted", false, true, false)
-  public static Archived = new PostStatus("Archived", "archived", true, false, true)
+  public static Open = new PostStatus("Open", PostStatusValue.Open, false, false, true)
+  public static Planned = new PostStatus("Planned", PostStatusValue.Planned, true, false, true)
+  public static Started = new PostStatus("Started", PostStatusValue.Started, true, false, true)
+  public static Completed = new PostStatus("Completed", PostStatusValue.Completed, true, true, true)
+  public static Declined = new PostStatus("Declined", PostStatusValue.Declined, true, true, true)
+  public static Duplicate = new PostStatus("Duplicate", PostStatusValue.Duplicate, true, true, true)
+  public static Deleted = new PostStatus("Deleted", PostStatusValue.Deleted, false, true, false)
+  public static Archived = new PostStatus("Archived", PostStatusValue.Archived, true, false, true)
 
   public static Get(value: string): PostStatus {
     if (value === PostStatus.Deleted.value) {
@@ -96,6 +123,7 @@ export interface ReactionCount {
 }
 
 export interface Tag {
+  permissions: { assign: boolean }
   id: number
   slug: string
   name: string
@@ -105,10 +133,5 @@ export interface Tag {
 
 export interface Vote {
   createdAt: Date
-  user: {
-    id: number
-    name: string
-    email: string
-    avatarURL: string
-  }
+  user: Pick<User, "id" | "name" | "email" | "avatarURL" | "permissions">
 }

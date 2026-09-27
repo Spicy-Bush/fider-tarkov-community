@@ -5,7 +5,7 @@ import { useFider } from "@fider/hooks"
 import { heroiconsPlus as IconPlus, heroiconsCheck as IconCheck } from "@fider/icons.generated"
 import { VStack } from "@fider/components/layout"
 import { Trans } from "@lingui/macro"
-import { Post, isPostLocked } from "@fider/models"
+import { Post } from "@fider/models"
 
 export interface NotificationsPanelProps {
   post: Post
@@ -15,7 +15,6 @@ export interface NotificationsPanelProps {
 export const FollowButton = (props: NotificationsPanelProps) => {
   const fider = useFider()
   const [subscribed, setSubscribed] = useState(props.subscribed)
-  const isLocked = isPostLocked(props.post) || fider.isReadOnly
 
   const subscribeOrUnsubscribe = async () => {
     const action = subscribed ? actions.unsubscribe : actions.subscribe
@@ -35,7 +34,7 @@ export const FollowButton = (props: NotificationsPanelProps) => {
       variant="primary"
       className="w-full no-focus" 
       onClick={subscribeOrUnsubscribe} 
-      disabled={isLocked}
+      disabled={!props.post.permissions.follow}
     >
       <Icon sprite={IconCheck} />{" "}
       <span>
@@ -47,7 +46,7 @@ export const FollowButton = (props: NotificationsPanelProps) => {
       variant="secondary"
       className="w-full no-focus" 
       onClick={subscribeOrUnsubscribe} 
-      disabled={isLocked}
+      disabled={!props.post.permissions.follow}
     >
       <Icon sprite={IconPlus} />
       <span>

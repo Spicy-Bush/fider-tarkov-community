@@ -13,6 +13,7 @@ import (
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
@@ -66,6 +67,25 @@ func TestContextID(t *testing.T) {
 
 	Expect(ctx.ContextID()).IsNotEmpty()
 	Expect(ctx.ContextID()).HasLen(32)
+}
+
+func TestContextProjectsAuthenticatedUserWithoutChangingLoadedRecord(t *testing.T) {
+	ctx := newGetContext("http://demo.test.fider.io:3000", nil)
+	ctx.SetTenant(&entity.Tenant{ID: 1, Status: enum.TenantActive})
+	loaded := &entity.User{ID: 2, Role: enum.RoleAdministrator, Status: enum.UserActive}
+
+	ctx.SetUser(loaded)
+	if !ctx.User().Permissions.EditName || ctx.User().Permissions.Block || ctx.User().Permissions.ChangeRole {
+		t.Fatalf("authenticated user's own capabilities: %+v", ctx.User().Permissions)
+	}
+	if loaded.Permissions != (entity.UserPermissions{}) {
+		t.Fatal("authentication changed the shared loaded record")
+	}
+
+	ctx.SetUser(nil)
+	if ctx.User() != nil {
+		t.Fatal("sign-out retained the authenticated user")
+	}
 }
 
 func TestContextFailureValidation(t *testing.T) {

@@ -1,8 +1,6 @@
 import React, { useState } from "react"
 import { Post, Vote } from "@fider/models"
 import { AvatarStack, Button } from "@fider/components"
-import { Fider } from "@fider/services"
-import { useFider } from "@fider/hooks"
 import { VotesModal } from "./VotesModal"
 import { VStack } from "@fider/components/layout"
 import { Trans } from "@lingui/react/macro"
@@ -14,9 +12,8 @@ interface VotesPanelProps {
 }
 
 export const VotesPanel = (props: VotesPanelProps) => {
-  const fider = useFider()
   const [isVotesModalOpen, setIsVotesModalOpen] = useState(false)
-  const canShowAll = fider.session.isAuthenticated && (Fider.session.user.isCollaborator || Fider.session.user.isModerator || Fider.session.user.isAdministrator)
+  const canShowAll = props.post.permissions.viewVotes
   const hasVotes = props.votes.length > 0
 
   const openModal = () => {

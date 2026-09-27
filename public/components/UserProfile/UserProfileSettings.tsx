@@ -136,7 +136,7 @@ const UserProfileSettingsComponent: React.FC<UserProfileSettingsProps> = ({ user
               value={settingsState.changingEmail ? settingsState.newEmail : Fider.session.user.email}
               maxLength={200}
               disabled={!settingsState.changingEmail}
-              afterLabel={settingsState.changingEmail ? undefined : (
+              afterLabel={settingsState.changingEmail || !Fider.session.permissions.changeOwnEmail ? undefined : (
                 <Button variant="tertiary" size="small" onClick={startChangeEmail}>
                   <Trans id="action.change">change</Trans>
                 </Button>
@@ -211,7 +211,7 @@ const UserProfileSettingsComponent: React.FC<UserProfileSettingsProps> = ({ user
         </div>
       </div>
 
-      {Fider.session.user.isCollaborator && (
+      {Fider.session.permissions.manageAPIKeys && (
         <div className="bg-elevated rounded-card shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 p-4 border-b border-surface-alt">
             <Icon sprite={IconKey} className="h-5 w-5 text-primary" />

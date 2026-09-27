@@ -1,5 +1,5 @@
 import { createContext } from "react"
-import { CurrentUser, SystemSettings, Tenant, TenantStatus, UserProfileStanding } from "@fider/models"
+import { CurrentUser, SessionPermissions, SystemSettings, Tenant, TenantStatus, UserProfileStandingResponse } from "@fider/models"
 
 export interface ServerData {
   title: string
@@ -10,6 +10,7 @@ export interface ServerData {
   props: Record<string, any>
   tenant: Tenant
   user?: CurrentUser
+  permissions: SessionPermissions
   settings: SystemSettings
 }
 
@@ -32,6 +33,10 @@ export class FiderSession {
   public get user(): CurrentUser {
     if (!this.data.user) throw new Error("User is undefined")
     return this.data.user
+  }
+
+  public get permissions(): SessionPermissions {
+    return this.data.permissions
   }
 
   public getSnapshot = (): ServerData => this.data
@@ -65,12 +70,13 @@ export class FiderSession {
     this.refresh({ ...this.data, user: { ...user, ...change } })
   }
 
-  public updateUserStanding(standing: UserProfileStanding): void {
+  public updateUserStanding(standing: UserProfileStandingResponse): void {
     const warning = standing.warnings.find((entry) => entry.isActive)
     const mute = standing.mutes.find((entry) => entry.isActive)
 
     this.refresh({
       ...this.data,
+      permissions: standing.sessionPermissions,
       user: {
         ...this.user,
         hasWarning: !!warning,

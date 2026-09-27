@@ -97,8 +97,17 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
     return <Toggle key={`${settingsKey}_${channel}`} active={active} label={label} onToggle={onToggle} />
   }
 
-  const info = (settingsKey: string, aboutForVisitors: string, aboutForCollaborators: string) => {
-    const about = fider.session.user.isCollaborator ? aboutForCollaborators : aboutForVisitors
+  const emailToggle = (settingsKey: string) => {
+    const savedEmailEnabled = (parseInt(props.userSettings[settingsKey], 10) & EmailChannel) > 0
+    if (fider.session.permissions.enableEmailNotifications || savedEmailEnabled) {
+      return icon(settingsKey, EmailChannel)
+    }
+
+    return null
+  }
+
+  const info = (settingsKey: string, aboutSubscribed: string, aboutAll: string) => {
+    const about = fider.settings.notificationSubscriptions[settingsKey] ? aboutSubscribed : aboutAll
     const webEnabled = isEnabled(settingsKey, WebChannel)
 
     if (!webEnabled) {
@@ -187,7 +196,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
           )}
           <HStack spacing={6}>
             {icon("event_notification_new_post", WebChannel)}
-            {fider.session.user.isAdministrator && icon("event_notification_new_post", EmailChannel)}
+            {emailToggle("event_notification_new_post")}
             {pushSubscribed && icon("event_notification_new_post", PushChannel)}
           </HStack>
         </div>
@@ -202,7 +211,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
           )}
           <HStack spacing={6}>
             {icon("event_notification_new_comment", WebChannel)}
-            {fider.session.user.isAdministrator && icon("event_notification_new_comment", EmailChannel)}
+            {emailToggle("event_notification_new_comment")}
             {pushSubscribed && icon("event_notification_new_comment", PushChannel)}
           </HStack>
         </div>
@@ -217,7 +226,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
           )}
           <HStack spacing={6}>
             {icon("event_notification_mention", WebChannel)}
-            {fider.session.user.isAdministrator && icon("event_notification_mention", EmailChannel)}
+            {emailToggle("event_notification_mention")}
             {pushSubscribed && icon("event_notification_mention", PushChannel)}
           </HStack>
         </div>
@@ -232,7 +241,7 @@ export const NotificationSettings = (props: NotificationSettingsProps) => {
           )}
           <HStack spacing={6}>
             {icon("event_notification_change_status", WebChannel)}
-            {fider.session.user.isAdministrator && icon("event_notification_change_status", EmailChannel)}
+            {emailToggle("event_notification_change_status")}
             {pushSubscribed && icon("event_notification_change_status", PushChannel)}
           </HStack>
         </div>

@@ -22,7 +22,8 @@ type CreateUser struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *CreateUser) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.CreateUsers)
 }
 
 // Validate if current model is valid
@@ -60,7 +61,8 @@ type ChangeUserVisualRole struct {
 }
 
 func (action *ChangeUserVisualRole) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ChangeUserVisualRoles)
 }
 
 // ChangeUserRole is the input model change role of an user
@@ -71,7 +73,9 @@ type ChangeUserRole struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *ChangeUserRole) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator()) && user.ID != action.UserID
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	target := &entity.User{ID: action.UserID}
+	return target.AllowedActions(user, tenant).ChangeRole
 }
 
 // Validate if current model is valid
@@ -79,10 +83,6 @@ func (action *ChangeUserRole) Validate(ctx context.Context, user *entity.User) *
 	result := validate.Success()
 	if action.Role < enum.RoleVisitor || action.Role > enum.RoleHelper {
 		return validate.Error(app.ErrNotFound)
-	}
-
-	if user.ID == action.UserID {
-		result.AddFieldFailure("userID", "You are not allowed to change your own Role.")
 	}
 
 	userByID := &query.GetUserByID{UserID: action.UserID}
@@ -115,12 +115,15 @@ func (action *ChangeUserVisualRole) Validate(ctx context.Context, user *entity.U
 		} else {
 			return validate.Error(err)
 		}
+		return result
 	} else if userByID.Result.Tenant.ID != user.Tenant.ID {
 		result.AddFieldFailure("userID", "User not found.")
+		return result
 	}
 
-	if user.IsCollaborator() && !user.IsAdministrator() && userByID.Result.Role == enum.RoleAdministrator {
-		result.AddFieldFailure("visualRole", "You are not authorized to change the visual role of an administrator.")
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	if !userByID.Result.AllowedActions(user, tenant).ChangeVisualRole {
+		return validate.Unauthorized()
 	}
 
 	return result

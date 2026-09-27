@@ -1,7 +1,7 @@
 package middlewares
 
 import (
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -17,17 +17,16 @@ func IsAuthenticated() web.MiddlewareFunc {
 	}
 }
 
-// IsAuthorized blocks non-authorized requests
-func IsAuthorized(roles ...enum.Role) web.MiddlewareFunc {
+func RequirePermission(permission entity.Permission) web.MiddlewareFunc {
 	return func(next web.HandlerFunc) web.HandlerFunc {
 		return func(c *web.Context) error {
-			user := c.User()
-			for _, role := range roles {
-				if user.Role == role {
-					return next(c)
-				}
+			if !c.IsAuthenticated() {
+				return c.Unauthorized()
 			}
-			return c.Forbidden()
+			if !entity.Can(c.User(), c.Tenant(), permission) {
+				return c.Forbidden()
+			}
+			return next(c)
 		}
 	}
 }

@@ -188,6 +188,7 @@ func TestModerationStaleClaimsAndManualApproval(t *testing.T) {
 
 func TestModerationProfileSaveOutageAndLatestEdit(t *testing.T) {
 	ctx := moderationDatabase(t)
+	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Status: enum.UserActive})
 	var original string
 
 	if err := dbx.Connection().QueryRow(`SELECT name FROM users WHERE id=1`).Scan(&original); err != nil {
@@ -358,6 +359,7 @@ func TestModerationFailedCompletionRollsBack(t *testing.T) {
 
 func TestModerationWorkerRecoversSavedAvatar(t *testing.T) {
 	ctx := moderationDatabase(t)
+	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Status: enum.UserActive})
 	var originalKey string
 	var originalType int
 
@@ -536,6 +538,7 @@ func TestModerationProfileHTTPWorkflow(t *testing.T) {
 
 func TestModerationPendingAvatarFileLifecycle(t *testing.T) {
 	ctx := moderationDatabase(t)
+	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Status: enum.UserActive})
 	dispatchModeration(t, ctx, &cmd.SaveProfileAvatar{UserID: 1, AvatarType: enum.AvatarTypeCustom, BlobKey: "avatars/before", Review: true})
 	first := takeModeration(t)
 	usage := &query.IsImageFileInUse{BlobKey: "avatars/before"}
@@ -633,6 +636,7 @@ func BenchmarkModerationWorkflow(b *testing.B) {
 
 func TestModerationAvatarPublication(t *testing.T) {
 	ctx := moderationDatabase(t)
+	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Status: enum.UserActive})
 	bus.Init(blobsql.Service{})
 	assets.FS = os.DirFS(env.Path("."))
 	var oldKey string
@@ -725,6 +729,7 @@ func TestModerationFailuresBeyondFirstPage(t *testing.T) {
 
 func TestModerationPruningProtectsSavedWork(t *testing.T) {
 	ctx := moderationDatabase(t)
+	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Status: enum.UserActive})
 	bus.Init(blobsql.Service{})
 	keys := []string{"avatars/prune-kept", "avatars/prune-unused"}
 	t.Cleanup(func() {
@@ -810,6 +815,7 @@ func BenchmarkModerationTenantLookup(b *testing.B) {
 
 func TestModerationProfileModel(t *testing.T) {
 	ctx := moderationDatabase(t)
+	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Status: enum.UserActive})
 	var original string
 
 	if err := dbx.Connection().QueryRow(`SELECT name FROM users WHERE id=1`).Scan(&original); err != nil {
@@ -950,6 +956,7 @@ func TestModerationAvatarTypeSwitchCannotPublishUpload(t *testing.T) {
 
 func TestModerationInactiveAvatarKeyRequiresReview(t *testing.T) {
 	ctx := moderationDatabase(t)
+	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Status: enum.UserActive})
 	var oldKey string
 	var oldType int
 
@@ -1019,7 +1026,7 @@ func TestModerationAccountDeletion(t *testing.T) {
 				dbx.Connection().Exec(`DELETE FROM users WHERE id=$1`, id)
 			})
 
-			ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: id})
+			ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: id, Status: enum.UserActive})
 			dispatchModeration(t, ctx, &cmd.StoreBlob{Key: key, Content: []byte("fixture"), ContentType: "image/png"})
 			dispatchModeration(t, ctx, &cmd.SaveProfileName{UserID: id, Name: "Private submission", Review: true})
 			nameClaim := takeModeration(t)
@@ -1162,7 +1169,7 @@ func TestModerationDeletionTransaction(t *testing.T) {
 		dbx.Connection().Exec(`DELETE FROM users WHERE id=$1`, id)
 	})
 
-	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: id})
+	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: id, Status: enum.UserActive})
 	dispatchModeration(t, ctx, &cmd.SaveProfileName{UserID: id, Name: "Saved proposal", Review: true})
 	claim := takeModeration(t)
 	trx, err := dbx.BeginTx(ctx)
@@ -1227,6 +1234,7 @@ func TestModerationDeletionTransaction(t *testing.T) {
 
 func TestModerationFailOpenRecoveryAndReplacement(t *testing.T) {
 	ctx := moderationDatabase(t)
+	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Status: enum.UserActive})
 	bus.AddHandler(func(ctx context.Context, c *cmd.UserListUpdateUser) error { return nil })
 	var original string
 
@@ -1397,6 +1405,7 @@ func TestModerationCleanRecheckPreservesStaffHide(t *testing.T) {
 
 func TestModerationFailOpenAvatarFallbackLifecycle(t *testing.T) {
 	ctx := moderationDatabase(t)
+	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Status: enum.UserActive})
 	bus.Init(blobsql.Service{})
 	var originalKey string
 	var originalType int

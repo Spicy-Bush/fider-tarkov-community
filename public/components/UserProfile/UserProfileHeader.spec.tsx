@@ -1,4 +1,5 @@
 import React from "react"
+import { noSessionPermissions, noUserPermissions } from "@fider/services/testing/permissions"
 import { i18n } from "@lingui/core"
 import { I18nProvider } from "@lingui/react"
 import { afterEach, expect, jest, test } from "@jest/globals"
@@ -27,7 +28,7 @@ test.each([1, 2])("saving user %i’s avatar updates their profile without chang
   modalRoot.id = "root-modal"
   document.body.appendChild(modalRoot)
 
-  const user = {
+  const user = { permissions: { ...noUserPermissions, editAvatar: true },
     id: 1,
     name: "Local Admin",
     role: UserRole.Administrator,
@@ -36,11 +37,11 @@ test.each([1, 2])("saving user %i’s avatar updates their profile without chang
     avatarURL: "/static/images/avatars/old.png",
     isAdministrator: true,
   }
-  Fider.initialize({ user, tenant: {}, settings: {} })
+  Fider.initialize({ permissions: noSessionPermissions, user, tenant: {}, settings: {} })
   let published = { name: user.name, avatarType: user.avatarType, avatarURL: user.avatarURL }
 
   jest.mocked(actions.getUserProfileStats).mockResolvedValue({ ok: true, data: { posts: 0, comments: 0, votes: 0 } })
-  jest.mocked(actions.getUserProfileStanding).mockResolvedValue({ ok: true, data: { warnings: [], mutes: [] } })
+  jest.mocked(actions.getUserProfileStanding).mockResolvedValue({ ok: true, data: { warnings: [], mutes: [], sessionPermissions: noSessionPermissions } })
   jest.spyOn(http, "get").mockImplementation(async () => ({ ok: true, data: { ...published, changes: [] } }))
   const save = jest.mocked(actions.updateUserAvatar).mockImplementation(async ({ avatarType }) => {
     published = { name: user.name, avatarType, avatarURL: avatarType === UserAvatarType.Letter ? "" : "/static/avatars/gravatar/1" }

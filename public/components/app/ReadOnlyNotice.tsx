@@ -8,7 +8,7 @@ export const ReadOnlyNotice = () => {
     return null
   }
 
-  if (fider.session.isAuthenticated && fider.session.user.isAdministrator) {
+  if (fider.session.permissions.manageBilling) {
     return (
       <Message alignment="center" type="warning">
         This website is currently in read-only mode because there is no active subscription. Visit{" "}

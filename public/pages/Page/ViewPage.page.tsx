@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useState, useEffect } from "react"
-import { Page, Post } from "@fider/models"
+import { Page, Post, DiscussionPermissions } from "@fider/models"
 import { Markdown, Button } from "@fider/components"
 import { VStack, HStack } from "@fider/components/layout"
 import { togglePageReaction } from "@fider/services/pages"
@@ -12,13 +12,14 @@ import { AdSlot, useAdSelection } from "@fider/components/sponsorship"
 
 interface ViewPageProps {
   page: Page
+  discussionPermissions: DiscussionPermissions
 }
 
 type ContentPart = 
   | { type: "text"; content: string }
   | { type: "posts"; postIds: number[] | null; filters: Record<string, string> | null }
 
-const ViewPage = ({ page }: ViewPageProps) => {
+const ViewPage = ({ page, discussionPermissions }: ViewPageProps) => {
   const contentRef = useRef<HTMLDivElement>(null)
   const emojiSelectorRef = useRef<HTMLDivElement>(null)
   const { toc, activeId, scrollTo } = useTableOfContents(contentRef, page.title, "page-title")
@@ -243,7 +244,7 @@ const ViewPage = ({ page }: ViewPageProps) => {
 
           {page.allowReactions && (
             <div className="mb-8">
-              <Reactions reactions={reactionCounts} emojiSelectorRef={emojiSelectorRef} toggleReaction={toggleReaction} />
+              <Reactions disabled={!page.permissions.react} reactions={reactionCounts} emojiSelectorRef={emojiSelectorRef} toggleReaction={toggleReaction} />
             </div>
           )}
 
@@ -254,7 +255,10 @@ const ViewPage = ({ page }: ViewPageProps) => {
           </HStack>
 
           <div className="mt-8">
-            <Discussion owner={{ kind: "page", id: page.id, title: page.title, url: `/pages/${page.slug}` }} />
+            <Discussion
+              owner={{ kind: "page", id: page.id, title: page.title, url: `/pages/${page.slug}` }}
+              ownerPermissions={discussionPermissions}
+            />
           </div>
         </div>
 

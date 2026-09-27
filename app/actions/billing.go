@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 
@@ -16,7 +17,8 @@ type GenerateCheckoutLink struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *GenerateCheckoutLink) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageBilling)
 }
 
 // Validate if current model is valid

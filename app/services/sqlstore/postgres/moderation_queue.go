@@ -12,6 +12,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
 // Keep the original profile value across edits until a check succeeds. Otherwise
@@ -384,19 +385,26 @@ func retryModerationFailures(ctx context.Context, c *cmd.RetryModerationFailures
 
 func saveProfileName(ctx context.Context, c *cmd.SaveProfileName) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		var current string
+		var current struct {
+			Name string    `db:"name"`
+			Role enum.Role `db:"role"`
+		}
 
-		if err := trx.Scalar(&current, `
-            SELECT name
+		if err := trx.Get(&current, `
+            SELECT name, role
             FROM users
             WHERE id = $1 AND tenant_id = $2 AND status <> $3
             FOR UPDATE`, c.UserID, tenant.ID, enum.UserDeleted); err != nil {
 			return err
 		}
+		target := &entity.User{ID: c.UserID, Role: current.Role}
+		if !target.AllowedActions(user, tenant).EditName {
+			return validate.Unauthorized()
+		}
 
-		c.Pending = c.Review && c.Name != current
+		c.Pending = c.Review && c.Name != current.Name
 
-		if c.Review && c.Name == current {
+		if c.Review && c.Name == current.Name {
 			// Resaving a value published during an outage must not bypass its check.
 			if err := trx.Scalar(&c.Pending, `
                 SELECT EXISTS (
@@ -426,14 +434,19 @@ func saveProfileAvatar(ctx context.Context, c *cmd.SaveProfileAvatar) error {
 		var current struct {
 			Key  string          `db:"avatar_bkey"`
 			Type enum.AvatarType `db:"avatar_type"`
+			Role enum.Role       `db:"role"`
 		}
 
 		if err := trx.Get(&current, `
-            SELECT avatar_bkey, avatar_type
+            SELECT avatar_bkey, avatar_type, role
             FROM users
             WHERE id = $1 AND tenant_id = $2 AND status <> $3
             FOR UPDATE`, c.UserID, tenant.ID, enum.UserDeleted); err != nil {
 			return err
+		}
+		target := &entity.User{ID: c.UserID, Role: current.Role}
+		if !target.AllowedActions(user, tenant).EditAvatar {
+			return validate.Unauthorized()
 		}
 
 		if c.AvatarType != enum.AvatarTypeCustom {

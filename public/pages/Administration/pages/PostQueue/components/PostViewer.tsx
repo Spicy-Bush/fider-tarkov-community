@@ -21,18 +21,11 @@ import {
   heroiconsDuplicate as IconCopy,
 } from "@fider/icons.generated"
 import { Post, Tag, ImageUpload } from "@fider/models"
+import { UserData } from "@fider/components/UserProfile"
 import { VoteSection } from "@fider/pages/ShowPost/components/VoteSection"
 import { TagsPanel } from "@fider/pages/ShowPost/components/TagsPanel"
 import { DiscussionPanel } from "@fider/pages/ShowPost/components/DiscussionPanel"
 import { PostQueueActions } from "./PostQueueActions"
-
-interface ClickableUser {
-  id: number
-  name: string
-  avatarURL: string
-  role?: string
-  status?: string
-}
 
 export interface PostViewerProps {
   post: Post | null
@@ -46,11 +39,11 @@ export interface PostViewerProps {
   onDuplicateSelected: (postNumber: number) => void
   onDuplicateCancelled: () => void
   onDuplicateReset: () => void
-  onPostUpdated: (post: Post) => void
+  onPostUpdated: (post: Pick<Post, "id" | "title" | "description">) => void
   onContentCopied: () => void
   onTagsChanged?: (postNumber: number) => void
   onNextPost?: () => void
-  onUserClick?: (user: ClickableUser) => void
+  onUserClick?: (user: UserData) => void
 }
 
 export const PostViewer: React.FC<PostViewerProps> = ({
@@ -144,8 +137,7 @@ export const PostViewer: React.FC<PostViewerProps> = ({
       editAttachments
     )
     if (result.ok) {
-      const updatedPost = { ...post, title: editTitle, description: editDescription }
-      onPostUpdated(updatedPost)
+      onPostUpdated({ id: post.id, title: editTitle, description: editDescription })
       setEditMode(false)
     } else {
       setEditError(result.error)
@@ -189,13 +181,7 @@ export const PostViewer: React.FC<PostViewerProps> = ({
 
         <div 
           className="mb-4 p-3 bg-tertiary rounded-card cursor-pointer hover:bg-surface-alt transition-colors group relative"
-          onClick={() => onUserClick?.({
-            id: post.user.id,
-            name: post.user.name,
-            avatarURL: post.user.avatarURL,
-            role: post.user.role,
-            status: post.user.status,
-          })}
+          onClick={() => onUserClick?.(post.user)}
           role="button"
           tabIndex={0}
         >

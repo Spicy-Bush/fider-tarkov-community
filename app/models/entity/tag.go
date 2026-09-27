@@ -7,4 +7,6 @@ type Tag struct {
 	Slug     string `json:"slug"`
 	Color    string `json:"color"`
 	IsPublic bool   `json:"isPublic"`
+
+	Permissions TagPermissions `json:"permissions"`
 }

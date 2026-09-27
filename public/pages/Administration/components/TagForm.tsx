@@ -89,6 +89,7 @@ export class TagForm extends React.Component<TagFormProps, TagFormState> {
           <Field label="Preview">
             <ShowTag
               tag={{
+                permissions: { assign: false },
                 id: 0,
                 slug: "",
                 name: this.state.name,

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 
@@ -27,7 +28,7 @@ func generateRandomUsername() string {
 // ChangeUserEmail register the intent of changing user email
 func ChangeUserEmail() web.HandlerFunc {
 	return func(c *web.Context) error {
-		if c.User().Role != enum.RoleAdministrator && c.User().Role != enum.RoleCollaborator {
+		if !entity.Can(c.User(), c.Tenant(), entity.ChangeOwnEmail) {
 			return c.Redirect(c.BaseURL() + "/profile#settings")
 		}
 
@@ -56,7 +57,7 @@ func ChangeUserEmail() web.HandlerFunc {
 // VerifyChangeEmailKey checks if key is correct and update user's email
 func VerifyChangeEmailKey() web.HandlerFunc {
 	return func(c *web.Context) error {
-		if c.User().Role != enum.RoleAdministrator && c.User().Role != enum.RoleCollaborator {
+		if !entity.Can(c.User(), c.Tenant(), entity.ChangeOwnEmail) {
 			return c.Redirect(c.BaseURL() + "/profile#settings")
 		}
 		key := c.QueryParam("k")
@@ -103,7 +104,6 @@ func UpdateUserName() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		// Get userID from URL parameter, default to current user's ID if not provided
 		userID := c.User().ID
 		if c.Param("userID") != "" {
 			var err error
@@ -112,28 +112,6 @@ func UpdateUserName() web.HandlerFunc {
 				return c.BadRequest(web.Map{
 					"error": "Invalid user ID",
 				})
-			}
-
-			// You can only update your own name, unless you are privileged
-			if userID != c.User().ID {
-				if c.User().Role != enum.RoleAdministrator &&
-					c.User().Role != enum.RoleCollaborator &&
-					c.User().Role != enum.RoleModerator {
-					return c.Forbidden()
-				}
-
-				// If user is a moderator, they can't update collaborators or admins
-				if c.User().Role == enum.RoleModerator {
-					getUser := &query.GetUserByID{UserID: userID}
-					if err := bus.Dispatch(c, getUser); err != nil {
-						return c.Failure(err)
-					}
-
-					if getUser.Result.Role == enum.RoleAdministrator ||
-						getUser.Result.Role == enum.RoleCollaborator {
-						return c.Forbidden()
-					}
-				}
 			}
 		}
 
@@ -191,35 +169,15 @@ func UpdateUserAvatar() web.HandlerFunc {
 					"error": "Invalid user ID",
 				})
 			}
-
-			// Check if user is trying to update someone else's avatar
-			if userID != c.User().ID {
-				// Only allow staff to update other users' avatars
-				if c.User().Role != enum.RoleAdministrator &&
-					c.User().Role != enum.RoleCollaborator &&
-					c.User().Role != enum.RoleModerator {
-					return c.Forbidden()
-				}
-
-				// If user is a moderator, they can't update collaborators or admins
-				if c.User().Role == enum.RoleModerator {
-					getUser := &query.GetUserByID{UserID: userID}
-					if err := bus.Dispatch(c, getUser); err != nil {
-						return c.Failure(err)
-					}
-
-					if getUser.Result.Role == enum.RoleAdministrator ||
-						getUser.Result.Role == enum.RoleCollaborator {
-						return c.Forbidden()
-					}
-				}
-			}
 		}
 
 		return c.WithTransaction(func() error {
 			getUser := &query.GetUserByID{UserID: userID}
 			if err := bus.Dispatch(c, getUser); err != nil {
 				return c.Failure(err)
+			}
+			if !getUser.Result.AllowedActions(c.User(), c.Tenant()).EditAvatar {
+				return c.Forbidden()
 			}
 			blobKey := getUser.Result.AvatarBlobKey
 			if action.AvatarType != enum.AvatarTypeCustom {
@@ -266,13 +224,21 @@ func ChangeUserRole() web.HandlerFunc {
 			if err := bus.Dispatch(c, changeRole); err != nil {
 				return c.Failure(err)
 			}
+			updated := &query.GetUserByID{UserID: action.UserID}
+			if err := bus.Dispatch(c, updated); err != nil {
+				return c.Failure(err)
+			}
 
 			// Handle userlist
 			if env.Config.UserList.Enabled {
 				c.Enqueue(tasks.UserListAddOrRemoveUser(action.UserID, action.Role))
 			}
 
-			return c.Ok(web.Map{})
+			return c.Ok(web.Map{
+				"id": updated.Result.ID,
+				"role": updated.Result.Role,
+				"permissions": updated.Result.AllowedActions(c.User(), c.Tenant()),
+			})
 		})
 	}
 }
@@ -323,6 +289,9 @@ func DeleteUser() web.HandlerFunc {
 // RegenerateAPIKey regenerates current user's API Key
 func RegenerateAPIKey() web.HandlerFunc {
 	return func(c *web.Context) error {
+		if !entity.Can(c.User(), c.Tenant(), entity.ManageAPIKeys) {
+			return c.Forbidden()
+		}
 		return c.WithTransaction(func() error {
 			regenerateAPIKey := &cmd.RegenerateAPIKey{}
 			if err := bus.Dispatch(c, regenerateAPIKey); err != nil {
@@ -355,6 +324,7 @@ func UserProfile() web.HandlerFunc {
 					"role":      c.User().Role,
 					"avatarURL": c.User().AvatarURL,
 					"status":    c.User().Status,
+					"permissions": c.User().AllowedActions(c.User(), c.Tenant()),
 				},
 				"userSettings": settings.Result,
 			},

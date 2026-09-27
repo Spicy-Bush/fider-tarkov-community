@@ -21,19 +21,22 @@ type dbTag struct {
 	IsPublic bool   `db:"is_public"`
 }
 
-func (t *dbTag) toModel() *entity.Tag {
-	return &entity.Tag{
+func (t *dbTag) toModel(tenant *entity.Tenant, user *entity.User) *entity.Tag {
+	tag := &entity.Tag{
 		ID:       t.ID,
 		Name:     t.Name,
 		Slug:     t.Slug,
 		Color:    t.Color,
 		IsPublic: t.IsPublic,
 	}
+	tag.Permissions = tag.AllowedActions(user, tenant)
+
+	return tag
 }
 
 func getTagBySlug(ctx context.Context, q *query.GetTagBySlug) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		tag, err := queryTagBySlug(trx, tenant, q.Slug)
+		tag, err := queryTagBySlug(trx, tenant, user, q.Slug)
 		q.Result = tag
 		return err
 	})
@@ -43,7 +46,7 @@ func getAssignedTags(ctx context.Context, q *query.GetAssignedTags) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]*entity.Tag, 0)
 
-		tags, err := queryTags(trx, `
+		tags, err := queryTags(trx, tenant, user, `
 			SELECT t.id, t.name, t.slug, t.color, t.is_public 
 			FROM tags t
 			INNER JOIN post_tags pt
@@ -77,7 +80,7 @@ func getAllTags(ctx context.Context, q *query.GetAllTags) error {
 			WHERE t.tenant_id = $1 %s
 			ORDER BY t.name
 		`, condition)
-		tags, err := queryTags(trx, query, tenant.ID)
+		tags, err := queryTags(trx, tenant, user, query, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed get all tags")
 		}
@@ -100,7 +103,7 @@ func addNewTag(ctx context.Context, c *cmd.AddNewTag) error {
 			return errors.Wrap(err, "failed to add new tag")
 		}
 
-		tag, err := queryTagBySlug(trx, tenant, newSlug)
+		tag, err := queryTagBySlug(trx, tenant, user, newSlug)
 		c.Result = tag
 		return err
 	})
@@ -117,7 +120,7 @@ func updateTag(ctx context.Context, c *cmd.UpdateTag) error {
 			return errors.Wrap(err, "failed to update tag")
 		}
 
-		tag, err := queryTagBySlug(trx, tenant, newSlug)
+		tag, err := queryTagBySlug(trx, tenant, user, newSlug)
 		c.Result = tag
 		return err
 	})
@@ -175,7 +178,7 @@ func unassignTag(ctx context.Context, c *cmd.UnassignTag) error {
 	})
 }
 
-func queryTagBySlug(trx *dbx.Trx, tenant *entity.Tenant, slug string) (*entity.Tag, error) {
+func queryTagBySlug(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User, slug string) (*entity.Tag, error) {
 	tag := dbTag{}
 
 	err := trx.Get(&tag, "SELECT id, name, slug, color, is_public FROM tags WHERE tenant_id = $1 AND slug = $2", tenant.ID, slug)
@@ -183,10 +186,10 @@ func queryTagBySlug(trx *dbx.Trx, tenant *entity.Tenant, slug string) (*entity.T
 		return nil, errors.Wrap(err, "failed to get tag with slug '%s'", slug)
 	}
 
-	return tag.toModel(), nil
+	return tag.toModel(tenant, user), nil
 }
 
-func queryTags(trx *dbx.Trx, query string, args ...any) ([]*entity.Tag, error) {
+func queryTags(trx *dbx.Trx, tenant *entity.Tenant, user *entity.User, query string, args ...any) ([]*entity.Tag, error) {
 	tags := []*dbTag{}
 	err := trx.Select(&tags, query, args...)
 	if err != nil {
@@ -195,7 +198,7 @@ func queryTags(trx *dbx.Trx, query string, args ...any) ([]*entity.Tag, error) {
 
 	var result = make([]*entity.Tag, len(tags))
 	for i, tag := range tags {
-		result[i] = tag.toModel()
+		result[i] = tag.toModel(tenant, user)
 	}
 	return result, nil
 }

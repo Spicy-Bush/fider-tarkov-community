@@ -9,7 +9,7 @@ import { usePostVote } from "./usePostVote"
 jest.mock("@fider/hooks", () => ({ useFider: jest.fn() }))
 jest.mock("@fider/services", () => ({ actions: { setVote: jest.fn() }, analytics: { event: jest.fn() }, notify: { error: jest.fn() } }))
 
-const post = { id: 1, number: 7, status: "open", voteType: 0, voteRevision: 0, upvotes: 3, downvotes: 1 } as Post
+const post = { permissions: { vote: true }, id: 1, number: 7, status: "open", voteType: 0, voteRevision: 0, upvotes: 3, downvotes: 1 } as Post
 
 function deferNextVote() {
   let finish!: (value: Awaited<ReturnType<typeof actions.setVote>>) => void
@@ -40,8 +40,8 @@ test("anonymous voting opens sign-in without writing", async () => {
   expect(result.current.isSignInModalOpen).toBe(false)
 })
 
-test.each(["completed", "declined", "duplicate", "deleted"])("%s posts cannot be voted on", async (status) => {
-  const { result } = renderHook(() => usePostVote({ ...post, status }))
+test("a denied vote capability prevents voting on an otherwise open post", async () => {
+  const { result } = renderHook(() => usePostVote({ ...post, permissions: { ...post.permissions, vote: false } }))
   expect(result.current.isDisabled).toBe(true)
   await act(() => result.current.chooseVote("up"))
   expect(actions.setVote).not.toHaveBeenCalled()

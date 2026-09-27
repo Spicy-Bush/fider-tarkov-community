@@ -128,7 +128,8 @@ func NewUpdateTenantSettings() *UpdateTenantSettings {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *UpdateTenantSettings) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.Role == enum.RoleAdministrator
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageSettings)
 }
 
 // Validate if current model is valid
@@ -184,7 +185,8 @@ type UpdateTenantAdvancedSettings struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *UpdateTenantAdvancedSettings) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.Role == enum.RoleAdministrator
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageSettings)
 }
 
 // Validate if current model is valid
@@ -199,7 +201,8 @@ type UpdateTenantPrivacy struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *UpdateTenantPrivacy) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.Role == enum.RoleAdministrator
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageSettings)
 }
 
 // Validate if current model is valid
@@ -214,7 +217,8 @@ type UpdateTenantEmailAuthAllowed struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *UpdateTenantEmailAuthAllowed) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.Role == enum.RoleAdministrator
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageAuthentication)
 }
 
 // Validate if current model is valid
@@ -238,7 +242,8 @@ type UpdateMessageBanner struct {
 }
 
 func (action *UpdateMessageBanner) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.Role == enum.RoleAdministrator || user.Role == enum.RoleCollaborator)
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageContentSettings)
 }
 
 func (action *UpdateMessageBanner) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -257,7 +262,8 @@ type UpdateContentSettings struct {
 }
 
 func (action *UpdateContentSettings) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageContentSettings)
 }
 
 func (action *UpdateContentSettings) Validate(ctx context.Context, user *entity.User) *validate.Result {

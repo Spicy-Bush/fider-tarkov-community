@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
 type dbUser struct {
@@ -76,7 +78,7 @@ type dbUserComment struct {
 }
 
 func (u *dbUser) toModel(ctx context.Context) *entity.User {
-	if u == nil {
+	if u == nil || !u.ID.Valid {
 		return nil
 	}
 
@@ -107,6 +109,9 @@ func (u *dbUser) toModel(ctx context.Context) *entity.User {
 			UID:  p.UID.String,
 		}
 	}
+	viewer, _ := ctx.Value(app.UserCtxKey).(*entity.User)
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	user.Permissions = user.AllowedActions(viewer, tenant)
 
 	return user
 }
@@ -130,6 +135,13 @@ func countUsers(ctx context.Context, q *query.CountUsers) error {
 
 func blockUser(ctx context.Context, c *cmd.BlockUser) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		if err != nil {
+			return err
+		}
+		if !permissions.Block {
+			return validate.Unauthorized()
+		}
 		if _, err := trx.Execute(
 			"UPDATE users SET status = $3 WHERE id = $1 AND tenant_id = $2",
 			c.UserID, tenant.ID, enum.UserBlocked,
@@ -142,6 +154,13 @@ func blockUser(ctx context.Context, c *cmd.BlockUser) error {
 
 func unblockUser(ctx context.Context, c *cmd.UnblockUser) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		if err != nil {
+			return err
+		}
+		if !permissions.Block {
+			return validate.Unauthorized()
+		}
 		if _, err := trx.Execute(
 			"UPDATE users SET status = $3 WHERE id = $1 AND tenant_id = $2",
 			c.UserID, tenant.ID, enum.UserActive,
@@ -195,6 +214,9 @@ func deleteCurrentUser(ctx context.Context, c *cmd.DeleteCurrentUser) error {
 
 func regenerateAPIKey(ctx context.Context, c *cmd.RegenerateAPIKey) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if !entity.Can(user, tenant, entity.ManageAPIKeys) {
+			return validate.Unauthorized()
+		}
 		apiKey := entity.GenerateEmailVerificationKey()
 
 		if _, err := trx.Execute(
@@ -258,8 +280,15 @@ func userSubscribedTo(ctx context.Context, q *query.UserSubscribedTo) error {
 
 func changeUserRole(ctx context.Context, c *cmd.ChangeUserRole) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		if err != nil {
+			return err
+		}
+		if !permissions.ChangeRole {
+			return validate.Unauthorized()
+		}
 		cmd := "UPDATE users SET role = $3 WHERE id = $1 AND tenant_id = $2"
-		_, err := trx.Execute(cmd, c.UserID, tenant.ID, c.Role)
+		_, err = trx.Execute(cmd, c.UserID, tenant.ID, c.Role)
 		if err != nil {
 			return errors.Wrap(err, "failed to change user's role")
 		}
@@ -269,7 +298,14 @@ func changeUserRole(ctx context.Context, c *cmd.ChangeUserRole) error {
 
 func changeUserVisualRole(ctx context.Context, c *cmd.ChangeUserVisualRole) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		_, err := trx.Execute(`
+		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		if err != nil {
+			return err
+		}
+		if !permissions.ChangeVisualRole {
+			return validate.Unauthorized()
+		}
+		_, err = trx.Execute(`
 			UPDATE users 
 			SET visual_role = $1
 			WHERE id = $2 AND tenant_id = $3
@@ -294,17 +330,49 @@ func changeUserEmail(ctx context.Context, c *cmd.ChangeUserEmail) error {
 
 func updateCurrentUserSettings(ctx context.Context, c *cmd.UpdateCurrentUserSettings) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		if user != nil && c.Settings != nil && len(c.Settings) > 0 {
-			query := `
-			INSERT INTO user_settings (tenant_id, user_id, key, value)
-			VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, key) DO UPDATE SET value = $4
-			`
+		if user == nil {
+			return validate.Unauthorized()
+		}
+		if len(c.Settings) == 0 {
+			return nil
+		}
 
-			for key, value := range c.Settings {
-				_, err := trx.Execute(query, tenant.ID, user.ID, key, value)
-				if err != nil {
-					return errors.Wrap(err, "failed to update user settings")
-				}
+		var userID int
+		if err := trx.Scalar(&userID, "SELECT id FROM users WHERE id = $1 AND tenant_id = $2 FOR UPDATE", user.ID, tenant.ID); err != nil {
+			return err
+		}
+
+		settings := &query.GetCurrentUserSettings{}
+		if err := getCurrentUserSettings(ctx, settings); err != nil {
+			return err
+		}
+
+		for _, event := range enum.AllNotificationEvents {
+			value, present := c.Settings[event.UserSettingsKeyName]
+			if !present {
+				continue
+			}
+
+			next, err := strconv.Atoi(value)
+			if err != nil || !event.Validate(value) {
+				return validate.Failed("Invalid notification channels.")
+			}
+
+			current, _ := strconv.Atoi(settings.Result[event.UserSettingsKeyName])
+			if !entity.CanChangeNotificationChannels(user, tenant, enum.NotificationChannel(current), enum.NotificationChannel(next)) {
+				return validate.Unauthorized()
+			}
+		}
+
+		query := `
+		INSERT INTO user_settings (tenant_id, user_id, key, value)
+		VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, key) DO UPDATE SET value = $4
+		`
+
+		for key, value := range c.Settings {
+			_, err := trx.Execute(query, tenant.ID, user.ID, key, value)
+			if err != nil {
+				return errors.Wrap(err, "failed to update user settings")
 			}
 		}
 
@@ -830,13 +898,20 @@ func searchUserContent(ctx context.Context, q *query.SearchUserContent) error {
 
 func muteUser(ctx context.Context, c *cmd.MuteUser) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		if err != nil {
+			return err
+		}
+		if !permissions.Moderate {
+			return validate.Unauthorized()
+		}
 		// Ensure we have a valid expiration time
 		if c.ExpiresAt.IsZero() {
 			c.ExpiresAt = time.Now().Add(24 * time.Hour) // Default to 24 hours if not specified
 		}
 
 		// First, expire any existing active mutes
-		_, err := trx.Execute(`
+		_, err = trx.Execute(`
 			UPDATE user_mutes 
 			SET expires_at = NOW() 
 			WHERE user_id = $1 AND tenant_id = $2 AND (expires_at IS NULL OR expires_at > NOW())
@@ -856,6 +931,13 @@ func muteUser(ctx context.Context, c *cmd.MuteUser) error {
 
 func warnUser(ctx context.Context, c *cmd.WarnUser) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		if err != nil {
+			return err
+		}
+		if !permissions.Moderate {
+			return validate.Unauthorized()
+		}
 		var expiresAt sql.NullTime
 		if c.ExpiresAt.IsZero() {
 			// If no expiration time is set, keep it as NULL
@@ -867,7 +949,7 @@ func warnUser(ctx context.Context, c *cmd.WarnUser) error {
 			expiresAt.Time = c.ExpiresAt
 		}
 
-		_, err := trx.Execute(`
+		_, err = trx.Execute(`
 			INSERT INTO user_warnings (user_id, tenant_id, reason, created_at, expires_at, created_by)
 			VALUES ($1, $2, $3, NOW(), $4, $5)
 		`, c.UserID, tenant.ID, c.Reason, expiresAt, user.ID)
@@ -876,7 +958,14 @@ func warnUser(ctx context.Context, c *cmd.WarnUser) error {
 }
 
 func updateUserAvatar(ctx context.Context, c *cmd.UpdateUserAvatar) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		if err != nil {
+			return err
+		}
+		if !permissions.EditAvatar {
+			return validate.Unauthorized()
+		}
 		blobKey := ""
 		if c.Avatar != nil {
 			if c.Avatar.Remove {
@@ -886,7 +975,7 @@ func updateUserAvatar(ctx context.Context, c *cmd.UpdateUserAvatar) error {
 			}
 		}
 		cmd := "UPDATE users SET avatar_type = $3, avatar_bkey = $4 WHERE id = $1 AND tenant_id = $2"
-		_, err := trx.Execute(cmd, c.UserID, tenant.ID, c.AvatarType, blobKey)
+		_, err = trx.Execute(cmd, c.UserID, tenant.ID, c.AvatarType, blobKey)
 		if err != nil {
 			return errors.Wrap(err, "failed to update user avatar")
 		}
@@ -895,9 +984,16 @@ func updateUserAvatar(ctx context.Context, c *cmd.UpdateUserAvatar) error {
 }
 
 func updateUser(ctx context.Context, c *cmd.UpdateUser) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, _ *entity.User) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		if err != nil {
+			return err
+		}
+		if !permissions.EditName {
+			return validate.Unauthorized()
+		}
 		cmd := "UPDATE users SET name = $3 WHERE id = $1 AND tenant_id = $2"
-		_, err := trx.Execute(cmd, c.UserID, tenant.ID, c.Name)
+		_, err = trx.Execute(cmd, c.UserID, tenant.ID, c.Name)
 		if err != nil {
 			return errors.Wrap(err, "failed to update user")
 		}

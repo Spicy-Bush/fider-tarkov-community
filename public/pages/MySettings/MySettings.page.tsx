@@ -160,7 +160,7 @@ export default class MySettingsPage extends React.Component<MySettingsPageProps,
                 value={this.state.changingEmail ? this.state.newEmail : Fider.session.user.email}
                 maxLength={200}
                 disabled={!this.state.changingEmail}
-                afterLabel={this.state.changingEmail ? undefined : changeEmail}
+                afterLabel={this.state.changingEmail || !Fider.session.permissions.changeOwnEmail ? undefined : changeEmail}
                 onChange={this.setNewEmail}
               >
                 <p className="text-muted">
@@ -229,7 +229,7 @@ export default class MySettingsPage extends React.Component<MySettingsPageProps,
               </Button>
             </Form>
 
-            <div className="mt-8">{Fider.session.user.isCollaborator && <APIKeyForm />}</div>
+            <div className="mt-8">{Fider.session.permissions.manageAPIKeys && <APIKeyForm />}</div>
           <div className="mt-8">
             <DangerZone />
           </div>

@@ -13,6 +13,7 @@ export function DiscussionPanel(props: DiscussionPanelProps) {
   return (
     <div className="mt-8">
       <Discussion
+        ownerPermissions={props.post.discussionPermissions}
         owner={{
           kind: "post",
           id: props.post.id,

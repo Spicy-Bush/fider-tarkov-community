@@ -1,5 +1,5 @@
 import { http, Result } from "@fider/services/http"
-import { UserRole, OAuthConfig, ImageUpload, EmailVerificationKind } from "@fider/models"
+import { User, UserRole, OAuthConfig, ImageUpload, EmailVerificationKind } from "@fider/models"
 
 export interface CheckAvailabilityResponse {
   message: string
@@ -87,8 +87,8 @@ export const completeProfile = async (kind: EmailVerificationKind, key: string, 
   })
 }
 
-export const changeUserRole = async (userID: number, role: UserRole): Promise<Result> => {
-  return await http.post(`/api/admin/roles/${role}/users`, {
+export const changeUserRole = async (userID: number, role: UserRole): Promise<Result<Pick<User, "id" | "role" | "permissions">>> => {
+  return await http.post<Pick<User, "id" | "role" | "permissions">>(`/api/admin/roles/${role}/users`, {
     userID,
   })
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/metrics"
@@ -75,8 +76,7 @@ func SearchPosts() web.HandlerFunc {
 		}
 
 		var effectiveLimit int
-		user := c.User()
-		isPrivileged := user != nil && (user.IsHelper() || user.IsCollaborator() || user.IsModerator() || user.IsAdministrator())
+		isPrivileged := entity.Can(c.User(), c.Tenant(), entity.ManageQueue)
 		maxLimit := 15
 		if isPrivileged {
 			maxLimit = 50
@@ -360,20 +360,6 @@ func UpdatePost() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		getPost := &query.GetPostByNumber{Number: action.Number}
-		if err := bus.Dispatch(c, getPost); err != nil {
-			return c.Failure(err)
-		}
-
-		if getPost.Result == nil {
-			return c.NotFound()
-		}
-
-		if getPost.Result.IsLocked() && !(c.IsAuthenticated() &&
-			(c.User().IsCollaborator() || c.User().IsAdministrator())) {
-			return c.BadRequest(web.Map{})
-		}
-
 		return c.WithTransaction(func() error {
 			err := bus.Dispatch(c,
 				&cmd.UpdatePost{
@@ -413,13 +399,13 @@ func SetResponse() web.HandlerFunc {
 
 		return c.WithTransaction(func() error {
 			var command bus.Msg
-			if action.Status == enum.PostDuplicate {
+			if *action.Status == enum.PostDuplicate {
 				command = &cmd.MarkPostAsDuplicate{Post: getPost.Result, Original: action.Original, Text: action.Text}
 			} else {
 				command = &cmd.SetPostResponse{
 					Post:   getPost.Result,
 					Text:   action.Text,
-					Status: action.Status,
+					Status: *action.Status,
 				}
 			}
 
@@ -539,9 +525,8 @@ func addOrRemove(c *web.Context, getCommand func(post *entity.Post, user *entity
 		return c.Failure(err)
 	}
 
-	if getPost.Result.IsLocked() && !(c.IsAuthenticated() &&
-		(c.User().IsCollaborator() || c.User().IsAdministrator())) {
-		return c.BadRequest(web.Map{})
+	if !getPost.Result.AllowedActions(c.User(), c.Tenant(), time.Now()).Follow {
+		return c.Forbidden()
 	}
 
 	return c.WithTransaction(func() error {

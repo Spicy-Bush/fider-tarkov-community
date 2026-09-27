@@ -83,7 +83,7 @@ export const OAuthForm: React.FC<OAuthFormProps> = (props) => {
             label="Display Name"
             maxLength={50}
             value={displayName}
-            disabled={!fider.session.user.isAdministrator}
+            disabled={!fider.session.permissions.manageAuthentication}
             onChange={setDisplayName}
           />
           <Field label="Button Preview">
@@ -91,13 +91,13 @@ export const OAuthForm: React.FC<OAuthFormProps> = (props) => {
           </Field>
         </div>
 
-        <ImageUploader label="Logo" field="logo" bkey={logoBlobKey} disabled={!fider.session.user.isAdministrator} onChange={handleLogoChange}>
+        <ImageUploader label="Logo" field="logo" bkey={logoBlobKey} disabled={!fider.session.permissions.manageAuthentication} onChange={handleLogoChange}>
           <p className="text-muted">
             We accept JPG and PNG images, smaller than 5MB and with an aspect ratio of 1:1 with minimum dimensions of 24x24 pixels.
           </p>
         </ImageUploader>
 
-        <Input field="clientID" label="Client ID" maxLength={100} value={clientID} disabled={!fider.session.user.isAdministrator} onChange={setClientID} />
+        <Input field="clientID" label="Client ID" maxLength={100} value={clientID} disabled={!fider.session.permissions.manageAuthentication} onChange={setClientID} />
 
         <Input
           field="clientSecret"
@@ -122,12 +122,12 @@ export const OAuthForm: React.FC<OAuthFormProps> = (props) => {
           label="Authorize URL"
           maxLength={300}
           value={authorizeURL}
-          disabled={!fider.session.user.isAdministrator}
+          disabled={!fider.session.permissions.manageAuthentication}
           onChange={setAuthorizeURL}
         />
-        <Input field="tokenURL" label="Token URL" maxLength={300} value={tokenURL} disabled={!fider.session.user.isAdministrator} onChange={setTokenURL} />
+        <Input field="tokenURL" label="Token URL" maxLength={300} value={tokenURL} disabled={!fider.session.permissions.manageAuthentication} onChange={setTokenURL} />
 
-        <Input field="scope" label="Scope" maxLength={100} value={scope} disabled={!fider.session.user.isAdministrator} onChange={setScope}>
+        <Input field="scope" label="Scope" maxLength={100} value={scope} disabled={!fider.session.permissions.manageAuthentication} onChange={setScope}>
           <p className="text-muted">
             It is recommended to only request the minimum scopes we need to fetch the user <strong>id</strong>, <strong>name</strong> and <strong>email</strong>
             . Multiple scopes must be separated by space.
@@ -142,7 +142,7 @@ export const OAuthForm: React.FC<OAuthFormProps> = (props) => {
           label="Profile API URL"
           maxLength={300}
           value={profileURL}
-          disabled={!fider.session.user.isAdministrator}
+          disabled={!fider.session.permissions.manageAuthentication}
           onChange={setProfileURL}
         >
           <p className="text-muted">The URL to fetch the authenticated user info. If empty, Fider will try to parse the user info from the Access Token.</p>
@@ -156,7 +156,7 @@ export const OAuthForm: React.FC<OAuthFormProps> = (props) => {
             label="ID"
             maxLength={100}
             value={jsonUserIDPath}
-            disabled={!fider.session.user.isAdministrator}
+            disabled={!fider.session.permissions.manageAuthentication}
             onChange={setJSONUserIDPath}
           >
             <p className="text-muted">
@@ -169,7 +169,7 @@ export const OAuthForm: React.FC<OAuthFormProps> = (props) => {
             label="Name"
             maxLength={100}
             value={jsonUserNamePath}
-            disabled={!fider.session.user.isAdministrator}
+            disabled={!fider.session.permissions.manageAuthentication}
             onChange={setJSONUserNamePath}
           >
             <p className="text-muted">
@@ -182,7 +182,7 @@ export const OAuthForm: React.FC<OAuthFormProps> = (props) => {
             label="Email"
             maxLength={100}
             value={jsonUserEmailPath}
-            disabled={!fider.session.user.isAdministrator}
+            disabled={!fider.session.permissions.manageAuthentication}
             onChange={setJSONUserEmailPath}
           >
             <p className="text-muted">

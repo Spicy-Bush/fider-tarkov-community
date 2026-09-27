@@ -49,8 +49,9 @@ func TestCreateNewPost_ValidPostTitles(t *testing.T) {
 
 	ctx := createTestContext()
 	user := &entity.User{
-		ID:   1,
-		Role: enum.RoleVisitor,
+		ID:     1,
+		Role:   enum.RoleVisitor,
+		Status: enum.UserActive,
 	}
 
 	for _, title := range []string{
@@ -70,8 +71,9 @@ func TestSetResponse_InvalidStatus(t *testing.T) {
 	RegisterT(t)
 
 	ctx := createTestContext()
+	status := enum.PostDeleted
 	action := &actions.SetResponse{
-		Status: enum.PostDeleted,
+		Status: &status,
 		Text:   "Spam!",
 	}
 	result := action.Validate(ctx, nil)

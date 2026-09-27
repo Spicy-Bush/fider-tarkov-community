@@ -46,6 +46,7 @@ type Page struct {
 	ReactionCounts     []ReactionCounts `json:"reactionCounts,omitempty"`
 	EmbeddedPosts      []*Post          `json:"embeddedPosts"`
 	CachedAt           *time.Time       `json:"cachedAt,omitempty"`
+	Permissions        PagePermissions  `json:"permissions"`
 }
 
 func (page *Page) CanView(user *User) bool {
@@ -53,7 +54,7 @@ func (page *Page) CanView(user *User) bool {
 }
 
 func canViewPage(status PageStatus, visibility PageVisibility, allowedRoles []string, user *User) bool {
-	if user != nil && user.IsCollaborator() {
+	if Can(user, nil, ManagePages) {
 		return true
 	}
 

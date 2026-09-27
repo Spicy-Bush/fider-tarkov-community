@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback } from "react"
 import { Button, Icon, EditOriginalPostPanel } from "@fider/components"
-import { UserProfile } from "@fider/components/UserProfile"
+import { UserProfile, UserData } from "@fider/components/UserProfile"
 import { classSet, Fider } from "@fider/services"
 import {
   heroiconsChevronUp as IconChevronUp,
@@ -9,17 +9,9 @@ import {
   heroiconsEye as IconEye,
   heroiconsArrowLeft as IconArrowLeft,
 } from "@fider/icons.generated"
-import { Post, Tag, ViewerInfo, User } from "@fider/models"
+import { Post, Tag, ViewerInfo } from "@fider/models"
 import { PostViewer } from "./PostViewer"
 import { PostQueueDuplicateSearch } from "./PostQueueDuplicateSearch"
-
-interface ViewingUserType {
-  id: number
-  name: string
-  avatarURL: string
-  role?: string
-  status?: string
-}
 
 interface QueuePreviewProps {
   selectedPost: Post | null
@@ -41,7 +33,7 @@ interface QueuePreviewProps {
   onHideDuplicateSearch: () => void
   onDuplicateSelected: (postNumber: number) => Promise<void>
   onDuplicateReset: () => void
-  onPostUpdated: (post: Post) => void
+  onPostUpdated: (post: Pick<Post, "id" | "title" | "description">) => void
   onContentCopied: () => void
   onOriginalPostSaved: () => void
   onOriginalPostCancelled: () => void
@@ -74,7 +66,7 @@ export const QueuePreview: React.FC<QueuePreviewProps> = ({
   onOriginalPostCancelled,
   onNextPost,
 }) => {
-  const [viewingUser, setViewingUser] = useState<ViewingUserType | null>(null)
+  const [viewingUser, setViewingUser] = useState<UserData | null>(null)
   const [profileKey, setProfileKey] = useState(0)
 
   const otherViewers = useMemo(() => 
@@ -82,7 +74,7 @@ export const QueuePreview: React.FC<QueuePreviewProps> = ({
     [viewers]
   )
 
-  const handleUserClick = useCallback((user: ViewingUserType) => {
+  const handleUserClick = useCallback((user: UserData) => {
     setViewingUser(user)
     setProfileKey(prev => prev + 1)
   }, [])
@@ -91,7 +83,7 @@ export const QueuePreview: React.FC<QueuePreviewProps> = ({
     setViewingUser(null)
   }, [])
 
-  const handleUserUpdate = useCallback((updates: any) => {
+  const handleUserUpdate = useCallback((updates: Partial<UserData>) => {
     if (viewingUser) {
       setViewingUser({ ...viewingUser, ...updates })
     }
@@ -120,7 +112,7 @@ export const QueuePreview: React.FC<QueuePreviewProps> = ({
           <UserProfile
             key={profileKey}
             userId={viewingUser.id}
-            user={viewingUser as User}
+            user={viewingUser}
             embedded
             compact
             onUserUpdate={handleUserUpdate}

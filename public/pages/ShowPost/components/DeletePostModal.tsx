@@ -1,8 +1,7 @@
 import React, { useState } from "react"
-import { PostStatus, Post } from "@fider/models"
+import { Post } from "@fider/models"
 import { actions, navigator, Failure } from "@fider/services"
 import { Form, Modal, Button, TextArea } from "@fider/components"
-import { useFider } from "@fider/hooks"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
 
@@ -13,7 +12,6 @@ interface DeletePostModalProps {
 }
 
 export const DeletePostModal = (props: DeletePostModalProps) => {
-  const fider = useFider()
   const [text, setText] = useState("")
   const [error, setError] = useState<Failure>()
 
@@ -27,12 +25,7 @@ export const DeletePostModal = (props: DeletePostModalProps) => {
     }
   }
 
-  const status = PostStatus.Get(props.post.status)
-  if (
-    !fider.session.isAuthenticated ||
-    (!(fider.session.user.isAdministrator || fider.session.user.isCollaborator || fider.session.user.isModerator)) ||
-    status.closed
-  ) {
+  if (!props.post.permissions.delete) {
     return null
   }
 

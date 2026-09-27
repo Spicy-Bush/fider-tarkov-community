@@ -97,6 +97,79 @@ func TestUser_Blocked(t *testing.T) {
 	Expect(status).Equals(http.StatusUnauthorized)
 }
 
+func TestUserRequiresActiveStatus(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		status enum.UserStatus
+	}{
+		{"active", enum.UserActive},
+		{"zero", 0},
+		{"unknown", 99},
+		{"blocked", enum.UserBlocked},
+		{"deleted", enum.UserDeleted},
+	} {
+		for _, credential := range []string{"cookie", "API key", "impersonation"} {
+			t.Run(test.name+"/"+credential, func(t *testing.T) {
+				server := mock.NewServer().OnTenant(mock.DemoTenant).
+					WithURL("http://example.com/api/posts").
+					AddHeader("Accept", "application/json").
+					Use(middlewares.User())
+				loaded := &entity.User{
+					ID:     42,
+					Name:   "Loaded user",
+					Role:   enum.RoleAdministrator,
+					Status: test.status,
+					Tenant: mock.DemoTenant,
+				}
+				bus.AddHandler(func(ctx context.Context, q *query.GetUserByID) error {
+					q.Result = loaded
+					return nil
+				})
+				bus.AddHandler(func(ctx context.Context, q *query.GetUserByAPIKey) error {
+					q.Result = loaded
+					if credential == "impersonation" {
+						q.Result = mock.JonSnow
+					}
+					return nil
+				})
+
+				if credential == "cookie" {
+					token, err := jwt.Encode(jwt.FiderClaims{UserID: loaded.ID, UserName: loaded.Name})
+					if err != nil {
+						t.Fatal(err)
+					}
+					server.AddCookie(web.CookieAuthName, token)
+				} else {
+					server.AddHeader("Authorization", "Bearer test-key")
+					if credential == "impersonation" {
+						server.AddHeader("X-Fider-UserID", strconv.Itoa(loaded.ID))
+					}
+				}
+
+				called := false
+				status, response := server.Execute(func(c *web.Context) error {
+					called = true
+					return c.NoContent(http.StatusOK)
+				})
+				wantStatus := http.StatusUnauthorized
+				if credential == "API key" {
+					wantStatus = http.StatusBadRequest
+				}
+				active := test.status == enum.UserActive
+				if active {
+					wantStatus = http.StatusOK
+				}
+				if status != wantStatus || called != active {
+					t.Fatalf("status %d, handler called %v; want %d, %v", status, called, wantStatus, active)
+				}
+				if !active && credential == "cookie" && response.Header().Get("Set-Cookie") == "" {
+					t.Fatal("rejected authentication cookie was not cleared")
+				}
+			})
+		}
+	}
+}
+
 func TestUser_LockedTenant_ShouldAllowSignIn(t *testing.T) {
 	RegisterT(t)
 

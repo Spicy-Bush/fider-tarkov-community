@@ -22,7 +22,7 @@ func ListUsers() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		if !c.User().IsCollaborator() && !c.User().IsAdministrator() {
+		if !entity.Can(c.User(), c.Tenant(), entity.ReadUserEmails) {
 			for _, user := range allUsers.Result {
 				user.Email = ""
 			}
@@ -120,9 +120,11 @@ func GetUserProfileStats() web.HandlerFunc {
 			return c.NotFound()
 		}
 
-		// Regular users can only view their own stats
-		isPrivileged := c.User().Role == enum.RoleAdministrator || c.User().Role == enum.RoleCollaborator || c.User().Role == enum.RoleModerator
-		if !isPrivileged && c.User().ID != userID {
+		permissions, err := profilePermissions(c, userID)
+		if err != nil {
+			return c.Failure(err)
+		}
+		if !permissions.ReadProfile {
 			return c.NotFound()
 		}
 
@@ -144,9 +146,11 @@ func GetUserProfileStanding() web.HandlerFunc {
 			return c.NotFound()
 		}
 
-		// Regular users can only view their own standing
-		isPrivileged := c.User().Role == enum.RoleAdministrator || c.User().Role == enum.RoleCollaborator || c.User().Role == enum.RoleModerator
-		if !isPrivileged && c.User().ID != userID {
+		permissions, err := profilePermissions(c, userID)
+		if err != nil {
+			return c.Failure(err)
+		}
+		if !permissions.ReadProfile {
 			return c.NotFound()
 		}
 
@@ -156,7 +160,11 @@ func GetUserProfileStanding() web.HandlerFunc {
 		if err := bus.Dispatch(c, standing); err != nil {
 			return c.Failure(err)
 		}
-		return c.Ok(standing.Result)
+		return c.Ok(web.Map{
+			"warnings": standing.Result.Warnings,
+			"mutes": standing.Result.Mutes,
+			"sessionPermissions": entity.PermissionsFor(c.User(), c.Tenant()),
+		})
 	}
 }
 
@@ -168,9 +176,11 @@ func SearchUserContent() web.HandlerFunc {
 			return c.NotFound()
 		}
 
-		// Regular users can only search their own content, admins can search any content
-		isPrivileged := c.User().Role == enum.RoleAdministrator || c.User().Role == enum.RoleCollaborator || c.User().Role == enum.RoleModerator
-		if !isPrivileged && c.User().ID != userID {
+		permissions, err := profilePermissions(c, userID)
+		if err != nil {
+			return c.Failure(err)
+		}
+		if !permissions.ReadProfile {
 			return c.NotFound()
 		}
 
@@ -210,4 +220,18 @@ func SearchUserContent() web.HandlerFunc {
 		}
 		return c.Ok(search.Result)
 	}
+}
+
+func profilePermissions(c *web.Context, userID int) (entity.UserPermissions, error) {
+	viewer := c.User()
+	if viewer != nil && viewer.ID == userID {
+		return viewer.AllowedActions(viewer, c.Tenant()), nil
+	}
+
+	target := &query.GetUserByID{UserID: userID}
+	if err := bus.Dispatch(c, target); err != nil {
+		return entity.UserPermissions{}, err
+	}
+
+	return target.Result.AllowedActions(viewer, c.Tenant()), nil
 }

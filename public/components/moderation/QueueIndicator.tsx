@@ -4,7 +4,6 @@ import React from "react"
 import { heroiconsInbox as IconInbox } from "@fider/icons.generated"
 import { useFider } from "@fider/hooks"
 import { Icon } from "../common"
-import { UserRole } from "@fider/models"
 import { useUnreadCounts } from "@fider/contexts/UnreadCountsContext"
 import { classSet } from "@fider/services"
 
@@ -13,8 +12,7 @@ export const QueueIndicator = () => {
   const { counts } = useUnreadCounts()
   const queueCount = counts.queueCount
 
-  const canViewQueue = fider.session.isAuthenticated && 
-    fider.session.user.role !== UserRole.Visitor
+  const canViewQueue = fider.session.permissions.manageQueue
 
   if (!canViewQueue) {
     return null
@@ -38,4 +36,3 @@ export const QueueIndicator = () => {
     </a>
   )
 }
-

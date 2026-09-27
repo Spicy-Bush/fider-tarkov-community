@@ -21,39 +21,33 @@ import (
 )
 
 type dbReport struct {
-	ID                   int            `db:"id"`
-	ReportedType         string         `db:"reported_type"`
-	ReportedID           int            `db:"reported_id"`
-	Reason               string         `db:"reason"`
-	Details              sql.NullString `db:"details"`
-	Status               string         `db:"status"`
-	CreatedAt            time.Time      `db:"created_at"`
-	ReporterID           sql.NullInt64  `db:"reporter_id"`
-	ReporterName         sql.NullString `db:"reporter_name"`
-	ReporterAvatarType   sql.NullInt64  `db:"reporter_avatar_type"`
-	ReporterAvatarBkey   sql.NullString `db:"reporter_avatar_bkey"`
-	AssignedToID         sql.NullInt64  `db:"assigned_to_id"`
-	AssignedToName       sql.NullString `db:"assigned_to_name"`
-	AssignedToAvatarType sql.NullInt64  `db:"assigned_to_avatar_type"`
-	AssignedToAvatarBkey sql.NullString `db:"assigned_to_avatar_bkey"`
-	AssignedAt           sql.NullTime   `db:"assigned_at"`
-	ResolvedAt           sql.NullTime   `db:"resolved_at"`
-	ResolvedByID         sql.NullInt64  `db:"resolved_by_id"`
-	ResolvedByName       sql.NullString `db:"resolved_by_name"`
-	ResolvedByAvatarType sql.NullInt64  `db:"resolved_by_avatar_type"`
-	ResolvedByAvatarBkey sql.NullString `db:"resolved_by_avatar_bkey"`
-	ResolutionNote       sql.NullString `db:"resolution_note"`
-	PostNumber           sql.NullInt64  `db:"post_number"`
-	PostSlug             sql.NullString `db:"post_slug"`
-	PageSlug             sql.NullString `db:"page_slug"`
+	ID             int            `db:"id"`
+	ReportedType   string         `db:"reported_type"`
+	ReportedID     int            `db:"reported_id"`
+	Reason         string         `db:"reason"`
+	Details        sql.NullString `db:"details"`
+	Status         string         `db:"status"`
+	CreatedAt      time.Time      `db:"created_at"`
+	Reporter       *dbUser        `db:"reporter"`
+	AssignedTo     *dbUser        `db:"assigned_to"`
+	AssignedAt     sql.NullTime   `db:"assigned_at"`
+	ResolvedAt     sql.NullTime   `db:"resolved_at"`
+	ResolvedBy     *dbUser        `db:"resolved_by"`
+	ResolutionNote sql.NullString `db:"resolution_note"`
+	PostNumber     sql.NullInt64  `db:"post_number"`
+	PostSlug       sql.NullString `db:"post_slug"`
+	PageSlug       sql.NullString `db:"page_slug"`
 }
 
 func (r *dbReport) toModel(ctx context.Context) *entity.Report {
 	report := &entity.Report{
-		ID:        r.ID,
-		Reason:    r.Reason,
-		Status:    enum.ReportStatusPending,
-		CreatedAt: r.CreatedAt,
+		ID:         r.ID,
+		Reason:     r.Reason,
+		Status:     enum.ReportStatusPending,
+		CreatedAt:  r.CreatedAt,
+		Reporter:   r.Reporter.toModel(ctx),
+		AssignedTo: r.AssignedTo.toModel(ctx),
+		ResolvedBy: r.ResolvedBy.toModel(ctx),
 	}
 
 	_ = report.ReportedType.UnmarshalText([]byte(r.ReportedType))
@@ -64,38 +58,12 @@ func (r *dbReport) toModel(ctx context.Context) *entity.Report {
 		report.Details = r.Details.String
 	}
 
-	if r.ReporterID.Valid {
-		report.Reporter = &entity.User{ID: int(r.ReporterID.Int64), Name: r.ReporterName.String}
-		if r.ReporterAvatarType.Valid {
-			report.Reporter.AvatarURL = buildAvatarURL(ctx, enum.AvatarType(r.ReporterAvatarType.Int64), report.Reporter.ID, report.Reporter.Name, r.ReporterAvatarBkey.String)
-		}
-	}
-
-	if r.AssignedToID.Valid {
-		report.AssignedTo = &entity.User{
-			ID:   int(r.AssignedToID.Int64),
-			Name: r.AssignedToName.String,
-		}
-		if r.AssignedToAvatarType.Valid {
-			report.AssignedTo.AvatarURL = buildAvatarURL(ctx, enum.AvatarType(r.AssignedToAvatarType.Int64), int(r.AssignedToID.Int64), r.AssignedToName.String, r.AssignedToAvatarBkey.String)
-		}
-		if r.AssignedAt.Valid {
-			report.AssignedAt = &r.AssignedAt.Time
-		}
+	if report.AssignedTo != nil && r.AssignedAt.Valid {
+		report.AssignedAt = &r.AssignedAt.Time
 	}
 
 	if r.ResolvedAt.Valid {
 		report.ResolvedAt = &r.ResolvedAt.Time
-	}
-
-	if r.ResolvedByID.Valid {
-		report.ResolvedBy = &entity.User{
-			ID:   int(r.ResolvedByID.Int64),
-			Name: r.ResolvedByName.String,
-		}
-		if r.ResolvedByAvatarType.Valid {
-			report.ResolvedBy.AvatarURL = buildAvatarURL(ctx, enum.AvatarType(r.ResolvedByAvatarType.Int64), int(r.ResolvedByID.Int64), r.ResolvedByName.String, r.ResolvedByAvatarBkey.String)
-		}
 	}
 
 	if r.ResolutionNote.Valid {
@@ -165,6 +133,8 @@ func createReport(ctx context.Context, c *cmd.CreateReport) error {
 			if lookup.Result.User.ID == user.ID {
 				failure.AddFieldFailure("reportedId", i18n.T(ctx, "validation.custom.cannotreportown"))
 				targetFailure = failure
+			} else if !lookup.Result.AllowedActions(user, tenant, time.Now()).Report {
+				targetFailure = validate.Unauthorized()
 			}
 
 		case enum.ReportTypeComment:
@@ -345,16 +315,22 @@ func getReportByID(ctx context.Context, q *query.GetReportByID) error {
 		err := trx.Get(&report, visibleCommentOwners + `
 			SELECT 
 				r.id, r.reported_type, r.reported_id, r.reason, r.details, r.status, r.created_at,
-				r.reporter_id, ru.name as reporter_name, ru.avatar_type as reporter_avatar_type, ru.avatar_bkey as reporter_avatar_bkey,
-				r.assigned_to as assigned_to_id, au.name as assigned_to_name, au.avatar_type as assigned_to_avatar_type, au.avatar_bkey as assigned_to_avatar_bkey, r.assigned_at,
-				r.resolved_at, r.resolved_by as resolved_by_id, rbu.name as resolved_by_name, rbu.avatar_type as resolved_by_avatar_type, rbu.avatar_bkey as resolved_by_avatar_bkey,
+				ru.id as reporter_id, ru.name as reporter_name,
+				ru.role as reporter_role, ru.visual_role as reporter_visual_role, ru.status as reporter_status,
+				ru.avatar_type as reporter_avatar_type, ru.avatar_bkey as reporter_avatar_bkey,
+				au.id as assigned_to_id, au.name as assigned_to_name,
+				au.role as assigned_to_role, au.visual_role as assigned_to_visual_role, au.status as assigned_to_status,
+				au.avatar_type as assigned_to_avatar_type, au.avatar_bkey as assigned_to_avatar_bkey, r.assigned_at,
+				r.resolved_at, rbu.id as resolved_by_id, rbu.name as resolved_by_name,
+				rbu.role as resolved_by_role, rbu.visual_role as resolved_by_visual_role, rbu.status as resolved_by_status,
+				rbu.avatar_type as resolved_by_avatar_type, rbu.avatar_bkey as resolved_by_avatar_bkey,
 				r.resolution_note,
 				COALESCE(p.number, cp.number) as post_number,
 				COALESCE(p.slug, cp.slug) as post_slug, pg.slug AS page_slug
 			FROM reports r
-			LEFT JOIN users ru ON ru.id = r.reporter_id
-			LEFT JOIN users au ON au.id = r.assigned_to
-			LEFT JOIN users rbu ON rbu.id = r.resolved_by
+			LEFT JOIN users ru ON ru.id = r.reporter_id AND ru.tenant_id = r.tenant_id
+			LEFT JOIN users au ON au.id = r.assigned_to AND au.tenant_id = r.tenant_id
+			LEFT JOIN users rbu ON rbu.id = r.resolved_by AND rbu.tenant_id = r.tenant_id
 			LEFT JOIN posts p ON r.reported_type = 'post' AND p.id = r.reported_id
 			LEFT JOIN comments c ON r.reported_type = 'comment' AND c.id = r.reported_id
 			LEFT JOIN posts cp ON c.post_id = cp.id
@@ -415,16 +391,22 @@ func listReports(ctx context.Context, q *query.ListReports) error {
 		err = trx.Select(&reports, visibleCommentOwners + `
 			SELECT 
 				r.id, r.reported_type, r.reported_id, r.reason, r.details, r.status, r.created_at,
-				r.reporter_id, ru.name as reporter_name, ru.avatar_type as reporter_avatar_type, ru.avatar_bkey as reporter_avatar_bkey,
-				r.assigned_to as assigned_to_id, au.name as assigned_to_name, au.avatar_type as assigned_to_avatar_type, au.avatar_bkey as assigned_to_avatar_bkey, r.assigned_at,
-				r.resolved_at, r.resolved_by as resolved_by_id, rbu.name as resolved_by_name, rbu.avatar_type as resolved_by_avatar_type, rbu.avatar_bkey as resolved_by_avatar_bkey,
+				ru.id as reporter_id, ru.name as reporter_name,
+				ru.role as reporter_role, ru.visual_role as reporter_visual_role, ru.status as reporter_status,
+				ru.avatar_type as reporter_avatar_type, ru.avatar_bkey as reporter_avatar_bkey,
+				au.id as assigned_to_id, au.name as assigned_to_name,
+				au.role as assigned_to_role, au.visual_role as assigned_to_visual_role, au.status as assigned_to_status,
+				au.avatar_type as assigned_to_avatar_type, au.avatar_bkey as assigned_to_avatar_bkey, r.assigned_at,
+				r.resolved_at, rbu.id as resolved_by_id, rbu.name as resolved_by_name,
+				rbu.role as resolved_by_role, rbu.visual_role as resolved_by_visual_role, rbu.status as resolved_by_status,
+				rbu.avatar_type as resolved_by_avatar_type, rbu.avatar_bkey as resolved_by_avatar_bkey,
 				r.resolution_note,
 				COALESCE(p.number, cp.number) as post_number,
 				COALESCE(p.slug, cp.slug) as post_slug, pg.slug AS page_slug
 			FROM reports r
-			LEFT JOIN users ru ON ru.id = r.reporter_id
-			LEFT JOIN users au ON au.id = r.assigned_to
-			LEFT JOIN users rbu ON rbu.id = r.resolved_by
+			LEFT JOIN users ru ON ru.id = r.reporter_id AND ru.tenant_id = r.tenant_id
+			LEFT JOIN users au ON au.id = r.assigned_to AND au.tenant_id = r.tenant_id
+			LEFT JOIN users rbu ON rbu.id = r.resolved_by AND rbu.tenant_id = r.tenant_id
 			LEFT JOIN posts p ON r.reported_type = 'post' AND p.id = r.reported_id
 			LEFT JOIN comments c ON r.reported_type = 'comment' AND c.id = r.reported_id
 			LEFT JOIN posts cp ON c.post_id = cp.id

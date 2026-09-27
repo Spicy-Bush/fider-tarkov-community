@@ -12,6 +12,8 @@ export interface OAuthProviderOption {
 }
 
 export interface SystemSettings {
+  queueDefaultDate: string
+  notificationSubscriptions: Record<string, boolean>
   mode: string
   locale: string
   version: string

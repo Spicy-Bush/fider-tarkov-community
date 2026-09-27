@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,6 +16,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
@@ -314,27 +316,39 @@ func pageData(statusCode int, props Props, ctx *Context) Map {
 	public["contextID"] = ctx.ContextID()
 	public["sessionID"] = ctx.SessionID()
 	public["tenant"] = tenant
+	public["permissions"] = entity.PermissionsFor(ctx.User(), tenant)
 	public["props"] = props.Data
+
+	notificationSubscriptions := make(map[string]bool, len(enum.AllNotificationEvents))
+	if user := ctx.User(); user != nil {
+		for _, event := range enum.AllNotificationEvents {
+			notificationSubscriptions[event.UserSettingsKeyName] = slices.Contains(event.RequiresSubscriptionUserRoles, user.Role)
+		}
+	}
+
 	public["settings"] = &Map{
-		"version":          ctx.engine.renderer.version,
-		"mode":             env.Config.HostMode,
-		"locale":           locale,
-		"environment":      env.Config.Environment,
-		"googleAnalytics":  env.Config.GoogleAnalytics,
-		"googleAdSense":    env.Config.GoogleAdSense,
-		"domain":           env.MultiTenantDomain(),
-		"hasLegal":         env.HasLegal(),
-		"isBillingEnabled": env.IsBillingEnabled(),
-		"baseURL":          ctx.BaseURL(),
-		"assetsURL":        AssetsURL(ctx, ""),
-		"oauth":            oauthProviders,
-		"navigationLinks":  navigationLinks,
+		"queueDefaultDate":          entity.DefaultQueueDate(ctx.User()),
+		"notificationSubscriptions": notificationSubscriptions,
+		"version":                   ctx.engine.renderer.version,
+		"mode":                      env.Config.HostMode,
+		"locale":                    locale,
+		"environment":               env.Config.Environment,
+		"googleAnalytics":           env.Config.GoogleAnalytics,
+		"googleAdSense":             env.Config.GoogleAdSense,
+		"domain":                    env.MultiTenantDomain(),
+		"hasLegal":                  env.HasLegal(),
+		"isBillingEnabled":          env.IsBillingEnabled(),
+		"baseURL":                   ctx.BaseURL(),
+		"assetsURL":                 AssetsURL(ctx, ""),
+		"oauth":                     oauthProviders,
+		"navigationLinks":           navigationLinks,
 	}
 
 	if ctx.IsAuthenticated() {
 		u := ctx.User()
 		standing := getUserStandingInfo(ctx, u.ID)
 		public["user"] = &Map{
+			"permissions":     u.AllowedActions(u, tenant),
 			"id":              u.ID,
 			"name":            u.Name,
 			"email":           u.Email,

@@ -1,6 +1,7 @@
 export * from "./post"
 export * from "./discussion"
 export * from "./identity"
+export * from "./permissions"
 export * from "./settings"
 export * from "./billing"
 export * from "./notification"

@@ -26,13 +26,26 @@ import {
   Checkbox,
   ImageUploader,
 } from "@fider/components"
-import { User, UserRole, Tag } from "@fider/models"
+import { User, UserRole, Tag, UserPermissions } from "@fider/models"
 import { notify, Failure } from "@fider/services"
 import { HStack, VStack } from "@fider/components/layout"
 import { heroiconsLightBulb as IconLightBulb, heroiconsSearch as IconSearch } from "@fider/icons.generated"
 import { useFider } from "@fider/hooks"
 
+const samplePermissions: UserPermissions = {
+  readProfile: false,
+  editName: false,
+  editAvatar: false,
+  block: false,
+  moderate: false,
+  deleteModeration: false,
+  expireModeration: false,
+  changeRole: false,
+  changeVisualRole: false,
+}
+
 const jonSnow: User = {
+  permissions: samplePermissions,
   id: 0,
   name: "Jon Snow",
   role: UserRole.Administrator,
@@ -42,6 +55,7 @@ const jonSnow: User = {
 }
 
 const aryaStark: User = {
+  permissions: samplePermissions,
   id: 0,
   name: "Arya Snow",
   role: UserRole.Visitor,
@@ -50,6 +64,7 @@ const aryaStark: User = {
 }
 
 const robStark: User = {
+  permissions: samplePermissions,
   id: 0,
   name: "Robert Stark",
   role: UserRole.Visitor,
@@ -58,10 +73,10 @@ const robStark: User = {
     "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&ixqx=1JzWlMeJDF&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2.25&w=256&h=256&q=80",
 }
 
-const easyTag: Tag = { id: 1, slug: "easy", name: "Easy", color: "82c460", isPublic: true }
-const normalTag: Tag = { id: 2, slug: "normal", name: "Normal", color: "ebb134", isPublic: false }
-const hardTag: Tag = { id: 3, slug: "hard", name: "Hard", color: "9c3630", isPublic: false }
-const linkTag: Tag = { id: 4, slug: "link", name: "Link", color: "0991db", isPublic: true }
+const easyTag: Tag = { permissions: { assign: false }, id: 1, slug: "easy", name: "Easy", color: "82c460", isPublic: true }
+const normalTag: Tag = { permissions: { assign: false }, id: 2, slug: "normal", name: "Normal", color: "ebb134", isPublic: false }
+const hardTag: Tag = { permissions: { assign: false }, id: 3, slug: "hard", name: "Hard", color: "9c3630", isPublic: false }
+const linkTag: Tag = { permissions: { assign: false }, id: 4, slug: "link", name: "Link", color: "0991db", isPublic: true }
 
 const visibilityPublic = { label: "Public", value: "public" }
 const visibilityPrivate = { label: "Private", value: "private" }

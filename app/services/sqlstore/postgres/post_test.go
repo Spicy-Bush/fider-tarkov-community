@@ -1,6 +1,7 @@
 package postgres_test
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -71,6 +72,10 @@ func TestPostStorage_AddAndGet(t *testing.T) {
 	postBySlug := &query.GetPostBySlug{Slug: "my-new-post"}
 	err = bus.Dispatch(jonSnowCtx, postByID, postBySlug)
 	Expect(err).IsNil()
+
+	if !reflect.DeepEqual(newPost.Result, postByID.Result) {
+		t.Fatalf("created post differs from persisted projection:\ncreated: %+v\nloaded: %+v", newPost.Result, postByID.Result)
+	}
 
 	Expect(postByID.Result.ID).Equals(newPost.Result.ID)
 	Expect(postByID.Result.Number).Equals(1)

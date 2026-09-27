@@ -49,9 +49,9 @@ test("thread spans include descendants and pending pages but exclude siblings", 
   const state = {
     comments: { 1: comment(1), 2: comment(2, 1), 3: comment(3, 2), 4: comment(4) },
     branches: {
-      0: { ids: [1, 4], loaded: true },
-      1: { ids: [2], loaded: true, next: "more-replies" },
-      2: { ids: [3], loaded: true },
+      0: { ids: [1, 4], page: {} },
+      1: { ids: [2], page: { next: "more-replies" } },
+      2: { ids: [3], page: {} },
     },
   }
 
@@ -79,7 +79,7 @@ test("a manual expansion reveals a negatively rated parent and its staff reply",
 
   const state = {
     comments: { 1: root, 2: reply },
-    branches: { 0: { ids: [1], loaded: true }, 1: { ids: [2], loaded: true } },
+    branches: { 0: { ids: [1], page: {} }, 1: { ids: [2], page: {} } },
   }
 
   expect(discussionRows(state, {})).toHaveLength(1)
@@ -89,11 +89,11 @@ test("a manual expansion reveals a negatively rated parent and its staff reply",
 
 test("deep replies reveal four levels followed by ten more per expansion", () => {
   const comments: Record<number, DiscussionComment> = {}
-  const branches: Record<number, { ids: number[]; loaded: boolean }> = { 0: { ids: [1], loaded: true } }
+  const branches: Record<number, { ids: number[]; page: { next?: string } }> = { 0: { ids: [1], page: {} } }
 
   for (let id = 1; id <= 1000; id++) {
     comments[id] = comment(id, id > 1 ? id - 1 : null)
-    branches[id] = { ids: id < 1000 ? [id + 1] : [], loaded: true }
+    branches[id] = { ids: id < 1000 ? [id + 1] : [], page: {} }
   }
 
   const rows = discussionRows({ comments, branches }, {})

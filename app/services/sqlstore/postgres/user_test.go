@@ -242,16 +242,16 @@ func TestUserStorage_ChangeRole(t *testing.T) {
 	SetupDatabaseTest(t)
 	defer TeardownDatabaseTest()
 
-	err := bus.Dispatch(demoTenantCtx, &cmd.ChangeUserRole{
-		UserID: jonSnow.ID,
-		Role:   enum.RoleVisitor,
+	err := bus.Dispatch(jonSnowCtx, &cmd.ChangeUserRole{
+		UserID: aryaStark.ID,
+		Role:   enum.RoleHelper,
 	})
 	Expect(err).IsNil()
 
-	getUser := &query.GetUserByEmail{Email: "jon.snow@got.com"}
+	getUser := &query.GetUserByEmail{Email: "arya.stark@got.com"}
 	err = bus.Dispatch(demoTenantCtx, getUser)
 	Expect(err).IsNil()
-	Expect(getUser.Result.Role).Equals(enum.RoleVisitor)
+	Expect(getUser.Result.Role).Equals(enum.RoleHelper)
 }
 
 func TestUserStorage_ChangeEmail(t *testing.T) {
@@ -379,7 +379,9 @@ func TestUserStorage_APIKey(t *testing.T) {
 
 	getByKey := &query.GetUserByAPIKey{APIKey: firstKey}
 	err = bus.Dispatch(jonSnowCtx, getByKey)
-	Expect(getByKey.Result).Equals(jonSnow)
+	expected := *jonSnow
+	expected.Permissions = expected.AllowedActions(jonSnow, demoTenant)
+	Expect(getByKey.Result).Equals(&expected)
 	Expect(err).IsNil()
 
 	//try to get by uppercase key
@@ -408,18 +410,18 @@ func TestUserStorage_BlockUser(t *testing.T) {
 	SetupDatabaseTest(t)
 	defer TeardownDatabaseTest()
 
-	userID := 1
+	userID := aryaStark.ID
 	getUser := &query.GetUserByID{UserID: userID}
 
 	err := bus.Dispatch(demoTenantCtx, getUser)
 	Expect(err).IsNil()
 	Expect(getUser.Result.Status).Equals(enum.UserActive)
 
-	err = bus.Dispatch(demoTenantCtx, &cmd.BlockUser{UserID: userID}, getUser)
+	err = bus.Dispatch(jonSnowCtx, &cmd.BlockUser{UserID: userID}, getUser)
 	Expect(err).IsNil()
 	Expect(getUser.Result.Status).Equals(enum.UserBlocked)
 
-	err = bus.Dispatch(demoTenantCtx, &cmd.UnblockUser{UserID: userID}, getUser)
+	err = bus.Dispatch(jonSnowCtx, &cmd.UnblockUser{UserID: userID}, getUser)
 	Expect(err).IsNil()
 	Expect(getUser.Result.Status).Equals(enum.UserActive)
 }

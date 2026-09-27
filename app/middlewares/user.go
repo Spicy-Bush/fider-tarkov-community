@@ -70,7 +70,7 @@ func User() web.MiddlewareFunc {
 					}
 					user = getUserByAPIKey.Result
 
-					if !user.IsCollaborator() {
+					if !entity.Can(user, c.Tenant(), entity.ManageAPIKeys) {
 						return c.HandleValidation(validate.Failed("API Key is invalid"))
 					}
 
@@ -96,8 +96,7 @@ func User() web.MiddlewareFunc {
 			}
 
 			if user != nil && c.Tenant() != nil && user.Tenant.ID == c.Tenant().ID {
-				// blocked users are unable to sign in
-				if user.Status == enum.UserBlocked {
+				if user.Status != enum.UserActive {
 					c.RemoveCookie(web.CookieAuthName)
 					return c.Unauthorized()
 				}

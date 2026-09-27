@@ -69,7 +69,7 @@ const ManageMembersPage: React.FC<ManageMembersPageProps> = (props) => {
     urlPath: "/admin/members",
   })
 
-  const canViewEmails = Fider.session.user.isAdministrator || Fider.session.user.isCollaborator
+  const canViewEmails = Fider.session.permissions.readUserEmails
 
   const memberFilter = useCallback(
     (searchQuery: string, user: User): boolean => {
@@ -194,14 +194,7 @@ const ManageMembersPage: React.FC<ManageMembersPageProps> = (props) => {
             <UserProfile
               key={profileKey}
               userId={selectedUser.id}
-              user={{
-                id: selectedUser.id,
-                name: selectedUser.name,
-                avatarURL: selectedUser.avatarURL,
-                role: selectedUser.role,
-                status: selectedUser.status,
-                visualRole: (selectedUser as any).visualRole,
-              }}
+              user={selectedUser}
               embedded
               compact
               onUserUpdate={(updates) => {
@@ -215,7 +208,7 @@ const ManageMembersPage: React.FC<ManageMembersPageProps> = (props) => {
               <UserProfile.Details
                 email={selectedUser.email}
                 providers={selectedUser.providers}
-                onRoleChange={(role) => updateUserInLists({ id: selectedUser.id, role })}
+                onRoleChange={updateUserInLists}
                 onVisualRoleChange={(visualRole) => updateUserInLists({ id: selectedUser.id, visualRole })}
               />
               <UserProfile.Actions />

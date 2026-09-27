@@ -3,8 +3,8 @@ package actions
 import (
 	"context"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
@@ -48,7 +48,8 @@ type AssignReport struct {
 }
 
 func (a *AssignReport) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.Role == enum.RoleModerator || user.Role == enum.RoleCollaborator || user.Role == enum.RoleAdministrator)
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageReports)
 }
 
 func (a *AssignReport) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -68,7 +69,8 @@ type ResolveReport struct {
 }
 
 func (a *ResolveReport) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.Role == enum.RoleModerator || user.Role == enum.RoleCollaborator || user.Role == enum.RoleAdministrator)
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageReports)
 }
 
 func (a *ResolveReport) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -96,7 +98,8 @@ type CreateReportReason struct {
 }
 
 func (a *CreateReportReason) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageReportReasons)
 }
 
 func (a *CreateReportReason) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -123,7 +126,8 @@ type UpdateReportReason struct {
 }
 
 func (a *UpdateReportReason) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageReportReasons)
 }
 
 func (a *UpdateReportReason) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -151,7 +155,8 @@ type DeleteReportReason struct {
 }
 
 func (a *DeleteReportReason) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageReportReasons)
 }
 
 func (a *DeleteReportReason) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -169,7 +174,8 @@ type ReorderReportReasons struct {
 }
 
 func (a *ReorderReportReasons) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageReportReasons)
 }
 
 func (a *ReorderReportReasons) Validate(ctx context.Context, user *entity.User) *validate.Result {

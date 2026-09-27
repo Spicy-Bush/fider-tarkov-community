@@ -44,6 +44,7 @@ type PostLoadState =
   | { status: "failed"; mode: PostLoadMode; message: string }
 
 const untaggedTag: Tag = {
+  permissions: { assign: false },
   id: -1,
   slug: "untagged",
   name: "untagged",

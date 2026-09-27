@@ -5,6 +5,7 @@ import { Trans } from "@lingui/react/macro"
 
 export const UserMenu = () => {
   const fider = useFider()
+  const permissions = fider.session.permissions
 
   return (
     <div className="c-menu-user shrink-0">
@@ -18,33 +19,25 @@ export const UserMenu = () => {
         </Dropdown.ListItem>
         <Dropdown.Divider />
 
-        {fider.session.user.isHelper && !fider.session.user.isModerator && (
+        {(permissions.manageQueue || permissions.manageMembers) && (
           <>
             <div className="p-2 text-medium uppercase">
               <Trans id="menu.moderation">Moderation</Trans>
             </div>
-            <Dropdown.ListItem href="/admin/queue">
-              <Trans id="menu.postqueue">Post Queue</Trans>
-            </Dropdown.ListItem>
+            {permissions.manageQueue && (
+              <Dropdown.ListItem href="/admin/queue">
+                <Trans id="menu.postqueue">Post Queue</Trans>
+              </Dropdown.ListItem>
+            )}
+            {permissions.manageMembers && (
+              <Dropdown.ListItem href="/admin/members">
+                <Trans id="menu.members">Member List</Trans>
+              </Dropdown.ListItem>
+            )}
             <Dropdown.Divider />
           </>
         )}
-
-        {fider.session.user.isModerator && (
-          <>
-            <div className="p-2 text-medium uppercase">
-              <Trans id="menu.moderation">Moderation</Trans>
-            </div>
-            <Dropdown.ListItem href="/admin/queue">
-              <Trans id="menu.postqueue">Post Queue</Trans>
-            </Dropdown.ListItem>
-            <Dropdown.ListItem href="/admin/members">
-              <Trans id="menu.members">Member List</Trans>
-            </Dropdown.ListItem>
-          </>
-        )}
-
-        {(fider.session.user.isCollaborator || fider.session.user.isAdministrator) && (
+        {permissions.readSettings && (
           <>
             <div className="p-2 text-medium uppercase">
               <Trans id="menu.administration">Administration</Trans>

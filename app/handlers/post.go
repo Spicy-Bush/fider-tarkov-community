@@ -146,10 +146,8 @@ func PostDetails() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		// For non-staff users, strip out the VoteType to anonymise what each person voted
-		isStaff := c.User() != nil && (c.User().IsCollaborator() || c.User().IsModerator() || c.User().IsAdministrator())
 		votes := listVotes.Result
-		if !isStaff {
+		if !entity.Can(c.User(), c.Tenant(), entity.ViewPostVotes) {
 			// Create anonymous votes without VoteType for regular users
 			votes = make([]*entity.Vote, len(listVotes.Result))
 			for i, v := range listVotes.Result {

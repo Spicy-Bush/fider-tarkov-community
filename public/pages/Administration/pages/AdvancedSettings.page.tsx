@@ -160,7 +160,7 @@ const AdvancedSettingsPage: React.FC<AdvancedSettingsPageProps> = (props) => {
         <TextArea
           field="customCSS"
           label="Custom CSS"
-          disabled={!Fider.session.user.isAdministrator}
+          disabled={!Fider.session.permissions.manageSettings}
           minRows={10}
           value={customCSS}
           onChange={setCustomCSS}
@@ -178,7 +178,7 @@ const AdvancedSettingsPage: React.FC<AdvancedSettingsPageProps> = (props) => {
       <TextArea
         field="profanityWords"
         label="Profanity Words (one per line)"
-        disabled={!Fider.session.user.isAdministrator}
+        disabled={!Fider.session.permissions.manageSettings}
         minRows={5}
         value={profanityWords}
         onChange={setProfanityWords}

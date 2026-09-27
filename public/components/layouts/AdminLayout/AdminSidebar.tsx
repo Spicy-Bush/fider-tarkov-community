@@ -92,9 +92,42 @@ export const AdminSidebar: React.FC = () => {
   const { sidebarItem } = useAdminLayout()
   const activeItem = sidebarItem || "general"
 
-  const isModerator = fider.session.user.isModerator
-  const isCollaborator = fider.session.user.isCollaborator
-  const isAdministrator = fider.session.user.isAdministrator
+  const permissions = fider.session.permissions
+  const sections = [
+    {
+      label: "Moderation",
+      items: [
+        { title: "Post Queue", path: "queue", icon: IconInbox, visible: permissions.manageQueue },
+        { title: "Members", path: "members", icon: IconUsers, visible: permissions.manageMembers },
+        { title: "Reports", path: "reports", icon: IconFlag, visible: permissions.manageReports },
+        { title: "Archive", path: "archive", icon: IconArchive, visible: permissions.manageArchive },
+      ],
+    },
+    {
+      label: "Site",
+      items: [
+        { title: "General", path: "", icon: IconCog, visible: permissions.readSettings },
+        { title: "Content", path: "content-settings", icon: IconDocumentText, visible: permissions.manageContentSettings },
+        { title: "Pages", path: "pages", icon: IconDocumentText, visible: permissions.managePages },
+        { title: "Responses", path: "responses", icon: IconChat, visible: permissions.manageResponses },
+        { title: "Tags", path: "tags", icon: IconTag, visible: permissions.manageTags },
+        { title: "Sponsorship", path: "sponsorship", icon: IconSpeaker, visible: permissions.manageSponsorship },
+        { title: "Webhooks", path: "webhooks", icon: IconLink, visible: permissions.manageWebhooks },
+      ],
+    },
+    {
+      label: "System",
+      items: [
+        { title: "Advanced", path: "advanced", icon: IconAdjustments, visible: permissions.manageSettings },
+        { title: "Privacy", path: "privacy", icon: IconLock, visible: permissions.manageSettings },
+        { title: "Invitations", path: "invitations", icon: IconEnvelope, visible: permissions.manageInvitations },
+        { title: "Authentication", path: "authentication", icon: IconKey, visible: permissions.manageAuthentication },
+        { title: "Billing", path: "billing", icon: IconCreditCard, visible: permissions.manageBilling && fider.settings.isBillingEnabled },
+        { title: "Files", path: "files", icon: IconPhoto, visible: permissions.manageFiles },
+        { title: "Export", path: "export", icon: IconDownload, visible: permissions.exportBackup },
+      ],
+    },
+  ]
 
   return (
     <aside className={classSet({
@@ -106,42 +139,25 @@ export const AdminSidebar: React.FC = () => {
     })}>
       <nav className="flex-1 overflow-y-auto overflow-x-hidden p-4 px-2">
         <VStack spacing={0}>
-          <SidebarSection label="Moderation" collapsed={!sidebarOpen}>
-            <SidebarItem title="Post Queue" href="/admin/queue" isActive={activeItem === "queue"} icon={IconInbox} collapsed={!sidebarOpen} />
-            {(isModerator || isCollaborator || isAdministrator) && (
-              <>
-                <SidebarItem title="Members" href="/admin/members" isActive={activeItem === "members"} icon={IconUsers} collapsed={!sidebarOpen} />
-                <SidebarItem title="Reports" href="/admin/reports" isActive={activeItem === "reports"} icon={IconFlag} collapsed={!sidebarOpen} />
-                <SidebarItem title="Archive" href="/admin/archive" isActive={activeItem === "archive"} icon={IconArchive} collapsed={!sidebarOpen} />
-              </>
-            )}
-          </SidebarSection>
+          {sections.map((section) => {
+            const items = section.items.filter((item) => item.visible)
+            if (items.length === 0) return null
 
-          {(isCollaborator || isAdministrator) && (
-            <SidebarSection label="Site" collapsed={!sidebarOpen}>
-              <SidebarItem title="General" href="/admin" isActive={activeItem === "general"} icon={IconCog} collapsed={!sidebarOpen} />
-              <SidebarItem title="Content" href="/admin/content-settings" isActive={activeItem === "content"} icon={IconDocumentText} collapsed={!sidebarOpen} />
-              <SidebarItem title="Pages" href="/admin/pages" isActive={activeItem === "pages"} icon={IconDocumentText} collapsed={!sidebarOpen} />
-              <SidebarItem title="Responses" href="/admin/responses" isActive={activeItem === "responses"} icon={IconChat} collapsed={!sidebarOpen} />
-              <SidebarItem title="Tags" href="/admin/tags" isActive={activeItem === "tags"} icon={IconTag} collapsed={!sidebarOpen} />
-              <SidebarItem title="Sponsorship" href="/admin/sponsorship" isActive={activeItem === "sponsorship"} icon={IconSpeaker} collapsed={!sidebarOpen} />
-              <SidebarItem title="Webhooks" href="/admin/webhooks" isActive={activeItem === "webhooks"} icon={IconLink} collapsed={!sidebarOpen} />
-            </SidebarSection>
-          )}
-
-          {isAdministrator && (
-            <SidebarSection label="System" collapsed={!sidebarOpen}>
-              <SidebarItem title="Advanced" href="/admin/advanced" isActive={activeItem === "advanced"} icon={IconAdjustments} collapsed={!sidebarOpen} />
-              <SidebarItem title="Privacy" href="/admin/privacy" isActive={activeItem === "privacy"} icon={IconLock} collapsed={!sidebarOpen} />
-              <SidebarItem title="Invitations" href="/admin/invitations" isActive={activeItem === "invitations"} icon={IconEnvelope} collapsed={!sidebarOpen} />
-              <SidebarItem title="Authentication" href="/admin/authentication" isActive={activeItem === "authentication"} icon={IconKey} collapsed={!sidebarOpen} />
-              {fider.settings.isBillingEnabled && (
-                <SidebarItem title="Billing" href="/admin/billing" isActive={activeItem === "billing"} icon={IconCreditCard} collapsed={!sidebarOpen} />
-              )}
-              <SidebarItem title="Files" href="/admin/files" isActive={activeItem === "files"} icon={IconPhoto} collapsed={!sidebarOpen} />
-              <SidebarItem title="Export" href="/admin/export" isActive={activeItem === "export"} icon={IconDownload} collapsed={!sidebarOpen} />
-            </SidebarSection>
-          )}
+            return (
+              <SidebarSection key={section.label} label={section.label} collapsed={!sidebarOpen}>
+                {items.map((item) => (
+                  <SidebarItem
+                    key={item.path}
+                    title={item.title}
+                    href={item.path ? "/admin/" + item.path : "/admin"}
+                    isActive={activeItem === (item.path === "content-settings" ? "content" : item.path || "general")}
+                    icon={item.icon}
+                    collapsed={!sidebarOpen}
+                  />
+                ))}
+              </SidebarSection>
+            )
+          })}
         </VStack>
       </nav>
       <button 

@@ -18,54 +18,6 @@ func createScanner(values ...any) func(dest ...any) error {
 	}
 }
 
-func TestTypeMapper_NonStruct(t *testing.T) {
-	RegisterT(t)
-	var id int
-	mapping := dbx.NewTypeMapper(reflect.TypeOf(id))
-	Expect(mapping.Fields).HasLen(0)
-}
-
-func TestTypeMapper_SimpleStruct(t *testing.T) {
-	RegisterT(t)
-	u := user{}
-	mapping := dbx.NewTypeMapper(reflect.TypeOf(u))
-	Expect(mapping.Fields).HasLen(2)
-	Expect(mapping.Fields["id"].FieldName).Equals([]string{"ID"})
-	Expect(mapping.Fields["name"].FieldName).Equals([]string{"Name"})
-}
-
-func TestTypeMapper_StringPointer(t *testing.T) {
-	RegisterT(t)
-	m := tenant{}
-	mapping := dbx.NewTypeMapper(reflect.TypeOf(m))
-	Expect(mapping.Fields).HasLen(2)
-	Expect(mapping.Fields["id"].FieldName).Equals([]string{"ID"})
-	Expect(mapping.Fields["name"].FieldName).Equals([]string{"Name"})
-}
-
-func TestTypeMapper_NestedStruct(t *testing.T) {
-	RegisterT(t)
-	u := userWithTenant{}
-	mapping := dbx.NewTypeMapper(reflect.TypeOf(u))
-	Expect(mapping.Fields).HasLen(4)
-	Expect(mapping.Fields["id"].FieldName).Equals([]string{"ID"})
-	Expect(mapping.Fields["name"].FieldName).Equals([]string{"Name"})
-	Expect(mapping.Fields["tenant_id"].FieldName).Equals([]string{"Tenant", "ID"})
-	Expect(mapping.Fields["tenant_name"].FieldName).Equals([]string{"Tenant", "Name"})
-}
-
-func TestTypeMapper_DeepNestedStruct(t *testing.T) {
-	RegisterT(t)
-	u := userProvider{}
-	mapping := dbx.NewTypeMapper(reflect.TypeOf(u))
-	Expect(mapping.Fields).HasLen(5)
-	Expect(mapping.Fields["provider"].FieldName).Equals([]string{"Provider"})
-	Expect(mapping.Fields["user_id"].FieldName).Equals([]string{"User", "ID"})
-	Expect(mapping.Fields["user_name"].FieldName).Equals([]string{"User", "Name"})
-	Expect(mapping.Fields["user_tenant_id"].FieldName).Equals([]string{"User", "Tenant", "ID"})
-	Expect(mapping.Fields["user_tenant_name"].FieldName).Equals([]string{"User", "Tenant", "Name"})
-}
-
 func TestRowMapper_NonStruct(t *testing.T) {
 	RegisterT(t)
 	mapper := dbx.NewRowMapper()

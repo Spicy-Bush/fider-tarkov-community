@@ -20,6 +20,7 @@ type User struct {
 	AvatarURL     string          `json:"avatarURL,omitempty"`
 	Status        enum.UserStatus `json:"status"`
 	Muted         bool            `json:"-"`
+	Permissions   UserPermissions `json:"permissions"`
 }
 
 // Map permission role to equivalent visual role

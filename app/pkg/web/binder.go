@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	stdErrors "errors"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 var (
 	//ErrContentTypeNotAllowed is used when POSTing a body that is not json
 	ErrContentTypeNotAllowed = stdErrors.New("Only Content-Type application/json is allowed")
+	ErrInvalidRequestBody = stdErrors.New("Invalid JSON request body")
 )
 
 //DefaultBinder is the default HTTP binder
@@ -38,7 +40,12 @@ func (b *DefaultBinder) Bind(target any, c *Context) error {
 		}
 
 		if err := json.Unmarshal(c.Request.Body, target); err != nil {
-			return err
+			var invalidTarget *json.InvalidUnmarshalError
+			if stdErrors.As(err, &invalidTarget) {
+				return err
+			}
+
+			return fmt.Errorf("%w: %w", ErrInvalidRequestBody, err)
 		}
 	}
 

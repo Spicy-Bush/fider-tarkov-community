@@ -1,6 +1,5 @@
 import React from "react"
-import { UserRole, UserAvatarType, isAdministrator, isModerator, isCollaborator } from "@fider/models"
-import { useFider } from "@fider/hooks"
+import { UserRole, UserAvatarType, UserPermissions } from "@fider/models"
 
 const AVATAR_COLORS = [
   { bg: "linear-gradient(135deg, #86b0bc 0%, #6a9aa8 100%)", text: "#ffffff" },
@@ -41,6 +40,7 @@ interface AvatarProps {
     avatarURL?: string
     avatarType?: UserAvatarType
     name: string
+    permissions?: Pick<UserPermissions, "readProfile">
   }
   size?: "small" | "normal" | "fill"
   imageSize?: number
@@ -49,7 +49,6 @@ interface AvatarProps {
 }
 
 export const Avatar = (props: AvatarProps) => {
-  const fider = useFider()
   const sizeClass = props.size === "small" ? "h-6 w-6" : props.size === "fill" ? "w-full h-full" : "h-8 w-8"
   const imageSize = props.imageSize ?? 64
   const clickable = props.clickable !== undefined ? props.clickable : true
@@ -66,13 +65,7 @@ export const Avatar = (props: AvatarProps) => {
     <InitialsAvatar name={props.user.name} sizeClass={sizeClass} className={props.className} />
   )
   
-  const canViewProfile = fider.session.isAuthenticated && (
-    isAdministrator(fider.session.user.role) || 
-    isModerator(fider.session.user.role) || 
-    isCollaborator(fider.session.user.role)
-  )
-
-  if (canViewProfile && props.user.id && clickable) {
+  if (props.user.permissions?.readProfile && props.user.id && clickable) {
     return <a href={`/profile/${props.user.id}`} className={props.size === "fill" ? "w-full h-full block" : ""}>{avatar}</a>
   }
   

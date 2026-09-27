@@ -1,9 +1,10 @@
 import React from "react"
-import { UserRole, UserStatus, UserAvatarType, UserSettings, VisualRole } from "@fider/models"
+import { UserRole, UserStatus, UserAvatarType, UserSettings, VisualRole, UserPermissions } from "@fider/models"
 import { UserProfile } from "@fider/components/UserProfile"
 
 interface UserProfilePageProps {
   user: {
+    permissions: UserPermissions
     id: number
     name: string
     role: UserRole

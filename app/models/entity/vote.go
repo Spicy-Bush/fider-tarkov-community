@@ -12,6 +12,8 @@ type VoteUser struct {
 	Name      string `json:"name"`
 	Email     string `json:"email,omitempty"`
 	AvatarURL string `json:"avatarURL,omitempty"`
+
+	Permissions UserPermissions `json:"permissions"`
 }
 
 // Vote represents a vote given by a user on a post

@@ -65,10 +65,10 @@ func TestPostRankingRespectsVisibility(t *testing.T) {
 		name string
 		user *entity.User
 	}{
-		{"moderator", &entity.User{ID: 2, Role: enum.RoleModerator}},
-		{"collaborator", &entity.User{ID: 2, Role: enum.RoleCollaborator}},
-		{"administrator", &entity.User{ID: 2, Role: enum.RoleAdministrator}},
-		{"author", &entity.User{ID: 1, Role: enum.RoleVisitor}},
+		{"moderator", &entity.User{ID: 2, Role: enum.RoleModerator, Status: enum.UserActive}},
+		{"collaborator", &entity.User{ID: 2, Role: enum.RoleCollaborator, Status: enum.UserActive}},
+		{"administrator", &entity.User{ID: 2, Role: enum.RoleAdministrator, Status: enum.UserActive}},
+		{"author", &entity.User{ID: 1, Role: enum.RoleVisitor, Status: enum.UserActive}},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {

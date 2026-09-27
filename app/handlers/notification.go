@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
@@ -67,14 +68,14 @@ func TotalUnreadNotifications() web.HandlerFunc {
 			"total": q.Result,
 		}
 
-		if c.User() != nil && (c.User().IsCollaborator() || c.User().IsModerator() || c.User().IsAdministrator()) {
+		if entity.Can(c.User(), c.Tenant(), entity.ManageReports) {
 			reportCount := &query.CountPendingReports{}
 			if err := bus.Dispatch(c, reportCount); err == nil {
 				response["pendingReports"] = reportCount.Result
 			}
 		}
 
-		if c.User() != nil && (c.User().IsHelper() || c.User().IsCollaborator() || c.User().IsModerator() || c.User().IsAdministrator()) {
+		if entity.Can(c.User(), c.Tenant(), entity.ManageQueue) {
 			queueCount := &query.CountUntaggedPosts{}
 			if err := bus.Dispatch(c, queueCount); err == nil {
 				response["queueCount"] = queueCount.Result

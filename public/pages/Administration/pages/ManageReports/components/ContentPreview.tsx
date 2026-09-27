@@ -7,7 +7,8 @@ import {
   heroiconsX as IconX,
   heroiconsExternalLink as IconExternalLink,
 } from "@fider/icons.generated"
-import { Report, Post, DiscussionComment, UserRole, UserStatus } from "@fider/models"
+import { Report, Post, DiscussionComment } from "@fider/models"
+import { UserData } from "@fider/components/UserProfile"
 
 export interface ContentPreviewProps {
   report: Report | null
@@ -18,13 +19,7 @@ export interface ContentPreviewProps {
   onUnassign: () => void
   onResolve: (status: "resolved" | "dismissed", shiftKey: boolean) => void
   currentUserId: number
-  onUserClick?: (user: {
-    id: number
-    name: string
-    avatarURL: string
-    role: number | UserRole
-    status: number | UserStatus
-  }) => void
+  onUserClick?: (user: UserData) => void
 }
 
 export const ContentPreview: React.FC<ContentPreviewProps> = ({
@@ -200,15 +195,7 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
         {reportedUser && (
           <div
             className="p-3 mb-4 bg-tertiary rounded-card cursor-pointer hover:bg-surface-alt transition-colors group relative"
-            onClick={() =>
-              onUserClick?.({
-                id: reportedUser.id,
-                name: reportedUser.name,
-                avatarURL: reportedUser.avatarURL,
-                role: reportedUser.role,
-                status: reportedUser.status,
-              })
-            }
+            onClick={() => onUserClick?.(reportedUser)}
             role="button"
             tabIndex={0}
           >

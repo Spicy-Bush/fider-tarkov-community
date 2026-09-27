@@ -7,7 +7,6 @@ import (
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
@@ -64,9 +63,8 @@ func ViewUserProfile() web.HandlerFunc {
 			return c.NotFound()
 		}
 
-		// Regular users can only view their own profile, admins can view any profile
-		isPrivileged := c.User().Role == enum.RoleAdministrator || c.User().Role == enum.RoleCollaborator || c.User().Role == enum.RoleModerator
-		if !isPrivileged && c.User().ID != userID {
+		permissions := getUser.Result.AllowedActions(c.User(), c.Tenant())
+		if !permissions.ReadProfile {
 			return c.NotFound()
 		}
 
@@ -82,6 +80,7 @@ func ViewUserProfile() web.HandlerFunc {
 					"visualRole": getUser.Result.GetVisualRole(),
 					"avatarURL":  getUser.Result.AvatarURL,
 					"status":     getUser.Result.Status,
+					"permissions": permissions,
 				},
 			},
 		})

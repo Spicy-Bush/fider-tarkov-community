@@ -115,8 +115,8 @@ func TestCreateTenant_EmptySubdomain(t *testing.T) {
 func TestUpdateTenantSettings_Unauthorized(t *testing.T) {
 	RegisterT(t)
 
-	admin := &entity.User{ID: 1, Role: enum.RoleAdministrator}
-	collaborator := &entity.User{ID: 2, Role: enum.RoleCollaborator}
+	admin := &entity.User{ID: 1, Role: enum.RoleAdministrator, Status: enum.UserActive}
+	collaborator := &entity.User{ID: 2, Role: enum.RoleCollaborator, Status: enum.UserActive}
 
 	action := actions.NewUpdateTenantSettings()
 

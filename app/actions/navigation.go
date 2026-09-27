@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
@@ -21,7 +22,8 @@ type SaveNavigationLinks struct {
 }
 
 func (action *SaveNavigationLinks) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageNavigation)
 }
 
 func (action *SaveNavigationLinks) Validate(ctx context.Context, user *entity.User) *validate.Result {

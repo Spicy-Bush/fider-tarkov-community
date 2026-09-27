@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
@@ -21,7 +22,8 @@ func NewUploadNewFile() *UploadNewFile {
 }
 
 func (action *UploadNewFile) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageFiles)
 }
 
 func (action *UploadNewFile) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -65,7 +67,8 @@ func NewRenameFile() *RenameFile {
 }
 
 func (action *RenameFile) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageFiles)
 }
 
 func (action *RenameFile) Validate(ctx context.Context, user *entity.User) *validate.Result {
@@ -91,7 +94,8 @@ func NewBulkDeleteFiles() *BulkDeleteFiles {
 }
 
 func (action *BulkDeleteFiles) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && user.IsAdministrator()
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageFiles)
 }
 
 func (action *BulkDeleteFiles) Validate(ctx context.Context, user *entity.User) *validate.Result {

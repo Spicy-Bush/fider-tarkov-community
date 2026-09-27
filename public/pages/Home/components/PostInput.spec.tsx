@@ -1,6 +1,7 @@
 import { test, expect, beforeEach, afterEach } from "@jest/globals"
 import React from "react"
 import { act, fireEvent, render, screen } from "@testing-library/react"
+import { noSessionPermissions } from "@fider/services/testing/permissions"
 import { PostInput } from "./PostInput"
 import { actions, cache } from "@fider/services"
 import { ImageUpload } from "@fider/models"
@@ -56,6 +57,7 @@ jest.mock("@fider/services", () => ({
 const mockReadUploads = jest.fn<Promise<ImageUpload[] | undefined>, []>()
 
 jest.mock("@fider/components", () => ({
+  SignInModal: ({ isOpen }: any) => isOpen ? <div role="dialog">Sign in</div> : null,
   Button: jest.requireActual<typeof import("@fider/components/common/Button")>("@fider/components/common/Button").Button,
   Form: ({ children, error }: any) => (
     <div>
@@ -100,7 +102,7 @@ beforeEach(() => {
 
   jest.mocked(useFider).mockReturnValue({
     isReadOnly: false,
-    session: new FiderSession({ tenant: { id: 1 }, user: { id: 1, role: "administrator" } }),
+    session: new FiderSession({ permissions: { ...noSessionPermissions, createPosts: true }, tenant: { id: 1 }, user: { id: 1, role: "administrator" } }),
   } as ReturnType<typeof useFider>)
 
   Object.defineProperty(window, "location", {
@@ -152,6 +154,30 @@ test("signed-out visitors do not access the authenticated user or saved submissi
 
   expect(actions.createPost).not.toHaveBeenCalled()
   expect(postSubmissions.load).not.toHaveBeenCalled()
+  expect(screen.getByLabelText("title")).toBeEnabled()
+  fireEvent.click(screen.getByRole("button", { name: "Submit" }))
+  expect(screen.getByRole("dialog")).toHaveTextContent("Sign in")
+  expect(actions.createPost).not.toHaveBeenCalled()
+})
+
+test("a restricted account can edit and preview its draft, and the server decides submission", async () => {
+  jest.mocked(useFider).mockReturnValue({
+    isReadOnly: true,
+    session: new FiderSession({ permissions: noSessionPermissions, tenant: { id: 1 }, user: { id: 1, role: "administrator" } }),
+  } as ReturnType<typeof useFider>)
+  jest.mocked(actions.createPost).mockResolvedValue({ ok: false, status: 400, error: { errors: [{ message: "Posting is disabled." }] } })
+
+  await showForm()
+  fireEvent.change(screen.getByLabelText("title"), { target: { value: "A revised community suggestion" } })
+
+  expect(screen.getByLabelText("description")).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Preview" })).toBeEnabled()
+  await sendNow()
+
+  expect(actions.createPost).toHaveBeenCalledTimes(1)
+  expect(screen.getByText("Posting is disabled.")).toBeVisible()
+  expect(screen.getByLabelText("title")).toHaveValue("A revised community suggestion")
+  expect(screen.getByLabelText("title")).toBeEnabled()
 })
 
 test("canceling countdown sends nothing and retains the draft", async () => {

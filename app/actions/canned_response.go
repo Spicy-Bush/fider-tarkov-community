@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
@@ -17,7 +18,8 @@ type CreateCannedResponse struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *CreateCannedResponse) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator() || user.IsModerator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageResponses)
 }
 
 // Validate if current model is valid
@@ -56,7 +58,8 @@ type UpdateCannedResponse struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *UpdateCannedResponse) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator() || user.IsModerator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageResponses)
 }
 
 // Validate if current model is valid
@@ -94,7 +97,8 @@ type DeleteCannedResponse struct {
 
 // IsAuthorized returns true if current user is authorized to perform this action
 func (action *DeleteCannedResponse) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil && (user.IsAdministrator() || user.IsCollaborator() || user.IsModerator())
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageResponses)
 }
 
 // Validate if current model is valid

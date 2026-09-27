@@ -3,14 +3,14 @@
 import React, { useState } from "react"
 import { Icon, Select, SelectOption } from "@fider/components"
 import { useUserProfile } from "./context"
-import { UserRole, VisualRole } from "@fider/models"
-import { actions, Fider } from "@fider/services"
+import { User, UserRole, VisualRole } from "@fider/models"
+import { actions } from "@fider/services"
 import { heroiconsChevronDown as IconChevronDown, heroiconsChevronUp as IconChevronUp, heroiconsMail as IconMail, heroiconsIdentification as IconIdentification } from "@fider/icons.generated"
 
 interface UserProfileDetailsProps {
   providers?: { name: string; uid: string }[]
   email?: string
-  onRoleChange?: (role: UserRole) => void
+  onRoleChange?: (user: Pick<User, "id" | "role" | "permissions">) => void
   onVisualRoleChange?: (visualRole: VisualRole) => void
 }
 
@@ -27,11 +27,8 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
 
   if (!user) return null
 
-  const currentUser = Fider.session.user
-  const isAdmin = currentUser?.isAdministrator
-  const isCollaborator = currentUser?.isCollaborator
-  const canChangeRole = isAdmin && currentUser.id !== user.id
-  const canChangeVisualRole = (isAdmin || isCollaborator) && currentUser.id !== user.id
+  const canChangeRole = user.permissions.changeRole
+  const canChangeVisualRole = user.permissions.changeVisualRole
 
   const roleOptions: SelectOption[] = [
     { label: "Visitor", value: UserRole.Visitor },
@@ -70,7 +67,7 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
       const newRole = option.value as UserRole
       const result = await actions.changeUserRole(user.id, newRole)
       if (result.ok) {
-        onRoleChange(newRole)
+        onRoleChange(result.data)
       }
     } finally {
       setIsChangingRole(false)

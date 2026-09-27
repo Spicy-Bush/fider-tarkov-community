@@ -95,7 +95,7 @@ func TestPostNotificationPushRecovery(t *testing.T) {
 			}))
 			t.Cleanup(provider.Close)
 
-			recipient := &entity.User{ID: 2}
+			recipient := &entity.User{ID: 2, Status: enum.UserActive}
 			recipientCtx := context.WithValue(f.ctx, app.UserCtxKey, recipient)
 			subscription := &cmd.SavePushSubscription{
 				Endpoint:  provider.URL,

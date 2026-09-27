@@ -32,7 +32,7 @@ const Lonely = () => {
 
   return (
     <div className="text-center">
-      <Hint permanentCloseKey="at-least-3-posts" condition={fider.session.isAuthenticated && fider.session.user.isAdministrator}>
+      <Hint permanentCloseKey="at-least-3-posts" condition={fider.session.permissions.manageSettings}>
         <p>
           <Trans id="home.lonely.suggestion">
             It&apos;s recommended that you create <strong>at least 3</strong> suggestions here before sharing this site. The initial content is important to

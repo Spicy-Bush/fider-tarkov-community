@@ -2,6 +2,7 @@ package actions_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
@@ -11,7 +12,9 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/mock"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/rand"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
 func TestCreateUser_InvalidInput(t *testing.T) {
@@ -94,9 +97,9 @@ func TestChangeUserRole_Unauthorized(t *testing.T) {
 	RegisterT(t)
 
 	for _, user := range []*entity.User{
-		{ID: 1, Role: enum.RoleVisitor},
-		{ID: 1, Role: enum.RoleCollaborator},
-		{ID: 2, Role: enum.RoleAdministrator},
+		{ID: 1, Role: enum.RoleVisitor, Status: enum.UserActive},
+		{ID: 1, Role: enum.RoleCollaborator, Status: enum.UserActive},
+		{ID: 2, Role: enum.RoleAdministrator, Status: enum.UserActive},
 	} {
 		action := actions.ChangeUserRole{UserID: 2}
 		Expect(action.IsAuthorized(context.Background(), user)).IsFalse()
@@ -106,7 +109,7 @@ func TestChangeUserRole_Unauthorized(t *testing.T) {
 func TestChangeUserRole_Authorized(t *testing.T) {
 	RegisterT(t)
 
-	user := &entity.User{ID: 2, Role: enum.RoleAdministrator}
+	user := &entity.User{ID: 2, Role: enum.RoleAdministrator, Status: enum.UserActive}
 	action := actions.ChangeUserRole{UserID: 1}
 	Expect(action.IsAuthorized(context.Background(), user)).IsTrue()
 }
@@ -117,11 +120,13 @@ func TestChangeUserRole_InvalidRole(t *testing.T) {
 	targetUser := &entity.User{
 		ID:     1,
 		Role:   enum.RoleVisitor,
+		Status: enum.UserActive,
 		Tenant: &entity.Tenant{ID: 1},
 	}
 	currentUser := &entity.User{
 		ID:     2,
 		Role:   enum.RoleAdministrator,
+		Status: enum.UserActive,
 		Tenant: &entity.Tenant{ID: 1},
 	}
 
@@ -150,6 +155,7 @@ func TestChangeUserRole_InvalidUser(t *testing.T) {
 	currentUser := &entity.User{
 		Tenant: &entity.Tenant{ID: 1},
 		Role:   enum.RoleAdministrator,
+		Status: enum.UserActive,
 	}
 
 	ctx := context.Background()
@@ -164,11 +170,13 @@ func TestChangeUserRole_InvalidUser_Tenant(t *testing.T) {
 
 	targetUser := &entity.User{
 		Tenant: &entity.Tenant{ID: 1},
+		Status: enum.UserActive,
 	}
 
 	currentUser := &entity.User{
 		Tenant: &entity.Tenant{ID: 2},
 		Role:   enum.RoleAdministrator,
+		Status: enum.UserActive,
 	}
 
 	bus.AddHandler(func(ctx context.Context, q *query.GetUserByID) error {
@@ -186,23 +194,33 @@ func TestChangeUserRole_InvalidUser_Tenant(t *testing.T) {
 }
 
 func TestChangeUserRole_CurrentUser(t *testing.T) {
-	RegisterT(t)
-
 	currentUser := &entity.User{
+		ID:     7,
 		Tenant: &entity.Tenant{ID: 2},
 		Role:   enum.RoleAdministrator,
+		Status: enum.UserActive,
 	}
 
+	lookups := 0
 	bus.AddHandler(func(ctx context.Context, q *query.GetUserByID) error {
-		if q.UserID == currentUser.ID {
-			q.Result = currentUser
-			return nil
-		}
-		return app.ErrNotFound
+		lookups++
+		q.Result = currentUser
+		return nil
 	})
 
-	action := actions.ChangeUserRole{UserID: currentUser.ID, Role: enum.RoleVisitor}
-	action.IsAuthorized(context.Background(), currentUser)
-	result := action.Validate(context.Background(), currentUser)
-	ExpectFailed(result, "userID")
+	status, _ := mock.NewServer().OnTenant(currentUser.Tenant).AsUser(currentUser).
+		AddParam("role", "visitor").ExecutePost(func(c *web.Context) error {
+			result := c.BindTo(&actions.ChangeUserRole{})
+			if result.Authorized {
+				t.Fatal("self role change passed request authorization")
+			}
+			return c.HandleValidation(result)
+		}, `{"userID":7}`)
+
+	if status != http.StatusForbidden {
+		t.Fatalf("self role change returned %d", status)
+	}
+	if lookups != 0 {
+		t.Fatal("self role change reached validation after authorization")
+	}
 }

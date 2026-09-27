@@ -29,6 +29,8 @@ jest.mock("@fider/services/discussion", () => ({
   loadCommentRecords: jest.fn(),
 }))
 
+const ownerPermissions = { comment: false, react: false, images: false }
+
 const owner = { kind: "post" as const, id: 1, number: 1, title: "Post", url: "/posts/1" }
 const comments: DiscussionComment[] = Array.from({ length: 3000 }, (_, index) => ({
   id: index + 1,
@@ -63,7 +65,7 @@ test.each<DiscussionOwner>([
     data: { ...page, owner: discussion, comments: [], permissions: { ...page.permissions, comment: false } },
   })
 
-  const rendered = render(<Discussion owner={discussion} />)
+  const rendered = render(<Discussion ownerPermissions={ownerPermissions} owner={discussion} />)
   fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
   await screen.findByRole("button", { name: "Sign in to comment" })
 
@@ -76,7 +78,7 @@ test.each<DiscussionOwner>([
     data: { ...page, owner: discussion, comments: [comments[0]] },
   })
 
-  render(<Discussion owner={discussion} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={discussion} />)
   fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
 
   await screen.findByText("Previous content 1")
@@ -89,7 +91,7 @@ test.each<DiscussionOwner>([
 test("an empty discussion can recover a failed read with newly restricted permissions", async () => {
   jest.mocked(loadComments).mockResolvedValue({ ok: true, data: { ...page, comments: [] } })
 
-  const rendered = render(<Discussion owner={owner} />)
+  const rendered = render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
   await screen.findByRole("form", { name: "New comment" })
 
@@ -98,7 +100,7 @@ test("an empty discussion can recover a failed read with newly restricted permis
   prepareReadingPosition(saved)
   jest.mocked(loadComments).mockResolvedValue({ ok: false, status: 503, error: {} })
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
   await screen.findByRole("alert")
   expect(screen.queryByRole("form", { name: "New comment" })).toBeNull()
@@ -116,7 +118,7 @@ test("an empty discussion can recover a failed read with newly restricted permis
 })
 
 async function leaveDiscussion() {
-  const rendered = render(<Discussion owner={owner} />)
+  const rendered = render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
   await screen.findByText("Previous content 1")
   fireEvent.click(screen.getByRole("button", { name: "Collapse thread for comment 1" }))
@@ -136,7 +138,7 @@ test("a formerly empty reply branch discovers replies after returning", async ()
       data: { ...page, comments: [{ ...comments[1], parentId: parent.id, content: "New reply" }] },
     })
 
-  const rendered = render(<Discussion owner={owner} />)
+  const rendered = render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
   await screen.findByText(parent.content)
   fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
@@ -147,12 +149,12 @@ test("a formerly empty reply branch discovers replies after returning", async ()
   prepareReadingPosition(saved)
   jest.mocked(loadCommentRecords).mockResolvedValue({ ok: true, data: { ...page, comments: [parent] } })
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   await screen.findByText(parent.content)
   fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
 
   await screen.findByText("New reply")
-  expect(loadComments).toHaveBeenLastCalledWith(owner, "liked", parent.id, undefined, 4)
+  expect(loadComments).toHaveBeenLastCalledWith(owner, "liked", parent.id, undefined, 4, expect.any(AbortSignal))
 })
 
 test("a large discussion retains its reading outline and refreshes only visible records", async () => {
@@ -174,7 +176,7 @@ test("a large discussion retains its reading outline and refreshes only visible 
     },
   }))
 
-  render(<React.StrictMode><Discussion owner={owner} /></React.StrictMode>)
+  render(<React.StrictMode><Discussion ownerPermissions={ownerPermissions} owner={owner} /></React.StrictMode>)
   await screen.findByText("Current content 1")
   await finishReadingPosition(new AbortController().signal)
 
@@ -186,6 +188,52 @@ test("a large discussion retains its reading outline and refreshes only visible 
   expect(loadComments).toHaveBeenCalledTimes(1)
 })
 
+test.each<[number, string | undefined]>([
+  [3000, undefined],
+  [3000, "saved-continuation"],
+  [50000, undefined],
+  [50000, "saved-continuation"],
+])("restoring %i comments preserves traversal cursor %s", async (total, next) => {
+  const outline = Array.from({ length: total }, (_, index) => ({
+    id: index + 1,
+    parentId: null,
+    hasReplies: false,
+    collapsed: false,
+    pending: "unloaded",
+  }))
+  prepareReadingPosition({
+    "discussion:post:1": {
+      sort: "liked",
+      comments: outline,
+      branches: { 0: { ids: outline.map((comment) => comment.id), next } },
+      collapsed: {},
+      expanded: {},
+      measurements: [],
+      viewport: { top: total * 240 - 500, bottom: total * 240 + 500 },
+    },
+  })
+  jest.mocked(loadCommentRecords).mockImplementation(async (_owner, ids) => ({
+    ok: true,
+    data: { ...page, comments: ids.map((id) => ({ ...comments[0], id, content: `Current comment ${id}` })) },
+  }))
+  jest.mocked(loadComments).mockResolvedValue({ ok: true, data: { ...page, comments: [] } })
+
+  render(<Discussion owner={owner} ownerPermissions={ownerPermissions} />)
+  await screen.findByText(`Current comment ${total}`)
+
+  expect(loadCommentRecords).toHaveBeenCalledTimes(1)
+  expect(jest.mocked(loadCommentRecords).mock.calls[0][1].length).toBeLessThan(30)
+
+  if (next) {
+    fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
+    await waitFor(() => expect(loadComments).toHaveBeenCalledTimes(1))
+    expect(loadComments).toHaveBeenCalledWith(owner, "liked", undefined, next, 5, expect.any(AbortSignal))
+  } else {
+    expect(screen.queryByRole("button", { name: "Load more comments" })).toBeNull()
+    expect(loadComments).not.toHaveBeenCalled()
+  }
+})
+
 test.each(["response", "transport"])("a %s failure stays retryable and does not hold the navigation open", async (failure) => {
   await leaveDiscussion()
 
@@ -195,7 +243,7 @@ test.each(["response", "transport"])("a %s failure stays retryable and does not 
     jest.mocked(loadCommentRecords).mockRejectedValue(new RequestError("GET", "/api/posts/1/comments", "transport", new Error("Offline")))
   }
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   await screen.findByRole("alert")
   await finishReadingPosition(new AbortController().signal)
 
@@ -214,7 +262,7 @@ test("a missing parent does not remove its already-loaded visible replies", asyn
         { id: 1, parentId: null, hasReplies: true, collapsed: false, pending: "unloaded" },
         { id: 2, parentId: 1, hasReplies: false, collapsed: false, pending: "unloaded" },
       ],
-      branches: { 0: { ids: [1], loaded: true }, 1: { ids: [2], loaded: true } },
+      branches: { 0: { ids: [1] }, 1: { ids: [2] } },
       collapsed: {},
       expanded: {},
       measurements: [],
@@ -225,7 +273,7 @@ test("a missing parent does not remove its already-loaded visible replies", asyn
     data: { ...page, comments: [{ ...comments[1], parentId: 1, content: "Visible reply" }] },
   })
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   await screen.findByText("Visible reply")
 
   expect(screen.getByText("Comment unavailable.")).toBeVisible()
@@ -235,7 +283,7 @@ test("a missing parent does not remove its already-loaded visible replies", asyn
 test("canceling navigation releases its wait and unmount aborts record hydration", async () => {
   await leaveDiscussion()
   jest.mocked(loadCommentRecords).mockReturnValue(new Promise(() => {}))
-  const rendered = render(<Discussion owner={owner} />)
+  const rendered = render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   const navigation = new AbortController()
   const finished = finishReadingPosition(navigation.signal)
 
@@ -263,11 +311,76 @@ test("scrolling while records load keeps the user's new reading position", async
     complete = resolve
   }))
 
-  render(<Discussion owner={owner} />)
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   fireEvent.wheel(window)
   await finishReadingPosition(new AbortController().signal)
   await act(async () => complete({ ok: true, data: page }))
 
   await screen.findByText("Previous content 1")
   expect(window.scrollBy).not.toHaveBeenCalled()
+})
+
+test("viewport changes finish the pending batch before loading newly visible comments", async () => {
+  await leaveDiscussion()
+  let complete!: (value: Awaited<ReturnType<typeof loadCommentRecords>>) => void
+  jest.mocked(loadCommentRecords)
+    .mockReturnValueOnce(new Promise((resolve) => {
+      complete = resolve
+    }))
+    .mockImplementation(async (_owner, ids) => ({
+      ok: true,
+      data: { ...page, comments: ids.map((id) => comments[id - 1]) },
+    }))
+
+  const height = window.innerHeight
+  const rendered = render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
+  const [, requested, signal] = jest.mocked(loadCommentRecords).mock.calls[0]
+
+  try {
+    for (const nextHeight of [300, 2400]) {
+      await act(async () => {
+        window.innerHeight = nextHeight
+        fireEvent.resize(window)
+        await new Promise(requestAnimationFrame)
+      })
+
+      expect(signal.aborted).toBe(false)
+      expect(loadCommentRecords).toHaveBeenCalledTimes(1)
+    }
+
+    await act(async () => complete({
+      ok: true,
+      data: { ...page, comments: requested.map((id) => comments[id - 1]) },
+    }))
+
+    await waitFor(() => expect(loadCommentRecords).toHaveBeenCalledTimes(2))
+    const additional = jest.mocked(loadCommentRecords).mock.calls[1][1]
+    expect(additional.length).toBeGreaterThan(0)
+    expect(additional.some((id) => requested.includes(id))).toBe(false)
+    await screen.findByText(`Previous content ${additional[0]}`)
+  } finally {
+    rendered.unmount()
+    window.innerHeight = height
+  }
+})
+
+test("changing sort cancels hydration without requesting the old selection again", async () => {
+  await leaveDiscussion()
+  jest.mocked(loadCommentRecords).mockReturnValue(new Promise(() => {}))
+
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
+  const signal = jest.mocked(loadCommentRecords).mock.calls[0][2]
+
+  await act(async () => {
+    fireEvent.change(screen.getByRole("combobox", { name: "Sort discussion" }), { target: { value: "latest" } })
+    await new Promise(requestAnimationFrame)
+  })
+
+  expect(signal.aborted).toBe(true)
+  expect(loadCommentRecords).toHaveBeenCalledTimes(1)
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
+  await screen.findByText("Previous content 1")
+  expect(loadComments).toHaveBeenLastCalledWith(owner, "latest", undefined, undefined, 5, expect.any(AbortSignal))
+  expect(loadCommentRecords).toHaveBeenCalledTimes(1)
 })
