@@ -71,7 +71,7 @@ export function useProfileReview({ enabled, onNameChanged, onAvatarChanged }: Pr
 
         const poll = async () => {
           try {
-            const result = await http.get<ProfileStatus>("/_api/user/moderation")
+            const result = await http.get<ProfileStatus>("/api/user/moderation")
 
             if (!active) {
               return

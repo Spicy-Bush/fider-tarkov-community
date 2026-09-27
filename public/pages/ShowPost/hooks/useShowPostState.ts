@@ -19,8 +19,6 @@ interface UseShowPostStateResult {
   setNewDescription: (description: string) => void
   attachments: ImageUpload[]
   setAttachments: (attachments: ImageUpload[]) => void
-  highlightedComment: number | undefined
-  setHighlightedComment: (id: number | undefined) => void
   error: Failure | undefined
   setError: (error: Failure | undefined) => void
   hasCopiedContent: boolean
@@ -40,7 +38,6 @@ export const useShowPostState = (config: UseShowPostStateConfig): UseShowPostSta
   const [newTitle, setNewTitle] = useState(initialTitle)
   const [newDescription, setNewDescription] = useState(initialDescription)
   const [attachments, setAttachments] = useState<ImageUpload[]>([])
-  const [highlightedComment, setHighlightedComment] = useState<number | undefined>()
   const [error, setError] = useState<Failure | undefined>()
   const [hasCopiedContent, setHasCopiedContent] = useState(false)
 
@@ -64,8 +61,6 @@ export const useShowPostState = (config: UseShowPostStateConfig): UseShowPostSta
     setNewDescription,
     attachments,
     setAttachments,
-    highlightedComment,
-    setHighlightedComment,
     error,
     setError,
     hasCopiedContent,
@@ -78,4 +73,3 @@ export const useShowPostState = (config: UseShowPostStateConfig): UseShowPostSta
     cancelEdit,
   }
 }
-

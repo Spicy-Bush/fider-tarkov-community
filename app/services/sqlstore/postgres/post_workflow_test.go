@@ -23,7 +23,7 @@ import (
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/apiv1"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/api"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/jobs"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
@@ -74,13 +74,13 @@ func (f postWorkflow) queuePostNotification(t testing.TB) {
 	if err := bus.Dispatch(f.ctx, post); err != nil {
 		t.Fatal(err)
 	}
-	if err := bus.Dispatch(f.ctx, &cmd.SchedulePostNotification{Post: post.Result, BaseURL: "http://localhost:3000"}); err != nil {
+	if err := bus.Dispatch(f.ctx, &cmd.ScheduleNotification{Post: post.Result, BaseURL: "http://localhost:3000"}); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func (f postWorkflow) request(handler web.HandlerFunc, method string, number int, body string) (*httptest.ResponseRecorder, error) {
-	return f.requestWithParams(handler, method, "http://localhost:3000/api/v1/posts", body, web.StringMap{"number": fmt.Sprint(number)})
+	return f.requestWithParams(handler, method, "http://localhost:3000/api/posts", body, web.StringMap{"number": fmt.Sprint(number)})
 }
 
 func (f postWorkflow) requestWithParams(handler web.HandlerFunc, method, path, body string, params web.StringMap) (*httptest.ResponseRecorder, error) {
@@ -102,10 +102,12 @@ func (f postWorkflow) requestWithParams(handler web.HandlerFunc, method, path, b
 
 func workflowCount(t testing.TB, sql string, args ...any) int {
 	t.Helper()
+
 	var count int
 	if err := dbx.Connection().QueryRow(sql, args...).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
+
 	return count
 }
 
@@ -120,11 +122,11 @@ func TestPostWorkflowVoteRevisions(t *testing.T) {
 	}
 	write := func(direction int, revision int) map[string]any {
 		t.Helper()
-		handler, method := apiv1.RemoveVote(), http.MethodDelete
+		handler, method := api.RemoveVote(), http.MethodDelete
 		if direction == 1 {
-			handler, method = apiv1.AddVote(), http.MethodPost
+			handler, method = api.AddVote(), http.MethodPost
 		} else if direction == -1 {
-			handler, method = apiv1.AddDownVote(), http.MethodPost
+			handler, method = api.AddDownVote(), http.MethodPost
 		}
 		recorder, err := f.request(handler, method, 1, fmt.Sprintf(`{"revision":%d}`, revision))
 		if err != nil || recorder.Code != http.StatusOK {
@@ -152,7 +154,7 @@ func TestPostWorkflowVoteRevisions(t *testing.T) {
 	if current["downvotes"] != float64(1) || current["revision"] != float64(4) {
 		t.Fatalf("downvote counts/revision incorrect: %v", current)
 	}
-	response, err := f.request(apiv1.GetPost(), http.MethodGet, 1, "")
+	response, err := f.request(api.GetPost(), http.MethodGet, 1, "")
 	var hydrated entity.Post
 	if err != nil || json.Unmarshal(response.Body.Bytes(), &hydrated) != nil || hydrated.VoteRevision != 4 || hydrated.VoteType != -1 {
 		t.Fatalf("post hydration disagrees with committed vote: %v %s", err, response.Body)
@@ -256,7 +258,7 @@ func BenchmarkPostWorkflowVoteAPI(b *testing.B) {
 			b.Error(err)
 			return
 		}
-		recorder, err := f.request(apiv1.GetPost(), http.MethodGet, post.Result.Number, "")
+		recorder, err := f.request(api.GetPost(), http.MethodGet, post.Result.Number, "")
 		var initial entity.Post
 		if err != nil || json.Unmarshal(recorder.Body.Bytes(), &initial) != nil {
 			b.Errorf("post hydration: %v %s", err, recorder.Body)
@@ -264,9 +266,9 @@ func BenchmarkPostWorkflowVoteAPI(b *testing.B) {
 		}
 		revision, direction := initial.VoteRevision, 1
 		for pb.Next() {
-			handler := apiv1.AddVote()
+			handler := api.AddVote()
 			if direction == -1 {
-				handler = apiv1.AddDownVote()
+				handler = api.AddDownVote()
 			}
 			body := fmt.Sprintf(`{"revision":%d}`, revision)
 			recorder, err := f.request(handler, http.MethodPost, post.Result.Number, body)
@@ -302,7 +304,7 @@ func TestPostWorkflowConcurrentVotesAndStaleStatus(t *testing.T) {
 			defer voters.Done()
 			<-start
 
-			recorder, err := f.request(apiv1.AddDownVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
+			recorder, err := f.request(api.AddDownVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
 			var state cmd.PostVoteState
 			if err != nil || recorder.Code != http.StatusOK || json.Unmarshal(recorder.Body.Bytes(), &state) != nil {
 				t.Errorf("concurrent vote failed: %v %d %s", err, recorder.Code, recorder.Body)
@@ -360,7 +362,7 @@ func TestPostWorkflowArchiveVoteRevival(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	recorder, err := f.request(apiv1.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
+	recorder, err := f.request(api.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
 	if err != nil || recorder.Code != http.StatusOK {
 		t.Fatalf("reviving vote failed: %v %d %s", err, recorder.Code, recorder.Body)
 	}
@@ -382,9 +384,9 @@ func TestPostWorkflowVoteVisibilityAndPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
-		handler := apiv1.GetPost()
+		handler := api.GetPost()
 		if method == http.MethodPost {
-			handler = apiv1.AddVote()
+			handler = api.AddVote()
 		}
 		recorder, err := visitor.request(handler, method, post.Result.Number, `{"revision":0}`)
 		if err != nil || recorder.Code != http.StatusNotFound {
@@ -394,14 +396,14 @@ func TestPostWorkflowVoteVisibilityAndPermissions(t *testing.T) {
 	if _, err := dbx.Connection().Exec(`UPDATE posts SET moderation_pending = FALSE, locked_settings = '{"locked":true}'`); err != nil {
 		t.Fatal(err)
 	}
-	recorder, err := visitor.request(apiv1.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
+	recorder, err := visitor.request(api.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
 	if err != nil || recorder.Code != http.StatusForbidden {
 		t.Fatalf("visitor voted on locked post: %v %d", err, recorder.Code)
 	}
 	if _, err := dbx.Connection().Exec("UPDATE posts SET locked_settings = NULL, status = 2"); err != nil {
 		t.Fatal(err)
 	}
-	recorder, err = f.request(apiv1.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
+	recorder, err = f.request(api.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
 	if err != nil || recorder.Code != http.StatusForbidden || workflowCount(t, "SELECT COUNT(*) FROM post_votes") != 0 {
 		t.Fatalf("closed post accepted vote: %v %d", err, recorder.Code)
 	}
@@ -457,9 +459,9 @@ func TestPostWorkflowVoteRequiresRevision(t *testing.T) {
 				method  string
 				handler web.HandlerFunc
 			}{
-				{"up", http.MethodPost, apiv1.AddVote()},
-				{"down", http.MethodPost, apiv1.AddDownVote()},
-				{"remove", http.MethodDelete, apiv1.RemoveVote()},
+				{"up", http.MethodPost, api.AddVote()},
+				{"down", http.MethodPost, api.AddDownVote()},
+				{"remove", http.MethodDelete, api.RemoveVote()},
 			} {
 				for _, body := range []string{"", "{}", "null", `{"revision":null}`, `{"revision":-1}`, `{"revision":"0"}`, `{"revision":0.5}`, `{"revision":`} {
 					t.Run(endpoint.name+"/"+body, func(t *testing.T) {
@@ -488,10 +490,10 @@ func TestPostWorkflowVoteRequiresRevision(t *testing.T) {
 func TestPostWorkflowConcurrentNotificationDelivery(t *testing.T) {
 	f := newPostWorkflow(t)
 	f.queuePostNotification(t)
-	prepare := func(context.Context, *entity.Post) ([]cmd.PostNotificationRecipient, error) {
-		return []cmd.PostNotificationRecipient{{Channel: "email", ID: 2}, {Channel: "email", ID: 3}}, nil
+	prepare := func(context.Context, *entity.NotificationDelivery) ([]cmd.NotificationRecipient, error) {
+		return []cmd.NotificationRecipient{{Channel: "email", ID: 2}, {Channel: "email", ID: 3}}, nil
 	}
-	if err := bus.Dispatch(f.ctx, &cmd.ProcessPostNotification{Prepare: prepare}); err != nil {
+	if err := bus.Dispatch(f.ctx, &cmd.ProcessNotification{Prepare: prepare}); err != nil {
 		t.Fatal(err)
 	}
 	entered := make(chan int, 2)
@@ -499,9 +501,9 @@ func TestPostWorkflowConcurrentNotificationDelivery(t *testing.T) {
 	finished := make(chan error, 2)
 	for i := 0; i < 2; i++ {
 		go func() {
-			finished <- bus.Dispatch(f.ctx, &cmd.ProcessPostNotification{
+			finished <- bus.Dispatch(f.ctx, &cmd.ProcessNotification{
 				Prepare: prepare,
-				Send: func(ctx context.Context, post *entity.Post, recipients []cmd.PostNotificationRecipient) error {
+				Send: func(ctx context.Context, post *entity.NotificationDelivery, recipients []cmd.NotificationRecipient) error {
 					entered <- recipients[0].ID
 					<-release
 					return nil
@@ -525,7 +527,7 @@ func TestPostWorkflowConcurrentNotificationDelivery(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(ids) != 2 || workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries") != 0 {
+	if len(ids) != 2 || workflowCount(t, "SELECT COUNT(*) FROM notification_deliveries") != 0 {
 		t.Fatal("concurrent delivery repeated a recipient or retained the completed envelope")
 	}
 }
@@ -537,8 +539,8 @@ func TestPostWorkflowNotificationAfterAuthorDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	prepared := false
-	err := bus.Dispatch(f.ctx, &cmd.ProcessPostNotification{
-		Prepare: func(ctx context.Context, post *entity.Post) ([]cmd.PostNotificationRecipient, error) {
+	err := bus.Dispatch(f.ctx, &cmd.ProcessNotification{
+		Prepare: func(ctx context.Context, post *entity.NotificationDelivery) ([]cmd.NotificationRecipient, error) {
 			author := ctx.Value(app.UserCtxKey).(*entity.User)
 			if author.Status != enum.UserDeleted || author.Name != "" || author.Email != "" {
 				t.Fatal("delivery restored the deleted author's identity")
@@ -547,7 +549,7 @@ func TestPostWorkflowNotificationAfterAuthorDeletion(t *testing.T) {
 			return nil, nil
 		},
 	})
-	if err != nil || !prepared || workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries") != 0 {
+	if err != nil || !prepared || workflowCount(t, "SELECT COUNT(*) FROM notification_deliveries") != 0 {
 		t.Fatalf("deleted author stranded delivery: %v", err)
 	}
 }
@@ -563,17 +565,17 @@ func BenchmarkPostNotificationQueue(b *testing.B) {
 func benchmarkPostNotificationQueue(b *testing.B, batchSize int) {
 	f := newPostWorkflow(b)
 	var delivered int
-	process := func() *cmd.ProcessPostNotification {
-		return &cmd.ProcessPostNotification{
+	process := func() *cmd.ProcessNotification {
+		return &cmd.ProcessNotification{
 			EmailBatchSize: batchSize,
-			Prepare: func(context.Context, *entity.Post) ([]cmd.PostNotificationRecipient, error) {
-				recipients := make([]cmd.PostNotificationRecipient, 100)
+			Prepare: func(context.Context, *entity.NotificationDelivery) ([]cmd.NotificationRecipient, error) {
+				recipients := make([]cmd.NotificationRecipient, 100)
 				for i := range recipients {
-					recipients[i] = cmd.PostNotificationRecipient{Channel: "email", ID: i + 1}
+					recipients[i] = cmd.NotificationRecipient{Channel: "email", ID: i + 1}
 				}
 				return recipients, nil
 			},
-			Send: func(ctx context.Context, post *entity.Post, recipients []cmd.PostNotificationRecipient) error {
+			Send: func(ctx context.Context, post *entity.NotificationDelivery, recipients []cmd.NotificationRecipient) error {
 				delivered += len(recipients)
 				return nil
 			},
@@ -586,7 +588,7 @@ func benchmarkPostNotificationQueue(b *testing.B, batchSize int) {
 		if err := bus.Dispatch(f.ctx, post); err != nil {
 			b.Fatal(err)
 		}
-		if err := bus.Dispatch(f.ctx, &cmd.SchedulePostNotification{Post: post.Result, BaseURL: "http://localhost:3000"}); err != nil {
+		if err := bus.Dispatch(f.ctx, &cmd.ScheduleNotification{Post: post.Result, BaseURL: "http://localhost:3000"}); err != nil {
 			b.Fatal(err)
 		}
 		for {
@@ -600,7 +602,7 @@ func benchmarkPostNotificationQueue(b *testing.B, batchSize int) {
 		}
 	}
 	b.StopTimer()
-	if delivered != b.N*100 || workflowCount(b, "SELECT COUNT(*) FROM post_notification_deliveries") != 0 {
+	if delivered != b.N*100 || workflowCount(b, "SELECT COUNT(*) FROM notification_deliveries") != 0 {
 		b.Fatal("benchmark did not complete and reclaim every delivery")
 	}
 }
@@ -611,12 +613,12 @@ func TestPostWorkflowNotificationBatchFallback(t *testing.T) {
 	batches, healthy, recovered := 0, 0, 0
 	fail := true
 	process := func() error {
-		return bus.Dispatch(f.ctx, &cmd.ProcessPostNotification{
+		return bus.Dispatch(f.ctx, &cmd.ProcessNotification{
 			EmailBatchSize: 1000,
-			Prepare: func(context.Context, *entity.Post) ([]cmd.PostNotificationRecipient, error) {
-				return []cmd.PostNotificationRecipient{{Channel: "email", ID: 2}, {Channel: "email", ID: 3}}, nil
+			Prepare: func(context.Context, *entity.NotificationDelivery) ([]cmd.NotificationRecipient, error) {
+				return []cmd.NotificationRecipient{{Channel: "email", ID: 2}, {Channel: "email", ID: 3}}, nil
 			},
-			Send: func(ctx context.Context, post *entity.Post, recipients []cmd.PostNotificationRecipient) error {
+			Send: func(ctx context.Context, post *entity.NotificationDelivery, recipients []cmd.NotificationRecipient) error {
 				if len(recipients) > 1 {
 					batches++
 					return &email.RecipientRejected{Cause: fmt.Errorf("batch contains an invalid recipient")}
@@ -639,20 +641,20 @@ func TestPostWorkflowNotificationBatchFallback(t *testing.T) {
 	if err := process(); err == nil || batches != 1 {
 		t.Fatal("expected one rejected batch")
 	}
-	if _, err := dbx.Connection().Exec("UPDATE post_notification_recipients SET available_at = NOW()"); err != nil {
+	if _, err := dbx.Connection().Exec("UPDATE notification_recipients SET available_at = NOW()"); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < 2; i++ {
 		_ = process()
 	}
-	if batches != 1 || healthy != 1 || recovered != 0 || workflowCount(t, "SELECT COUNT(*) FROM post_notification_recipients") != 1 {
+	if batches != 1 || healthy != 1 || recovered != 0 || workflowCount(t, "SELECT COUNT(*) FROM notification_recipients") != 1 {
 		t.Fatal("failed batch did not isolate recipient failures")
 	}
 	fail = false
-	if _, err := dbx.Connection().Exec("UPDATE post_notification_recipients SET available_at = NOW()"); err != nil {
+	if _, err := dbx.Connection().Exec("UPDATE notification_recipients SET available_at = NOW()"); err != nil {
 		t.Fatal(err)
 	}
-	if err := process(); err != nil || healthy != 1 || recovered != 1 || workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries") != 0 {
+	if err := process(); err != nil || healthy != 1 || recovered != 1 || workflowCount(t, "SELECT COUNT(*) FROM notification_deliveries") != 0 {
 		t.Fatalf("failed recipient did not recover independently: %v", err)
 	}
 }
@@ -662,7 +664,7 @@ func BenchmarkPostNotificationIdle(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		operation := &cmd.ProcessPostNotification{}
+		operation := &cmd.ProcessNotification{}
 		if err := bus.Dispatch(f.ctx, operation); err != nil || operation.Found {
 			b.Fatalf("idle queue: found=%v error=%v", operation.Found, err)
 		}
@@ -673,17 +675,17 @@ func TestPostWorkflowTransientFailurePreservesEmailBatch(t *testing.T) {
 	f := newPostWorkflow(t)
 	f.queuePostNotification(t)
 	var sizes []int
-	operation := func() *cmd.ProcessPostNotification {
-		return &cmd.ProcessPostNotification{
+	operation := func() *cmd.ProcessNotification {
+		return &cmd.ProcessNotification{
 			EmailBatchSize: 1000,
-			Prepare: func(context.Context, *entity.Post) ([]cmd.PostNotificationRecipient, error) {
-				recipients := make([]cmd.PostNotificationRecipient, 1000)
+			Prepare: func(context.Context, *entity.NotificationDelivery) ([]cmd.NotificationRecipient, error) {
+				recipients := make([]cmd.NotificationRecipient, 1000)
 				for i := range recipients {
-					recipients[i] = cmd.PostNotificationRecipient{Channel: "email", ID: i + 1}
+					recipients[i] = cmd.NotificationRecipient{Channel: "email", ID: i + 1}
 				}
 				return recipients, nil
 			},
-			Send: func(_ context.Context, _ *entity.Post, recipients []cmd.PostNotificationRecipient) error {
+			Send: func(_ context.Context, _ *entity.NotificationDelivery, recipients []cmd.NotificationRecipient) error {
 				sizes = append(sizes, len(recipients))
 				if len(sizes) == 1 {
 					return fmt.Errorf("provider temporarily unavailable")
@@ -698,7 +700,7 @@ func TestPostWorkflowTransientFailurePreservesEmailBatch(t *testing.T) {
 	if err := bus.Dispatch(f.ctx, operation()); err == nil {
 		t.Fatal("expected the provider failure")
 	}
-	if _, err := dbx.Connection().Exec("UPDATE post_notification_recipients SET available_at = NOW()"); err != nil {
+	if _, err := dbx.Connection().Exec("UPDATE notification_recipients SET available_at = NOW()"); err != nil {
 		t.Fatal(err)
 	}
 	if err := bus.Dispatch(f.ctx, operation()); err != nil {
@@ -707,7 +709,7 @@ func TestPostWorkflowTransientFailurePreservesEmailBatch(t *testing.T) {
 	if len(sizes) != 2 || sizes[0] != 1000 || sizes[1] != 1000 {
 		t.Fatalf("temporary provider failure fragmented a healthy batch: %v", sizes)
 	}
-	if workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries") != 0 {
+	if workflowCount(t, "SELECT COUNT(*) FROM notification_deliveries") != 0 {
 		t.Fatal("successful batch retained pending work")
 	}
 }
@@ -780,7 +782,7 @@ func TestPostWorkflowNotificationRecovery(t *testing.T) {
 		dbx.Connection().SetMaxOpenConns(env.Config.Database.MaxOpenConns)
 	})
 
-	job := &jobs.PostNotificationDeliveryJob{}
+	job := &jobs.NotificationDeliveryJob{}
 	job.Run()
 
 	if accepted != 1 || recovered != 0 || hooks != 2 {
@@ -792,7 +794,7 @@ func TestPostWorkflowNotificationRecovery(t *testing.T) {
 	}
 
 	for attempt := 0; attempt < 3; attempt++ {
-		if _, err := dbx.Connection().Exec("UPDATE post_notification_recipients SET available_at = NOW()"); err != nil {
+		if _, err := dbx.Connection().Exec("UPDATE notification_recipients SET available_at = NOW()"); err != nil {
 			t.Fatal(err)
 		}
 
@@ -803,12 +805,12 @@ func TestPostWorkflowNotificationRecovery(t *testing.T) {
 		t.Fatalf("retry repeated completed work: accepted=%d hooks=%d", accepted, hooks)
 	}
 
-	if workflowCount(t, "SELECT COUNT(*) FROM post_notification_recipients") != 1 {
+	if workflowCount(t, "SELECT COUNT(*) FROM notification_recipients") != 1 {
 		t.Fatal("retry discarded the failed recipient")
 	}
 
 	fail = false
-	if _, err := dbx.Connection().Exec("UPDATE post_notification_recipients SET available_at = NOW()"); err != nil {
+	if _, err := dbx.Connection().Exec("UPDATE notification_recipients SET available_at = NOW()"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -818,8 +820,8 @@ func TestPostWorkflowNotificationRecovery(t *testing.T) {
 		t.Fatalf("recovery duplicated or lost delivery: %d %d %d", accepted, recovered, hooks)
 	}
 
-	pendingDeliveries := workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries")
-	pendingRecipients := workflowCount(t, "SELECT COUNT(*) FROM post_notification_recipients")
+	pendingDeliveries := workflowCount(t, "SELECT COUNT(*) FROM notification_deliveries")
+	pendingRecipients := workflowCount(t, "SELECT COUNT(*) FROM notification_recipients")
 	if pendingDeliveries != 0 || pendingRecipients != 0 {
 		t.Fatal("completed delivery retained queue data")
 	}
@@ -871,7 +873,7 @@ func TestPostWorkflowConcurrentReplayAndDeletedReceipt(t *testing.T) {
 		go func() {
 			defer writers.Done()
 
-			recorder, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+			recorder, err := f.request(api.CreatePost(), http.MethodPost, 0, body)
 			if err != nil || recorder.Code != http.StatusOK {
 				t.Errorf("create: status=%d error=%v body=%s", recorder.Code, err, recorder.Body)
 			}
@@ -897,7 +899,8 @@ func TestPostWorkflowConcurrentReplayAndDeletedReceipt(t *testing.T) {
 		"SELECT COUNT(*) FROM post_votes",
 		"SELECT COUNT(*) FROM post_subscribers",
 		"SELECT COUNT(*) FROM attachments",
-		"SELECT COUNT(*) FROM post_notification_deliveries",
+		"SELECT COUNT(*) FROM blobs WHERE key LIKE 'attachments/%'",
+		"SELECT COUNT(*) FROM notification_deliveries",
 	}
 
 	for _, query := range effectCounts {
@@ -915,7 +918,7 @@ func TestPostWorkflowConcurrentReplayAndDeletedReceipt(t *testing.T) {
 	}
 
 	f.user.Muted = true
-	replay, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+	replay, err := f.request(api.CreatePost(), http.MethodPost, 0, body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -924,19 +927,19 @@ func TestPostWorkflowConcurrentReplayAndDeletedReceipt(t *testing.T) {
 		t.Fatalf("deleted receipt was not recovered: status=%d body=%s", replay.Code, replay.Body)
 	}
 
-	deleted, err := f.request(apiv1.GetPost(), http.MethodGet, 1, "")
+	deleted, err := f.request(api.GetPost(), http.MethodGet, 1, "")
 	if err != nil || deleted.Code != http.StatusNotFound {
 		t.Fatalf("deleted post visible: %v %d %s", err, deleted.Code, deleted.Body)
 	}
 
 	changedBody := strings.Replace(body, "A complete suggestion", "A different suggestion", 1)
-	conflict, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, changedBody)
+	conflict, err := f.request(api.CreatePost(), http.MethodPost, 0, changedBody)
 	if err != nil || conflict.Code != http.StatusConflict {
 		t.Fatalf("changed payload reused identity: %v %d %s", err, conflict.Code, conflict.Body)
 	}
 
 	newBody := submissionBody(t, "muted-new-operation", false)
-	denied, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, newBody)
+	denied, err := f.request(api.CreatePost(), http.MethodPost, 0, newBody)
 	if err != nil || denied.Code != http.StatusBadRequest {
 		t.Fatalf("muted user created a new post: %v %d %s", err, denied.Code, denied.Body)
 	}
@@ -956,7 +959,7 @@ func TestPostWorkflowRollbackAndRecovery(t *testing.T) {
 		return fmt.Errorf("injected scheduling failure")
 	})
 
-	failed, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+	failed, err := f.request(api.CreatePost(), http.MethodPost, 0, body)
 	if err == nil || failed.Code == http.StatusOK {
 		t.Fatalf("late failure reported success: %v %d", err, failed.Code)
 	}
@@ -966,7 +969,8 @@ func TestPostWorkflowRollbackAndRecovery(t *testing.T) {
 		"SELECT COUNT(*) FROM post_votes",
 		"SELECT COUNT(*) FROM post_subscribers",
 		"SELECT COUNT(*) FROM attachments",
-		"SELECT COUNT(*) FROM post_notification_deliveries",
+		"SELECT COUNT(*) FROM blobs WHERE key LIKE 'attachments/%'",
+		"SELECT COUNT(*) FROM notification_deliveries",
 	}
 
 	for _, query := range effectCounts {
@@ -977,7 +981,7 @@ func TestPostWorkflowRollbackAndRecovery(t *testing.T) {
 
 	bus.Init(postgres.Service{}, blobsql.Service{})
 
-	recovered, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+	recovered, err := f.request(api.CreatePost(), http.MethodPost, 0, body)
 	if err != nil || recovered.Code != http.StatusOK {
 		t.Fatalf("recovery failed: %v %d %s", err, recovered.Code, recovered.Body)
 	}
@@ -997,7 +1001,7 @@ func TestPostWorkflowIndependentConcurrentCreates(t *testing.T) {
 		go func() {
 			defer writers.Done()
 
-			recorder, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+			recorder, err := f.request(api.CreatePost(), http.MethodPost, 0, body)
 			if err != nil || recorder.Code != http.StatusOK {
 				t.Errorf("create failed: %v %d %s", err, recorder.Code, recorder.Body)
 			}
@@ -1031,7 +1035,7 @@ func BenchmarkPostWorkflowCreate(b *testing.B) {
 			id := fmt.Sprintf("benchmark-%d", sequence.Add(1))
 			body := submissionBody(b, id, false)
 
-			recorder, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+			recorder, err := f.request(api.CreatePost(), http.MethodPost, 0, body)
 			if err != nil || recorder.Code != http.StatusOK {
 				b.Errorf("create failed: %v %d %s", err, recorder.Code, recorder.Body)
 			}
@@ -1063,9 +1067,11 @@ func TestPostWorkflowBackupSnapshot(t *testing.T) {
         VALUES (1, 'Exported tag', 'exported'), (2, 'Other tag', 'private');
         INSERT INTO page_tags_map (page_id, tag_id) VALUES (1, 1), (2, 2);
 
-        INSERT INTO comments (tenant_id, page_id, user_id, content, created_at)
-        VALUES (1, 1, 2, 'Exported comment', NOW()),
-               (2, 2, 5, 'Other comment', NOW());
+        INSERT INTO comments (tenant_id, page_id, user_id, content, submission_id, submission_hash, created_at)
+        VALUES (1, 1, 2, 'Exported comment', 'exported', 'hash', NOW()),
+               (2, 2, 5, 'Other comment', 'private', 'hash', NOW());
+        INSERT INTO comment_edit_receipts (tenant_id, user_id, submission_id, comment_id, submission_hash)
+        VALUES (1, 2, 'edit', 1, 'hash'), (2, 5, 'edit', 2, 'hash');
         INSERT INTO reactions (comment_id, user_id, emoji, created_on)
         VALUES (1, 2, '👍', NOW()), (2, 5, '👍', NOW());
     `)
@@ -1073,14 +1079,14 @@ func TestPostWorkflowBackupSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	recorder, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
+	recorder, err := f.request(api.CreatePost(), http.MethodPost, 0, body)
 	if err != nil || recorder.Code != http.StatusOK {
 		t.Fatalf("setup: %v %s", err, recorder.Body)
 	}
 
-	prepare := &cmd.ProcessPostNotification{
-		Prepare: func(context.Context, *entity.Post) ([]cmd.PostNotificationRecipient, error) {
-			return []cmd.PostNotificationRecipient{
+	prepare := &cmd.ProcessNotification{
+		Prepare: func(context.Context, *entity.NotificationDelivery) ([]cmd.NotificationRecipient, error) {
+			return []cmd.NotificationRecipient{
 				{Channel: "email", ID: 2},
 			}, nil
 		},
@@ -1154,22 +1160,23 @@ func TestPostWorkflowBackupSnapshot(t *testing.T) {
 	}
 
 	expectedFiles := map[string]int{
-		"pages.json":                        1,
-		"page_drafts.json":                  1,
-		"page_authors.json":                 1,
-		"page_subscriptions.json":           1,
-		"page_reactions.json":               1,
-		"page_topics.json":                  1,
-		"page_topics_map.json":              1,
-		"page_tags.json":                    1,
-		"page_tags_map.json":                1,
-		"comments.json":                     1,
-		"reactions.json":                    1,
-		"posts.json":                        1,
-		"post_votes.json":                   1,
-		"post_vote_revisions.json":          1,
-		"post_notification_deliveries.json": 1,
-		"post_notification_recipients.json": 1,
+		"pages.json":                   1,
+		"page_drafts.json":             1,
+		"page_authors.json":            1,
+		"page_subscriptions.json":      1,
+		"page_reactions.json":          1,
+		"page_topics.json":             1,
+		"page_topics_map.json":         1,
+		"page_tags.json":               1,
+		"page_tags_map.json":           1,
+		"comments.json":                1,
+		"comment_edit_receipts.json":   1,
+		"reactions.json":               1,
+		"posts.json":                   1,
+		"post_votes.json":              1,
+		"post_vote_revisions.json":     1,
+		"notification_deliveries.json": 1,
+		"notification_recipients.json": 1,
 	}
 
 	for _, file := range archive.File {

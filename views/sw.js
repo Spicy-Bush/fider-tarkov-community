@@ -65,7 +65,7 @@ self.addEventListener('notificationclick', function(event) {
 
 self.addEventListener('pushsubscriptionchange', function(event) {
   event.waitUntil(
-    fetch('/_api/push/vapid-key')
+    fetch('/api/push/vapid-key')
       .then(function(response) { return response.json(); })
       .then(function(data) {
         if (!data.enabled || !data.publicKey) {
@@ -79,7 +79,7 @@ self.addEventListener('pushsubscriptionchange', function(event) {
       })
       .then(function(subscription) {
         var subJson = subscription.toJSON();
-        return fetch('/_api/push/subscribe', {
+        return fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -103,4 +103,3 @@ function urlBase64ToUint8Array(base64String) {
   }
   return outputArray;
 }
-

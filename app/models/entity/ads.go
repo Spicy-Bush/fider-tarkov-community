@@ -51,7 +51,7 @@ type CampaignAssignment struct {
 	CreativeVersionID int    `json:"creativeVersionId" db:"creative_version_id"`
 }
 
-// PublicAd is the safe public payload returned by POST /api/v1/ads/select.
+// PublicAd is the safe public payload returned by POST /api/ads/select.
 // Advertiser must be non-blank; callers omit/null the instance when empty (#39).
 type PublicAd struct {
 	CampaignID        int    `json:"campaignId"`

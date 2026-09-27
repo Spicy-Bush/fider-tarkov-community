@@ -1,12 +1,11 @@
 package query
 
-import (
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
-)
-
-type GetAttachments struct {
-	Post    *entity.Post
-	Comment *entity.Comment
-
+type GetPostAttachments struct {
+	PostID int
 	Result []string
+}
+
+type CanReadAttachment struct {
+	Key    string
+	Result bool
 }

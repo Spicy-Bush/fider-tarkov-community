@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -128,12 +129,34 @@ func Gravatar() web.HandlerFunc {
 
 var faviconSizeBuckets = []int{64, 100, 200, 512}
 
+func authorizeImage(c *web.Context, key string) error {
+	if !strings.HasPrefix(key, "attachments/") {
+		return nil
+	}
+
+	c.Response.Header().Set("Cache-Control", "private, no-store")
+	access := &query.CanReadAttachment{Key: key}
+	if err := bus.Dispatch(c, access); err != nil {
+		return err
+	}
+
+	if !access.Result {
+		return app.ErrNotFound
+	}
+
+	return nil
+}
+
 func Favicon() web.HandlerFunc {
 	defaultFavicon, _ := fs.ReadFile(assets.FS, "favicon.png")
 
 	return func(c *web.Context) error {
 		bkey := c.Param("bkey")
 		bg := c.QueryParam("bg")
+
+		if err := authorizeImage(c, bkey); err != nil {
+			return c.Failure(err)
+		}
 
 		requestedSize, err := c.QueryParamAsInt("size")
 		if err != nil {
@@ -200,6 +223,10 @@ func ViewUploadedImage() web.HandlerFunc {
 
 		if !isValidBlobKey(bkey) {
 			return c.NotFound()
+		}
+
+		if err := authorizeImage(c, bkey); err != nil {
+			return c.Failure(err)
 		}
 
 		requestedSize, err := c.QueryParamAsInt("size")

@@ -25,13 +25,13 @@ test("existing attachments fill the limit and removal sends only the changed att
   )
 
   expect(view.container.querySelectorAll("img")).toHaveLength(2)
-  expect(view.getAllByRole("button")).toHaveLength(2)
+  expect(view.queryByRole("button", { name: "Select image" })).toBeNull()
   expect(onChange).not.toHaveBeenCalled()
 
-  fireEvent.click(view.getAllByRole("button", { name: "X" })[0])
+  fireEvent.click(view.getAllByRole("button", { name: "Remove image" })[0])
 
   expect(view.container.querySelectorAll("img")).toHaveLength(1)
-  expect(view.getAllByRole("button")).toHaveLength(2)
+  expect(view.getAllByRole("button", { name: "Select image" })).toHaveLength(1)
   expect(onChange).toHaveBeenLastCalledWith([
     expect.objectContaining({ bkey: "first-image", remove: true }),
   ])
@@ -61,12 +61,12 @@ test("restored uploads and removals survive replacement without duplicate upload
   )
 
   expect(view.container.querySelector("img")).toHaveAttribute("src", "data:image/png;base64,ZHJhZnQ=")
-  expect(view.getAllByRole("button")).toHaveLength(1)
+  expect(view.queryByRole("button", { name: "Select image" })).toBeNull()
 
-  fireEvent.click(view.getByRole("button", { name: "X" }))
+  fireEvent.click(view.getByRole("button", { name: "Remove image" }))
 
   expect(view.container.querySelector("img")).toBeNull()
-  expect(view.getAllByRole("button")).toHaveLength(1)
+  expect(view.getAllByRole("button", { name: "Select image" })).toHaveLength(1)
   expect(onChange).toHaveBeenLastCalledWith([{ bkey: "removed-image", remove: true }])
 
   fireEvent.change(view.container.querySelector('input[type="file"]')!, {
@@ -79,7 +79,7 @@ test("restored uploads and removals survive replacement without duplicate upload
     expect(view.container.querySelector("img")).toHaveAttribute("src", "data:image/png;base64,cmVwbGFjZW1lbnQ=")
   })
 
-  expect(view.getAllByRole("button")).toHaveLength(1)
+  expect(view.queryByRole("button", { name: "Select image" })).toBeNull()
 
   const changes = onChange.mock.calls[onChange.mock.calls.length - 1][0]
   expect(changes).toHaveLength(2)
@@ -125,7 +125,7 @@ test("an in-progress file read remains reflected in the parent when controls bec
   })
 
   expect(view.container.querySelector("img")).toHaveAttribute("src", "data:image/png;base64,ZHJhZnQ=")
-  expect(view.queryByRole("button", { name: "X" })).toBeNull()
+  expect(view.queryByRole("button", { name: "Remove image" })).toBeNull()
   expect(onChange).toHaveBeenCalledTimes(1)
   expect(onChange).toHaveBeenLastCalledWith([
     expect.objectContaining({ upload: expect.objectContaining({ content: "ZHJhZnQ=" }) }),
@@ -135,11 +135,11 @@ test("an in-progress file read remains reflected in the parent when controls bec
     <MultiImageUploader field="attachments" maxUploads={1} onChange={onChange} />
   )
 
-  fireEvent.click(view.getByRole("button", { name: "X" }))
+  fireEvent.click(view.getByRole("button", { name: "Remove image" }))
 
   expect(onChange).toHaveBeenLastCalledWith([])
   expect(view.container.querySelector("img")).toBeNull()
-  expect(view.getAllByRole("button")).toHaveLength(1)
+  expect(view.getAllByRole("button", { name: "Select image" })).toHaveLength(1)
 })
 
 test("collecting attachments waits for the selected file and reserves its upload slot", async () => {
@@ -219,7 +219,7 @@ test("a failed file read can be retried or removed without silently submitting f
     expect.objectContaining({ upload: expect.objectContaining({ content: "ZHJhZnQ=" }) }),
   ])
 
-  fireEvent.click(view.getByRole("button", { name: "X" }))
+  fireEvent.click(view.getByRole("button", { name: "Remove image" }))
   fireEvent.change(view.container.querySelector('input[type="file"]')!, {
     target: {
       files: [new File(["second"], "second.png", { type: "image/png" })],

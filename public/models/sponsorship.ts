@@ -29,7 +29,7 @@ export interface SponsorshipCampaign {
   updatedAt?: string
 }
 
-/** Safe public payload from POST /api/v1/ads/select. */
+/** Safe public payload from POST /api/ads/select. */
 export interface PublicAd {
   campaignId: number
   advertiser: string
@@ -57,7 +57,7 @@ export interface AdPlacement {
   emptyPolicy?: EmptyAdPolicy
 }
 
-/** Public slim config from GET /api/v1/ads/placement-config. */
+/** Public slim config from GET /api/ads/placement-config. */
 export interface PlacementAdConfig {
   adsenseSlotId?: string
   adsenseFormat?: string

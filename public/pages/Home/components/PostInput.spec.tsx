@@ -268,7 +268,7 @@ test("reload resumes the saved payload and retries an uncertain response with th
   jest.mocked(postSubmissions.load).mockResolvedValue([submission])
   jest.mocked(cache.session.get).mockImplementation((key) => key.endsWith("Submission") ? "saved-operation" : null)
   jest.mocked(actions.createPost)
-    .mockRejectedValueOnce(new RequestError("POST", "/api/v1/posts", "transport", new TypeError("lost acknowledgement")))
+    .mockRejectedValueOnce(new RequestError("POST", "/api/posts", "transport", new TypeError("lost acknowledgement")))
     .mockResolvedValueOnce({ ok: true, data: { id: 7, number: 7, title: "Saved title", slug: "saved" } })
 
   await showForm()

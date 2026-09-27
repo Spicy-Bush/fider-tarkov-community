@@ -10,11 +10,13 @@ import (
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/pages"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/lib/pq"
 )
 
@@ -30,6 +32,7 @@ type dbPage struct {
 	AllowedRoles       dbx.NullString `db:"allowed_roles"`
 	ParentPageID       dbx.NullInt    `db:"parent_page_id"`
 	AllowComments      bool           `db:"allow_comments"`
+	AllowCommentImages bool           `db:"allow_comment_images"`
 	AllowReactions     bool           `db:"allow_reactions"`
 	ShowTOC            bool           `db:"show_toc"`
 	ScheduledFor       dbx.NullTime   `db:"scheduled_for"`
@@ -54,6 +57,7 @@ func (p *dbPage) toModel(ctx context.Context) *entity.Page {
 		Status:         entity.PageStatus(p.Status),
 		Visibility:     entity.PageVisibility(p.Visibility),
 		AllowComments:  p.AllowComments,
+		AllowCommentImages: p.AllowCommentImages,
 		AllowReactions: p.AllowReactions,
 		ShowTOC:        p.ShowTOC,
 		CreatedAt:      p.CreatedAt,
@@ -108,7 +112,7 @@ func getPageBySlug(ctx context.Context, q *query.GetPageBySlug) error {
 		err := trx.Get(page, `
 			SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.banner_image_bkey,
 				p.status, p.visibility, p.allowed_roles, p.parent_page_id,
-				p.allow_comments, p.allow_reactions, p.show_toc,
+				p.allow_comments, p.allow_comment_images, p.allow_reactions, p.show_toc,
 				p.cached_embedded_data, p.cached_at,
 				p.scheduled_for, p.published_at, p.created_at, p.updated_at,
 				p.meta_description, p.canonical_url,
@@ -140,7 +144,7 @@ func getPageByID(ctx context.Context, q *query.GetPageByID) error {
 		err := trx.Get(page, `
 			SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.banner_image_bkey,
 				p.status, p.visibility, p.allowed_roles, p.parent_page_id,
-				p.allow_comments, p.allow_reactions, p.show_toc,
+				p.allow_comments, p.allow_comment_images, p.allow_reactions, p.show_toc,
 				p.cached_embedded_data, p.cached_at,
 				p.scheduled_for, p.published_at, p.created_at, p.updated_at,
 				p.meta_description, p.canonical_url,
@@ -292,16 +296,16 @@ func createPage(ctx context.Context, c *cmd.CreatePage) error {
 			status, visibility, allowed_roles, parent_page_id,
 			allow_comments, allow_reactions, show_toc, scheduled_for, published_at,
 			created_at, updated_at, created_by_id, updated_by_id,
-			meta_description, canonical_url, cached_embedded_data, cached_at
+			meta_description, canonical_url, cached_embedded_data, cached_at, allow_comment_images
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
 		) RETURNING id
 	`, tenant.ID, c.Title, slug, c.Content, c.Excerpt,
 			bannerBKey, c.Status, c.Visibility, allowedRolesJSON,
 			c.ParentPageID, c.AllowComments, c.AllowReactions, c.ShowTOC,
 			c.ScheduledFor, getPublishedAt(c.Status),
 			time.Now(), time.Now(), user.ID, user.ID,
-			c.MetaDescription, canonicalURL, cachedJSON, time.Now())
+			c.MetaDescription, canonicalURL, cachedJSON, time.Now(), c.AllowCommentImages)
 
 		if err != nil {
 			return errors.Wrap(err, "failed to create page")
@@ -375,14 +379,15 @@ func updatePage(ctx context.Context, c *cmd.UpdatePage) error {
 			status = $6, visibility = $7, allowed_roles = $8, parent_page_id = $9,
 			allow_comments = $10, allow_reactions = $11, show_toc = $12,
 			scheduled_for = $13, published_at = $14, updated_at = $15, updated_by_id = $16,
-			meta_description = $17, canonical_url = $18, cached_embedded_data = $19, cached_at = $20
+			meta_description = $17, canonical_url = $18, cached_embedded_data = $19, cached_at = $20,
+			allow_comment_images = $23
 		WHERE id = $21 AND tenant_id = $22
 	`, c.Title, slug, c.Content, c.Excerpt, bannerBKey,
 			c.Status, c.Visibility, allowedRolesJSON, c.ParentPageID,
 			c.AllowComments, c.AllowReactions, c.ShowTOC,
 			c.ScheduledFor, getPublishedAt(c.Status),
 			time.Now(), user.ID, c.MetaDescription, canonicalURL,
-			cachedJSON, time.Now(), c.PageID, tenant.ID)
+			cachedJSON, time.Now(), c.PageID, tenant.ID, c.AllowCommentImages)
 
 		if err != nil {
 			return errors.Wrap(err, "failed to update page")
@@ -588,6 +593,15 @@ func listPages(ctx context.Context, q *query.ListPages) error {
 
 func togglePageReaction(ctx context.Context, c *cmd.TogglePageReaction) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		owner := &query.GetDiscussion{PageID: c.Page.ID, LockOwner: true}
+		if err := getDiscussion(ctx, owner); err != nil {
+			return err
+		}
+
+		if !owner.Result.Permissions(user, tenant).React {
+			return validate.Unauthorized()
+		}
+
 		var added bool
 		err := trx.Scalar(&added, `
 			WITH toggle_reaction AS (
@@ -620,6 +634,15 @@ func togglePageReaction(ctx context.Context, c *cmd.TogglePageReaction) error {
 
 func togglePageSubscription(ctx context.Context, c *cmd.TogglePageSubscription) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if user == nil {
+			return validate.Unauthorized()
+		}
+
+		owner := &query.GetDiscussion{PageID: c.PageID, LockOwner: true}
+		if err := getDiscussion(ctx, owner); err != nil {
+			return err
+		}
+
 		var subscribed bool
 		err := trx.Scalar(&subscribed, `
 			WITH toggle_sub AS (
@@ -669,21 +692,29 @@ func userSubscribedToPage(ctx context.Context, q *query.UserSubscribedToPage) er
 
 func getPageSubscribers(ctx context.Context, q *query.GetPageSubscribers) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		page := &query.GetPageByID{ID: q.PageID}
+		if err := getPageByID(ctx, page); err != nil {
+			return err
+		}
+
 		users := []*dbUser{}
 		err := trx.Select(&users, `
 			SELECT u.id, u.name, u.email, u.role, u.status
 			FROM users u
 			INNER JOIN page_subscriptions ps ON ps.user_id = u.id
-			WHERE ps.page_id = $1
-		`, q.PageID)
+			WHERE ps.page_id = $1 AND u.tenant_id = $2 AND u.status = $3
+		`, q.PageID, tenant.ID, enum.UserActive)
 
 		if err != nil {
 			return errors.Wrap(err, "failed to get page subscribers")
 		}
 
-		q.Result = make([]*entity.User, len(users))
-		for i, u := range users {
-			q.Result[i] = u.toModel(ctx)
+		q.Result = make([]*entity.User, 0, len(users))
+		for _, candidate := range users {
+			recipient := candidate.toModel(ctx)
+			if page.Result.CanView(recipient) {
+				q.Result = append(q.Result, recipient)
+			}
 		}
 
 		return nil
@@ -823,88 +854,6 @@ func getAllPublishedPages(ctx context.Context, q *query.GetAllPublishedPages) er
 				UpdatedAt:  p.UpdatedAt,
 			}
 		}
-
-		return nil
-	})
-}
-
-func getCommentsByPage(ctx context.Context, q *query.GetCommentsByPage) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		q.Result = make([]*entity.Comment, 0)
-
-		comments := []*dbComment{}
-		userID := 0
-		if user != nil {
-			userID = user.ID
-		}
-
-		err := trx.Select(&comments, `
-			WITH agg_reactions AS (
-				SELECT 
-					comment_id,
-					json_agg(json_build_object(
-						'emoji', emoji,
-						'count', count,
-						'includesMe', CASE WHEN $3 = ANY(user_ids) THEN true ELSE false END
-					) ORDER BY count DESC) as reaction_counts
-				FROM (
-					SELECT 
-						comment_id, 
-						emoji, 
-						COUNT(*) as count,
-						array_agg(user_id) as user_ids
-					FROM reactions
-					WHERE comment_id IN (SELECT id FROM comments WHERE page_id = $1)
-					GROUP BY comment_id, emoji
-				) r
-				GROUP BY comment_id
-			)
-			SELECT c.id, c.content, c.created_at, c.edited_at,
-				u.id AS user_id, u.name AS user_name, u.email AS user_email,
-				u.role AS user_role, u.visual_role AS user_visual_role, u.status AS user_status,
-				u.avatar_type AS user_avatar_type, u.avatar_bkey AS user_avatar_bkey,
-				e.id AS edited_by_id, e.name AS edited_by_name, e.email AS edited_by_email,
-				e.role AS edited_by_role, e.status AS edited_by_status,
-				e.avatar_type AS edited_by_avatar_type, e.avatar_bkey AS edited_by_avatar_bkey,
-				ar.reaction_counts,
-				c.moderation_pending, c.moderation_data
-			FROM comments c
-			INNER JOIN users u ON u.id = c.user_id
-			LEFT JOIN users e ON e.id = c.edited_by_id
-			LEFT JOIN agg_reactions ar ON ar.comment_id = c.id
-			WHERE c.page_id = $1 AND c.tenant_id = $2
-			AND c.deleted_at IS NULL
-			ORDER BY c.created_at ASC
-		`, q.Page.ID, tenant.ID, userID)
-
-		if err != nil {
-			return errors.Wrap(err, "failed to get comments by page")
-		}
-
-		for _, c := range comments {
-			q.Result = append(q.Result, c.toModel(ctx))
-		}
-
-		return nil
-	})
-}
-
-func addPageComment(ctx context.Context, c *cmd.AddPageComment) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		var id int
-		if err := trx.Get(&id, `
-			INSERT INTO comments (tenant_id, page_id, content, user_id, created_at)
-			VALUES ($1, $2, $3, $4, $5)
-			RETURNING id
-		`, tenant.ID, c.Page.ID, c.Content, user.ID, time.Now()); err != nil {
-			return errors.Wrap(err, "failed to add page comment")
-		}
-
-		q := &query.GetCommentByID{CommentID: id}
-		if err := getCommentByID(ctx, q); err != nil {
-			return err
-		}
-		c.Result = q.Result
 
 		return nil
 	})

@@ -686,13 +686,22 @@ func countPostPerStatus(ctx context.Context, q *query.CountPostPerStatus) error 
 
 func addNewPost(ctx context.Context, c *cmd.AddNewPost) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		attachments, err := uploadAttachments(ctx, c.Attachments)
+		if err != nil {
+			return err
+		}
+
 		var id int
-		err := trx.Get(&id,
+		err = trx.Get(&id,
 			`INSERT INTO posts (title, slug, description, tenant_id, user_id, created_at, status)
 			 VALUES ($1, $2, $3, $4, $5, $6, 0)
 			 RETURNING id`, c.Title, slug.Make(c.Title), c.Description, tenant.ID, user.ID, time.Now())
 		if err != nil {
 			return errors.Wrap(err, "failed add new post")
+		}
+
+		if err := attachments.apply(ctx, id, 0); err != nil {
+			return err
 		}
 
 		q := &query.GetPostByID{PostID: id}
@@ -711,10 +720,21 @@ func addNewPost(ctx context.Context, c *cmd.AddNewPost) error {
 
 func updatePost(ctx context.Context, c *cmd.UpdatePost) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		_, err := trx.Execute(`UPDATE posts SET title = $1, slug = $2, description = $3 
-													 WHERE id = $4 AND tenant_id = $5`, c.Title, slug.Make(c.Title), c.Description, c.Post.ID, tenant.ID)
+		attachments, err := uploadAttachments(ctx, c.Attachments)
+		if err != nil {
+			return err
+		}
+
+		_, err = trx.Execute(`
+			UPDATE posts SET title = $1, slug = $2, description = $3
+			WHERE id = $4 AND tenant_id = $5
+		`, c.Title, slug.Make(c.Title), c.Description, c.Post.ID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed update post")
+		}
+
+		if err := attachments.apply(ctx, c.Post.ID, 0); err != nil {
+			return err
 		}
 
 		q := &query.GetPostByID{PostID: c.Post.ID}

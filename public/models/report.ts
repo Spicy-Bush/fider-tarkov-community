@@ -20,6 +20,7 @@ export interface Report {
   resolutionNote?: string
   postNumber?: number
   postSlug?: string
+  pageSlug?: string
 }
 
 export interface ReportReason {
@@ -41,4 +42,3 @@ export const getReportTypeLabel = (type: ReportType | string): string => {
       return type
   }
 }
-

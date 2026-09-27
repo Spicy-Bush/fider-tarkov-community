@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react"
-import { Post, Tag, Comment } from "@fider/models"
+import { Post, Tag } from "@fider/models"
 import { Markdown, Icon, Avatar, UserName, ImageGallery } from "@fider/components"
 import { VoteSectionCompact } from "@fider/pages/ShowPost/components/VoteSectionCompact"
 import { ResponseDetails } from "@fider/components/post/ShowPostResponse"
@@ -16,7 +16,6 @@ interface SwipeCardProps {
   post: Post
   tags: Tag[]
   attachments?: string[]
-  comments?: Comment[]
   isActive: boolean
   controlMode: "swipe" | "buttons"
   onSwipe?: (direction: "left" | "right") => void
@@ -34,7 +33,6 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
   post,
   tags,
   attachments,
-  comments,
   isActive,
   controlMode,
   onSwipe,
@@ -230,15 +228,7 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
           <ResponseDetails status={post.status} response={post.response} previousStatus={post.archivedSettings?.previousStatus} />
         </div>
 
-        {comments && (
-          <DiscussionPanel
-            post={post}
-            comments={comments}
-            subscribed={false}
-            reportedCommentIds={[]}
-            dailyLimitReached={false}
-          />
-        )}
+        <DiscussionPanel key={post.id} post={post} subscribed={false} />
       </div>
     </div>
   )

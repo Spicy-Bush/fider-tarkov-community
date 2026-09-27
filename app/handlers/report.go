@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
@@ -25,100 +26,47 @@ func ManageReportsPage() web.HandlerFunc {
 
 func ReportPost() web.HandlerFunc {
 	return func(c *web.Context) error {
-		postNumber, err := c.ParamAsInt("number")
+		number, err := c.ParamAsInt("number")
 		if err != nil {
 			return c.NotFound()
 		}
 
-		getPost := &query.GetPostByNumber{Number: postNumber}
-		if err := bus.Dispatch(c, getPost); err != nil {
-			return c.NotFound()
-		}
-
-		action := new(actions.CreateReport)
-		action.ReportedType = "post"
-		action.ReportedID = getPost.Result.ID
-		if result := c.BindTo(action); !result.Ok {
-			return c.HandleValidation(result)
-		}
-
-		return c.WithTransaction(func() error {
-			createReport := &cmd.CreateReport{
-				ReportedType: enum.ReportTypePost,
-				ReportedID:   getPost.Result.ID,
-				Reason:       action.Reason,
-				Details:      action.Details,
-			}
-			if err := bus.Dispatch(c, createReport); err != nil {
-				return c.Failure(err)
-			}
-
-			c.Enqueue(tasks.NotifyAboutNewReport(createReport.Result, enum.ReportTypePost, getPost.Result.ID, action.Reason))
-
-			sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgReportNew, sse.ReportEventPayload{
-				ReportID:     createReport.Result,
-				ReportedType: "post",
-				ReportedID:   getPost.Result.ID,
-				Reason:       action.Reason,
-			})
-
-			return c.Ok(web.Map{"id": createReport.Result})
-		})
+		return submitReport(c, &cmd.CreateReport{ReportedType: enum.ReportTypePost, PostNumber: number})
 	}
 }
 
 func ReportComment() web.HandlerFunc {
 	return func(c *web.Context) error {
-		postNumber, err := c.ParamAsInt("number")
+		id, err := c.ParamAsInt("id")
 		if err != nil {
 			return c.NotFound()
 		}
 
-		commentID, err := c.ParamAsInt("id")
-		if err != nil {
-			return c.NotFound()
-		}
-
-		getPost := &query.GetPostByNumber{Number: postNumber}
-		if err := bus.Dispatch(c, getPost); err != nil {
-			return c.NotFound()
-		}
-
-		getComment := &query.GetCommentByID{CommentID: commentID}
-		if err := bus.Dispatch(c, getComment); err != nil {
-			return c.NotFound()
-		}
-
-		action := new(actions.CreateReport)
-		action.ReportedType = "comment"
-		action.ReportedID = commentID
-		if result := c.BindTo(action); !result.Ok {
-			return c.HandleValidation(result)
-		}
-
-		return c.WithTransaction(func() error {
-			createReport := &cmd.CreateReport{
-				ReportedType: enum.ReportTypeComment,
-				ReportedID:   commentID,
-				Reason:       action.Reason,
-				Details:      action.Details,
-			}
-			if err := bus.Dispatch(c, createReport); err != nil {
-				return c.Failure(err)
-			}
-
-			c.Enqueue(tasks.NotifyAboutNewReport(createReport.Result, enum.ReportTypeComment, commentID, action.Reason))
-
-			sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgReportNew, sse.ReportEventPayload{
-				ReportID:     createReport.Result,
-				ReportedType: "comment",
-				ReportedID:   commentID,
-				Reason:       action.Reason,
-			})
-
-			return c.Ok(web.Map{"id": createReport.Result})
-		})
+		return submitReport(c, &cmd.CreateReport{ReportedType: enum.ReportTypeComment, ReportedID: id})
 	}
+}
+
+func submitReport(c *web.Context, operation *cmd.CreateReport) error {
+	var input actions.CreateReport
+	if err := c.Bind(&input); err != nil {
+		return c.BadRequest(web.Map{"message": "Invalid report."})
+	}
+
+	operation.Reason = input.Reason
+	operation.Details = input.Details
+
+	return c.WithTransaction(func() error {
+		if err := bus.Dispatch(c, operation); err != nil {
+			return c.Failure(err)
+		}
+
+		if operation.Created {
+			c.Enqueue(tasks.NotifyAboutNewReport(operation.Result, operation.ReportedType, operation.ReportedID, operation.Reason))
+			c.Enqueue(tasks.ReportsChanged())
+		}
+
+		return c.Ok(web.Map{"id": operation.Result})
+	})
 }
 
 func ListReports() web.HandlerFunc {
@@ -168,12 +116,24 @@ func ListReports() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
+		visible := make(map[int]bool, len(listReports.Result))
+		for _, report := range listReports.Result {
+			visible[report.ID] = true
+		}
+
+		viewers := make([]sse.ReportViewers, 0)
+		for _, presence := range sse.GetHub().GetAllActiveViewers(c.Tenant().ID) {
+			if visible[presence.ReportID] {
+				viewers = append(viewers, presence)
+			}
+		}
+
 		return c.Ok(web.Map{
 			"reports": listReports.Result,
 			"total":   listReports.Total,
 			"page":    page,
 			"perPage": perPage,
-			"viewers": sse.GetHub().GetAllActiveViewers(c.Tenant().ID),
+			"viewers": viewers,
 		})
 	}
 }
@@ -219,15 +179,26 @@ func GetReportDetails() web.HandlerFunc {
 				result["post"] = getPost.Result
 			}
 		case enum.ReportTypeComment:
-			getComment := &query.GetCommentByID{CommentID: report.ReportedID}
-			if err := bus.Dispatch(c, getComment); err == nil {
-				result["comment"] = getComment.Result
+			owner := &query.GetDiscussion{CommentID: report.ReportedID}
+			getComment := &query.GetCommentByID{CommentID: report.ReportedID, IncludeDeleted: true}
+			if err := bus.Dispatch(c, owner, getComment); err != nil {
+				return c.Failure(err)
 			}
-			if report.PostNumber > 0 {
-				getPost := &query.GetPostByNumber{Number: report.PostNumber}
-				if err := bus.Dispatch(c, getPost); err == nil {
-					result["post"] = getPost.Result
+
+			result["comment"] = getComment.Result.ForViewer(c.User(), owner.Result, c.Tenant(), time.Now())
+			result["owner"] = owner.Result.Owner
+			if owner.Result.Owner.Kind == "post" {
+				post := &query.GetPostByID{PostID: owner.Result.Owner.ID}
+				if err := bus.Dispatch(c, post); err != nil {
+					return c.Failure(err)
 				}
+				result["post"] = post.Result
+			} else {
+				page := &query.GetPageByID{ID: owner.Result.Owner.ID}
+				if err := bus.Dispatch(c, page); err != nil {
+					return c.Failure(err)
+				}
+				result["page"] = page.Result
 			}
 		}
 
@@ -256,17 +227,7 @@ func AssignReport() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
-			sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgReportAssigned, sse.ReportEventPayload{
-				ReportID: reportID,
-				AssignedTo: &sse.ClientInfo{
-					UserID:     c.User().ID,
-					UserName:   c.User().Name,
-					AvatarURL:  c.User().AvatarURL,
-					AvatarType: c.User().AvatarType.String(),
-					Role:       c.User().Role.String(),
-					Status:     c.User().Status.String(),
-				},
-			})
+			c.Enqueue(tasks.ReportsChanged())
 
 			return c.Ok(web.Map{})
 		})
@@ -291,9 +252,7 @@ func UnassignReport() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
-			sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgReportUnassigned, sse.ReportEventPayload{
-				ReportID: reportID,
-			})
+			c.Enqueue(tasks.ReportsChanged())
 
 			return c.Ok(web.Map{})
 		})
@@ -338,10 +297,7 @@ func ResolveReport() web.HandlerFunc {
 				))
 			}
 
-			sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgReportResolved, sse.ReportEventPayload{
-				ReportID: reportID,
-				Status:   action.Status,
-			})
+			c.Enqueue(tasks.ReportsChanged())
 
 			return c.Ok(web.Map{})
 		})

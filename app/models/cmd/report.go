@@ -5,12 +5,14 @@ import (
 )
 
 type CreateReport struct {
+	PostNumber   int
 	ReportedType enum.ReportType
 	ReportedID   int
 	Reason       string
 	Details      string
-	ReporterID   *int
-	Result       int
+
+	Result  int
+	Created bool
 }
 
 type AssignReport struct {

@@ -838,7 +838,7 @@ const ManageSponsorshipPage: React.FC<ManageSponsorshipPageProps> = (props) => {
       {tab === "placements" && (
         <VStack spacing={4}>
           <p className="text-muted text-sm">
-            Catalog AdSense fallback per placement. Publisher id stays in GOOGLE_ADSENSE env; set unit slot ids / format / empty policy here (PUT /api/v1/ads/placements/:id).
+            Catalog AdSense fallback per placement. Publisher id stays in GOOGLE_ADSENSE env; set unit slot ids / format / empty policy here (PUT /api/ads/placements/:id).
           </p>
           <Form error={error}>
             <VStack spacing={4} divide>

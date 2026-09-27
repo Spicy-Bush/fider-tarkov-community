@@ -7,12 +7,7 @@ import (
 )
 
 const (
-	MsgReportNew          = "report.new"
-	MsgReportAssigned     = "report.assigned"
-	MsgReportUnassigned   = "report.unassigned"
-	MsgReportResolved     = "report.resolved"
-	MsgReportViewerJoined = "report.viewer_joined"
-	MsgReportViewerLeft   = "report.viewer_left"
+	MsgReportsChanged = "reports.changed"
 
 	MsgQueuePostNew      = "queue.post_new"
 	MsgQueuePostTagged   = "queue.post_tagged"
@@ -32,21 +27,6 @@ type ClientInfo struct {
 	AvatarType string `json:"avatarType,omitempty"`
 	Role       string `json:"role,omitempty"`
 	Status     string `json:"status,omitempty"`
-}
-
-type ReportEventPayload struct {
-	ReportID     int         `json:"reportId"`
-	ReportedType string      `json:"reportedType,omitempty"`
-	ReportedID   int         `json:"reportedId,omitempty"`
-	Reason       string      `json:"reason,omitempty"`
-	Status       string      `json:"status,omitempty"`
-	AssignedTo   *ClientInfo `json:"assignedTo,omitempty"`
-}
-
-type ViewerEventPayload struct {
-	ReportID int    `json:"reportId"`
-	UserID   int    `json:"userId"`
-	UserName string `json:"userName"`
 }
 
 type QueueEventPayload struct {
@@ -79,10 +59,10 @@ type presenceConfig struct {
 
 var reportPresenceConfig = presenceConfig{
 	channel:       ChannelReports,
-	joinedMessage: MsgReportViewerJoined,
-	leftMessage:   MsgReportViewerLeft,
+	joinedMessage: MsgReportsChanged,
+	leftMessage:   MsgReportsChanged,
 	payloadBuilder: func(itemID, userID int, userName string) interface{} {
-		return ViewerEventPayload{ReportID: itemID, UserID: userID, UserName: userName}
+		return nil
 	},
 }
 
@@ -164,21 +144,17 @@ func (h *Hub) Unregister(client *Client) {
 	delete(th.clients, client)
 	close(client.send)
 
-	var pendingBroadcast *ViewerEventPayload
+	var presenceChanged bool
 	if p, ok := th.presence[client.userID]; ok && p.announced {
-		pendingBroadcast = &ViewerEventPayload{
-			ReportID: p.itemID,
-			UserID:   client.userID,
-			UserName: p.userName,
-		}
+		presenceChanged = true
 		delete(th.presence, client.userID)
 	}
 
 	isEmpty := len(th.clients) == 0
 	th.mu.Unlock()
 
-	if pendingBroadcast != nil {
-		h.BroadcastToTenant(client.tenantID, MsgReportViewerLeft, *pendingBroadcast)
+	if presenceChanged {
+		h.BroadcastToTenant(client.tenantID, MsgReportsChanged, nil)
 	}
 
 	if isEmpty {
@@ -194,7 +170,7 @@ func (h *Hub) Unregister(client *Client) {
 
 func getChannelForMessage(messageType string) Channel {
 	switch messageType {
-	case MsgReportNew, MsgReportAssigned, MsgReportUnassigned, MsgReportResolved, MsgReportViewerJoined, MsgReportViewerLeft:
+	case MsgReportsChanged:
 		return ChannelReports
 	case MsgQueuePostNew, MsgQueuePostTagged, MsgQueueViewerJoined, MsgQueueViewerLeft:
 		return ChannelQueue

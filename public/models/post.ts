@@ -95,23 +95,6 @@ export interface ReactionCount {
   includesMe: boolean
 }
 
-export interface Comment {
-  id: number
-  content: string
-  createdAt: string
-  user: User
-  attachments?: string[]
-  reactionCounts?: ReactionCount[]
-  editedAt?: string
-  editedBy?: User
-  moderationPending?: boolean
-  moderationData?: string
-}
-
-export function isCommentHidden(comment: Comment): boolean {
-  return !!comment.moderationPending
-}
-
 export interface Tag {
   id: number
   slug: string

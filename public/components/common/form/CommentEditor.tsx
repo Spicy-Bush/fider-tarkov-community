@@ -38,10 +38,26 @@ const serializeContent = (element: HTMLElement): string => {
   return result
 }
 
-const deserializeToHTML = (text: string): string => {
-  return text.replace(/@\{"id":(\d+),"name":"([^"]+)"[^}]*\}/g, (_, id, name) => {
-    return `<span class="mention" contenteditable="false" data-mention-id="${id}" data-mention-name="${name}">@${name}</span>`
-  }).replace(/\n/g, "<br>")
+const deserializeContent = (text: string): DocumentFragment => {
+  const content = document.createDocumentFragment()
+  const mentions = /@\{"id":(\d+),"name":"([^"]+)"[^}]*\}/g
+  let start = 0
+
+  for (const match of text.matchAll(mentions)) {
+    content.append(document.createTextNode(text.slice(start, match.index)))
+
+    const mention = document.createElement("span")
+    mention.className = "mention"
+    mention.contentEditable = "false"
+    mention.dataset.mentionId = match[1]
+    mention.dataset.mentionName = match[2]
+    mention.textContent = `@${match[2]}`
+    content.append(mention)
+    start = match.index! + match[0].length
+  }
+
+  content.append(document.createTextNode(text.slice(start)))
+  return content
 }
 
 export const CommentEditor: React.FC<CommentEditorProps> = (props) => {
@@ -58,7 +74,7 @@ export const CommentEditor: React.FC<CommentEditorProps> = (props) => {
   useEffect(() => {
     if (editorRef.current && !initializedRef.current) {
       if (props.initialValue) {
-        editorRef.current.innerHTML = deserializeToHTML(props.initialValue)
+        editorRef.current.replaceChildren(deserializeContent(props.initialValue))
       }
       initializedRef.current = true
     }

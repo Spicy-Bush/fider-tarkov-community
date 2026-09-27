@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/mock"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	blobsql "github.com/Spicy-Bush/fider-tarkov-community/app/services/blob/sql"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/services/moderation"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/services/sqlstore/postgres"
@@ -659,13 +661,13 @@ func TestModerationAvatarPublication(t *testing.T) {
 		t.Fatalf("pending public image: %d", code)
 	}
 
-	code, response := mock.NewServer().OnTenant(mock.DemoTenant).AsUser(mock.JonSnow).WithURL("http://demo/_api/user/moderation/avatar?revision=1").Execute(handlers.PreviewProfileAvatar())
+	code, response := mock.NewServer().OnTenant(mock.DemoTenant).AsUser(mock.JonSnow).WithURL("http://demo/api/user/moderation/avatar?revision=1").Execute(handlers.PreviewProfileAvatar())
 
 	if code != 200 || response.Body.String() != "image fixture" || response.Header().Get("Cache-Control") != "private, no-store" {
 		t.Fatalf("owner preview: %d %s", code, response.Body.String())
 	}
 
-	code, _ = mock.NewServer().OnTenant(mock.DemoTenant).AsUser(mock.AryaStark).WithURL("http://demo/_api/user/moderation/avatar?revision=1").Execute(handlers.PreviewProfileAvatar())
+	code, _ = mock.NewServer().OnTenant(mock.DemoTenant).AsUser(mock.AryaStark).WithURL("http://demo/api/user/moderation/avatar?revision=1").Execute(handlers.PreviewProfileAvatar())
 
 	if code != 404 {
 		t.Fatalf("another user preview: %d", code)
@@ -1112,8 +1114,14 @@ func TestModerationReportIncludesFindings(t *testing.T) {
 	}
 
 	userID := 1
-	human := &cmd.CreateReport{ReportedType: enum.ReportTypePost, ReportedID: id, Reason: "Human report", Details: "User explanation", ReporterID: &userID}
-	dispatchModeration(t, ctx, human)
+	var humanReportID int
+	if err := dbx.Connection().QueryRow(`
+        INSERT INTO reports (tenant_id, reporter_id, reported_type, reported_id, reason, details, status, created_at)
+        VALUES ($1, $2, 'post', $3, 'Human report', 'User explanation', 'pending', NOW()) RETURNING id
+    `, mock.DemoTenant.ID, userID, id).Scan(&humanReportID); err != nil {
+		t.Fatal(err)
+	}
+
 	code, response = mock.NewServer().OnTenant(mock.DemoTenant).AsUser(mock.JonSnow).Execute(handlers.ListReports())
 	var list struct {
 		Reports []entity.Report `json:"reports"`
@@ -1130,7 +1138,7 @@ func TestModerationReportIncludesFindings(t *testing.T) {
 			foundAutomatic = item.Reporter == nil && item.Details == report.Details
 		}
 
-		if item.ID == human.Result {
+		if item.ID == humanReportID {
 			foundHuman = item.Reporter != nil && item.Reporter.ID == userID && item.Details == "User explanation"
 		}
 	}
@@ -1342,7 +1350,9 @@ func TestModerationCleanRecheckPreservesStaffHide(t *testing.T) {
 
 			for _, staffHidden := range []bool{false, true} {
 				if staffHidden {
-					dispatchModeration(t, ctx, &cmd.SetModerationPending{
+					staffCtx := context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Role: enum.RoleAdministrator, Status: enum.UserActive})
+					staffCtx = context.WithValue(staffCtx, app.RequestCtxKey, web.Request{URL: &url.URL{Scheme: "http", Host: "localhost:3000"}})
+					dispatchModeration(t, staffCtx, &cmd.SetModerationPending{
 						ContentType: kind,
 						ContentID:   contentID,
 						Pending:     true,

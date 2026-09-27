@@ -32,6 +32,7 @@ func Create(ctx context.Context) (*bytes.Buffer, error) {
 	for _, tableName := range []string{
 		"attachments",
 		"comments",
+		"comment_edit_receipts",
 		"email_verifications",
 		"notifications",
 		"oauth_providers",
@@ -50,8 +51,8 @@ func Create(ctx context.Context) (*bytes.Buffer, error) {
 		"post_votes",
 		"post_vote_revisions",
 		"reactions",
-		"post_notification_deliveries",
-		"post_notification_recipients",
+		"notification_deliveries",
+		"notification_recipients",
 		"tags",
 		"tenants",
 		"user_providers",

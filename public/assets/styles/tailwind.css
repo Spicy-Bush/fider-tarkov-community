@@ -76,6 +76,97 @@ body {
   box-sizing: border-box;
 }
 
+@layer base {
+  button:enabled,
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
+.discussion-threads {
+  --thread-indent: 24px;
+  display: grid;
+  grid-template-columns: repeat(4, var(--thread-indent)) minmax(0, 1fr);
+}
+
+.discussion-row {
+  min-width: 0;
+  padding-left: 28px;
+}
+
+.discussion-comment {
+  padding: 8px 0;
+  min-width: 0;
+  scroll-margin-top: 80px;
+}
+
+.discussion-comment-body {
+  overflow-wrap: anywhere;
+}
+
+.discussion-comment.highlighted-comment {
+  border-radius: 4px;
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.discussion-thread-toggle {
+  position: relative;
+  width: var(--thread-indent);
+  margin-bottom: 6px;
+  align-self: stretch;
+  border-radius: 4px;
+  color: var(--color-muted);
+}
+
+.discussion-thread-toggle > span {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 24px;
+  height: 28px;
+  line-height: 28px;
+  text-align: center;
+  border-radius: 4px;
+}
+
+.discussion-thread-toggle[data-has-replies="true"]::before {
+  content: "";
+  position: absolute;
+  top: 38px;
+  bottom: 0;
+  left: 11px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--color-border);
+}
+
+.discussion-thread-toggle[data-continuation="true"]::before {
+  top: 0;
+}
+
+.discussion-thread-toggle:hover::before,
+.discussion-thread-toggle:focus-visible::before {
+  background: var(--color-primary);
+}
+
+.discussion-thread-toggle:hover > span {
+  color: var(--color-foreground);
+  background: var(--color-tertiary);
+}
+
+.discussion-thread-toggle:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .discussion-threads {
+    --thread-indent: 16px;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

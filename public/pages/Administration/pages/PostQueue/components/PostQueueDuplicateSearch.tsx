@@ -1,18 +1,17 @@
+import { DiscussionPanel } from "@fider/pages/ShowPost/components/DiscussionPanel"
 import React, { useState, useEffect, useCallback, useRef } from "react"
 import {
   Button,
   Icon,
   Input,
   Loader,
-  Avatar,
-  Moment,
   Markdown,
   ImageGallery,
   ShowTag,
 } from "@fider/components"
 import { HStack, VStack } from "@fider/components/layout"
-import { Post, Tag, Comment, PostStatus } from "@fider/models"
-import { actions, Fider, classSet } from "@fider/services"
+import { Post, Tag, PostStatus } from "@fider/models"
+import { actions, classSet } from "@fider/services"
 import {
   heroiconsSearch as IconSearch,
   heroiconsX as IconX,
@@ -33,7 +32,6 @@ interface PostQueueDuplicateSearchProps {
 
 interface ExpandedPostData {
   post: Post
-  comments: Comment[]
   attachments: string[]
 }
 
@@ -95,14 +93,10 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
     setIsLoadingExpanded(true)
     setShowComments(false)
 
-    const [commentsResult, attachmentsResult] = await Promise.all([
-      actions.getAllComments(post.number),
-      actions.getPostAttachments(post.number),
-    ])
+    const attachmentsResult = await actions.getPostAttachments(post.number)
 
     setExpandedData({
       post,
-      comments: commentsResult.ok ? commentsResult.data || [] : [],
       attachments: attachmentsResult.ok ? attachmentsResult.data || [] : [],
     })
     setIsLoadingExpanded(false)
@@ -272,7 +266,7 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
                             )}
                           </div>
 
-                          {expandedData.comments.length > 0 && (
+                          {expandedData.post.commentsCount > 0 && (
                             <div className="bg-elevated border border-surface-alt rounded-card p-3">
                               <button
                                 className="flex items-center justify-between w-full border-none bg-transparent cursor-pointer p-0"
@@ -282,7 +276,7 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
                                 }}
                               >
                                 <span className="text-xs text-muted uppercase">
-                                  Comments ({expandedData.comments.length})
+                                  Comments ({expandedData.post.commentsCount})
                                 </span>
                                 <Icon
                                   sprite={showComments ? IconChevronUp : IconChevronDown}
@@ -290,28 +284,7 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
                                 />
                               </button>
                               {showComments && (
-                                <VStack spacing={2} className="mt-2">
-                                  {expandedData.comments.slice(0, 5).map((comment) => (
-                                    <div key={comment.id} className="p-2 bg-tertiary rounded-card [&_.c-avatar]:w-5 [&_.c-avatar]:h-5">
-                                      <HStack spacing={2} className="mb-1">
-                                        <Avatar user={comment.user} clickable={false} />
-                                        <span className="text-sm font-medium">
-                                          {comment.user.name}
-                                        </span>
-                                        <Moment
-                                          locale={Fider.currentLocale}
-                                          date={comment.createdAt}
-                                        />
-                                      </HStack>
-                                      <Markdown text={comment.content} style="full" />
-                                    </div>
-                                  ))}
-                                  {expandedData.comments.length > 5 && (
-                                    <span className="text-sm text-muted">
-                                      +{expandedData.comments.length - 5} more comments
-                                    </span>
-                                  )}
-                                </VStack>
+                                <DiscussionPanel key={post.id} post={expandedData.post} subscribed={false} />
                               )}
                             </div>
                           )}

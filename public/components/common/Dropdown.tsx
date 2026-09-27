@@ -31,9 +31,9 @@ const ListItem = (props: DropdownListItemProps) => {
   }
 
   return (
-    <div onClick={handleClick} className={`${baseClass} ${props.className || ""}`}>
+    <button type="button" onClick={handleClick} className={`${baseClass} w-full text-left ${props.className || ""}`}>
       {props.children}
-    </div>
+    </button>
   )
 }
 
@@ -49,6 +49,7 @@ interface DropdownProps {
   wide?: boolean
   fullscreenSm?: boolean
   className?: string
+  label?: string
 }
 
 interface DropdownContextFuncs {
@@ -87,12 +88,16 @@ export const Dropdown = (props: DropdownProps) => {
   }
 
   useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
     document.addEventListener("mousedown", handleClick)
 
     return () => {
       document.removeEventListener("mousedown", handleClick)
     }
-  }, [])
+  }, [isOpen, props.onToggled])
 
   const listClassName = classSet({
     "absolute top-full mt-1 overflow-auto w-max min-w-40 max-w-60 py-1 bg-elevated rounded-card border border-border shadow-lg z-modal": true,
@@ -109,7 +114,7 @@ export const Dropdown = (props: DropdownProps) => {
   return (
     <DropdownContext.Provider value={{ close }}>
       <div ref={node} className={dropdownClassName}>
-        <button type="button" className="text-left bg-transparent border-none p-0 cursor-pointer inline-flex items-center" onClick={toggleIsOpen}>
+        <button type="button" aria-label={props.label} aria-expanded={isOpen} className="text-left bg-transparent border-none p-0 cursor-pointer inline-flex items-center" onClick={toggleIsOpen}>
           {props.renderHandle}
         </button>
         {isOpen && <div className={listClassName}>{props.children}</div>}

@@ -1,14 +1,19 @@
 package cmd
 
 import (
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"time"
+
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 )
 
 type SetModerationPending struct {
 	ContentType string
 	ContentID   int
 	Pending     bool
+
+	Comment    *entity.Comment
+	Discussion *entity.Discussion
 }
 
 type ScheduleModeration struct {

@@ -20,7 +20,7 @@ import {
   heroiconsX as IconX,
   heroiconsDuplicate as IconCopy,
 } from "@fider/icons.generated"
-import { Post, Tag, Comment, ImageUpload } from "@fider/models"
+import { Post, Tag, ImageUpload } from "@fider/models"
 import { VoteSection } from "@fider/pages/ShowPost/components/VoteSection"
 import { TagsPanel } from "@fider/pages/ShowPost/components/TagsPanel"
 import { DiscussionPanel } from "@fider/pages/ShowPost/components/DiscussionPanel"
@@ -37,7 +37,6 @@ interface ClickableUser {
 export interface PostViewerProps {
   post: Post | null
   tags: Tag[]
-  comments: Comment[]
   attachments: string[]
   isLoading: boolean
   allTags: Tag[]
@@ -57,7 +56,6 @@ export interface PostViewerProps {
 export const PostViewer: React.FC<PostViewerProps> = ({
   post,
   tags,
-  comments,
   attachments,
   isLoading,
   allTags,
@@ -319,13 +317,7 @@ export const PostViewer: React.FC<PostViewerProps> = ({
       />
 
       <div className="p-4 px-5 max-lg:p-3 max-lg:px-4 border-b border-surface-alt last:border-b-0">
-        <DiscussionPanel
-          post={post}
-          comments={comments}
-          subscribed={false}
-          reportedCommentIds={[]}
-          dailyLimitReached={false}
-        />
+        <DiscussionPanel key={post.id} post={post} subscribed={false} />
       </div>
     </div>
   )

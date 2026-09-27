@@ -5,7 +5,7 @@ import {
   heroiconsChevronUp as IconChevronUp,
   heroiconsArrowLeft as IconArrowLeft,
 } from "@fider/icons.generated"
-import { Report, Post, Comment, User } from "@fider/models"
+import { Report, Post, DiscussionComment, User } from "@fider/models"
 import { UserProfile } from "@fider/components/UserProfile"
 import { ContentPreview } from "./ContentPreview"
 import { ViewingUserType } from "../hooks/useReportsState"
@@ -15,7 +15,7 @@ interface ReportsPreviewProps {
   viewingUser: ViewingUserType | null
   profileKey: number
   previewPost: Post | null
-  previewComment: Comment | null
+  previewComment: DiscussionComment | null
   isLoadingPreview: boolean
   onDeselectReport: () => void
   onCloseUserProfile: () => void

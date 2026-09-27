@@ -439,7 +439,7 @@ func TestBlockLockedTenants_LockedTenant(t *testing.T) {
 	mock.DemoTenant.Status = enum.TenantLocked
 
 	status, _ := server.
-		WithURL("http://demo.test.fider.io/api/v1/posts").
+		WithURL("http://demo.test.fider.io/api/posts").
 		OnTenant(mock.DemoTenant).
 		Execute(func(c *web.Context) error {
 			return c.String(http.StatusOK, c.Tenant().Name)

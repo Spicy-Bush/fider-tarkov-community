@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
-	api "github.com/Spicy-Bush/fider-tarkov-community/app/handlers/apiv1"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/api"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/middlewares"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"

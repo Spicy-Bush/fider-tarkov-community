@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { ReactionCount } from "@fider/models"
 import { Icon } from "@fider/components"
 import { heroiconsSmile as IconSmile } from "@fider/icons.generated"
@@ -9,15 +9,24 @@ interface ReactionsProps {
   emojiSelectorRef: React.RefObject<HTMLDivElement>
   toggleReaction: (emoji: string) => void
   reactions?: ReactionCount[]
+  disabled?: boolean
+  busy?: boolean
+  className?: string
 }
 
 const availableEmojis = ["👍", "👎", "❤️", "🤔", "👏", "😂", "😲"]
 
-export const Reactions: React.FC<ReactionsProps> = ({ emojiSelectorRef, toggleReaction, reactions }) => {
+export const Reactions: React.FC<ReactionsProps> = ({ emojiSelectorRef, toggleReaction, reactions, disabled, busy, className = "mt-3" }) => {
   const fider = useFider()
+  const canReact = fider.session.isAuthenticated && !disabled
   const [isEmojiSelectorOpen, setIsEmojiSelectorOpen] = useState(false)
+  const pickerButton = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
+    if (!isEmojiSelectorOpen) {
+      return
+    }
+
     const handleClickOutside = (event: MouseEvent) => {
       if (emojiSelectorRef.current && !emojiSelectorRef.current.contains(event.target as Node)) {
         setIsEmojiSelectorOpen(false)
@@ -28,15 +37,19 @@ export const Reactions: React.FC<ReactionsProps> = ({ emojiSelectorRef, toggleRe
     return () => {
       document.removeEventListener("click", handleClickOutside)
     }
-  }, [])
+  }, [isEmojiSelectorOpen, emojiSelectorRef])
 
   return (
-    <div ref={emojiSelectorRef} className="relative">
-      <div className="flex flex-wrap items-center gap-1.5 mt-3">
-        {fider.session.isAuthenticated && (
+    <div ref={emojiSelectorRef} className={`relative ${className}`}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {canReact && (
           <button
+            ref={pickerButton}
             type="button"
-            onClick={() => setIsEmojiSelectorOpen(!isEmojiSelectorOpen)}
+            aria-label="Add reaction"
+            aria-expanded={isEmojiSelectorOpen}
+            aria-disabled={busy}
+            onClick={busy ? undefined : () => setIsEmojiSelectorOpen(!isEmojiSelectorOpen)}
             className={classSet({
               "inline-flex items-center justify-center w-7 h-7 rounded-button border transition-all duration-50 cursor-pointer": true,
               "bg-transparent border-border text-muted hover:text-foreground hover:border-border-strong": !isEmojiSelectorOpen,
@@ -51,12 +64,14 @@ export const Reactions: React.FC<ReactionsProps> = ({ emojiSelectorRef, toggleRe
           <button
             type="button"
             key={reaction.emoji}
-            onClick={fider.session.isAuthenticated ? () => toggleReaction(reaction.emoji) : undefined}
-            disabled={!fider.session.isAuthenticated}
+            onClick={canReact && !busy ? () => toggleReaction(reaction.emoji) : undefined}
+            disabled={!canReact}
+            aria-disabled={!canReact || busy}
+            aria-pressed={reaction.includesMe}
             className={classSet({
               "inline-flex items-center gap-1 px-1.5 py-0.5 text-sm transition-all duration-100 rounded-badge": true,
-              "cursor-pointer hover:scale-105": fider.session.isAuthenticated,
-              "cursor-default": !fider.session.isAuthenticated,
+              "cursor-pointer hover:scale-105": canReact,
+              "cursor-default": !canReact,
               "reaction-active": reaction.includesMe,
             })}
           >
@@ -74,16 +89,18 @@ export const Reactions: React.FC<ReactionsProps> = ({ emojiSelectorRef, toggleRe
         ))}
       </div>
       
-      {isEmojiSelectorOpen && (
+      {isEmojiSelectorOpen && canReact && (
         <div className="absolute left-0 bottom-full mb-2 flex gap-1 p-2 bg-elevated border border-border rounded-card shadow-lg z-50">
           {availableEmojis.map((emoji) => (
             <button
               type="button"
               key={emoji}
+              disabled={busy}
               className="w-8 h-8 flex items-center justify-center text-lg rounded-button hover:bg-tertiary transition-colors duration-100 cursor-pointer"
               onClick={() => {
                 toggleReaction(emoji)
                 setIsEmojiSelectorOpen(false)
+                pickerButton.current?.focus()
               }}
             >
               {emoji}
@@ -94,4 +111,3 @@ export const Reactions: React.FC<ReactionsProps> = ({ emojiSelectorRef, toggleRe
     </div>
   )
 }
-

@@ -3,18 +3,27 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
 type dbComment struct {
 	ID                int            `db:"id"`
+	PostID            int            `db:"post_id"`
+	PageID            int            `db:"page_id"`
+	ParentID          dbx.NullInt    `db:"parent_id"`
+	HasReplies        bool           `db:"has_replies"`
+	Deleted           bool           `db:"deleted"`
+	SortScore         int            `db:"sort_score"`
 	Content           string         `db:"content"`
 	CreatedAt         time.Time      `db:"created_at"`
 	User              *dbUser        `db:"user"`
@@ -28,12 +37,25 @@ type dbComment struct {
 
 func (c *dbComment) toModel(ctx context.Context) *entity.Comment {
 	comment := &entity.Comment{
-		ID:          c.ID,
-		Content:     c.Content,
-		CreatedAt:   c.CreatedAt,
-		User:        c.User.toModel(ctx),
-		Attachments: c.Attachments,
+		ID:                c.ID,
+		PostID:            c.PostID,
+		PageID:            c.PageID,
+		HasReplies:        c.HasReplies,
+		Deleted:           c.Deleted,
+		State:             "visible",
+		SortScore:         c.SortScore,
+		ModerationPending: c.ModerationPending,
+		Content:           c.Content,
+		CreatedAt:         c.CreatedAt,
+		User:              c.User.toModel(ctx),
+		Attachments:       c.Attachments,
 	}
+
+	if c.ParentID.Valid {
+		id := int(c.ParentID.Int64)
+		comment.ParentID = &id
+	}
+
 	if c.EditedAt.Valid {
 		comment.EditedBy = c.EditedBy.toModel(ctx)
 		comment.EditedAt = &c.EditedAt.Time
@@ -43,91 +65,192 @@ func (c *dbComment) toModel(ctx context.Context) *entity.Comment {
 		_ = json.Unmarshal([]byte(c.ReactionCounts.String), &comment.ReactionCounts)
 	}
 
-	user, _ := ctx.Value(app.UserCtxKey).(*entity.User)
-	isStaff := user != nil && (user.IsCollaborator() || user.IsModerator() || user.IsAdministrator())
-	if isStaff {
-		comment.ModerationPending = c.ModerationPending
-		if c.ModerationData.Valid {
-			comment.ModerationData = c.ModerationData.String
-		}
+	if c.ModerationData.Valid {
+		comment.ModerationData = c.ModerationData.String
 	}
 
 	return comment
 }
 
-func addNewComment(ctx context.Context, c *cmd.AddNewComment) error {
+func setCommentReaction(ctx context.Context, c *cmd.SetCommentReaction) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		var id int
-		if err := trx.Get(&id, `
-			INSERT INTO comments (tenant_id, post_id, content, user_id, created_at) 
-			VALUES ($1, $2, $3, $4, $5) 
-			RETURNING id
-		`, tenant.ID, c.Post.ID, c.Content, user.ID, time.Now()); err != nil {
-			return errors.Wrap(err, "failed add new comment")
-		}
-
-		q := &query.GetCommentByID{CommentID: id}
-		if err := getCommentByID(ctx, q); err != nil {
+		owner := &query.GetDiscussion{CommentID: c.CommentID, LockOwner: true}
+		if err := getDiscussion(ctx, owner); err != nil {
 			return err
 		}
-		c.Result = q.Result
 
-		return nil
-	})
-}
-
-func toggleCommentReaction(ctx context.Context, c *cmd.ToggleCommentReaction) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		var added bool
-		err := trx.Scalar(&added, `
-			WITH toggle_reaction AS (
-				INSERT INTO reactions (comment_id, user_id, emoji, created_on)
-				VALUES ($1, $2, $3, $4)
-				ON CONFLICT (comment_id, user_id, emoji) DO NOTHING
-				RETURNING true AS added
-			),
-			delete_existing AS (
-				DELETE FROM reactions
-				WHERE comment_id = $1 AND user_id = $2 AND emoji = $3
-				AND NOT EXISTS (SELECT 1 FROM toggle_reaction)
-				RETURNING false AS added
-			)
-			SELECT COALESCE(
-				(SELECT added FROM toggle_reaction),
-				(SELECT added FROM delete_existing),
-				false
-			)
-		`, c.Comment.ID, user.ID, c.Emoji, time.Now())
-
-		if err != nil {
-			return errors.Wrap(err, "failed to toggle reaction")
+		comment := &query.GetCommentByID{CommentID: c.CommentID}
+		if err := getCommentByID(ctx, comment); err != nil {
+			return err
 		}
 
-		c.Result = added
+		if !comment.Result.AllowedActions(user, owner.Result, tenant, time.Now()).React {
+			return validate.Unauthorized()
+		}
+
+		var err error
+		if c.Active {
+			_, err = trx.Execute(`
+                    INSERT INTO reactions (comment_id, user_id, emoji, created_on)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (comment_id, user_id, emoji) DO NOTHING
+                `, c.CommentID, user.ID, c.Emoji, time.Now())
+		} else {
+			_, err = trx.Execute("DELETE FROM reactions WHERE comment_id = $1 AND user_id = $2 AND emoji = $3", c.CommentID, user.ID, c.Emoji)
+		}
+		if err != nil {
+			return err
+		}
+		if err := getCommentByID(ctx, comment); err != nil {
+			return err
+		}
+		c.Discussion = owner.Result
+		c.Result = comment.Result
 		return nil
 	})
 }
 
 func updateComment(ctx context.Context, c *cmd.UpdateComment) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		_, err := trx.Execute(`
-			UPDATE comments SET content = $1, edited_at = $2, edited_by_id = $3 
-			WHERE id = $4 AND tenant_id = $5`, c.Content, time.Now(), user.ID, c.CommentID, tenant.ID)
+		if user == nil {
+			return validate.Unauthorized()
+		}
+
+		if c.SubmissionID == "" || len(c.SubmissionID) > 128 {
+			return validate.Failed("Invalid submission identity.")
+		}
+
+		owner := &query.GetDiscussion{CommentID: c.CommentID, LockOwner: true}
+		if err := getDiscussion(ctx, owner); err != nil {
+			return err
+		}
+		c.Discussion = owner.Result
+
+		if _, err := trx.Execute("SELECT id FROM comments WHERE tenant_id = $1 AND id = $2 FOR UPDATE", tenant.ID, c.CommentID); err != nil {
+			return err
+		}
+
+		comment := &query.GetCommentByID{CommentID: c.CommentID, IncludeDeleted: true}
+		if err := getCommentByID(ctx, comment); err != nil {
+			return err
+		}
+
+		fingerprint, err := commentFingerprint(owner.Result.Owner, c.CommentID, comment.Result.ParentID, c.Content, c.Attachments)
+		if err != nil {
+			return err
+		}
+
+		identity := fmt.Sprintf("comment-edit:%d:%d:%s", tenant.ID, user.ID, c.SubmissionID)
+		if _, err := trx.Execute("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", identity); err != nil {
+			return err
+		}
+
+		var savedHash string
+		err = trx.Scalar(&savedHash, `
+            SELECT submission_hash FROM comment_edit_receipts
+            WHERE tenant_id = $1 AND user_id = $2 AND submission_id = $3
+        `, tenant.ID, user.ID, c.SubmissionID)
+		if err == nil {
+			if savedHash != fingerprint {
+				return app.ErrConflict
+			}
+
+			c.Result = comment.Result
+			return nil
+		}
+
+		if errors.Cause(err) != app.ErrNotFound {
+			return err
+		}
+
+		input := actions.CommentInput{
+			Discussion:  owner.Result,
+			Comment:     comment.Result,
+			Content:     c.Content,
+			Attachments: c.Attachments,
+		}
+		if validation := input.Validate(ctx, user); !validation.Ok {
+			return validation
+		}
+
+		previousContent := comment.Result.Content
+		content := storedCommentContent(c.Content)
+		_, err = trx.Execute(`
+			UPDATE comments SET content = $1, edited_by_id = $2,
+                edited_at = GREATEST(CURRENT_TIMESTAMP,
+                    COALESCE(edited_at, created_at) + INTERVAL '1 microsecond')
+			WHERE id = $3 AND tenant_id = $4`, content, user.ID, c.CommentID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed update comment")
 		}
-		return nil
+
+		if err := setCommentAttachments(ctx, comment.Result.PostID, c.CommentID, c.Attachments); err != nil {
+			return err
+		}
+
+		if err := scheduleModeration(ctx, &cmd.ScheduleModeration{ContentType: "comment", ContentID: c.CommentID}); err != nil {
+			return err
+		}
+
+		if err := getCommentByID(ctx, comment); err != nil {
+			return err
+		}
+
+		c.Result = comment.Result
+
+		mentions := newCommentMentions(content, previousContent)
+		if len(mentions) > 0 {
+			if err := scheduleNotification(ctx, &cmd.ScheduleNotification{
+				BaseURL: c.BaseURL,
+				Comment: &entity.CommentNotification{
+					CommentID:  c.CommentID,
+					Owner:      owner.Result.Owner,
+					Content:    content,
+					MentionIDs: mentions,
+					Edited:     true,
+				},
+			}); err != nil {
+				return err
+			}
+		}
+
+		_, err = trx.Execute(`
+            INSERT INTO comment_edit_receipts (tenant_id, user_id, submission_id, comment_id, submission_hash)
+            VALUES ($1, $2, $3, $4, $5)
+        `, tenant.ID, user.ID, c.SubmissionID, c.CommentID, fingerprint)
+		return err
 	})
 }
 
 func deleteComment(ctx context.Context, c *cmd.DeleteComment) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		owner := &query.GetDiscussion{CommentID: c.CommentID, LockOwner: true}
+		if err := getDiscussion(ctx, owner); err != nil {
+			return err
+		}
+
+		comment := &query.GetCommentByID{CommentID: c.CommentID, IncludeDeleted: true}
+		if err := getCommentByID(ctx, comment); err != nil {
+			return err
+		}
+
+		if !comment.Result.AllowedActions(user, owner.Result, tenant, time.Now()).Delete {
+			return validate.Unauthorized()
+		}
+
+		c.Discussion = owner.Result
+		c.Result = comment.Result
+		if comment.Result.Deleted {
+			return nil
+		}
+
 		if _, err := trx.Execute(
 			"UPDATE comments SET deleted_at = $1, deleted_by_id = $2 WHERE id = $3 AND tenant_id = $4",
 			time.Now(), user.ID, c.CommentID, tenant.ID,
 		); err != nil {
 			return errors.Wrap(err, "failed delete comment")
 		}
+		c.Result.Deleted = true
 		return nil
 	})
 }
@@ -135,144 +258,24 @@ func deleteComment(ctx context.Context, c *cmd.DeleteComment) error {
 func getCommentByID(ctx context.Context, q *query.GetCommentByID) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = nil
+		viewerID := 0
+		if user != nil {
+			viewerID = user.ID
+		}
 
-		comment := dbComment{}
-		err := trx.Get(&comment,
-			`SELECT c.id, 
-							c.content, 
-							c.created_at, 
-							c.edited_at, 
-							u.id AS user_id, 
-							u.name AS user_name,
-							u.email AS user_email,
-							u.role AS user_role,
-							u.visual_role AS user_visual_role,
-							u.status AS user_status,
-							u.avatar_type AS user_avatar_type,
-							u.avatar_bkey AS user_avatar_bkey, 
-							e.id AS edited_by_id, 
-							e.name AS edited_by_name,
-							e.email AS edited_by_email,
-							e.role AS edited_by_role,
-							e.visual_role AS edited_by_visual_role,
-							e.status AS edited_by_status,
-							e.avatar_type AS edited_by_avatar_type,
-							e.avatar_bkey AS edited_by_avatar_bkey
-			FROM comments c
-			INNER JOIN users u
-			ON u.id = c.user_id
-			AND u.tenant_id = c.tenant_id
-			LEFT JOIN users e
-			ON e.id = c.edited_by_id
-			AND e.tenant_id = c.tenant_id
-			WHERE c.id = $1
-			AND c.tenant_id = $2
-			AND c.deleted_at IS NULL`, q.CommentID, tenant.ID)
-
+		comments, err := readComments(ctx, trx, `
+            SELECT id, 0 AS position FROM comments
+            WHERE tenant_id = $1 AND id = $3 AND (deleted_at IS NULL OR $4)
+        `, tenant.ID, viewerID, q.CommentID, q.IncludeDeleted)
 		if err != nil {
 			return err
 		}
 
-		q.Result = comment.toModel(ctx)
-		return nil
-	})
-}
-
-func getCommentsByPost(ctx context.Context, q *query.GetCommentsByPost) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		q.Result = make([]*entity.Comment, 0)
-
-		comments := []*dbComment{}
-		userId := 0
-		if user != nil {
-			userId = user.ID
-		}
-		err := trx.Select(&comments,
-			`
-			WITH agg_attachments AS ( 
-					SELECT 
-							c.id as comment_id, 
-							ARRAY_REMOVE(ARRAY_AGG(at.attachment_bkey), NULL) as attachment_bkeys
-					FROM attachments at
-					INNER JOIN comments c
-					ON at.tenant_id = c.tenant_id
-					AND at.post_id = c.post_id
-					AND at.comment_id = c.id
-					WHERE at.post_id = $1
-					AND at.tenant_id = $2
-					AND at.comment_id IS NOT NULL
-					GROUP BY c.id 
-			),
-			agg_reactions AS (
-				SELECT 
-					comment_id,
-					json_agg(json_build_object(
-						'emoji', emoji,
-						'count', count,
-						'includesMe', CASE WHEN $3 = ANY(user_ids) THEN true ELSE false END
-					) ORDER BY count DESC) as reaction_counts
-				FROM (
-					SELECT 
-						comment_id, 
-						emoji, 
-						COUNT(*) as count,
-						array_agg(user_id) as user_ids
-					FROM reactions
-					WHERE comment_id IN (SELECT id FROM comments WHERE post_id = $1)
-					GROUP BY comment_id, emoji
-				) r
-				GROUP BY comment_id
-			)
-			SELECT c.id, 
-					c.content, 
-					c.created_at, 
-					c.edited_at, 
-					u.id AS user_id, 
-					u.name AS user_name,
-					u.email AS user_email,
-					u.role AS user_role, 
-					u.visual_role AS user_visual_role,
-					u.status AS user_status, 
-					u.avatar_type AS user_avatar_type, 
-					u.avatar_bkey AS user_avatar_bkey, 
-					e.id AS edited_by_id, 
-					e.name AS edited_by_name,
-					e.email AS edited_by_email,
-					e.role AS edited_by_role,
-					e.status AS edited_by_status,
-					e.avatar_type AS edited_by_avatar_type, 
-					e.avatar_bkey AS edited_by_avatar_bkey,
-					at.attachment_bkeys,
-					ar.reaction_counts,
-					c.moderation_pending,
-					c.moderation_data
-			FROM comments c
-			INNER JOIN posts p
-			ON p.id = c.post_id
-			AND p.tenant_id = c.tenant_id
-			INNER JOIN users u
-			ON u.id = c.user_id
-			AND u.tenant_id = c.tenant_id
-			LEFT JOIN users e
-			ON e.id = c.edited_by_id
-			AND e.tenant_id = c.tenant_id
-			LEFT JOIN agg_attachments at
-			ON at.comment_id = c.id
-			LEFT JOIN agg_reactions ar
-			ON ar.comment_id = c.id
-			WHERE p.id = $1
-			AND p.tenant_id = $2
-			AND c.deleted_at IS NULL
-			AND (c.moderation_pending = FALSE OR c.user_id = $4 OR $5 = TRUE)
-			ORDER BY c.created_at ASC`, q.Post.ID, tenant.ID, userId, userId, user != nil && (user.IsCollaborator() || user.IsModerator() || user.IsAdministrator()))
-		if err != nil {
-			return errors.Wrap(err, "failed get comments of post with id '%d'", q.Post.ID)
+		if len(comments) == 0 {
+			return app.ErrNotFound
 		}
 
-		q.Result = make([]*entity.Comment, len(comments))
-		for i, comment := range comments {
-			q.Result[i] = comment.toModel(ctx)
-		}
+		q.Result = comments[0]
 		return nil
 	})
 }

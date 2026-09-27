@@ -247,7 +247,7 @@ const createReportsEventSource = (): ReportsEventSource => {
   const instance = createEventSource({
     endpoint: "/api/mod/report-events",
     heartbeatConfig: {
-      heartbeatEndpoint: (reportId) => `/api/v1/reports/${reportId}/heartbeat`,
+      heartbeatEndpoint: (reportId) => `/api/reports/${reportId}/heartbeat`,
       stopViewingEndpoint: "/api/mod/viewing",
     },
   })
@@ -263,7 +263,7 @@ const createQueueEventSource = (): QueueEventSource => {
   const instance = createEventSource({
     endpoint: "/api/mod/queue-events",
     heartbeatConfig: {
-      heartbeatEndpoint: (postId) => `/api/v1/queue/${postId}/heartbeat`,
+      heartbeatEndpoint: (postId) => `/api/queue/${postId}/heartbeat`,
       stopViewingEndpoint: "/api/mod/queue-viewing",
     },
   })

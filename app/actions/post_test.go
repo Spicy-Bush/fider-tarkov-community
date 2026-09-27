@@ -116,38 +116,3 @@ func TestDeletePost_WhenIsBeingReferenced(t *testing.T) {
 	Expect(err).IsNil()
 	ExpectFailed(action2.Validate(ctx, nil))
 }
-
-func TestDeleteComment(t *testing.T) {
-	RegisterT(t)
-
-	author := &entity.User{ID: 1, Role: enum.RoleVisitor}
-	notAuthor := &entity.User{ID: 2, Role: enum.RoleVisitor}
-	administrator := &entity.User{ID: 3, Role: enum.RoleAdministrator}
-	comment := &entity.Comment{
-		ID:      1,
-		User:    author,
-		Content: "Comment #1",
-	}
-
-	bus.AddHandler(func(ctx context.Context, q *query.GetCommentByID) error {
-		if q.CommentID == comment.ID {
-			q.Result = comment
-			return nil
-		}
-		return app.ErrNotFound
-	})
-
-	ctx := createTestContext()
-	action := &actions.DeleteComment{
-		CommentID: comment.ID,
-	}
-
-	authorized := action.IsAuthorized(ctx, notAuthor)
-	Expect(authorized).IsFalse()
-
-	authorized = action.IsAuthorized(ctx, author)
-	Expect(authorized).IsTrue()
-
-	authorized = action.IsAuthorized(ctx, administrator)
-	Expect(authorized).IsTrue()
-}

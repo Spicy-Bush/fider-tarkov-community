@@ -18,7 +18,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/tasks"
 )
 
-func TestDeliverPendingPostNotification(t *testing.T) {
+func TestDeliverPendingNotification(t *testing.T) {
 	RegisterT(t)
 	bus.Init(emailmock.Service{})
 
@@ -60,14 +60,15 @@ func TestDeliverPendingPostNotification(t *testing.T) {
 		return nil
 	})
 
-	bus.AddHandler(func(ctx context.Context, c *cmd.ProcessPostNotification) error {
-		recipients, err := c.Prepare(ctx, post)
+	bus.AddHandler(func(ctx context.Context, c *cmd.ProcessNotification) error {
+		delivery := &entity.NotificationDelivery{Post: post}
+		recipients, err := c.Prepare(ctx, delivery)
 		if err != nil {
 			return err
 		}
 
 		for _, recipient := range recipients {
-			if err := c.Send(ctx, post, []cmd.PostNotificationRecipient{recipient}); err != nil {
+			if err := c.Send(ctx, delivery, []cmd.NotificationRecipient{recipient}); err != nil {
 				return err
 			}
 		}
@@ -78,7 +79,7 @@ func TestDeliverPendingPostNotification(t *testing.T) {
 	task := worker.Task{
 		Name: "deliver",
 		Job: func(ctx *worker.Context) error {
-			_, err := tasks.DeliverPendingPostNotification(ctx)
+			_, err := tasks.DeliverPendingNotification(ctx)
 			return err
 		},
 	}

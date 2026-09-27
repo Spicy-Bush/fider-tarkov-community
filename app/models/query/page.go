@@ -34,11 +34,6 @@ type GetPageDraft struct {
 	Result *entity.PageDraft
 }
 
-type GetCommentsByPage struct {
-	Page   *entity.Page
-	Result []*entity.Comment
-}
-
 type GetPageTopics struct {
 	Result []*entity.PageTopic
 }

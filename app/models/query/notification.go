@@ -41,3 +41,10 @@ type GetUsersToNotify struct {
 	Channel enum.NotificationChannel
 	Result  []*entity.User
 }
+
+type GetCommentNotificationUsers struct {
+	Notification *entity.CommentNotification
+	Channel      enum.NotificationChannel
+	UserIDs      []int
+	Result       []*entity.User
+}

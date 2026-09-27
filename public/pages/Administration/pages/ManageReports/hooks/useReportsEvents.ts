@@ -1,96 +1,56 @@
-import { useEffect } from "react"
-import { Report, ReportStatus, ReportNewEvent, ReportAssignedEvent, ReportUnassignedEvent, ReportResolvedEvent } from "@fider/models"
+import { useEffect, useRef } from "react"
 import { reportsEventSource } from "@fider/services"
 
-interface UseReportsEventsConfig {
-  selectedReportRef: React.MutableRefObject<Report | null>
-  selectedStatusRef: React.MutableRefObject<ReportStatus | "active">
-  setReports: React.Dispatch<React.SetStateAction<Report[]>>
-  setSelectedReport: React.Dispatch<React.SetStateAction<Report | null>>
-  setNewReportIds: React.Dispatch<React.SetStateAction<Set<number>>>
-}
-
-export const useReportsEvents = (config: UseReportsEventsConfig): void => {
-  const {
-    selectedReportRef,
-    selectedStatusRef,
-    setReports,
-    setSelectedReport,
-    setNewReportIds,
-  } = config
+export function useReportsEvents(refresh: () => Promise<void>): void {
+  const currentRefresh = useRef(refresh)
+  currentRefresh.current = refresh
 
   useEffect(() => {
-    reportsEventSource.connect()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let running = false
+    let changed = false
+    let disposed = false
 
-    const unsubNewReport = reportsEventSource.on("report.new", (_, payload) => {
-      const data = payload as ReportNewEvent
-      if (selectedStatusRef.current === "active" || selectedStatusRef.current === "pending") {
-        setNewReportIds((prev) => new Set(prev).add(data.reportId))
+    const reload = async () => {
+      if (running || disposed) {
+        return
       }
-    })
 
-    const unsubAssigned = reportsEventSource.on("report.assigned", (_, payload) => {
-      const data = payload as ReportAssignedEvent
-      const assignedUser = {
-        id: data.assignedTo.userId,
-        name: data.assignedTo.userName,
-        avatarURL: data.assignedTo.avatarURL,
-        avatarType: data.assignedTo.avatarType,
-        role: data.assignedTo.role,
-        status: data.assignedTo.status,
-      } as Report["assignedTo"]
+      running = true
+      changed = false
 
-      setReports((prev) =>
-        prev.map((r) =>
-          r.id === data.reportId
-            ? { ...r, status: "in_review" as ReportStatus, assignedTo: assignedUser }
-            : r
-        )
-      )
-      if (selectedReportRef.current?.id === data.reportId) {
-        setSelectedReport((prev) =>
-          prev ? { ...prev, status: "in_review" as ReportStatus, assignedTo: assignedUser } : prev
-        )
-      }
-    })
+      try {
+        await currentRefresh.current()
+      } finally {
+        running = false
 
-    const unsubUnassigned = reportsEventSource.on("report.unassigned", (_, payload) => {
-      const data = payload as ReportUnassignedEvent
-      setReports((prev) =>
-        prev.map((r) =>
-          r.id === data.reportId
-            ? { ...r, status: "pending" as ReportStatus, assignedTo: undefined }
-            : r
-        )
-      )
-      if (selectedReportRef.current?.id === data.reportId) {
-        setSelectedReport((prev) =>
-          prev ? { ...prev, status: "pending" as ReportStatus, assignedTo: undefined } : prev
-        )
-      }
-    })
-
-    const unsubResolved = reportsEventSource.on("report.resolved", (_, payload) => {
-      const data = payload as ReportResolvedEvent
-      if (selectedStatusRef.current === "active") {
-        setReports((prev) => prev.filter((r) => r.id !== data.reportId))
-        if (selectedReportRef.current?.id === data.reportId) {
-          setSelectedReport(null)
+        if (changed && !disposed) {
+          timer = setTimeout(reload, 100)
         }
-      } else {
-        setReports((prev) =>
-          prev.map((r) => (r.id === data.reportId ? { ...r, status: data.status as ReportStatus } : r))
-        )
       }
-    })
+    }
+
+    const invalidate = () => {
+      changed = true
+
+      if (running) {
+        return
+      }
+
+      clearTimeout(timer)
+      timer = setTimeout(reload, 100)
+    }
+
+    reportsEventSource.connect()
+    const unsubscribe = reportsEventSource.on("reports.changed", invalidate)
+    const reconnect = reportsEventSource.on("connection.open", invalidate)
 
     return () => {
-      unsubNewReport()
-      unsubAssigned()
-      unsubUnassigned()
-      unsubResolved()
+      disposed = true
+      clearTimeout(timer)
+      unsubscribe()
+      reconnect()
       reportsEventSource.disconnect()
     }
   }, [])
 }
-

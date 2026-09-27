@@ -41,6 +41,7 @@ const EditPagePage = (props: EditPagePageProps) => {
   const [visibility, setVisibility] = useState<string>(props.page?.visibility || "public")
   const [allowedRoles, setAllowedRoles] = useState<string[]>(props.page?.allowedRoles || [])
   const [allowComments, setAllowComments] = useState(props.page?.allowComments ?? false)
+  const [allowCommentImages, setAllowCommentImages] = useState(props.page?.allowCommentImages ?? false)
   const [allowReactions, setAllowReactions] = useState(props.page?.allowReactions ?? true)
   const [showTOC, setShowTOC] = useState(props.page?.showToc ?? false)
   const [selectedTopics, setSelectedTopics] = useState<number[]>(props.page?.topics?.map(t => t.id) || [])
@@ -79,6 +80,7 @@ const EditPagePage = (props: EditPagePageProps) => {
       visibility,
       allowedRoles: visibility === "private" ? allowedRoles : undefined,
       allowComments,
+      allowCommentImages,
       allowReactions,
       showToc: showTOC,
       topics: selectedTopics,
@@ -89,8 +91,8 @@ const EditPagePage = (props: EditPagePageProps) => {
 
     try {
       const result = isNew
-        ? await http.post<{ id: number }>("/_api/pages", payload)
-        : await http.put(`/_api/pages/${props.page!.id}`, payload)
+        ? await http.post<{ id: number }>("/api/pages", payload)
+        : await http.put(`/api/pages/${props.page!.id}`, payload)
 
       if (result.ok) {
         if (isNew && result.data) {
@@ -161,7 +163,7 @@ const EditPagePage = (props: EditPagePageProps) => {
     if (!newTopicName.trim()) return
     setIsCreatingTopic(true)
     try {
-      const result = await http.post<PageTopic>("/_api/page-topics", { name: newTopicName.trim() })
+      const result = await http.post<PageTopic>("/api/page-topics", { name: newTopicName.trim() })
       if (result.ok && result.data) {
         setAvailableTopics(prev => [...prev, result.data!])
         setSelectedTopics(prev => [...prev, result.data!.id])
@@ -176,7 +178,7 @@ const EditPagePage = (props: EditPagePageProps) => {
     if (!newTagName.trim()) return
     setIsCreatingTag(true)
     try {
-      const result = await http.post<PageTag>("/_api/page-tags", { name: newTagName.trim() })
+      const result = await http.post<PageTag>("/api/page-tags", { name: newTagName.trim() })
       if (result.ok && result.data) {
         setAvailableTags(prev => [...prev, result.data!])
         setSelectedTags(prev => [...prev, result.data!.id])
@@ -542,6 +544,16 @@ const EditPagePage = (props: EditPagePageProps) => {
                   className="rounded"
                 />
                 <span className="text-sm">Allow Comments</span>
+              </label>
+
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={allowCommentImages}
+                  onChange={(event) => setAllowCommentImages(event.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-sm">Allow Images in Comments</span>
               </label>
 
               <label className="flex items-center gap-2">

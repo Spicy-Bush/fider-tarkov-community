@@ -1,12 +1,13 @@
 import React, { useState, useCallback, useEffect, useRef } from "react"
 import ReactDOM from "react-dom"
-import { Post, Tag, PostStatus, isPostLocked, Comment } from "@fider/models"
+import { Post, Tag, PostStatus, isPostLocked } from "@fider/models"
 import { actions, analytics, notify, PAGINATION } from "@fider/services"
 import { RequestError } from "@fider/services/http"
 import { Icon, Button, SignInModal } from "@fider/components"
 import { VStack, HStack } from "@fider/components/layout"
 import { SwipeCard } from "./SwipeCard"
 import { useFider, useStackNavigation } from "@fider/hooks"
+import { useBodyScrollLock } from "@fider/hooks/useBodyScrollLock"
 import {
   heroiconsX as IconX,
   heroiconsThumbsup as IconUp,
@@ -46,6 +47,7 @@ function filterVotablePosts(posts: Post[], isReadOnly: boolean): Post[] {
 
 export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) => {
   const fider = useFider()
+  useBodyScrollLock(isOpen)
   const root = useRef<HTMLElement | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(true)
   const [controlMode, setControlMode] = useState<ControlMode>("swipe")
@@ -54,7 +56,6 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
   const [voteHistory, setVoteHistory] = useState<{ post: Post; newVote: "up" | "down" }[]>([])
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
   const [attachmentsMap, setAttachmentsMap] = useState<Record<number, string[]>>({})
-  const [commentsMap, setCommentsMap] = useState<Record<number, Comment[]>>({})
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [swipeProgress, setSwipeProgress] = useState(0)
@@ -123,20 +124,16 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
   useEffect(() => {
     if (isOpen) {
       setShowOnboarding(true)
-      document.body.style.overflow = "hidden"
       if (!hasInitializedRef.current) {
         hasInitializedRef.current = true
         setAttachmentsMap({})
-        setCommentsMap({})
         loadedPostData.current.clear()
         pushState({ swipeIndex: 0 })
         loadPosts(true)
       }
     } else {
-      document.body.style.overflow = ""
       hasInitializedRef.current = false
     }
-    return () => { document.body.style.overflow = "" }
   }, [isOpen, loadPosts, pushState])
 
   useEffect(() => {
@@ -147,11 +144,6 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
     actions.getPostAttachments(currentPost.number).then(result => {
       if (result.ok && result.data) {
         setAttachmentsMap(prev => ({ ...prev, [currentPost.number]: result.data! }))
-      }
-    })
-    actions.getAllComments(currentPost.number).then(result => {
-      if (result.ok && result.data) {
-        setCommentsMap(prev => ({ ...prev, [currentPost.number]: result.data! }))
       }
     })
   }, [isOpen, currentIndex, posts])
@@ -287,7 +279,6 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
                 post={currentPost}
                 tags={tags}
                 attachments={attachmentsMap[currentPost.number]}
-                comments={commentsMap[currentPost.number]}
                 isActive={true}
                 controlMode={controlMode}
                 onSwipe={handleVote}

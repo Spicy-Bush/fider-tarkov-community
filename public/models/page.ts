@@ -17,6 +17,7 @@ export interface Page {
   allowedRoles?: string[]
   parentPageId?: number
   allowComments: boolean
+  allowCommentImages: boolean
   allowReactions: boolean
   showToc: boolean
   scheduledFor?: string
@@ -62,4 +63,3 @@ export interface PageDraft {
   showToc: boolean
   updatedAt: string
 }
-

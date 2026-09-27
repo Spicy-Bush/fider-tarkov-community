@@ -155,20 +155,20 @@ func TestPostNotificationMailgunRecovery(t *testing.T) {
 			})
 
 			f.queuePostNotification(t)
-			if _, err := tasks.DeliverPendingPostNotification(f.ctx); err != nil {
+			if _, err := tasks.DeliverPendingNotification(f.ctx); err != nil {
 				t.Fatal(err)
 			}
 
-			if _, err := tasks.DeliverPendingPostNotification(f.ctx); err == nil {
+			if _, err := tasks.DeliverPendingNotification(f.ctx); err == nil {
 				t.Fatal("expected provider rejection")
 			}
 
-			if _, err := dbx.Connection().Exec("UPDATE post_notification_recipients SET available_at = NOW()"); err != nil {
+			if _, err := dbx.Connection().Exec("UPDATE notification_recipients SET available_at = NOW()"); err != nil {
 				t.Fatal(err)
 			}
 
 			for {
-				found, err := tasks.DeliverPendingPostNotification(f.ctx)
+				found, err := tasks.DeliverPendingNotification(f.ctx)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -214,8 +214,8 @@ func TestPostNotificationMailgunRecovery(t *testing.T) {
 				}
 			}
 
-			pendingDeliveries := workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries")
-			pendingRecipients := workflowCount(t, "SELECT COUNT(*) FROM post_notification_recipients")
+			pendingDeliveries := workflowCount(t, "SELECT COUNT(*) FROM notification_deliveries")
+			pendingRecipients := workflowCount(t, "SELECT COUNT(*) FROM notification_recipients")
 			if pendingDeliveries != 0 || pendingRecipients != 0 {
 				t.Fatal("finished deliveries were not reclaimed")
 			}
@@ -227,10 +227,10 @@ func TestPostNotificationConcurrentEmailBatches(t *testing.T) {
 	f := newPostWorkflow(t)
 	f.queuePostNotification(t)
 
-	prepare := func(context.Context, *entity.Post) ([]cmd.PostNotificationRecipient, error) {
-		recipients := make([]cmd.PostNotificationRecipient, 1002)
+	prepare := func(context.Context, *entity.NotificationDelivery) ([]cmd.NotificationRecipient, error) {
+		recipients := make([]cmd.NotificationRecipient, 1002)
 		for i := range recipients {
-			recipients[i] = cmd.PostNotificationRecipient{
+			recipients[i] = cmd.NotificationRecipient{
 				Channel: "email",
 				ID:      i + 1,
 			}
@@ -239,19 +239,19 @@ func TestPostNotificationConcurrentEmailBatches(t *testing.T) {
 		return recipients, nil
 	}
 
-	if err := bus.Dispatch(f.ctx, &cmd.ProcessPostNotification{Prepare: prepare}); err != nil {
+	if err := bus.Dispatch(f.ctx, &cmd.ProcessNotification{Prepare: prepare}); err != nil {
 		t.Fatal(err)
 	}
 
-	entered := make(chan []cmd.PostNotificationRecipient, 2)
+	entered := make(chan []cmd.NotificationRecipient, 2)
 	release := make(chan struct{})
 	finished := make(chan error, 2)
 
 	for i := 0; i < 2; i++ {
 		go func() {
-			finished <- bus.Dispatch(f.ctx, &cmd.ProcessPostNotification{
+			finished <- bus.Dispatch(f.ctx, &cmd.ProcessNotification{
 				EmailBatchSize: 1000,
-				Send: func(_ context.Context, _ *entity.Post, recipients []cmd.PostNotificationRecipient) error {
+				Send: func(_ context.Context, _ *entity.NotificationDelivery, recipients []cmd.NotificationRecipient) error {
 					entered <- recipients
 					<-release
 					return nil
@@ -297,7 +297,7 @@ func TestPostNotificationConcurrentEmailBatches(t *testing.T) {
 		}
 	}
 
-	if workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries") != 0 {
+	if workflowCount(t, "SELECT COUNT(*) FROM notification_deliveries") != 0 {
 		t.Fatal("concurrent batches retained completed work")
 	}
 }

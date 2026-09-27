@@ -1,20 +1,16 @@
-// ReportModal converted to Tailwind
-
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { Modal, Form, TextArea, Button, Loader } from "@fider/components"
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
 import { actions, Failure, classSet } from "@fider/services"
 import { ReportType, ReportReason } from "@fider/models"
 
-interface ReportModalProps {
+type ReportModalProps = {
   isOpen: boolean
   onClose: () => void
-  postNumber: number
-  commentId?: number
   onSubmit?: () => void
   reasons?: ReportReason[]
-}
+} & ({ postNumber: number; commentId?: never } | { postNumber?: never; commentId: number })
 
 export const ReportModal: React.FC<ReportModalProps> = ({
   isOpen,
@@ -32,9 +28,36 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<Failure | undefined>()
   const [success, setSuccess] = useState(false)
+  const reasonsRequest = useRef(0)
 
   const isComment = commentId !== undefined
   const reportedType: ReportType = isComment ? "comment" : "post"
+
+  const loadReasons = async () => {
+    const request = ++reasonsRequest.current
+    setIsLoading(true)
+    setError(undefined)
+
+    try {
+      const result = await actions.getReportReasons()
+
+      if (request === reasonsRequest.current) {
+        if (result.ok) {
+          setReasons(result.data)
+        } else {
+          setError(result.error)
+        }
+      }
+    } catch (cause) {
+      if (request === reasonsRequest.current) {
+        setError({ errors: [{ message: "Could not load report reasons. Please retry." }], cause })
+      }
+    } finally {
+      if (request === reasonsRequest.current) {
+        setIsLoading(false)
+      }
+    }
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -47,37 +70,38 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       if (propReasons && propReasons.length > 0) {
         setReasons(propReasons)
       } else {
-        setIsLoading(true)
-        actions.getReportReasons().then((result) => {
-          if (result.ok) {
-            setReasons(result.data)
-          }
-          setIsLoading(false)
-        })
+        void loadReasons()
       }
+    }
+
+    return () => {
+      reasonsRequest.current++
     }
   }, [isOpen, propReasons])
 
   const handleSubmit = async () => {
-    if (!selectedReason) return
+    if (!selectedReason || isSubmitting) {
+      return
+    }
 
     setIsSubmitting(true)
     setError(undefined)
 
-    const result = isComment
-      ? await actions.reportComment(postNumber, commentId!, selectedReason, details || undefined)
-      : await actions.reportPost(postNumber, selectedReason, details || undefined)
+    try {
+      const result = commentId !== undefined
+        ? await actions.reportComment(commentId, selectedReason, details || undefined)
+        : await actions.reportPost(postNumber, selectedReason, details || undefined)
 
-    setIsSubmitting(false)
-
-    if (result.ok) {
-      setSuccess(true)
-      setTimeout(() => {
-        onClose()
-        if (onSubmit) onSubmit()
-      }, 1500)
-    } else {
-      setError(result.error)
+      if (result.ok) {
+        setSuccess(true)
+        onSubmit?.()
+      } else {
+        setError(result.error)
+      }
+    } catch (cause) {
+      setError({ errors: [{ message: "Could not submit your report. Your reason and details are retained." }], cause })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -106,6 +130,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 Thank you for helping keep our community safe.
               </Trans>
             </p>
+            <Button className="mt-4" onClick={onClose}>Close</Button>
           </div>
         </Modal.Content>
       </Modal.Window>
@@ -118,6 +143,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
       <Modal.Content>
         <Form error={error}>
+          {!isLoading && reasons.length === 0 && error && (
+            <Button onClick={loadReasons}>Retry loading reasons</Button>
+          )}
           {isLoading ? (
             <div className="py-4 text-center">
               <Loader />
@@ -197,4 +225,3 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     </Modal.Window>
   )
 }
-

@@ -28,11 +28,28 @@ const dateOpts: DateOptsMap = {
   full: { day: "2-digit", month: "long", year: "numeric", hour: "numeric", minute: "numeric" },
 }
 
+let dateLocale: string | undefined
+const dateFormatters = new Map<DateFormat, Intl.DateTimeFormat>()
+let relativeTimeFormatter: Intl.RelativeTimeFormat | undefined
+let relativeTimeLocale: string | undefined
+
 export const formatDate = (locale: string, input: Date | string, format: DateFormat = "full"): string => {
   const date = input instanceof Date ? input : new Date(input)
 
   try {
-    return new Intl.DateTimeFormat(locale, dateOpts[format]).format(date)
+    if (dateLocale !== locale) {
+      dateFormatters.clear()
+      dateLocale = locale
+    }
+
+    let formatter = dateFormatters.get(format)
+
+    if (!formatter) {
+      formatter = new Intl.DateTimeFormat(locale, dateOpts[format])
+      dateFormatters.set(format, formatter)
+    }
+
+    return formatter.format(date)
   } catch {
     return date.toLocaleString(locale)
   }
@@ -47,7 +64,12 @@ export const timeSince = (locale: string, now: Date, date: Date, dateFormat: Dat
     const months = Math.round(days / 30)
     const years = Math.round(days / 365)
 
-    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" })
+    if (!relativeTimeFormatter || relativeTimeLocale !== locale) {
+      relativeTimeFormatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" })
+      relativeTimeLocale = locale
+    }
+
+    const rtf = relativeTimeFormatter
     return (
       (seconds < 60 && rtf.format(-1 * seconds, "seconds")) ||
       (minutes < 60 && rtf.format(-1 * minutes, "minutes")) ||
@@ -121,11 +143,37 @@ export type StringObject<T = any> = {
   [key: string]: T
 }
 
-export const copyToClipboard = (text: string): Promise<void> => {
-  if (window.navigator && window.navigator.clipboard && window.navigator.clipboard.writeText) {
-    return window.navigator.clipboard.writeText(text)
+export const copyToClipboard = async (text: string): Promise<void> => {
+  if (window.navigator.clipboard?.writeText) {
+    try {
+      await window.navigator.clipboard.writeText(text)
+      return
+    } catch {
+      // Browser permissions can restrict the Clipboard API while still allowing a user-initiated copy.
+    }
   }
-  return Promise.reject(new Error("Clipboard API not available"))
+
+  const previousFocus = document.activeElement
+  const input = document.createElement("textarea")
+  input.value = text
+  input.readOnly = true
+  input.style.position = "fixed"
+  input.style.opacity = "0"
+  document.body.appendChild(input)
+
+  try {
+    input.select()
+
+    if (!document.execCommand("copy")) {
+      throw new Error("The browser did not allow copying to the clipboard.")
+    }
+  } finally {
+    input.remove()
+
+    if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
+      previousFocus.focus()
+    }
+  }
 }
 
 export const clearUrlHash = (replace?: boolean) => {

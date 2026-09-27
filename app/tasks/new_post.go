@@ -21,7 +21,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/services/email"
 )
 
-func preparePostNotifications(ctx context.Context, post *entity.Post) ([]cmd.PostNotificationRecipient, error) {
+func preparePostNotifications(ctx context.Context, post *entity.Post) ([]cmd.NotificationRecipient, error) {
 	author := ctx.Value(app.UserCtxKey).(*entity.User)
 	users, err := getActiveSubscribers(ctx, post, enum.NotificationChannelWeb, enum.NotificationEventNewPost)
 	if err != nil {
@@ -49,7 +49,7 @@ func preparePostNotifications(ctx context.Context, post *entity.Post) ([]cmd.Pos
 		}
 	}
 
-	var recipients []cmd.PostNotificationRecipient
+	var recipients []cmd.NotificationRecipient
 	if !env.Config.Email.DisableEmailNotifications {
 		users, err := getActiveSubscribers(ctx, post, enum.NotificationChannelEmail, enum.NotificationEventNewPost)
 		if err != nil {
@@ -58,7 +58,7 @@ func preparePostNotifications(ctx context.Context, post *entity.Post) ([]cmd.Pos
 
 		for _, user := range users {
 			if user.ID != author.ID {
-				recipients = append(recipients, cmd.PostNotificationRecipient{
+				recipients = append(recipients, cmd.NotificationRecipient{
 					Channel: "email",
 					ID:      user.ID,
 				})
@@ -85,7 +85,7 @@ func preparePostNotifications(ctx context.Context, post *entity.Post) ([]cmd.Pos
 		}
 
 		for _, subscription := range subscriptions.Result {
-			recipients = append(recipients, cmd.PostNotificationRecipient{
+			recipients = append(recipients, cmd.NotificationRecipient{
 				Channel: "push",
 				ID:      subscription.ID,
 			})
@@ -98,7 +98,7 @@ func preparePostNotifications(ctx context.Context, post *entity.Post) ([]cmd.Pos
 	}
 
 	for _, hook := range webhooks.Result {
-		recipients = append(recipients, cmd.PostNotificationRecipient{
+		recipients = append(recipients, cmd.NotificationRecipient{
 			Channel: "webhook",
 			ID:      hook.ID,
 		})
@@ -107,7 +107,7 @@ func preparePostNotifications(ctx context.Context, post *entity.Post) ([]cmd.Pos
 	return recipients, nil
 }
 
-func sendPostNotification(ctx context.Context, post *entity.Post, recipients []cmd.PostNotificationRecipient) error {
+func sendPostNotification(ctx context.Context, post *entity.Post, recipients []cmd.NotificationRecipient) error {
 	recipient := recipients[0]
 	author := ctx.Value(app.UserCtxKey).(*entity.User)
 	tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)

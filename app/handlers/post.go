@@ -191,11 +191,10 @@ func PostDetails() web.HandlerFunc {
 		}
 
 		isSubscribed := &query.UserSubscribedTo{PostID: getPost.Result.ID}
-		getComments := &query.GetCommentsByPost{Post: getPost.Result}
 		getAllTags := &query.GetAllTags{}
-		getAttachments := &query.GetAttachments{Post: getPost.Result}
+		getAttachments := &query.GetPostAttachments{PostID: getPost.Result.ID}
 		getReportReasons := &query.GetReportReasons{}
-		if err := bus.Dispatch(c, getAllTags, getComments, isSubscribed, getAttachments, getReportReasons); err != nil {
+		if err := bus.Dispatch(c, getAllTags, isSubscribed, getAttachments, getReportReasons); err != nil {
 			return c.Failure(err)
 		}
 
@@ -221,7 +220,6 @@ func PostDetails() web.HandlerFunc {
 		}
 
 		data := web.Map{
-			"comments":      getComments.Result,
 			"subscribed":    isSubscribed.Result,
 			"post":          getPost.Result,
 			"tags":          getAllTags.Result,
@@ -231,31 +229,17 @@ func PostDetails() web.HandlerFunc {
 		}
 
 		if c.User() != nil {
-			commentIDs := make([]int, len(getComments.Result))
-			for i, comment := range getComments.Result {
-				commentIDs[i] = comment.ID
+			reportedItems := &query.GetUserReportStatus{
+				PostID: getPost.Result.ID,
 			}
 
-			reportedItems := &query.GetUserReportedItemsOnPost{
-				PostID:     getPost.Result.ID,
-				CommentIDs: commentIDs,
-			}
-			countToday := &query.CountUserReportsToday{UserID: c.User().ID}
-
-			if err := bus.Dispatch(c, reportedItems, countToday); err != nil {
+			if err := bus.Dispatch(c, reportedItems); err != nil {
 				return c.Failure(err)
-			}
-
-			dailyLimit := 10
-			tenant := c.Tenant()
-			if tenant.GeneralSettings != nil && tenant.GeneralSettings.ReportLimitsPerDay > 0 {
-				dailyLimit = tenant.GeneralSettings.ReportLimitsPerDay
 			}
 
 			data["reportStatus"] = web.Map{
 				"hasReportedPost":    reportedItems.HasReportedPost,
-				"reportedCommentIds": reportedItems.ReportedCommentIDs,
-				"dailyLimitReached":  countToday.Result >= dailyLimit,
+				"dailyLimitReached":  reportedItems.CountToday >= c.Tenant().DailyReportLimit(),
 			}
 		}
 

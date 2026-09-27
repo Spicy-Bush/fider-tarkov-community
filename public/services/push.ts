@@ -17,7 +17,7 @@ export const getVAPIDPublicKey = async (): Promise<VAPIDKeyResponse> => {
     return vapidKeyCache
   }
 
-  const result = await http.get<VAPIDKeyResponse>("/_api/push/vapid-key")
+  const result = await http.get<VAPIDKeyResponse>("/api/push/vapid-key")
   if (result.ok) {
     vapidKeyCache = result.data
     return result.data
@@ -26,7 +26,7 @@ export const getVAPIDPublicKey = async (): Promise<VAPIDKeyResponse> => {
 }
 
 export const getPushStatus = async (): Promise<Result<PushStatusResponse>> => {
-  return http.get<PushStatusResponse>("/_api/push/status")
+  return http.get<PushStatusResponse>("/api/push/status")
 }
 
 export const isPushSupported = (): boolean => {
@@ -76,7 +76,7 @@ export const subscribeToPush = async (): Promise<Result> => {
     })
 
     const subJson = subscription.toJSON()
-    return http.post("/_api/push/subscribe", {
+    return http.post("/api/push/subscribe", {
       endpoint: subJson.endpoint,
       keys: {
         p256dh: subJson.keys?.p256dh,
@@ -100,7 +100,7 @@ export const unsubscribeFromPush = async (): Promise<Result> => {
     if (subscription) {
       const endpoint = subscription.endpoint
       await subscription.unsubscribe()
-      return http.delete("/_api/push/subscribe", { endpoint })
+      return http.delete("/api/push/subscribe", { endpoint })
     }
     
     return { ok: true, data: undefined }

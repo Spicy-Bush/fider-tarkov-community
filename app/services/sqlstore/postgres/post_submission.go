@@ -68,7 +68,7 @@ func submitPost(ctx context.Context, c *cmd.SubmitPost) error {
 			return err
 		}
 
-		return schedulePostNotification(ctx, &cmd.SchedulePostNotification{
+		return scheduleNotification(ctx, &cmd.ScheduleNotification{
 			Post:    post,
 			BaseURL: c.BaseURL,
 		})

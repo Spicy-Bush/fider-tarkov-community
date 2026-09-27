@@ -140,7 +140,7 @@ func TestPostNotificationPushRecovery(t *testing.T) {
 
 			f.queuePostNotification(t)
 
-			found, err := tasks.DeliverPendingPostNotification(f.ctx)
+			found, err := tasks.DeliverPendingNotification(f.ctx)
 			if err != nil {
 				t.Fatalf("prepare: %v", err)
 			}
@@ -160,7 +160,7 @@ func TestPostNotificationPushRecovery(t *testing.T) {
 				}
 			}
 
-			found, err = tasks.DeliverPendingPostNotification(f.ctx)
+			found, err = tasks.DeliverPendingNotification(f.ctx)
 			if !found {
 				t.Fatal("delivery did not find the queued recipient")
 			}
@@ -170,18 +170,18 @@ func TestPostNotificationPushRecovery(t *testing.T) {
 					t.Fatal("temporary provider failure was not returned")
 				}
 
-				pending := workflowCount(t, `SELECT COUNT(*) FROM post_notification_recipients
+				pending := workflowCount(t, `SELECT COUNT(*) FROM notification_recipients
 					WHERE attempts = 1 AND last_error IS NOT NULL`)
 				if pending != 1 {
 					t.Fatal("temporary failure did not retain the recipient and cause")
 				}
 
 				status.Store(http.StatusCreated)
-				if _, err := dbx.Connection().Exec("UPDATE post_notification_recipients SET available_at = NOW()"); err != nil {
+				if _, err := dbx.Connection().Exec("UPDATE notification_recipients SET available_at = NOW()"); err != nil {
 					t.Fatal(err)
 				}
 
-				found, err = tasks.DeliverPendingPostNotification(f.ctx)
+				found, err = tasks.DeliverPendingNotification(f.ctx)
 				if err != nil {
 					t.Fatalf("recover: %v", err)
 				}
@@ -202,8 +202,8 @@ func TestPostNotificationPushRecovery(t *testing.T) {
 				t.Fatalf("remaining subscriptions: got %d, want %d", remainingSubscriptions, scenario.subscriptions)
 			}
 
-			pendingDeliveries := workflowCount(t, "SELECT COUNT(*) FROM post_notification_deliveries")
-			pendingRecipients := workflowCount(t, "SELECT COUNT(*) FROM post_notification_recipients")
+			pendingDeliveries := workflowCount(t, "SELECT COUNT(*) FROM notification_deliveries")
+			pendingRecipients := workflowCount(t, "SELECT COUNT(*) FROM notification_recipients")
 			if pendingDeliveries != 0 || pendingRecipients != 0 {
 				t.Fatal("completed push retained queue data")
 			}

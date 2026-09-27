@@ -21,19 +21,11 @@ func ViewPage() web.HandlerFunc {
 
 		page := getPage.Result
 
-		if !canViewPage(c.User(), page) {
+		if !page.CanView(c.User()) {
 			if c.User() == nil {
 				return c.Redirect("/signin?redirect=" + c.Request.URL.Path)
 			}
 			return c.Forbidden()
-		}
-
-		var comments []*entity.Comment
-		if page.AllowComments {
-			getComments := &query.GetCommentsByPage{Page: page}
-			if err := bus.Dispatch(c, getComments); err == nil {
-				comments = getComments.Result
-			}
 		}
 
 		isSubscribed := &query.UserSubscribedToPage{PageID: page.ID}
@@ -55,7 +47,6 @@ func ViewPage() web.HandlerFunc {
 			Description: metaDesc,
 			Data: web.Map{
 				"page":       page,
-				"comments":   comments,
 				"subscribed": isSubscribed.Result,
 			},
 		})
@@ -181,36 +172,4 @@ func EditPagePage() web.HandlerFunc {
 			},
 		})
 	}
-}
-
-func canViewPage(user *entity.User, page *entity.Page) bool {
-	if user != nil && (user.IsAdministrator() || user.IsCollaborator()) {
-		return true
-	}
-
-	if page.Status != entity.PageStatusPublished {
-		return false
-	}
-
-	switch page.Visibility {
-	case entity.PageVisibilityPublic:
-		return true
-	case entity.PageVisibilityUnlisted:
-		return true
-	case entity.PageVisibilityPrivate:
-		if user == nil {
-			return false
-		}
-		if len(page.AllowedRoles) == 0 {
-			return false
-		}
-		userRole := user.Role.String()
-		for _, role := range page.AllowedRoles {
-			if role == userRole {
-				return true
-			}
-		}
-		return false
-	}
-	return false
 }

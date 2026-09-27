@@ -111,7 +111,7 @@ func TestGenerateCheckoutLinkHandler(t *testing.T) {
 
 	server := mock.NewServer()
 	code, json := server.
-		WithURL("http://demo.test.fider.io/_api/billing/checkout-link").
+		WithURL("http://demo.test.fider.io/api/billing/checkout-link").
 		OnTenant(mock.DemoTenant).
 		AsUser(mock.JonSnow).
 		ExecutePostAsJSON(handlers.GenerateCheckoutLink(), "{ \"planID\": \"PLAN_M\" }")

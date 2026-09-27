@@ -248,7 +248,7 @@ func TestUser_ValidAPIKey(t *testing.T) {
 	server.Use(middlewares.User())
 	status, response := server.
 		OnTenant(mock.DemoTenant).
-		WithURL("http://example.com/api/v1").
+		WithURL("http://example.com/api/posts").
 		AddHeader("Authorization", "Bearer 1234567890").
 		Execute(func(c *web.Context) error {
 			return c.String(http.StatusOK, c.User().Name)
@@ -270,7 +270,7 @@ func TestUser_InvalidAPIKey(t *testing.T) {
 	server.Use(middlewares.User())
 	status, query := server.
 		OnTenant(mock.DemoTenant).
-		WithURL("http://example.com/api/v1").
+		WithURL("http://example.com/api/posts").
 		AddHeader("Authorization", "Bearer MY-KEY").
 		ExecuteAsJSON(func(c *web.Context) error {
 			return c.NoContent(http.StatusOK)
@@ -292,7 +292,7 @@ func TestUser_ValidAPIKey_Visitor(t *testing.T) {
 	server.Use(middlewares.User())
 	status, query := server.
 		OnTenant(mock.DemoTenant).
-		WithURL("http://example.com/api/v1").
+		WithURL("http://example.com/api/posts").
 		AddHeader("Authorization", "Bearer 12345").
 		ExecuteAsJSON(func(c *web.Context) error {
 			return c.NoContent(http.StatusOK)
@@ -323,7 +323,7 @@ func TestUser_Impersonation_Collaborator(t *testing.T) {
 	server.Use(middlewares.User())
 	status, query := server.
 		OnTenant(mock.DemoTenant).
-		WithURL("http://example.com/api/v1").
+		WithURL("http://example.com/api/posts").
 		AddHeader("Authorization", "Bearer 12345").
 		AddHeader("X-Fider-UserID", strconv.Itoa(mock.JonSnow.ID)).
 		ExecuteAsJSON(func(c *web.Context) error {
@@ -350,7 +350,7 @@ func TestUser_Impersonation_InvalidUser(t *testing.T) {
 	server.Use(middlewares.User())
 	status, query := server.
 		OnTenant(mock.DemoTenant).
-		WithURL("http://example.com/api/v1").
+		WithURL("http://example.com/api/posts").
 		AddHeader("Authorization", "Bearer 1234567890").
 		AddHeader("X-Fider-UserID", "ABC").
 		ExecuteAsJSON(func(c *web.Context) error {
@@ -381,7 +381,7 @@ func TestUser_Impersonation_UserNotFound(t *testing.T) {
 	server.Use(middlewares.User())
 	status, query := server.
 		OnTenant(mock.DemoTenant).
-		WithURL("http://example.com/api/v1").
+		WithURL("http://example.com/api/posts").
 		AddHeader("Authorization", "Bearer 1234567890").
 		AddHeader("X-Fider-UserID", "999").
 		ExecuteAsJSON(func(c *web.Context) error {
@@ -416,7 +416,7 @@ func TestUser_Impersonation_ValidUser(t *testing.T) {
 	server.Use(middlewares.User())
 	status, response := server.
 		OnTenant(mock.DemoTenant).
-		WithURL("http://example.com/api/v1").
+		WithURL("http://example.com/api/posts").
 		AddHeader("Authorization", "Bearer 1234567890").
 		AddHeader("X-Fider-UserID", strconv.Itoa(mock.AryaStark.ID)).
 		Execute(func(c *web.Context) error {

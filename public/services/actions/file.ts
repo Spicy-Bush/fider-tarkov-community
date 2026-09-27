@@ -30,21 +30,21 @@ export const listFiles = async (url: string): Promise<Result<FileListResponse>> 
 }
 
 export const uploadFile = async (request: FileUploadRequest): Promise<Result<FileInfo>> => {
-  return await http.post<FileInfo>("/api/v1/admin/files", request)
+  return await http.post<FileInfo>("/api/admin/files", request)
 }
 
 export const renameFile = async (blobKey: string, newName: string): Promise<Result<FileInfo>> => {
-  return await http.put<FileInfo>(`/api/v1/admin/files/${blobKey}`, { name: newName })
+  return await http.put<FileInfo>(`/api/admin/files/${blobKey}`, { name: newName })
 }
 
 export const deleteFile = async (blobKey: string, force: boolean = false): Promise<Result<void>> => {
-  const url = force 
-    ? `/api/v1/admin/files/${blobKey}?force=true` 
-    : `/api/v1/admin/files/${blobKey}`;
-    
+  const url = force
+    ? `/api/admin/files/${blobKey}?force=true`
+    : `/api/admin/files/${blobKey}`
+
   return await http.delete(url)
 }
 
 export const getFileUsage = async (blobKey: string): Promise<Result<string[]>> => {
-  return await http.get<string[]>(`/api/v1/admin/files/${blobKey}/usage`)
+  return await http.get<string[]>(`/api/admin/files/${blobKey}/usage`)
 }

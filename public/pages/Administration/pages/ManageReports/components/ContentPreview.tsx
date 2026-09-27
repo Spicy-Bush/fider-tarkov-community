@@ -7,12 +7,12 @@ import {
   heroiconsX as IconX,
   heroiconsExternalLink as IconExternalLink,
 } from "@fider/icons.generated"
-import { Report, Post, Comment, UserRole, UserStatus } from "@fider/models"
+import { Report, Post, DiscussionComment, UserRole, UserStatus } from "@fider/models"
 
 export interface ContentPreviewProps {
   report: Report | null
   post: Post | null
-  comment: Comment | null
+  comment: DiscussionComment | null
   isLoading: boolean
   onAssign: () => void
   onUnassign: () => void
@@ -61,6 +61,10 @@ export const ContentPreview: React.FC<ContentPreviewProps> = ({
   const canAction = report.status === "pending" || report.status === "in_review"
 
   const getTargetLink = () => {
+    if (report.pageSlug && report.reportedType === "comment") {
+      return `/pages/${report.pageSlug}#comment-${report.reportedId}`
+    }
+
     if (!report.postNumber || !report.postSlug) return "#"
     if (report.reportedType === "post") {
       return `/posts/${report.postNumber}/${report.postSlug}`

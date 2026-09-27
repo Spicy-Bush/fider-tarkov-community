@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react"
-import { Post, Comment } from "@fider/models"
+import { Post } from "@fider/models"
 import { actions, PAGINATION } from "@fider/services"
 import { useFider } from "@fider/hooks"
 
@@ -16,7 +16,6 @@ interface UseQueueStateResult {
   isLoading: boolean
   selectedPost: Post | null
   selectedPostRef: React.MutableRefObject<Post | null>
-  postComments: Comment[]
   postAttachments: string[]
   newPostIds: Set<number>
   setNewPostIds: React.Dispatch<React.SetStateAction<Set<number>>>
@@ -47,7 +46,6 @@ export const useQueueState = (): UseQueueStateResult => {
   const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedPost, setSelectedPost] = useState<Post | null>(null)
-  const [postComments, setPostComments] = useState<Comment[]>([])
   const [postAttachments, setPostAttachments] = useState<string[]>([])
   const [newPostIds, setNewPostIds] = useState<Set<number>>(new Set())
   const [taggedByOtherIds, setTaggedByOtherIds] = useState<Set<number>>(new Set())
@@ -90,16 +88,12 @@ export const useQueueState = (): UseQueueStateResult => {
   }, [page, perPage, sortOption, isHelperOnly])
 
   const loadPostDetails = useCallback(async (postNumber: number, refreshPost = false) => {
-    const [commentsResult, attachmentsResult, postResult] = await Promise.all([
-      actions.getAllComments(postNumber),
+    const [attachmentsResult, postResult] = await Promise.all([
       actions.getPostAttachments(postNumber),
       refreshPost ? actions.getPost(postNumber) : Promise.resolve(null),
     ])
     if (selectedPostRef.current?.number !== postNumber) return
 
-    if (commentsResult.ok) {
-      setPostComments(commentsResult.data || [])
-    }
     if (attachmentsResult.ok) {
       setPostAttachments(attachmentsResult.data || [])
     }
@@ -144,7 +138,6 @@ export const useQueueState = (): UseQueueStateResult => {
     isLoading,
     selectedPost,
     selectedPostRef,
-    postComments,
     postAttachments,
     newPostIds,
     setNewPostIds,

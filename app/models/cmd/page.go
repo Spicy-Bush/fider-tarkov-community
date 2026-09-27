@@ -8,47 +8,49 @@ import (
 )
 
 type CreatePage struct {
-	Title           string
-	Slug            string
-	Content         string
-	Excerpt         string
-	BannerImage     *dto.ImageUpload
-	Status          entity.PageStatus
-	Visibility      entity.PageVisibility
-	AllowedRoles    []string
-	ParentPageID    *int
-	AllowComments   bool
-	AllowReactions  bool
-	ShowTOC         bool
-	ScheduledFor    *time.Time
-	Authors         []int
-	Topics          []int
-	Tags            []int
-	MetaDescription string
-	CanonicalURL    string
-	Result          *entity.Page
+	Title              string
+	Slug               string
+	Content            string
+	Excerpt            string
+	BannerImage        *dto.ImageUpload
+	Status             entity.PageStatus
+	Visibility         entity.PageVisibility
+	AllowedRoles       []string
+	ParentPageID       *int
+	AllowComments      bool
+	AllowCommentImages bool
+	AllowReactions     bool
+	ShowTOC            bool
+	ScheduledFor       *time.Time
+	Authors            []int
+	Topics             []int
+	Tags               []int
+	MetaDescription    string
+	CanonicalURL       string
+	Result             *entity.Page
 }
 
 type UpdatePage struct {
-	PageID          int
-	Title           string
-	Slug            string
-	Content         string
-	Excerpt         string
-	BannerImage     *dto.ImageUpload
-	Status          entity.PageStatus
-	Visibility      entity.PageVisibility
-	AllowedRoles    []string
-	ParentPageID    *int
-	AllowComments   bool
-	AllowReactions  bool
-	ShowTOC         bool
-	ScheduledFor    *time.Time
-	Authors         []int
-	Topics          []int
-	Tags            []int
-	MetaDescription string
-	CanonicalURL    string
+	PageID             int
+	Title              string
+	Slug               string
+	Content            string
+	Excerpt            string
+	BannerImage        *dto.ImageUpload
+	Status             entity.PageStatus
+	Visibility         entity.PageVisibility
+	AllowedRoles       []string
+	ParentPageID       *int
+	AllowComments      bool
+	AllowCommentImages bool
+	AllowReactions     bool
+	ShowTOC            bool
+	ScheduledFor       *time.Time
+	Authors            []int
+	Topics             []int
+	Tags               []int
+	MetaDescription    string
+	CanonicalURL       string
 }
 
 type DeletePage struct {
@@ -116,12 +118,6 @@ type UpdatePageTag struct {
 
 type DeletePageTag struct {
 	ID int
-}
-
-type AddPageComment struct {
-	Page    *entity.Page
-	Content string
-	Result  *entity.Comment
 }
 
 type RefreshPageEmbeddedData struct {

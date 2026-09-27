@@ -17,34 +17,65 @@ const (
 )
 
 type Page struct {
-	ID              int              `json:"id"`
-	Title           string           `json:"title"`
-	Slug            string           `json:"slug"`
-	Content         string           `json:"content"`
-	Excerpt         string           `json:"excerpt,omitempty"`
-	BannerImageBKey string           `json:"bannerImageBKey,omitempty"`
-	Status          PageStatus       `json:"status"`
-	Visibility      PageVisibility   `json:"visibility"`
-	AllowedRoles    []string         `json:"allowedRoles,omitempty"`
-	ParentPageID    *int             `json:"parentPageId,omitempty"`
-	AllowComments   bool             `json:"allowComments"`
-	AllowReactions  bool             `json:"allowReactions"`
-	ShowTOC         bool             `json:"showToc"`
-	ScheduledFor    *time.Time       `json:"scheduledFor,omitempty"`
-	PublishedAt     *time.Time       `json:"publishedAt,omitempty"`
-	CreatedAt       time.Time        `json:"createdAt"`
-	UpdatedAt       time.Time        `json:"updatedAt"`
-	CreatedBy       *User            `json:"createdBy"`
-	UpdatedBy       *User            `json:"updatedBy"`
-	Authors         []*User          `json:"authors,omitempty"`
-	Topics          []*PageTopic     `json:"topics,omitempty"`
-	Tags            []*PageTag       `json:"tags,omitempty"`
-	MetaDescription string           `json:"metaDescription,omitempty"`
-	CanonicalURL    string           `json:"canonicalUrl,omitempty"`
-	CommentsCount   int              `json:"commentsCount"`
-	ReactionCounts  []ReactionCounts `json:"reactionCounts,omitempty"`
-	EmbeddedPosts   []*Post          `json:"embeddedPosts"`
-	CachedAt        *time.Time       `json:"cachedAt,omitempty"`
+	ID                 int              `json:"id"`
+	Title              string           `json:"title"`
+	Slug               string           `json:"slug"`
+	Content            string           `json:"content"`
+	Excerpt            string           `json:"excerpt,omitempty"`
+	BannerImageBKey    string           `json:"bannerImageBKey,omitempty"`
+	Status             PageStatus       `json:"status"`
+	Visibility         PageVisibility   `json:"visibility"`
+	AllowedRoles       []string         `json:"allowedRoles,omitempty"`
+	ParentPageID       *int             `json:"parentPageId,omitempty"`
+	AllowComments      bool             `json:"allowComments"`
+	AllowCommentImages bool             `json:"allowCommentImages"`
+	AllowReactions     bool             `json:"allowReactions"`
+	ShowTOC            bool             `json:"showToc"`
+	ScheduledFor       *time.Time       `json:"scheduledFor,omitempty"`
+	PublishedAt        *time.Time       `json:"publishedAt,omitempty"`
+	CreatedAt          time.Time        `json:"createdAt"`
+	UpdatedAt          time.Time        `json:"updatedAt"`
+	CreatedBy          *User            `json:"createdBy"`
+	UpdatedBy          *User            `json:"updatedBy"`
+	Authors            []*User          `json:"authors,omitempty"`
+	Topics             []*PageTopic     `json:"topics,omitempty"`
+	Tags               []*PageTag       `json:"tags,omitempty"`
+	MetaDescription    string           `json:"metaDescription,omitempty"`
+	CanonicalURL       string           `json:"canonicalUrl,omitempty"`
+	CommentsCount      int              `json:"commentsCount"`
+	ReactionCounts     []ReactionCounts `json:"reactionCounts,omitempty"`
+	EmbeddedPosts      []*Post          `json:"embeddedPosts"`
+	CachedAt           *time.Time       `json:"cachedAt,omitempty"`
+}
+
+func (page *Page) CanView(user *User) bool {
+	return canViewPage(page.Status, page.Visibility, page.AllowedRoles, user)
+}
+
+func canViewPage(status PageStatus, visibility PageVisibility, allowedRoles []string, user *User) bool {
+	if user != nil && user.IsCollaborator() {
+		return true
+	}
+
+	if status != PageStatusPublished {
+		return false
+	}
+
+	if visibility == PageVisibilityPublic || visibility == PageVisibilityUnlisted {
+		return true
+	}
+
+	if visibility != PageVisibilityPrivate || user == nil {
+		return false
+	}
+
+	for _, role := range allowedRoles {
+		if role == user.Role.String() {
+			return true
+		}
+	}
+
+	return false
 }
 
 type PageTopic struct {

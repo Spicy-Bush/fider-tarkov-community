@@ -25,7 +25,7 @@ export const usePageAutosave = (pageId: number, data: DraftData) => {
 
     timeoutRef.current = setTimeout(async () => {
       try {
-        await http.post(`/_api/pages/${pageId}/draft`, data)
+        await http.post(`/api/pages/${pageId}/draft`, data)
         setLastSaved(new Date())
         setHasChanges(false)
       } catch (error) {

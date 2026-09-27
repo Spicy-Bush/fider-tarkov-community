@@ -2,9 +2,11 @@ package cmd
 
 import "github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 
-type ToggleCommentReaction struct {
-	Comment *entity.Comment
-	Emoji   string
-	User    *entity.User
-	Result  bool
+type SetCommentReaction struct {
+	CommentID int
+	Emoji     string
+	Active    bool
+
+	Result     *entity.Comment
+	Discussion *entity.Discussion
 }

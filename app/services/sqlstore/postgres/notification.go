@@ -15,6 +15,26 @@ import (
 	"github.com/lib/pq"
 )
 
+const visibleNotifications = visibleCommentOwners + `,
+    visible_notifications AS (
+        SELECT n.* FROM notifications n
+        LEFT JOIN comments comment ON comment.id = n.comment_id AND comment.tenant_id = n.tenant_id
+        LEFT JOIN users author ON author.id = comment.user_id AND author.tenant_id = n.tenant_id
+        LEFT JOIN posts post ON post.id = n.post_id AND post.tenant_id = n.tenant_id
+        WHERE n.tenant_id = $1 AND n.user_id = $3
+          AND (n.page_id IS NULL OR n.page_id IN (SELECT id FROM visible_pages))
+          AND (n.post_id IS NULL OR (post.id IS NOT NULL AND post.status <> 6))
+          AND (n.comment_id IS NULL OR (
+            comment.id IN (SELECT id FROM visible_comment_owners) AND comment.deleted_at IS NULL
+            AND (
+                NOT comment.moderation_pending OR comment.user_id = $3
+                OR $2 IN ('administrator', 'collaborator')
+                OR ($2 = 'moderator' AND author.role IN (1, 5))
+            )
+          ))
+    )
+`
+
 func purgeExpiredNotifications(ctx context.Context, c *cmd.PurgeExpiredNotifications) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
 		count, err := trx.Execute("DELETE FROM notifications WHERE CREATED_AT <= NOW() - INTERVAL '365 days'")
@@ -47,7 +67,8 @@ func countUnreadNotifications(ctx context.Context, q *query.CountUnreadNotificat
 		q.Result = 0
 
 		if user != nil {
-			err := trx.Scalar(&q.Result, "SELECT COUNT(*) FROM notifications WHERE tenant_id = $1 AND user_id = $2 AND read = false", tenant.ID, user.ID)
+			err := trx.Scalar(&q.Result, visibleNotifications + "SELECT COUNT(*) FROM visible_notifications WHERE read = false",
+				tenant.ID, user.Role.String(), user.ID)
 			if err != nil {
 				return errors.Wrap(err, "failed count total unread notifications")
 			}
@@ -78,11 +99,10 @@ func getNotificationByID(ctx context.Context, q *query.GetNotificationByID) erro
 		q.Result = nil
 		notification := &entity.Notification{}
 
-		err := trx.Get(notification, `
+		err := trx.Get(notification, visibleNotifications + `
 			SELECT id, title, link, read, created_at 
-			FROM notifications
-			WHERE id = $1 AND tenant_id = $2 AND user_id = $3
-		`, q.ID, tenant.ID, user.ID)
+			FROM visible_notifications WHERE id = $4
+		`, tenant.ID, user.Role.String(), user.ID, q.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get notifications with id '%d'", q.ID)
 		}
@@ -103,9 +123,9 @@ func getActiveNotifications(ctx context.Context, q *query.GetActiveNotifications
 
 		offset := (q.Page - 1) * q.PerPage
 
-		conditions := "n.tenant_id = $1 AND n.user_id = $2"
-		args := []interface{}{tenant.ID, user.ID}
-		argIndex := 3
+		conditions := "TRUE"
+		args := []interface{}{tenant.ID, user.Role.String(), user.ID}
+		argIndex := 4
 
 		switch q.Type {
 		case "unread":
@@ -116,9 +136,9 @@ func getActiveNotifications(ctx context.Context, q *query.GetActiveNotifications
 			conditions += " AND (n.read = false OR n.updated_at > CURRENT_DATE - INTERVAL '30 days')"
 		}
 
-		countQuery := fmt.Sprintf(`
+		countQuery := visibleNotifications + fmt.Sprintf(`
 			SELECT COUNT(*) 
-			FROM notifications n
+			FROM visible_notifications n
 			WHERE %s
 		`, conditions)
 
@@ -127,9 +147,9 @@ func getActiveNotifications(ctx context.Context, q *query.GetActiveNotifications
 			return errors.Wrap(err, "failed to count active notifications")
 		}
 
-		query := fmt.Sprintf(`
+		query := visibleNotifications + fmt.Sprintf(`
 			SELECT n.id, n.title, n.link, n.read, n.created_at, n.author_id, u.avatar_type, u.avatar_bkey, u.name
-			FROM notifications n
+			FROM visible_notifications n
 			LEFT JOIN users u ON u.id = n.author_id
 			WHERE %s
 			ORDER BY n.updated_at DESC
@@ -196,10 +216,10 @@ func addNewNotification(ctx context.Context, c *cmd.AddNewNotification) error {
 		}
 
 		err := trx.Get(&notification.ID, `
-			INSERT INTO notifications (tenant_id, user_id, title, link, read, post_id, author_id, created_at, updated_at) 
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+			INSERT INTO notifications (tenant_id, user_id, title, link, read, post_id, author_id, created_at, updated_at, comment_id, page_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, NULLIF($9, 0), NULLIF($10, 0))
 			RETURNING id
-		`, tenant.ID, c.User.ID, c.Title, c.Link, false, postID, user.ID, now)
+		`, tenant.ID, c.User.ID, c.Title, c.Link, false, postID, user.ID, now, c.CommentID, c.PageID)
 		if err != nil {
 			return errors.Wrap(err, "failed to insert notification")
 		}

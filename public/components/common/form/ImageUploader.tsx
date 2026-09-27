@@ -1,12 +1,8 @@
 import React from "react"
-import { ValidationContext } from "./Form"
-import { DisplayError, hasError } from "./DisplayError"
-import { classSet, fileToBase64, uploadedImageURL } from "@fider/services"
-import { Button, Icon, Modal } from "@fider/components"
+import { fileToBase64, uploadedImageURL } from "@fider/services"
+import { Button } from "@fider/components"
 import { ImageUpload } from "@fider/models"
-import { heroiconsPhotograph as IconPhotograph } from "@fider/icons.generated"
-
-const hardFileSizeLimit = 7.5 * 1024 * 1024
+import { ImagePicker } from "./ImagePicker"
 
 interface ImageUploaderProps {
   children?: React.ReactNode
@@ -22,41 +18,30 @@ interface ImageUploaderProps {
 }
 
 interface ImageUploaderState extends ImageUpload {
-  showModal: boolean
   reading?: boolean
   failedFile?: File
 }
 
 export class ImageUploader extends React.Component<ImageUploaderProps, ImageUploaderState> {
-  private fileSelector?: HTMLInputElement | null
   private currentRead?: Promise<ImageUpload | undefined>
 
   constructor(props: ImageUploaderProps) {
     super(props)
-    this.state = {
-      upload: undefined,
-      remove: false,
-      ...props.initialUpload,
-      showModal: false,
-    }
+    this.state = { upload: undefined, remove: false, ...props.initialUpload }
   }
 
   private get previewURL() {
-    if (this.state.remove) return undefined
-    const upload = this.state.upload
-    return upload ? `data:${upload.contentType};base64,${upload.content}` : (this.props.previewURL ?? uploadedImageURL(this.props.bkey))
-  }
-
-  public fileChanged = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      if (file.size > hardFileSizeLimit) {
-        alert("The image size must be smaller than 7MB.")
-        return
-      }
-
-      this.readFile(file)
+    if (this.state.remove) {
+      return undefined
     }
+
+    const upload = this.state.upload
+
+    if (upload) {
+      return `data:${upload.contentType};base64,${upload.content}`
+    }
+
+    return this.props.previewURL ?? uploadedImageURL(this.props.bkey)
   }
 
   private readFile = (file: File) => {
@@ -97,127 +82,39 @@ export class ImageUploader extends React.Component<ImageUploaderProps, ImageUplo
     this.currentRead = undefined
   }
 
-  public removeFile = async () => {
+  private removeFile = () => {
     this.currentRead = undefined
+    const image: ImageUpload = { bkey: this.props.bkey, remove: true }
 
-    if (this.fileSelector) {
-      this.fileSelector.value = ""
-    }
-
-    this.setState(
-      {
-        bkey: this.props.bkey,
-        remove: true,
-        upload: undefined,
-        reading: false,
-        failedFile: undefined,
-      },
-      () => {
-        this.props.onChange(
-          {
-            bkey: this.state.bkey,
-            remove: this.state.remove,
-            upload: this.state.upload,
-          },
-          this.props.instanceID,
-          this.previewURL
-        )
-      }
-    )
-  }
-
-  public selectFile = async () => {
-    if (this.fileSelector) {
-      this.fileSelector.click()
-    }
-  }
-
-  private openModal = () => {
-    this.setState({ showModal: true })
-  }
-
-  private closeModal = async () => {
-    this.setState({ showModal: false })
-  }
-
-  private modal() {
-    return (
-      <Modal.Window isOpen={this.state.showModal} onClose={this.closeModal} center={false} size="fluid">
-        <Modal.Content>{<img alt="" src={this.previewURL} />}</Modal.Content>
-
-        <Modal.Footer>
-          <Button variant="tertiary" onClick={this.closeModal}>
-            Close
-          </Button>
-        </Modal.Footer>
-      </Modal.Window>
-    )
+    this.setState({ ...image, upload: undefined, reading: false, failedFile: undefined }, () => {
+      this.props.onChange(image, this.props.instanceID, this.previewURL)
+    })
   }
 
   public render() {
-    const isUploading = !!this.state.upload
-    const hasFile = (!this.state.remove && (this.props.bkey || this.props.previewURL)) || isUploading
-
     return (
-      <ValidationContext.Consumer>
-        {(ctx) => (
-          <div
-            className={classSet({
-              "mb-4": true,
-              "has-error": hasError(this.props.field, ctx.error),
-            })}
-          >
-            {this.modal()}
-            {this.props.label && (
-              <label htmlFor={`input-${this.props.field}`} className="block text-sm font-medium mb-1">
-                {this.props.label}
-              </label>
-            )}
-
-            {hasFile && (
-              <div className="relative inline-block h-20">
-                <img
-                  alt=""
-                  onClick={this.openModal}
-                  src={this.previewURL}
-                  className="p-1 min-w-[50px] min-h-[50px] border border-border cursor-pointer h-full"
-                />
-                {!this.props.disabled && (
-                  <Button onClick={this.removeFile} variant="danger" className="absolute top-1 right-1 rounded-full px-1.5 py-1">
-                    X
-                  </Button>
-                )}
-              </div>
-            )}
-
-            <input
-              ref={(e) => (this.fileSelector = e)}
-              type="file"
-              onChange={this.fileChanged}
-              accept="image/png, image/jpeg, image/jpg, image/webp"
-              className="hidden"
-            />
-            {this.state.failedFile && (
-              <div role="alert">
-                <p>Could not read {this.state.failedFile.name}.</p>
-                <Button onClick={() => this.readFile(this.state.failedFile!)} disabled={this.props.disabled}>
-                  Retry image
-                </Button>
-                <Button onClick={this.removeFile} disabled={this.props.disabled}>
-                  Remove image
-                </Button>
-              </div>
-            )}
-            {!hasFile && !this.state.failedFile && (
-              <Button variant="secondary" onClick={this.selectFile} disabled={this.props.disabled} loading={this.state.reading}>
-                <Icon sprite={IconPhotograph} />
-              </Button>
-            )}
-            <DisplayError fields={[this.props.field]} error={ctx.error} />
-            {this.props.children}
+      <ImagePicker
+        field={this.props.field}
+        label={this.props.label}
+        image={this.previewURL}
+        disabled={this.props.disabled}
+        reading={this.state.reading}
+        onSelect={this.state.failedFile ? undefined : this.readFile}
+        onRemove={this.removeFile}
+      >
+        {this.state.failedFile && (
+          <div role="alert">
+            <p>Could not read {this.state.failedFile.name}.</p>
+            <Button onClick={() => this.readFile(this.state.failedFile!)} disabled={this.props.disabled}>
+              Retry image
+            </Button>
+            <Button onClick={this.removeFile} disabled={this.props.disabled}>
+              Remove image
+            </Button>
           </div>
         )}
-      </ValidationContext.Consumer>
+        {this.props.children}
+      </ImagePicker>
     )
   }
 }

@@ -9,7 +9,7 @@ import {
   heroiconsEye as IconEye,
   heroiconsArrowLeft as IconArrowLeft,
 } from "@fider/icons.generated"
-import { Post, Tag, Comment, ViewerInfo, User } from "@fider/models"
+import { Post, Tag, ViewerInfo, User } from "@fider/models"
 import { PostViewer } from "./PostViewer"
 import { PostQueueDuplicateSearch } from "./PostQueueDuplicateSearch"
 
@@ -24,7 +24,6 @@ interface ViewingUserType {
 interface QueuePreviewProps {
   selectedPost: Post | null
   tags: Tag[]
-  postComments: Comment[]
   postAttachments: string[]
   isCurrentPostTaggedByOther: boolean
   showDuplicateSearch: boolean
@@ -52,7 +51,6 @@ interface QueuePreviewProps {
 export const QueuePreview: React.FC<QueuePreviewProps> = ({
   selectedPost,
   tags,
-  postComments,
   postAttachments,
   isCurrentPostTaggedByOther,
   showDuplicateSearch,
@@ -182,7 +180,6 @@ export const QueuePreview: React.FC<QueuePreviewProps> = ({
           <PostViewer
             post={selectedPost}
             tags={tags}
-            comments={postComments}
             attachments={postAttachments}
             isLoading={false}
             allTags={tags}

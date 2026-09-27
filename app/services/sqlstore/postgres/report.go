@@ -3,15 +3,20 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strconv"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/i18n"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/lib/pq"
 )
 
@@ -40,6 +45,7 @@ type dbReport struct {
 	ResolutionNote       sql.NullString `db:"resolution_note"`
 	PostNumber           sql.NullInt64  `db:"post_number"`
 	PostSlug             sql.NullString `db:"post_slug"`
+	PageSlug             sql.NullString `db:"page_slug"`
 }
 
 func (r *dbReport) toModel(ctx context.Context) *entity.Report {
@@ -102,6 +108,9 @@ func (r *dbReport) toModel(ctx context.Context) *entity.Report {
 	if r.PostSlug.Valid {
 		report.PostSlug = r.PostSlug.String
 	}
+	if r.PageSlug.Valid {
+		report.PageSlug = r.PageSlug.String
+	}
 
 	return report
 }
@@ -130,32 +139,125 @@ func (r *dbReportReason) toModel() *entity.ReportReason {
 }
 
 func createReport(ctx context.Context, c *cmd.CreateReport) error {
+	c.Created = false
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		var reporterID interface{}
-		if c.ReporterID != nil {
-			reporterID = *c.ReporterID
-		} else if user != nil {
-			reporterID = user.ID
-		} else {
-			reporterID = nil
+		if user == nil || user.Status != enum.UserActive {
+			return validate.Unauthorized()
 		}
 
-		var id int
-		err := trx.Scalar(&id, `
-			INSERT INTO reports (tenant_id, reporter_id, reported_type, reported_id, reason, details, status, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
-			RETURNING id
-		`, tenant.ID, reporterID, c.ReportedType.String(), c.ReportedID, c.Reason, nullIfEmpty(c.Details))
-		if err != nil {
-			return errors.Wrap(err, "failed to create report")
+		failure := validate.Success()
+
+		// Reports on every target consume the same daily allowance.
+		identity := fmt.Sprintf("reporter:%d:%d", tenant.ID, user.ID)
+		if _, err := trx.Execute("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", identity); err != nil {
+			return err
 		}
-		c.Result = id
+
+		var targetFailure error
+		switch c.ReportedType {
+		case enum.ReportTypePost:
+			lookup := &query.GetPostByNumber{Number: c.PostNumber}
+			if err := getPostByNumber(ctx, lookup); err != nil {
+				return err
+			}
+			c.ReportedID = lookup.Result.ID
+
+			if lookup.Result.User.ID == user.ID {
+				failure.AddFieldFailure("reportedId", i18n.T(ctx, "validation.custom.cannotreportown"))
+				targetFailure = failure
+			}
+
+		case enum.ReportTypeComment:
+			owner := &query.GetDiscussion{CommentID: c.ReportedID, LockOwner: true}
+			if err := getDiscussion(ctx, owner); err != nil {
+				return err
+			}
+
+			comment := &query.GetCommentByID{CommentID: c.ReportedID}
+			if err := getCommentByID(ctx, comment); err != nil {
+				return err
+			}
+
+			if !comment.Result.AllowedActions(user, owner.Result, tenant, time.Now()).Report {
+				targetFailure = validate.Unauthorized()
+			}
+
+		default:
+			return app.ErrNotFound
+		}
+
+		var status struct {
+			CountToday int    `db:"count_today"`
+			PendingID  int    `db:"pending_id"`
+			Reason     string `db:"reason"`
+			Details    string `db:"details"`
+		}
+		if err := trx.Get(&status, `
+            SELECT daily.count_today, COALESCE(pending.id, 0) AS pending_id,
+                   COALESCE(pending.reason, '') AS reason, COALESCE(pending.details, '') AS details
+            FROM (
+                SELECT COUNT(*) AS count_today FROM reports
+                WHERE tenant_id = $1 AND reporter_id = $2 AND created_at >= CURRENT_DATE
+            ) daily
+            LEFT JOIN (
+                SELECT id, reason, details FROM reports
+                WHERE tenant_id = $1 AND reporter_id = $2 AND reported_type = $3
+                  AND reported_id = $4 AND status = 'pending'
+                ORDER BY (reason = $5 AND COALESCE(details, '') = $6) DESC, id
+                LIMIT 1
+            ) pending ON TRUE
+        `, tenant.ID, user.ID, c.ReportedType.String(), c.ReportedID, c.Reason, c.Details); err != nil {
+			return err
+		}
+
+		if status.PendingID != 0 {
+			if status.Reason == c.Reason && status.Details == c.Details {
+				c.Result = status.PendingID
+				return nil
+			}
+
+			failure.AddFieldFailure("reportedId", i18n.T(ctx, "validation.custom.alreadyreported"))
+			return failure
+		}
+
+		if tenant.GeneralSettings != nil && tenant.GeneralSettings.ReportingGloballyDisabled {
+			failure.AddFieldFailure("reportedId", i18n.T(ctx, "validation.custom.reportingdisabled"))
+			return failure
+		}
+
+		if targetFailure != nil {
+			return targetFailure
+		}
+
+		input := actions.CreateReport{Reason: c.Reason, Details: c.Details}
+		if result := input.Validate(ctx); !result.Ok {
+			return result
+		}
+
+		if status.CountToday >= tenant.DailyReportLimit() {
+			failure.AddFieldFailure("reportedId", i18n.T(ctx, "validation.custom.reportlimitreached"))
+			return failure
+		}
+
+		if err := trx.Scalar(&c.Result, `
+            INSERT INTO reports (tenant_id, reporter_id, reported_type, reported_id, reason, details, status, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
+            RETURNING id
+        `, tenant.ID, user.ID, c.ReportedType.String(), c.ReportedID, c.Reason, nullIfEmpty(c.Details)); err != nil {
+			return err
+		}
+
+		c.Created = true
 		return nil
 	})
 }
 
 func assignReport(ctx context.Context, c *cmd.AssignReport) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if err := authorizeReportChange(ctx, user, c.ReportID); err != nil {
+			return err
+		}
+
 		_, err := trx.Execute(`
 			UPDATE reports 
 			SET assigned_to = $1, assigned_at = NOW(), status = 'in_review'
@@ -170,6 +272,10 @@ func assignReport(ctx context.Context, c *cmd.AssignReport) error {
 
 func unassignReport(ctx context.Context, c *cmd.UnassignReport) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if err := authorizeReportChange(ctx, user, c.ReportID); err != nil {
+			return err
+		}
+
 		_, err := trx.Execute(`
 			UPDATE reports 
 			SET assigned_to = NULL, assigned_at = NULL, status = 'pending'
@@ -184,6 +290,10 @@ func unassignReport(ctx context.Context, c *cmd.UnassignReport) error {
 
 func resolveReport(ctx context.Context, c *cmd.ResolveReport) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if err := authorizeReportChange(ctx, user, c.ReportID); err != nil {
+			return err
+		}
+
 		_, err := trx.Execute(`
 			UPDATE reports 
 			SET status = $1, resolved_at = NOW(), resolved_by = $2, resolution_note = $3
@@ -198,6 +308,10 @@ func resolveReport(ctx context.Context, c *cmd.ResolveReport) error {
 
 func deleteReport(ctx context.Context, c *cmd.DeleteReport) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if err := authorizeReportChange(ctx, user, c.ReportID); err != nil {
+			return err
+		}
+
 		_, err := trx.Execute(`
 			DELETE FROM reports WHERE id = $1 AND tenant_id = $2
 		`, c.ReportID, tenant.ID)
@@ -208,10 +322,27 @@ func deleteReport(ctx context.Context, c *cmd.DeleteReport) error {
 	})
 }
 
+func authorizeReportChange(ctx context.Context, user *entity.User, reportID int) error {
+	if user == nil || (!user.IsCollaborator() && !user.IsModerator()) {
+		return validate.Unauthorized()
+	}
+
+	report := &query.GetReportByID{ReportID: reportID}
+	if err := getReportByID(ctx, report); err != nil {
+		return err
+	}
+
+	if report.Result.ReportedType == enum.ReportTypeComment {
+		return getDiscussion(ctx, &query.GetDiscussion{CommentID: report.Result.ReportedID, LockOwner: true})
+	}
+
+	return nil
+}
+
 func getReportByID(ctx context.Context, q *query.GetReportByID) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		report := dbReport{}
-		err := trx.Get(&report, `
+		err := trx.Get(&report, visibleCommentOwners + `
 			SELECT 
 				r.id, r.reported_type, r.reported_id, r.reason, r.details, r.status, r.created_at,
 				r.reporter_id, ru.name as reporter_name, ru.avatar_type as reporter_avatar_type, ru.avatar_bkey as reporter_avatar_bkey,
@@ -219,7 +350,7 @@ func getReportByID(ctx context.Context, q *query.GetReportByID) error {
 				r.resolved_at, r.resolved_by as resolved_by_id, rbu.name as resolved_by_name, rbu.avatar_type as resolved_by_avatar_type, rbu.avatar_bkey as resolved_by_avatar_bkey,
 				r.resolution_note,
 				COALESCE(p.number, cp.number) as post_number,
-				COALESCE(p.slug, cp.slug) as post_slug
+				COALESCE(p.slug, cp.slug) as post_slug, pg.slug AS page_slug
 			FROM reports r
 			LEFT JOIN users ru ON ru.id = r.reporter_id
 			LEFT JOIN users au ON au.id = r.assigned_to
@@ -227,8 +358,10 @@ func getReportByID(ctx context.Context, q *query.GetReportByID) error {
 			LEFT JOIN posts p ON r.reported_type = 'post' AND p.id = r.reported_id
 			LEFT JOIN comments c ON r.reported_type = 'comment' AND c.id = r.reported_id
 			LEFT JOIN posts cp ON c.post_id = cp.id
-			WHERE r.id = $1 AND r.tenant_id = $2
-		`, q.ReportID, tenant.ID)
+			LEFT JOIN pages pg ON c.page_id = pg.id AND pg.tenant_id = r.tenant_id
+			WHERE r.tenant_id = $1 AND r.id = $3
+			AND (r.reported_type <> 'comment' OR r.reported_id IN (SELECT id FROM visible_comment_owners))
+		`, tenant.ID, discussionViewerRole(user), q.ReportID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get report by ID")
 		}
@@ -247,9 +380,9 @@ func listReports(ctx context.Context, q *query.ListReports) error {
 		}
 		offset := (q.Page - 1) * q.PerPage
 
-		conditions := "r.tenant_id = $1"
-		args := []interface{}{tenant.ID}
-		argIdx := 2
+		conditions := "r.tenant_id = $1 AND (r.reported_type <> 'comment' OR r.reported_id IN (SELECT id FROM visible_comment_owners))"
+		args := []interface{}{tenant.ID, discussionViewerRole(user)}
+		argIdx := 3
 
 		if len(q.Status) > 0 {
 			statusStrings := make([]string, len(q.Status))
@@ -273,13 +406,13 @@ func listReports(ctx context.Context, q *query.ListReports) error {
 			argIdx++
 		}
 
-		err := trx.Scalar(&q.Total, "SELECT COUNT(*) FROM reports r WHERE "+conditions, args...)
+		err := trx.Scalar(&q.Total, visibleCommentOwners + "SELECT COUNT(*) FROM reports r WHERE "+conditions, args...)
 		if err != nil {
 			return errors.Wrap(err, "failed to count reports")
 		}
 
 		var reports []*dbReport
-		err = trx.Select(&reports, `
+		err = trx.Select(&reports, visibleCommentOwners + `
 			SELECT 
 				r.id, r.reported_type, r.reported_id, r.reason, r.details, r.status, r.created_at,
 				r.reporter_id, ru.name as reporter_name, ru.avatar_type as reporter_avatar_type, ru.avatar_bkey as reporter_avatar_bkey,
@@ -287,7 +420,7 @@ func listReports(ctx context.Context, q *query.ListReports) error {
 				r.resolved_at, r.resolved_by as resolved_by_id, rbu.name as resolved_by_name, rbu.avatar_type as resolved_by_avatar_type, rbu.avatar_bkey as resolved_by_avatar_bkey,
 				r.resolution_note,
 				COALESCE(p.number, cp.number) as post_number,
-				COALESCE(p.slug, cp.slug) as post_slug
+				COALESCE(p.slug, cp.slug) as post_slug, pg.slug AS page_slug
 			FROM reports r
 			LEFT JOIN users ru ON ru.id = r.reporter_id
 			LEFT JOIN users au ON au.id = r.assigned_to
@@ -295,6 +428,7 @@ func listReports(ctx context.Context, q *query.ListReports) error {
 			LEFT JOIN posts p ON r.reported_type = 'post' AND p.id = r.reported_id
 			LEFT JOIN comments c ON r.reported_type = 'comment' AND c.id = r.reported_id
 			LEFT JOIN posts cp ON c.post_id = cp.id
+			LEFT JOIN pages pg ON c.page_id = pg.id AND pg.tenant_id = r.tenant_id
 			WHERE `+conditions+`
 			ORDER BY r.created_at DESC
 			LIMIT $`+strconv.Itoa(argIdx)+` OFFSET $`+strconv.Itoa(argIdx+1),
@@ -313,10 +447,11 @@ func listReports(ctx context.Context, q *query.ListReports) error {
 
 func countPendingReports(ctx context.Context, q *query.CountPendingReports) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		err := trx.Scalar(&q.Result, `
-			SELECT COUNT(*) FROM reports 
-			WHERE tenant_id = $1 AND status IN ('pending', 'in_review')
-		`, tenant.ID)
+		err := trx.Scalar(&q.Result, visibleCommentOwners + `
+			SELECT COUNT(*) FROM reports r
+			WHERE r.tenant_id = $1 AND r.status IN ('pending', 'in_review')
+			AND (r.reported_type <> 'comment' OR r.reported_id IN (SELECT id FROM visible_comment_owners))
+		`, tenant.ID, discussionViewerRole(user))
 		if err != nil {
 			return errors.Wrap(err, "failed to count pending reports")
 		}
@@ -345,68 +480,24 @@ func getReportReasons(ctx context.Context, q *query.GetReportReasons) error {
 	})
 }
 
-func countUserReportsToday(ctx context.Context, q *query.CountUserReportsToday) error {
+func getUserReportStatus(ctx context.Context, q *query.GetUserReportStatus) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		err := trx.Scalar(&q.Result, `
-			SELECT COUNT(*) FROM reports 
-			WHERE tenant_id = $1 AND reporter_id = $2 AND created_at >= CURRENT_DATE
-		`, tenant.ID, q.UserID)
-		if err != nil {
-			return errors.Wrap(err, "failed to count user reports today")
-		}
-		return nil
-	})
-}
-
-func hasUserReportedTarget(ctx context.Context, q *query.HasUserReportedTarget) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		var count int
-		err := trx.Scalar(&count, `
-			SELECT COUNT(*) FROM reports 
-			WHERE tenant_id = $1 AND reporter_id = $2 AND reported_type = $3 AND reported_id = $4 AND status = 'pending'
-		`, tenant.ID, q.UserID, q.ReportedType.String(), q.ReportedID)
-		if err != nil {
-			return errors.Wrap(err, "failed to check if user reported target")
-		}
-		q.Result = count > 0
-		return nil
-	})
-}
-
-type dbReportedCommentID struct {
-	ReportedID int `db:"reported_id"`
-}
-
-func getUserReportedItemsOnPost(ctx context.Context, q *query.GetUserReportedItemsOnPost) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		var postCount int
-		err := trx.Scalar(&postCount, `
-			SELECT COUNT(*) FROM reports 
-			WHERE tenant_id = $1 AND reporter_id = $2 AND reported_type = 'post' AND reported_id = $3 AND status = 'pending'
-		`, tenant.ID, user.ID, q.PostID)
-		if err != nil {
-			return errors.Wrap(err, "failed to check if user reported post")
-		}
-		q.HasReportedPost = postCount > 0
-
-		if len(q.CommentIDs) > 0 {
-			var reportedRows []*dbReportedCommentID
-			err = trx.Select(&reportedRows, `
-				SELECT reported_id FROM reports 
-				WHERE tenant_id = $1 AND reporter_id = $2 AND reported_type = 'comment' AND reported_id = ANY($3) AND status = 'pending'
-			`, tenant.ID, user.ID, pq.Array(q.CommentIDs))
-			if err != nil {
-				return errors.Wrap(err, "failed to get user reported comments")
-			}
-			q.ReportedCommentIDs = make([]int, len(reportedRows))
-			for i, row := range reportedRows {
-				q.ReportedCommentIDs[i] = row.ReportedID
-			}
-		} else {
-			q.ReportedCommentIDs = []int{}
-		}
-
-		return nil
+		return trx.Get(q, `
+            SELECT
+                (SELECT COUNT(*) FROM reports
+                 WHERE tenant_id = $1 AND reporter_id = $2 AND created_at >= CURRENT_DATE
+                ) AS count_today,
+                EXISTS (
+                    SELECT 1 FROM reports
+                    WHERE tenant_id = $1 AND reporter_id = $2 AND reported_type = 'post'
+                      AND reported_id = $3 AND status = 'pending'
+                ) AS has_reported_post,
+                ARRAY (
+                    SELECT reported_id FROM reports
+                    WHERE tenant_id = $1 AND reporter_id = $2 AND reported_type = 'comment'
+                      AND reported_id = ANY($4) AND status = 'pending'
+                ) AS reported_comment_ids
+        `, tenant.ID, user.ID, q.PostID, pq.Array(q.CommentIDs))
 	})
 }
 

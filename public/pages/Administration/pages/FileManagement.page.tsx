@@ -4,6 +4,7 @@ import { HStack } from "@fider/components/layout"
 import { Failure, actions, notify, classSet, copyToClipboard } from "@fider/services"
 import { ImageUpload } from "@fider/models"
 import { PageConfig } from "@fider/components/layouts"
+import { useBodyScrollLock } from "@fider/hooks/useBodyScrollLock"
 
 import { heroiconsTrash as IconTrash, heroiconsPencilAlt as IconPencilAlt, heroiconsDownload as IconDownload, heroiconsUpload as IconUpload, heroiconsEye as IconEye, heroiconsX as IconX, heroiconsSearch as IconSearch, heroiconsDuplicate as IconCopy, heroiconsCheck as IconCheck, heroiconsExternalLink as IconExternalLink, heroiconsSelector as IconSelector } from "@fider/icons.generated"
 
@@ -169,6 +170,7 @@ const FileManagementPage: React.FC = () => {
   const [assetToDelete, setAssetToDelete] = useState<MediaAsset | undefined>()
   const [copiedAssetKey, setCopiedAssetKey] = useState<string | null>(null)
   const [showImageGallery, setShowImageGallery] = useState(false)
+  useBodyScrollLock(showImageGallery)
   const [galleryImageUrl, setGalleryImageUrl] = useState<string>("")
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set())
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
@@ -198,7 +200,7 @@ const FileManagementPage: React.FC = () => {
       params.append('type', mediaTypeFilter);
     }
     
-    const url = `/api/v1/admin/files?${params.toString()}`;
+    const url = `/api/admin/files?${params.toString()}`;
     const result = await actions.listFiles(url);
     
     if (result.ok) {
@@ -300,7 +302,7 @@ const FileManagementPage: React.FC = () => {
 
     closeDeleteConfirmation();
 
-    const endpoint = `/api/v1/admin/files/${assetToDelete.blobKey}${forceDelete ? '?force=true' : ''}`;
+    const endpoint = `/api/admin/files/${assetToDelete.blobKey}${forceDelete ? '?force=true' : ''}`;
 
     const result = await fetch(endpoint, {
       method: 'DELETE',
@@ -328,7 +330,7 @@ const FileManagementPage: React.FC = () => {
       return;
     }
 
-    const result = await fetch(`/api/v1/admin/files/${assetToEdit.blobKey}`, {
+    const result = await fetch(`/api/admin/files/${assetToEdit.blobKey}`, {
       method: 'PUT',
       credentials: 'same-origin',
       headers: {
@@ -379,12 +381,10 @@ const FileManagementPage: React.FC = () => {
     const url = getAssetURL(asset);
     setGalleryImageUrl(url);
     setShowImageGallery(true);
-    document.body.style.overflow = "hidden";
   }
 
   const closeImageGallery = () => {
     setShowImageGallery(false);
-    document.body.style.overflow = "";
   }
 
   useEffect(() => {
@@ -451,7 +451,7 @@ const FileManagementPage: React.FC = () => {
   const bulkDelete = async (forceDelete: boolean = false) => {
     setBulkDeleting(true)
     try {
-      const endpoint = `/api/v1/admin/files-bulk/delete${forceDelete ? '?force=true' : ''}`
+      const endpoint = `/api/admin/files-bulk/delete${forceDelete ? '?force=true' : ''}`
       const result = await fetch(endpoint, {
         method: 'POST',
         credentials: 'same-origin',
@@ -480,7 +480,7 @@ const FileManagementPage: React.FC = () => {
 
   const fetchPrunableCount = async () => {
     try {
-      const result = await fetch('/api/v1/admin/files-bulk/prunable-count', {
+      const result = await fetch('/api/admin/files-bulk/prunable-count', {
         credentials: 'same-origin'
       })
       if (result.ok) {
@@ -500,7 +500,7 @@ const FileManagementPage: React.FC = () => {
   const executePrune = async () => {
     setIsPruning(true)
     try {
-      const result = await fetch('/api/v1/admin/files-bulk/prune', {
+      const result = await fetch('/api/admin/files-bulk/prune', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' }

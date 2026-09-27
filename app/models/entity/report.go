@@ -22,6 +22,7 @@ type Report struct {
 	ResolutionNote string            `json:"resolutionNote,omitempty"`
 	PostNumber     int               `json:"postNumber,omitempty"`
 	PostSlug       string            `json:"postSlug,omitempty"`
+	PageSlug       string            `json:"pageSlug,omitempty"`
 }
 
 type ReportReason struct {
@@ -32,4 +33,3 @@ type ReportReason struct {
 	SortOrder   int    `json:"sortOrder"`
 	IsActive    bool   `json:"isActive"`
 }
-

@@ -9,10 +9,17 @@ import (
 	"image"
 	"image/png"
 	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/api"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
@@ -68,7 +75,7 @@ func TestFileUploadPreservesImageSizingAndFormat(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		response, err := f.requestWithParams(handlers.UploadFile(), http.MethodPost, "/_api/files", string(body), nil)
+		response, err := f.requestWithParams(handlers.UploadFile(), http.MethodPost, "/api/files", string(body), nil)
 		if err != nil || response.Code != http.StatusOK {
 			t.Fatalf("file upload status=%d error=%v body=%s", response.Code, err, response.Body)
 		}
@@ -105,7 +112,7 @@ func TestFileUploadPreservesImageSizingAndFormat(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	response, err := f.requestWithParams(handlers.UploadFile(), http.MethodPost, "/_api/files", string(body), web.StringMap{})
+	response, err := f.requestWithParams(handlers.UploadFile(), http.MethodPost, "/api/files", string(body), web.StringMap{})
 	if err != nil || response.Code != http.StatusBadRequest {
 		t.Fatalf("unsupported file status=%d error=%v body=%s", response.Code, err, response.Body)
 	}
@@ -132,7 +139,7 @@ func TestFileUploadRejectsUnsafeImages(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		response, err := f.requestWithParams(handlers.UploadFile(), http.MethodPost, "/_api/files", string(body), nil)
+		response, err := f.requestWithParams(handlers.UploadFile(), http.MethodPost, "/api/files", string(body), nil)
 		if err != nil || response.Code != http.StatusBadRequest {
 			t.Fatalf("unsafe image: status=%d error=%v body=%s", response.Code, err, response.Body)
 		}
@@ -140,5 +147,219 @@ func TestFileUploadRejectsUnsafeImages(t *testing.T) {
 		if workflowCount(t, "SELECT COUNT(*) FROM blobs") != before {
 			t.Fatal("rejected image persisted a blob")
 		}
+	}
+}
+
+func TestAttachmentUploadPreservesRequest(t *testing.T) {
+	f := newPostWorkflow(t)
+	post := &cmd.AddNewPost{Title: "Uploaded image data", Description: "Retain request identity"}
+	images := []*dto.ImageUpload{discussionImage(t), discussionImage(t)}
+	original, err := json.Marshal(images)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	post.Attachments = images
+	if err := bus.Dispatch(f.ctx, post); err != nil {
+		t.Fatal(err)
+	}
+
+	unchanged, err := json.Marshal(images)
+	if err != nil || !bytes.Equal(original, unchanged) {
+		t.Fatalf("upload changed its request: error=%v", err)
+	}
+
+	stored := &query.GetPostAttachments{PostID: post.Result.ID}
+	if err := bus.Dispatch(f.ctx, stored); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(stored.Result) != 2 || stored.Result[0] == stored.Result[1] {
+		t.Fatalf("separate uploads lost their identities: %v", stored.Result)
+	}
+
+	for _, key := range stored.Result {
+		blob := expectStoredImage(t, f.ctx, key, "webp", 2)
+		if bytes.Equal(blob.Content, images[0].Upload.Content) {
+			t.Fatal("stored image was not converted independently from the request")
+		}
+	}
+}
+
+func TestCommentAttachmentCommandReplay(t *testing.T) {
+	for _, size := range []int{2, 1501} {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			f := newPostWorkflow(t)
+			post := &cmd.AddNewPost{Title: "Comment image replay", Description: "Attachment identities"}
+			if err := bus.Dispatch(f.ctx, post); err != nil {
+				t.Fatal(err)
+			}
+
+			create := &cmd.CreateComment{
+				PostNumber:   post.Result.Number,
+				Content:      "Original image",
+				Attachments:  []*dto.ImageUpload{pngAttachment(t, size)},
+				SubmissionID: "create-image-replay",
+			}
+			original := bytes.Clone(create.Attachments[0].Upload.Content)
+			if err := bus.Dispatch(f.ctx, create); err != nil {
+				t.Fatal(err)
+			}
+
+			commentID := create.Result.ID
+			f.user.Muted = true
+			if err := bus.Dispatch(f.ctx, create); err != nil || create.Created || create.Result.ID != commentID {
+				t.Fatalf("same create command did not recover its receipt: %v", err)
+			}
+			f.user.Muted = false
+
+			edit := &cmd.UpdateComment{
+				CommentID:    commentID,
+				Content:      "Another image",
+				Attachments:  []*dto.ImageUpload{pngAttachment(t, size)},
+				SubmissionID: "edit-image-replay",
+			}
+			if err := bus.Dispatch(f.ctx, edit); err != nil {
+				t.Fatal(err)
+			}
+
+			f.user.Muted = true
+			if err := bus.Dispatch(f.ctx, edit); err != nil {
+				t.Fatalf("same edit command did not recover its receipt: %v", err)
+			}
+			f.user.Muted = false
+			if len(edit.Result.Attachments) != 2 {
+				t.Fatalf("receipt replay changed attachments: %v", edit.Result.Attachments)
+			}
+
+			for _, attachment := range []*dto.ImageUpload{create.Attachments[0], edit.Attachments[0]} {
+				if attachment.BlobKey != "" || attachment.Upload.ContentType != "image/png" || !bytes.Equal(attachment.Upload.Content, original) {
+					t.Fatal("comment operation changed its input image")
+				}
+			}
+
+			for _, key := range edit.Result.Attachments {
+				expectStoredImage(t, f.ctx, key, "webp", min(size, 1500))
+			}
+		})
+	}
+}
+
+func privateCommentImage(t *testing.T) (postWorkflow, string) {
+	t.Helper()
+	f := newPostWorkflow(t)
+	page := &cmd.CreatePage{
+		Title:              "Private images",
+		Slug:               "private-images",
+		Content:            "Restricted Page",
+		Status:             entity.PageStatusPublished,
+		Visibility:         entity.PageVisibilityPrivate,
+		AllowedRoles:       []string{"administrator"},
+		AllowComments:      true,
+		AllowCommentImages: true,
+	}
+	if err := bus.Dispatch(f.ctx, page); err != nil {
+		t.Fatal(err)
+	}
+
+	comment := &cmd.CreateComment{
+		PageID:       page.Result.ID,
+		Content:      "Private image",
+		Attachments:  []*dto.ImageUpload{discussionImage(t)},
+		SubmissionID: "private-image",
+	}
+	if err := bus.Dispatch(f.ctx, comment); err != nil {
+		t.Fatal(err)
+	}
+
+	key := comment.Result.Attachments[0]
+
+	visitor := &query.GetUserByID{UserID: 2}
+	if err := bus.Dispatch(f.ctx, visitor); err != nil {
+		t.Fatal(err)
+	}
+
+	f.user = visitor.Result
+	f.ctx = context.WithValue(f.ctx, app.UserCtxKey, visitor.Result)
+
+	access := &query.CanReadAttachment{Key: key}
+	if err := bus.Dispatch(f.ctx, access); err != nil || access.Result {
+		t.Fatalf("private image was readable before submission: access=%v error=%v", access.Result, err)
+	}
+
+	return f, key
+}
+
+func TestPostWritesCannotAttachPrivateCommentImage(t *testing.T) {
+	for _, operation := range []string{"create", "edit"} {
+		t.Run(operation, func(t *testing.T) {
+			f, key := privateCommentImage(t)
+			post := entity.Post{}
+			handler, method := api.CreatePost(), http.MethodPost
+			if operation == "edit" {
+				original := &cmd.AddNewPost{Title: "Original public post", Description: "Original description"}
+				if err := bus.Dispatch(f.ctx, original); err != nil {
+					t.Fatal(err)
+				}
+
+				post = *original.Result
+				handler, method = api.UpdatePost(), http.MethodPut
+			}
+
+			submit := func(attachments []*dto.ImageUpload, want int) *httptest.ResponseRecorder {
+				t.Helper()
+				body, err := json.Marshal(map[string]any{
+					"title":        "A public post with an image",
+					"description":  strings.Repeat("Public description. ", 10),
+					"attachments":  attachments,
+					"submissionId": "private-image-retry",
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				response, err := f.request(handler, method, post.Number, string(body))
+				if err != nil || response.Code != want {
+					t.Fatalf("post write: want %d, status=%d error=%v body=%s", want, response.Code, err, response.Body)
+				}
+
+				return response
+			}
+
+			submit([]*dto.ImageUpload{{BlobKey: key, Upload: &dto.ImageUploadData{}}}, http.StatusBadRequest)
+			access := &query.CanReadAttachment{Key: key}
+			if err := bus.Dispatch(f.ctx, access); err != nil || access.Result {
+				t.Fatalf("private image became readable: access=%v error=%v", access.Result, err)
+			}
+
+			if operation == "edit" {
+				stored := &query.GetPostByNumber{Number: post.Number}
+				if err := bus.Dispatch(f.ctx, stored); err != nil || stored.Result.Title != post.Title {
+					t.Fatalf("failed edit changed the post: result=%+v error=%v", stored.Result, err)
+				}
+			} else if count := workflowCount(t, "SELECT COUNT(*) FROM posts"); count != 0 {
+				t.Fatalf("invalid submission created %d posts", count)
+			}
+
+			if count := workflowCount(t, "SELECT COUNT(*) FROM attachments WHERE attachment_bkey = $1", key); count != 1 {
+				t.Fatalf("private image acquired another owner: %d", count)
+			}
+
+			response := submit([]*dto.ImageUpload{discussionImage(t)}, http.StatusOK)
+			if operation == "create" {
+				if err := json.Unmarshal(response.Body.Bytes(), &post); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			stored := &query.GetPostAttachments{PostID: post.ID}
+			if err := bus.Dispatch(f.ctx, stored, access); err != nil {
+				t.Fatal(err)
+			}
+
+			if len(stored.Result) != 1 || stored.Result[0] == key || access.Result {
+				t.Fatalf("corrected upload lost isolation: attachments=%v private readable=%v", stored.Result, access.Result)
+			}
+		})
 	}
 }

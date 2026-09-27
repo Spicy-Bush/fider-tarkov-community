@@ -84,7 +84,7 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
         "": 0, "Visitor": 1, "Helper": 2, "Administrator": 3, "Moderator": 4,
         "BSGCrew": 5, "Developer": 6, "Sherpa": 7, "TCStaff": 8, "Emissary": 9
       }
-      const response = await fetch(`/_api/admin/visualroles/${visualRoleToNumber[option?.value || ""]}/users`, {
+      const response = await fetch(`/api/admin/visualroles/${visualRoleToNumber[option?.value || ""]}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userID: user.id }),

@@ -1,7 +1,6 @@
 package postgres_test
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 )
 
@@ -115,21 +113,29 @@ func TestPostStorage_AddAndReturnComments(t *testing.T) {
 	err := bus.Dispatch(jonSnowCtx, newPost)
 	Expect(err).IsNil()
 
-	err = bus.Dispatch(jonSnowCtx, &cmd.AddNewComment{Post: newPost.Result, Content: "Comment #1"})
+	err = bus.Dispatch(jonSnowCtx, &cmd.CreateComment{
+		PostNumber:   newPost.Result.Number,
+		Content:      "Comment #1",
+		SubmissionID: "comment-1",
+	})
 	Expect(err).IsNil()
 
-	err = bus.Dispatch(aryaStarkCtx, &cmd.AddNewComment{Post: newPost.Result, Content: "Comment #2"})
+	err = bus.Dispatch(aryaStarkCtx, &cmd.CreateComment{
+		PostNumber:   newPost.Result.Number,
+		Content:      "Comment #2",
+		SubmissionID: "comment-2",
+	})
 	Expect(err).IsNil()
 
-	commentsByPost := &query.GetCommentsByPost{Post: newPost.Result}
+	commentsByPost := &query.GetDiscussionComments{Discussion: entity.PostDiscussion(newPost.Result)}
 	err = bus.Dispatch(aryaStarkCtx, commentsByPost)
 	Expect(err).IsNil()
 	Expect(commentsByPost.Result).HasLen(2)
 
-	Expect(commentsByPost.Result[0].Content).Equals("Comment #1")
-	Expect(commentsByPost.Result[0].User.Name).Equals("Jon Snow")
-	Expect(commentsByPost.Result[1].Content).Equals("Comment #2")
-	Expect(commentsByPost.Result[1].User.Name).Equals("Arya Stark")
+	Expect(commentsByPost.Result[0].Content).Equals("Comment #2")
+	Expect(commentsByPost.Result[0].User.Name).Equals("Arya Stark")
+	Expect(commentsByPost.Result[1].Content).Equals("Comment #1")
+	Expect(commentsByPost.Result[1].User.Name).Equals("Jon Snow")
 }
 
 func TestPostStorage_AddGetUpdateComment(t *testing.T) {
@@ -140,7 +146,11 @@ func TestPostStorage_AddGetUpdateComment(t *testing.T) {
 	err := bus.Dispatch(jonSnowCtx, newPost)
 	Expect(err).IsNil()
 
-	addNewComment := &cmd.AddNewComment{Post: newPost.Result, Content: "Comment #1"}
+	addNewComment := &cmd.CreateComment{
+		PostNumber:   newPost.Result.Number,
+		Content:      "Comment #1",
+		SubmissionID: "comment-1",
+	}
 	err = bus.Dispatch(jonSnowCtx, addNewComment)
 	Expect(err).IsNil()
 
@@ -154,8 +164,15 @@ func TestPostStorage_AddGetUpdateComment(t *testing.T) {
 	Expect(commentByID.Result.EditedAt).IsNil()
 	Expect(commentByID.Result.EditedBy).IsNil()
 
-	updateComment := &cmd.UpdateComment{CommentID: addNewComment.Result.ID, Content: "Comment #1 with edit"}
+	updateComment := &cmd.UpdateComment{
+		CommentID:    addNewComment.Result.ID,
+		Content:      "Comment #1 with edit",
+		SubmissionID: "comment-1-edit",
+	}
 	err = bus.Dispatch(aryaStarkCtx, updateComment)
+	Expect(err).IsNotNil()
+
+	err = bus.Dispatch(jonSnowCtx, updateComment)
 	Expect(err).IsNil()
 
 	err = bus.Dispatch(aryaStarkCtx, commentByID)
@@ -165,7 +182,7 @@ func TestPostStorage_AddGetUpdateComment(t *testing.T) {
 	Expect(commentByID.Result.Content).Equals("Comment #1 with edit")
 	Expect(commentByID.Result.User.ID).Equals(jonSnow.ID)
 	Expect(commentByID.Result.EditedAt).IsNotNil()
-	Expect(commentByID.Result.EditedBy.ID).Equals(aryaStark.ID)
+	Expect(commentByID.Result.EditedBy.ID).Equals(jonSnow.ID)
 }
 
 func TestPostStorage_AddDeleteComment(t *testing.T) {
@@ -176,7 +193,11 @@ func TestPostStorage_AddDeleteComment(t *testing.T) {
 	err := bus.Dispatch(jonSnowCtx, newPost)
 	Expect(err).IsNil()
 
-	addNewComment := &cmd.AddNewComment{Post: newPost.Result, Content: "Comment #1"}
+	addNewComment := &cmd.CreateComment{
+		PostNumber:   newPost.Result.Number,
+		Content:      "Comment #1",
+		SubmissionID: "comment-1",
+	}
 	err = bus.Dispatch(jonSnowCtx, addNewComment)
 	Expect(err).IsNil()
 
@@ -696,97 +717,84 @@ func TestPostStorage_ListVotesOfPost(t *testing.T) {
 }
 
 func TestPostStorage_Attachments(t *testing.T) {
-	SetupDatabaseTest(t)
-	defer TeardownDatabaseTest()
+	f := newPostWorkflow(t)
 
 	newPost1 := &cmd.AddNewPost{Title: "My new post", Description: "with this description"}
 	newPost2 := &cmd.AddNewPost{Title: "My other post", Description: "with another description"}
-	err := bus.Dispatch(jonSnowCtx, newPost1, newPost2)
-	Expect(err).IsNil()
+	if err := bus.Dispatch(f.ctx, newPost1, newPost2); err != nil {
+		t.Fatal(err)
+	}
 
-	getAttachments1 := &query.GetAttachments{Post: newPost1.Result}
-	getAttachments2 := &query.GetAttachments{Post: newPost2.Result}
+	getAttachments1 := &query.GetPostAttachments{PostID: newPost1.Result.ID}
+	getAttachments2 := &query.GetPostAttachments{PostID: newPost2.Result.ID}
+	upload := discussionImage(t)
+	upload.BlobKey = "caller-provided-key"
 
-	err = bus.Dispatch(jonSnowCtx, getAttachments1)
-	Expect(err).IsNil()
-	Expect(getAttachments1.Result).HasLen(0)
+	if err := bus.Dispatch(f.ctx, &cmd.UpdatePost{
+		Post:        newPost1.Result,
+		Title:       newPost1.Title,
+		Description: newPost1.Description,
+		Attachments: []*dto.ImageUpload{upload},
+	}); err != nil {
+		t.Fatal(err)
+	}
 
-	bytes, err := os.ReadFile(env.Path("favicon.png"))
-	Expect(err).IsNil()
+	if err := bus.Dispatch(f.ctx, getAttachments1, getAttachments2); err != nil {
+		t.Fatal(err)
+	}
 
-	err = bus.Dispatch(jonSnowCtx, &cmd.SetAttachments{
-		Post: newPost1.Result,
+	if len(getAttachments1.Result) != 1 || len(getAttachments2.Result) != 0 {
+		t.Fatalf("wrong attachment owners: first=%v second=%v", getAttachments1.Result, getAttachments2.Result)
+	}
+
+	key := getAttachments1.Result[0]
+	if key == upload.BlobKey || key == "" {
+		t.Fatalf("new upload did not receive its own identity: %q", key)
+	}
+
+	if err := bus.Dispatch(f.ctx, &cmd.UpdatePost{
+		Post:        newPost2.Result,
+		Title:       newPost2.Title,
+		Description: newPost2.Description,
 		Attachments: []*dto.ImageUpload{
-			{
-				BlobKey: "12345-test.png",
-				Upload: &dto.ImageUploadData{
-					FileName:    "test.png",
-					ContentType: "image/png",
-					Content:     bytes,
-				},
-			},
+			{BlobKey: key, Remove: true},
+			discussionImage(t),
+			discussionImage(t),
 		},
-	})
-	Expect(err).IsNil()
+	}); err != nil {
+		t.Fatal(err)
+	}
 
-	err = bus.Dispatch(jonSnowCtx, getAttachments1, getAttachments2)
-	Expect(err).IsNil()
-	Expect(getAttachments1.Result).HasLen(1)
-	Expect(getAttachments1.Result[0]).Equals("12345-test.png")
-	Expect(getAttachments2.Result).HasLen(0)
+	if err := bus.Dispatch(f.ctx, getAttachments1, getAttachments2); err != nil {
+		t.Fatal(err)
+	}
 
-	err = bus.Dispatch(jonSnowCtx, &cmd.SetAttachments{
-		Post: newPost2.Result,
-		Attachments: []*dto.ImageUpload{
-			{
-				BlobKey: "12345-test.png",
-				Remove:  true,
-			},
-			{
-				BlobKey: "67890-test2.png",
-				Upload: &dto.ImageUploadData{
-					FileName:    "test2.png",
-					ContentType: "image/png",
-					Content:     bytes,
-				},
-			},
-			{
-				BlobKey: "67890-test6.png",
-				Upload: &dto.ImageUploadData{
-					FileName:    "test6.png",
-					ContentType: "image/png",
-					Content:     bytes,
-				},
-			},
-		},
-	})
-	Expect(err).IsNil()
+	if len(getAttachments1.Result) != 1 || getAttachments1.Result[0] != key || len(getAttachments2.Result) != 2 {
+		t.Fatalf("cross-post removal changed stored files: first=%v second=%v", getAttachments1.Result, getAttachments2.Result)
+	}
+	if getAttachments2.Result[0] == getAttachments2.Result[1] {
+		t.Fatal("separate uploads shared one identity")
+	}
 
-	err = bus.Dispatch(jonSnowCtx, getAttachments1, getAttachments2)
-	Expect(err).IsNil()
-	Expect(getAttachments1.Result).HasLen(1)
-	Expect(getAttachments1.Result[0]).Equals("12345-test.png")
-	Expect(getAttachments2.Result).HasLen(2)
-	Expect(getAttachments2.Result[0]).Equals("67890-test2.png")
-	Expect(getAttachments2.Result[1]).Equals("67890-test6.png")
+	if err := bus.Dispatch(f.ctx, &cmd.UpdatePost{
+		Post:        newPost1.Result,
+		Title:       newPost1.Title,
+		Description: newPost1.Description,
+		Attachments: []*dto.ImageUpload{{BlobKey: key, Remove: true}},
+	}); err != nil {
+		t.Fatal(err)
+	}
 
-	err = bus.Dispatch(jonSnowCtx, &cmd.SetAttachments{
-		Post: newPost1.Result,
-		Attachments: []*dto.ImageUpload{
-			{
-				BlobKey: "12345-test.png",
-				Remove:  true,
-			},
-		},
-	})
-	Expect(err).IsNil()
+	if err := bus.Dispatch(f.ctx, getAttachments1); err != nil {
+		t.Fatal(err)
+	}
 
-	err = bus.Dispatch(jonSnowCtx, getAttachments1)
-	Expect(err).IsNil()
-	Expect(getAttachments1.Result).HasLen(0)
+	if len(getAttachments1.Result) != 0 {
+		t.Fatalf("removed attachment survived: %v", getAttachments1.Result)
+	}
 }
 
-func TestToggleReaction_Add(t *testing.T) {
+func TestSetCommentReaction(t *testing.T) {
 	SetupDatabaseTest(t)
 	defer TeardownDatabaseTest()
 
@@ -794,18 +802,21 @@ func TestToggleReaction_Add(t *testing.T) {
 	err := bus.Dispatch(jonSnowCtx, newPost)
 	Expect(err).IsNil()
 
-	newComment := &cmd.AddNewComment{Post: newPost.Result, Content: "This is my comment"}
+	newComment := &cmd.CreateComment{
+		PostNumber:   newPost.Result.Number,
+		Content:      "This is my comment",
+		SubmissionID: "my-comment",
+	}
 	err = bus.Dispatch(jonSnowCtx, newComment)
 	Expect(err).IsNil()
 
 	// Now add a reaction
-	reaction := &cmd.ToggleCommentReaction{Comment: newComment.Result, Emoji: "👍", User: jonSnow}
+	reaction := &cmd.SetCommentReaction{CommentID: newComment.Result.ID, Emoji: "👍", Active: true}
 	err = bus.Dispatch(jonSnowCtx, reaction)
 	Expect(err).IsNil()
-	Expect(reaction.Result).IsTrue()
 
 	// Get the comment, and check that the reaction was added
-	commentByID := &query.GetCommentsByPost{Post: &entity.Post{ID: newPost.Result.ID}}
+	commentByID := &query.GetDiscussionComments{Discussion: entity.PostDiscussion(newPost.Result)}
 	err = bus.Dispatch(jonSnowCtx, commentByID)
 	Expect(err).IsNil()
 
@@ -817,13 +828,12 @@ func TestToggleReaction_Add(t *testing.T) {
 	Expect(commentByID.Result[0].ReactionCounts[0].IncludesMe).IsTrue()
 
 	// Now remove the reaction
-	reaction = &cmd.ToggleCommentReaction{Comment: newComment.Result, Emoji: "👍", User: jonSnow}
+	reaction = &cmd.SetCommentReaction{CommentID: newComment.Result.ID, Emoji: "👍", Active: false}
 	err = bus.Dispatch(jonSnowCtx, reaction)
 	Expect(err).IsNil()
-	Expect(reaction.Result).IsFalse()
 
 	// Get the comment, and check that the reaction was removed
-	commentByID = &query.GetCommentsByPost{Post: &entity.Post{ID: newPost.Result.ID}}
+	commentByID = &query.GetDiscussionComments{Discussion: entity.PostDiscussion(newPost.Result)}
 	err = bus.Dispatch(jonSnowCtx, commentByID)
 	Expect(err).IsNil()
 
@@ -839,18 +849,21 @@ func TestViewReactions_AnonymousUser(t *testing.T) {
 	err := bus.Dispatch(jonSnowCtx, newPost)
 	Expect(err).IsNil()
 
-	newComment := &cmd.AddNewComment{Post: newPost.Result, Content: "This is my comment"}
+	newComment := &cmd.CreateComment{
+		PostNumber:   newPost.Result.Number,
+		Content:      "This is my comment",
+		SubmissionID: "my-comment",
+	}
 	err = bus.Dispatch(jonSnowCtx, newComment)
 	Expect(err).IsNil()
 
 	// Now add a reaction
-	reaction := &cmd.ToggleCommentReaction{Comment: newComment.Result, Emoji: "👍", User: jonSnow}
+	reaction := &cmd.SetCommentReaction{CommentID: newComment.Result.ID, Emoji: "👍", Active: true}
 	err = bus.Dispatch(jonSnowCtx, reaction)
 	Expect(err).IsNil()
-	Expect(reaction.Result).IsTrue()
 
 	// Get the comment as an anonymous user, and check that the reaction was added
-	commentByID := &query.GetCommentsByPost{Post: &entity.Post{ID: newPost.Result.ID}}
+	commentByID := &query.GetDiscussionComments{Discussion: entity.PostDiscussion(newPost.Result)}
 	err = bus.Dispatch(demoTenantCtx, commentByID)
 	Expect(err).IsNil()
 

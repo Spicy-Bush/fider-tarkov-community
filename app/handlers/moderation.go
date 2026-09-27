@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"fmt"
+
+	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/api"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
@@ -48,7 +50,7 @@ func ApproveCommentModeration() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
-			return c.Ok(web.Map{})
+			return api.CommentResponse(c, setPending.Discussion, setPending.Comment)
 		})
 	}
 }
@@ -92,7 +94,7 @@ func HideCommentModeration() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
-			return c.Ok(web.Map{})
+			return api.CommentResponse(c, setPending.Discussion, setPending.Comment)
 		})
 	}
 }
@@ -146,7 +148,7 @@ func ProfileModerationStatus() web.HandlerFunc {
 			}
 
 			if check.ContentType == "avatar" && len(check.BlobKeys) == 1 && check.State != "rejected" {
-				change["previewURL"] = fmt.Sprintf("/_api/user/moderation/avatar?revision=%d", check.Revision)
+				change["previewURL"] = fmt.Sprintf("/api/user/moderation/avatar?revision=%d", check.Revision)
 			}
 
 			changes = append(changes, change)

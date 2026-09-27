@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	api "github.com/Spicy-Bush/fider-tarkov-community/app/handlers/apiv1"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/api"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"

@@ -20,7 +20,7 @@ interface HistoryState extends Record<string, unknown> {
 const ManageReportsPage: React.FC = () => {
   const state = useReportsState()
 
-  const { viewers, viewItem, stopViewing } = useRealtimePresence({
+  const { viewers, viewItem, stopViewing, setInitialViewers } = useRealtimePresence({
     eventPrefix: "report",
     itemIdField: "reportId",
   })
@@ -60,13 +60,14 @@ const ManageReportsPage: React.FC = () => {
     resolveAction: state.resolveAction,
     resolutionNote: state.resolutionNote,
     reasons: state.reasons,
-    setReports: state.setReports,
+    updateReport: state.updateReport,
+    removeReport: state.removeReport,
     setSelectedReport: state.setSelectedReport,
     setSelectedStatus: state.setSelectedStatus,
     setSelectedType: state.setSelectedType,
     setSelectedReason: state.setSelectedReason,
     setPage: state.setPage,
-    setNewReportIds: state.setNewReportIds,
+    clearNewReports: state.clearNewReports,
     setViewingUser: state.setViewingUser,
     setProfileKey: state.setProfileKey,
     setShowResolveModal: state.setShowResolveModal,
@@ -78,13 +79,17 @@ const ManageReportsPage: React.FC = () => {
     isNavigating,
   })
 
-  useReportsEvents({
-    selectedReportRef: state.selectedReportRef,
-    selectedStatusRef: state.selectedStatusRef,
-    setReports: state.setReports,
-    setSelectedReport: state.setSelectedReport,
-    setNewReportIds: state.setNewReportIds,
+  useReportsEvents(async () => {
+    await state.loadReports({ markNew: true })
+
+    if (state.selectedReportRef.current) {
+      await state.loadPreviewContent(state.selectedReportRef.current.id)
+    }
   })
+
+  useEffect(() => {
+    setInitialViewers(state.viewers)
+  }, [state.viewers, setInitialViewers])
 
   useEffect(() => {
     state.loadReports()
@@ -165,4 +170,3 @@ const ManageReportsPage: React.FC = () => {
 }
 
 export default ManageReportsPage
-

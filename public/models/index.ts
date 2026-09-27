@@ -1,4 +1,5 @@
 export * from "./post"
+export * from "./discussion"
 export * from "./identity"
 export * from "./settings"
 export * from "./billing"

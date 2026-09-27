@@ -13,11 +13,9 @@ import (
 
 var cActivateBillingSubscriptionHandler func(context.Context, *cmd.ActivateBillingSubscription) error
 var cActivateTenantHandler func(context.Context, *cmd.ActivateTenant) error
-var cAddNewCommentHandler func(context.Context, *cmd.AddNewComment) error
 var cAddNewNotificationHandler func(context.Context, *cmd.AddNewNotification) error
 var cAddNewPostHandler func(context.Context, *cmd.AddNewPost) error
 var cAddNewTagHandler func(context.Context, *cmd.AddNewTag) error
-var cAddPageCommentHandler func(context.Context, *cmd.AddPageComment) error
 var cAddSubscriberHandler func(context.Context, *cmd.AddSubscriber) error
 var cAddVoteHandler func(context.Context, *cmd.AddVote) error
 var cApplyPostVoteHandler func(context.Context, *cmd.ApplyPostVote) error
@@ -32,6 +30,7 @@ var cChangeUserRoleHandler func(context.Context, *cmd.ChangeUserRole) error
 var cChangeUserVisualRoleHandler func(context.Context, *cmd.ChangeUserVisualRole) error
 var cClaimModerationHandler func(context.Context, *cmd.ClaimModeration) error
 var cCreateCannedResponseHandler func(context.Context, *cmd.CreateCannedResponse) error
+var cCreateCommentHandler func(context.Context, *cmd.CreateComment) error
 var cCreateCreativeVersionHandler func(context.Context, *cmd.CreateCreativeVersion) error
 var cCreatePageHandler func(context.Context, *cmd.CreatePage) error
 var cCreatePageTagHandler func(context.Context, *cmd.CreatePageTag) error
@@ -78,7 +77,7 @@ var cMarkPostAsDuplicateHandler func(context.Context, *cmd.MarkPostAsDuplicate) 
 var cMuteUserHandler func(context.Context, *cmd.MuteUser) error
 var cParseOAuthRawProfileHandler func(context.Context, *cmd.ParseOAuthRawProfile) error
 var cPreviewWebhookHandler func(context.Context, *cmd.PreviewWebhook) error
-var cProcessPostNotificationHandler func(context.Context, *cmd.ProcessPostNotification) error
+var cProcessNotificationHandler func(context.Context, *cmd.ProcessNotification) error
 var cPublishScheduledPagesHandler func(context.Context, *cmd.PublishScheduledPages) error
 var cPurgeExpiredNotificationsHandler func(context.Context, *cmd.PurgeExpiredNotifications) error
 var cPurgeReadNotificationsHandler func(context.Context, *cmd.PurgeReadNotifications) error
@@ -102,9 +101,9 @@ var cSavePushSubscriptionHandler func(context.Context, *cmd.SavePushSubscription
 var cSaveSponsorshipCampaignGraphHandler func(context.Context, *cmd.SaveSponsorshipCampaignGraph) error
 var cSaveVerificationKeyHandler func(context.Context, *cmd.SaveVerificationKey) error
 var cScheduleModerationHandler func(context.Context, *cmd.ScheduleModeration) error
-var cSchedulePostNotificationHandler func(context.Context, *cmd.SchedulePostNotification) error
+var cScheduleNotificationHandler func(context.Context, *cmd.ScheduleNotification) error
 var cSendMailHandler func(context.Context, *cmd.SendMail) error
-var cSetAttachmentsHandler func(context.Context, *cmd.SetAttachments) error
+var cSetCommentReactionHandler func(context.Context, *cmd.SetCommentReaction) error
 var cSetKeyAsVerifiedHandler func(context.Context, *cmd.SetKeyAsVerified) error
 var cSetModerationPendingHandler func(context.Context, *cmd.SetModerationPending) error
 var cSetPostResponseHandler func(context.Context, *cmd.SetPostResponse) error
@@ -114,7 +113,6 @@ var cStoreEventHandler func(context.Context, *cmd.StoreEvent) error
 var cSubmitPostHandler func(context.Context, *cmd.SubmitPost) error
 var cSupressEmailHandler func(context.Context, *cmd.SupressEmail) error
 var cTestWebhookHandler func(context.Context, *cmd.TestWebhook) error
-var cToggleCommentReactionHandler func(context.Context, *cmd.ToggleCommentReaction) error
 var cTogglePageReactionHandler func(context.Context, *cmd.TogglePageReaction) error
 var cTogglePageSubscriptionHandler func(context.Context, *cmd.TogglePageSubscription) error
 var cTriggerWebhooksHandler func(context.Context, *cmd.TriggerWebhooks) error
@@ -147,17 +145,16 @@ var cUpdateUserHandler func(context.Context, *cmd.UpdateUser) error
 var cUpdateUserAvatarHandler func(context.Context, *cmd.UpdateUserAvatar) error
 var cUploadImageHandler func(context.Context, *cmd.UploadImage) error
 var cUploadImageFileHandler func(context.Context, *cmd.UploadImageFile) error
-var cUploadImagesHandler func(context.Context, *cmd.UploadImages) error
 var cUserListCreateCompanyHandler func(context.Context, *cmd.UserListCreateCompany) error
 var cUserListHandleRoleChangeHandler func(context.Context, *cmd.UserListHandleRoleChange) error
 var cUserListUpdateCompanyHandler func(context.Context, *cmd.UserListUpdateCompany) error
 var cUserListUpdateUserHandler func(context.Context, *cmd.UserListUpdateUser) error
 var cWarnUserHandler func(context.Context, *cmd.WarnUser) error
+var qCanReadAttachmentHandler func(context.Context, *query.CanReadAttachment) error
 var qCountPendingReportsHandler func(context.Context, *query.CountPendingReports) error
 var qCountPostPerStatusHandler func(context.Context, *query.CountPostPerStatus) error
 var qCountUnreadNotificationsHandler func(context.Context, *query.CountUnreadNotifications) error
 var qCountUntaggedPostsHandler func(context.Context, *query.CountUntaggedPosts) error
-var qCountUserReportsTodayHandler func(context.Context, *query.CountUserReportsToday) error
 var qCountUsersHandler func(context.Context, *query.CountUsers) error
 var qCountVotesSinceArchiveHandler func(context.Context, *query.CountVotesSinceArchive) error
 var qCreateEditWebhookHandler func(context.Context, *query.CreateEditWebhook) error
@@ -175,17 +172,19 @@ var qGetAllUsersHandler func(context.Context, *query.GetAllUsers) error
 var qGetAllUsersNamesHandler func(context.Context, *query.GetAllUsersNames) error
 var qGetArchivablePostsHandler func(context.Context, *query.GetArchivablePosts) error
 var qGetAssignedTagsHandler func(context.Context, *query.GetAssignedTags) error
-var qGetAttachmentsHandler func(context.Context, *query.GetAttachments) error
 var qGetBillingStateHandler func(context.Context, *query.GetBillingState) error
 var qGetBillingSubscriptionHandler func(context.Context, *query.GetBillingSubscription) error
 var qGetBlobByKeyHandler func(context.Context, *query.GetBlobByKey) error
 var qGetCannedResponseByIDHandler func(context.Context, *query.GetCannedResponseByID) error
+var qGetCommentAncestorsHandler func(context.Context, *query.GetCommentAncestors) error
 var qGetCommentByIDHandler func(context.Context, *query.GetCommentByID) error
-var qGetCommentsByPageHandler func(context.Context, *query.GetCommentsByPage) error
-var qGetCommentsByPostHandler func(context.Context, *query.GetCommentsByPost) error
+var qGetCommentNotificationUsersHandler func(context.Context, *query.GetCommentNotificationUsers) error
 var qGetCreativeVersionsByIDsHandler func(context.Context, *query.GetCreativeVersionsByIDs) error
 var qGetCurrentUserSettingsHandler func(context.Context, *query.GetCurrentUserSettings) error
 var qGetCustomOAuthConfigByProviderHandler func(context.Context, *query.GetCustomOAuthConfigByProvider) error
+var qGetDiscussionHandler func(context.Context, *query.GetDiscussion) error
+var qGetDiscussionChainRepliesHandler func(context.Context, *query.GetDiscussionChainReplies) error
+var qGetDiscussionCommentsHandler func(context.Context, *query.GetDiscussionComments) error
 var qGetFirstTenantHandler func(context.Context, *query.GetFirstTenant) error
 var qGetImageFileHandler func(context.Context, *query.GetImageFile) error
 var qGetNameFromBlobKeyHandler func(context.Context, *query.GetNameFromBlobKey) error
@@ -202,6 +201,7 @@ var qGetPageTagByIDHandler func(context.Context, *query.GetPageTagByID) error
 var qGetPageTagsHandler func(context.Context, *query.GetPageTags) error
 var qGetPageTopicByIDHandler func(context.Context, *query.GetPageTopicByID) error
 var qGetPageTopicsHandler func(context.Context, *query.GetPageTopics) error
+var qGetPostAttachmentsHandler func(context.Context, *query.GetPostAttachments) error
 var qGetPostByIDHandler func(context.Context, *query.GetPostByID) error
 var qGetPostByNumberHandler func(context.Context, *query.GetPostByNumber) error
 var qGetPostBySlugHandler func(context.Context, *query.GetPostBySlug) error
@@ -227,13 +227,12 @@ var qGetUserCommentCountHandler func(context.Context, *query.GetUserCommentCount
 var qGetUserPostCountHandler func(context.Context, *query.GetUserPostCount) error
 var qGetUserProfileStandingHandler func(context.Context, *query.GetUserProfileStanding) error
 var qGetUserProfileStatsHandler func(context.Context, *query.GetUserProfileStats) error
-var qGetUserReportedItemsOnPostHandler func(context.Context, *query.GetUserReportedItemsOnPost) error
+var qGetUserReportStatusHandler func(context.Context, *query.GetUserReportStatus) error
 var qGetUsersByIDsHandler func(context.Context, *query.GetUsersByIDs) error
 var qGetUsersToNotifyHandler func(context.Context, *query.GetUsersToNotify) error
 var qGetVerificationByKeyHandler func(context.Context, *query.GetVerificationByKey) error
 var qGetWebhookHandler func(context.Context, *query.GetWebhook) error
 var qHasPushSubscriptionHandler func(context.Context, *query.HasPushSubscription) error
-var qHasUserReportedTargetHandler func(context.Context, *query.HasUserReportedTarget) error
 var qIsAvatarPublishedHandler func(context.Context, *query.IsAvatarPublished) error
 var qIsCNAMEAvailableHandler func(context.Context, *query.IsCNAMEAvailable) error
 var qIsImageFileInUseHandler func(context.Context, *query.IsImageFileInUse) error
@@ -274,16 +273,12 @@ func registerTypedHandler(handler HandlerFunc) {
 		cActivateBillingSubscriptionHandler = fn
 	case func(context.Context, *cmd.ActivateTenant) error:
 		cActivateTenantHandler = fn
-	case func(context.Context, *cmd.AddNewComment) error:
-		cAddNewCommentHandler = fn
 	case func(context.Context, *cmd.AddNewNotification) error:
 		cAddNewNotificationHandler = fn
 	case func(context.Context, *cmd.AddNewPost) error:
 		cAddNewPostHandler = fn
 	case func(context.Context, *cmd.AddNewTag) error:
 		cAddNewTagHandler = fn
-	case func(context.Context, *cmd.AddPageComment) error:
-		cAddPageCommentHandler = fn
 	case func(context.Context, *cmd.AddSubscriber) error:
 		cAddSubscriberHandler = fn
 	case func(context.Context, *cmd.AddVote) error:
@@ -312,6 +307,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cClaimModerationHandler = fn
 	case func(context.Context, *cmd.CreateCannedResponse) error:
 		cCreateCannedResponseHandler = fn
+	case func(context.Context, *cmd.CreateComment) error:
+		cCreateCommentHandler = fn
 	case func(context.Context, *cmd.CreateCreativeVersion) error:
 		cCreateCreativeVersionHandler = fn
 	case func(context.Context, *cmd.CreatePage) error:
@@ -404,8 +401,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cParseOAuthRawProfileHandler = fn
 	case func(context.Context, *cmd.PreviewWebhook) error:
 		cPreviewWebhookHandler = fn
-	case func(context.Context, *cmd.ProcessPostNotification) error:
-		cProcessPostNotificationHandler = fn
+	case func(context.Context, *cmd.ProcessNotification) error:
+		cProcessNotificationHandler = fn
 	case func(context.Context, *cmd.PublishScheduledPages) error:
 		cPublishScheduledPagesHandler = fn
 	case func(context.Context, *cmd.PurgeExpiredNotifications) error:
@@ -452,12 +449,12 @@ func registerTypedHandler(handler HandlerFunc) {
 		cSaveVerificationKeyHandler = fn
 	case func(context.Context, *cmd.ScheduleModeration) error:
 		cScheduleModerationHandler = fn
-	case func(context.Context, *cmd.SchedulePostNotification) error:
-		cSchedulePostNotificationHandler = fn
+	case func(context.Context, *cmd.ScheduleNotification) error:
+		cScheduleNotificationHandler = fn
 	case func(context.Context, *cmd.SendMail) error:
 		cSendMailHandler = fn
-	case func(context.Context, *cmd.SetAttachments) error:
-		cSetAttachmentsHandler = fn
+	case func(context.Context, *cmd.SetCommentReaction) error:
+		cSetCommentReactionHandler = fn
 	case func(context.Context, *cmd.SetKeyAsVerified) error:
 		cSetKeyAsVerifiedHandler = fn
 	case func(context.Context, *cmd.SetModerationPending) error:
@@ -476,8 +473,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		cSupressEmailHandler = fn
 	case func(context.Context, *cmd.TestWebhook) error:
 		cTestWebhookHandler = fn
-	case func(context.Context, *cmd.ToggleCommentReaction) error:
-		cToggleCommentReactionHandler = fn
 	case func(context.Context, *cmd.TogglePageReaction) error:
 		cTogglePageReactionHandler = fn
 	case func(context.Context, *cmd.TogglePageSubscription) error:
@@ -542,8 +537,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		cUploadImageHandler = fn
 	case func(context.Context, *cmd.UploadImageFile) error:
 		cUploadImageFileHandler = fn
-	case func(context.Context, *cmd.UploadImages) error:
-		cUploadImagesHandler = fn
 	case func(context.Context, *cmd.UserListCreateCompany) error:
 		cUserListCreateCompanyHandler = fn
 	case func(context.Context, *cmd.UserListHandleRoleChange) error:
@@ -554,6 +547,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cUserListUpdateUserHandler = fn
 	case func(context.Context, *cmd.WarnUser) error:
 		cWarnUserHandler = fn
+	case func(context.Context, *query.CanReadAttachment) error:
+		qCanReadAttachmentHandler = fn
 	case func(context.Context, *query.CountPendingReports) error:
 		qCountPendingReportsHandler = fn
 	case func(context.Context, *query.CountPostPerStatus) error:
@@ -562,8 +557,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		qCountUnreadNotificationsHandler = fn
 	case func(context.Context, *query.CountUntaggedPosts) error:
 		qCountUntaggedPostsHandler = fn
-	case func(context.Context, *query.CountUserReportsToday) error:
-		qCountUserReportsTodayHandler = fn
 	case func(context.Context, *query.CountUsers) error:
 		qCountUsersHandler = fn
 	case func(context.Context, *query.CountVotesSinceArchive) error:
@@ -598,8 +591,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		qGetArchivablePostsHandler = fn
 	case func(context.Context, *query.GetAssignedTags) error:
 		qGetAssignedTagsHandler = fn
-	case func(context.Context, *query.GetAttachments) error:
-		qGetAttachmentsHandler = fn
 	case func(context.Context, *query.GetBillingState) error:
 		qGetBillingStateHandler = fn
 	case func(context.Context, *query.GetBillingSubscription) error:
@@ -608,18 +599,24 @@ func registerTypedHandler(handler HandlerFunc) {
 		qGetBlobByKeyHandler = fn
 	case func(context.Context, *query.GetCannedResponseByID) error:
 		qGetCannedResponseByIDHandler = fn
+	case func(context.Context, *query.GetCommentAncestors) error:
+		qGetCommentAncestorsHandler = fn
 	case func(context.Context, *query.GetCommentByID) error:
 		qGetCommentByIDHandler = fn
-	case func(context.Context, *query.GetCommentsByPage) error:
-		qGetCommentsByPageHandler = fn
-	case func(context.Context, *query.GetCommentsByPost) error:
-		qGetCommentsByPostHandler = fn
+	case func(context.Context, *query.GetCommentNotificationUsers) error:
+		qGetCommentNotificationUsersHandler = fn
 	case func(context.Context, *query.GetCreativeVersionsByIDs) error:
 		qGetCreativeVersionsByIDsHandler = fn
 	case func(context.Context, *query.GetCurrentUserSettings) error:
 		qGetCurrentUserSettingsHandler = fn
 	case func(context.Context, *query.GetCustomOAuthConfigByProvider) error:
 		qGetCustomOAuthConfigByProviderHandler = fn
+	case func(context.Context, *query.GetDiscussion) error:
+		qGetDiscussionHandler = fn
+	case func(context.Context, *query.GetDiscussionChainReplies) error:
+		qGetDiscussionChainRepliesHandler = fn
+	case func(context.Context, *query.GetDiscussionComments) error:
+		qGetDiscussionCommentsHandler = fn
 	case func(context.Context, *query.GetFirstTenant) error:
 		qGetFirstTenantHandler = fn
 	case func(context.Context, *query.GetImageFile) error:
@@ -652,6 +649,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		qGetPageTopicByIDHandler = fn
 	case func(context.Context, *query.GetPageTopics) error:
 		qGetPageTopicsHandler = fn
+	case func(context.Context, *query.GetPostAttachments) error:
+		qGetPostAttachmentsHandler = fn
 	case func(context.Context, *query.GetPostByID) error:
 		qGetPostByIDHandler = fn
 	case func(context.Context, *query.GetPostByNumber) error:
@@ -702,8 +701,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		qGetUserProfileStandingHandler = fn
 	case func(context.Context, *query.GetUserProfileStats) error:
 		qGetUserProfileStatsHandler = fn
-	case func(context.Context, *query.GetUserReportedItemsOnPost) error:
-		qGetUserReportedItemsOnPostHandler = fn
+	case func(context.Context, *query.GetUserReportStatus) error:
+		qGetUserReportStatusHandler = fn
 	case func(context.Context, *query.GetUsersByIDs) error:
 		qGetUsersByIDsHandler = fn
 	case func(context.Context, *query.GetUsersToNotify) error:
@@ -714,8 +713,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		qGetWebhookHandler = fn
 	case func(context.Context, *query.HasPushSubscription) error:
 		qHasPushSubscriptionHandler = fn
-	case func(context.Context, *query.HasUserReportedTarget) error:
-		qHasUserReportedTargetHandler = fn
 	case func(context.Context, *query.IsAvatarPublished) error:
 		qIsAvatarPublishedHandler = fn
 	case func(context.Context, *query.IsCNAMEAvailable) error:
@@ -787,11 +784,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.ActivateTenant")
 		}
 		return cActivateTenantHandler(ctx, m)
-	case *cmd.AddNewComment:
-		if cAddNewCommentHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.AddNewComment")
-		}
-		return cAddNewCommentHandler(ctx, m)
 	case *cmd.AddNewNotification:
 		if cAddNewNotificationHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.AddNewNotification")
@@ -807,11 +799,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.AddNewTag")
 		}
 		return cAddNewTagHandler(ctx, m)
-	case *cmd.AddPageComment:
-		if cAddPageCommentHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.AddPageComment")
-		}
-		return cAddPageCommentHandler(ctx, m)
 	case *cmd.AddSubscriber:
 		if cAddSubscriberHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.AddSubscriber")
@@ -882,6 +869,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.CreateCannedResponse")
 		}
 		return cCreateCannedResponseHandler(ctx, m)
+	case *cmd.CreateComment:
+		if cCreateCommentHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.CreateComment")
+		}
+		return cCreateCommentHandler(ctx, m)
 	case *cmd.CreateCreativeVersion:
 		if cCreateCreativeVersionHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.CreateCreativeVersion")
@@ -1112,11 +1104,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.PreviewWebhook")
 		}
 		return cPreviewWebhookHandler(ctx, m)
-	case *cmd.ProcessPostNotification:
-		if cProcessPostNotificationHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.ProcessPostNotification")
+	case *cmd.ProcessNotification:
+		if cProcessNotificationHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.ProcessNotification")
 		}
-		return cProcessPostNotificationHandler(ctx, m)
+		return cProcessNotificationHandler(ctx, m)
 	case *cmd.PublishScheduledPages:
 		if cPublishScheduledPagesHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.PublishScheduledPages")
@@ -1232,21 +1224,21 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.ScheduleModeration")
 		}
 		return cScheduleModerationHandler(ctx, m)
-	case *cmd.SchedulePostNotification:
-		if cSchedulePostNotificationHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.SchedulePostNotification")
+	case *cmd.ScheduleNotification:
+		if cScheduleNotificationHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.ScheduleNotification")
 		}
-		return cSchedulePostNotificationHandler(ctx, m)
+		return cScheduleNotificationHandler(ctx, m)
 	case *cmd.SendMail:
 		if cSendMailHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.SendMail")
 		}
 		return cSendMailHandler(ctx, m)
-	case *cmd.SetAttachments:
-		if cSetAttachmentsHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.SetAttachments")
+	case *cmd.SetCommentReaction:
+		if cSetCommentReactionHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.SetCommentReaction")
 		}
-		return cSetAttachmentsHandler(ctx, m)
+		return cSetCommentReactionHandler(ctx, m)
 	case *cmd.SetKeyAsVerified:
 		if cSetKeyAsVerifiedHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.SetKeyAsVerified")
@@ -1292,11 +1284,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.TestWebhook")
 		}
 		return cTestWebhookHandler(ctx, m)
-	case *cmd.ToggleCommentReaction:
-		if cToggleCommentReactionHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.ToggleCommentReaction")
-		}
-		return cToggleCommentReactionHandler(ctx, m)
 	case *cmd.TogglePageReaction:
 		if cTogglePageReactionHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.TogglePageReaction")
@@ -1457,11 +1444,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.UploadImageFile")
 		}
 		return cUploadImageFileHandler(ctx, m)
-	case *cmd.UploadImages:
-		if cUploadImagesHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.UploadImages")
-		}
-		return cUploadImagesHandler(ctx, m)
 	case *cmd.UserListCreateCompany:
 		if cUserListCreateCompanyHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.UserListCreateCompany")
@@ -1487,6 +1469,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.WarnUser")
 		}
 		return cWarnUserHandler(ctx, m)
+	case *query.CanReadAttachment:
+		if qCanReadAttachmentHandler == nil {
+			return fmt.Errorf("handler not registered: query.CanReadAttachment")
+		}
+		return qCanReadAttachmentHandler(ctx, m)
 	case *query.CountPendingReports:
 		if qCountPendingReportsHandler == nil {
 			return fmt.Errorf("handler not registered: query.CountPendingReports")
@@ -1507,11 +1494,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.CountUntaggedPosts")
 		}
 		return qCountUntaggedPostsHandler(ctx, m)
-	case *query.CountUserReportsToday:
-		if qCountUserReportsTodayHandler == nil {
-			return fmt.Errorf("handler not registered: query.CountUserReportsToday")
-		}
-		return qCountUserReportsTodayHandler(ctx, m)
 	case *query.CountUsers:
 		if qCountUsersHandler == nil {
 			return fmt.Errorf("handler not registered: query.CountUsers")
@@ -1597,11 +1579,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.GetAssignedTags")
 		}
 		return qGetAssignedTagsHandler(ctx, m)
-	case *query.GetAttachments:
-		if qGetAttachmentsHandler == nil {
-			return fmt.Errorf("handler not registered: query.GetAttachments")
-		}
-		return qGetAttachmentsHandler(ctx, m)
 	case *query.GetBillingState:
 		if qGetBillingStateHandler == nil {
 			return fmt.Errorf("handler not registered: query.GetBillingState")
@@ -1622,21 +1599,21 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.GetCannedResponseByID")
 		}
 		return qGetCannedResponseByIDHandler(ctx, m)
+	case *query.GetCommentAncestors:
+		if qGetCommentAncestorsHandler == nil {
+			return fmt.Errorf("handler not registered: query.GetCommentAncestors")
+		}
+		return qGetCommentAncestorsHandler(ctx, m)
 	case *query.GetCommentByID:
 		if qGetCommentByIDHandler == nil {
 			return fmt.Errorf("handler not registered: query.GetCommentByID")
 		}
 		return qGetCommentByIDHandler(ctx, m)
-	case *query.GetCommentsByPage:
-		if qGetCommentsByPageHandler == nil {
-			return fmt.Errorf("handler not registered: query.GetCommentsByPage")
+	case *query.GetCommentNotificationUsers:
+		if qGetCommentNotificationUsersHandler == nil {
+			return fmt.Errorf("handler not registered: query.GetCommentNotificationUsers")
 		}
-		return qGetCommentsByPageHandler(ctx, m)
-	case *query.GetCommentsByPost:
-		if qGetCommentsByPostHandler == nil {
-			return fmt.Errorf("handler not registered: query.GetCommentsByPost")
-		}
-		return qGetCommentsByPostHandler(ctx, m)
+		return qGetCommentNotificationUsersHandler(ctx, m)
 	case *query.GetCreativeVersionsByIDs:
 		if qGetCreativeVersionsByIDsHandler == nil {
 			return fmt.Errorf("handler not registered: query.GetCreativeVersionsByIDs")
@@ -1652,6 +1629,21 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.GetCustomOAuthConfigByProvider")
 		}
 		return qGetCustomOAuthConfigByProviderHandler(ctx, m)
+	case *query.GetDiscussion:
+		if qGetDiscussionHandler == nil {
+			return fmt.Errorf("handler not registered: query.GetDiscussion")
+		}
+		return qGetDiscussionHandler(ctx, m)
+	case *query.GetDiscussionChainReplies:
+		if qGetDiscussionChainRepliesHandler == nil {
+			return fmt.Errorf("handler not registered: query.GetDiscussionChainReplies")
+		}
+		return qGetDiscussionChainRepliesHandler(ctx, m)
+	case *query.GetDiscussionComments:
+		if qGetDiscussionCommentsHandler == nil {
+			return fmt.Errorf("handler not registered: query.GetDiscussionComments")
+		}
+		return qGetDiscussionCommentsHandler(ctx, m)
 	case *query.GetFirstTenant:
 		if qGetFirstTenantHandler == nil {
 			return fmt.Errorf("handler not registered: query.GetFirstTenant")
@@ -1732,6 +1724,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.GetPageTopics")
 		}
 		return qGetPageTopicsHandler(ctx, m)
+	case *query.GetPostAttachments:
+		if qGetPostAttachmentsHandler == nil {
+			return fmt.Errorf("handler not registered: query.GetPostAttachments")
+		}
+		return qGetPostAttachmentsHandler(ctx, m)
 	case *query.GetPostByID:
 		if qGetPostByIDHandler == nil {
 			return fmt.Errorf("handler not registered: query.GetPostByID")
@@ -1857,11 +1854,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.GetUserProfileStats")
 		}
 		return qGetUserProfileStatsHandler(ctx, m)
-	case *query.GetUserReportedItemsOnPost:
-		if qGetUserReportedItemsOnPostHandler == nil {
-			return fmt.Errorf("handler not registered: query.GetUserReportedItemsOnPost")
+	case *query.GetUserReportStatus:
+		if qGetUserReportStatusHandler == nil {
+			return fmt.Errorf("handler not registered: query.GetUserReportStatus")
 		}
-		return qGetUserReportedItemsOnPostHandler(ctx, m)
+		return qGetUserReportStatusHandler(ctx, m)
 	case *query.GetUsersByIDs:
 		if qGetUsersByIDsHandler == nil {
 			return fmt.Errorf("handler not registered: query.GetUsersByIDs")
@@ -1887,11 +1884,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.HasPushSubscription")
 		}
 		return qHasPushSubscriptionHandler(ctx, m)
-	case *query.HasUserReportedTarget:
-		if qHasUserReportedTargetHandler == nil {
-			return fmt.Errorf("handler not registered: query.HasUserReportedTarget")
-		}
-		return qHasUserReportedTargetHandler(ctx, m)
 	case *query.IsAvatarPublished:
 		if qIsAvatarPublishedHandler == nil {
 			return fmt.Errorf("handler not registered: query.IsAvatarPublished")

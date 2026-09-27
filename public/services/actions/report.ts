@@ -1,5 +1,5 @@
 import { http, Result, querystring } from "@fider/services"
-import { Report, ReportReason, ReportType, ReportStatus, Post, Comment } from "@fider/models"
+import { Report, ReportReason, ReportType, ReportStatus, Post, DiscussionComment } from "@fider/models"
 
 interface CreateReportResponse {
   id: number
@@ -10,19 +10,18 @@ export const reportPost = async (
   reason: string,
   details?: string
 ): Promise<Result<CreateReportResponse>> => {
-  return http.post<CreateReportResponse>(`/api/v1/posts/${postNumber}/report`, {
+  return http.post<CreateReportResponse>(`/api/posts/${postNumber}/report`, {
     reason,
     details,
   })
 }
 
 export const reportComment = async (
-  postNumber: number,
   commentId: number,
   reason: string,
   details?: string
 ): Promise<Result<CreateReportResponse>> => {
-  return http.post<CreateReportResponse>(`/api/v1/posts/${postNumber}/comments/${commentId}/report`, {
+  return http.post<CreateReportResponse>(`/api/comments/${commentId}/report`, {
     reason,
     details,
   })
@@ -54,7 +53,7 @@ export interface ListReportsResponse {
   viewers: ReportViewers[]
 }
 
-export const listReports = async (params: ListReportsParams): Promise<Result<ListReportsResponse>> => {
+export const listReports = async (params: ListReportsParams, signal?: AbortSignal): Promise<Result<ListReportsResponse>> => {
   const queryParams: Record<string, string | number | undefined> = {
     page: params.page,
     perPage: params.perPage,
@@ -67,29 +66,29 @@ export const listReports = async (params: ListReportsParams): Promise<Result<Lis
     queryParams.status = params.status
   }
   const qs = querystring.stringify(queryParams)
-  return http.get<ListReportsResponse>(`/api/v1/reports${qs}`)
+  return http.get<ListReportsResponse>(`/api/reports${qs}`, { signal })
 }
 
 export const getReport = async (reportId: number): Promise<Result<Report>> => {
-  return http.get<Report>(`/api/v1/reports/${reportId}`)
+  return http.get<Report>(`/api/reports/${reportId}`)
 }
 
 export interface ReportDetailsResponse {
   report: Report
   post?: Post
-  comment?: Comment
+  comment?: DiscussionComment
 }
 
-export const getReportDetails = async (reportId: number): Promise<Result<ReportDetailsResponse>> => {
-  return http.get<ReportDetailsResponse>(`/api/v1/reports/${reportId}/details`)
+export const getReportDetails = async (reportId: number, signal?: AbortSignal): Promise<Result<ReportDetailsResponse>> => {
+  return http.get<ReportDetailsResponse>(`/api/reports/${reportId}/details`, { signal })
 }
 
 export const assignReport = async (reportId: number): Promise<Result> => {
-  return http.post(`/api/v1/reports/${reportId}/assign`)
+  return http.post(`/api/reports/${reportId}/assign`)
 }
 
 export const unassignReport = async (reportId: number): Promise<Result> => {
-  return http.delete(`/api/v1/reports/${reportId}/assign`)
+  return http.delete(`/api/reports/${reportId}/assign`)
 }
 
 export const resolveReport = async (
@@ -97,18 +96,18 @@ export const resolveReport = async (
   status: "resolved" | "dismissed",
   resolutionNote?: string
 ): Promise<Result> => {
-  return http.put(`/api/v1/reports/${reportId}/resolve`, {
+  return http.put(`/api/reports/${reportId}/resolve`, {
     status,
     resolutionNote,
   })
 }
 
 export const getReportReasons = async (): Promise<Result<ReportReason[]>> => {
-  return http.get<ReportReason[]>("/api/v1/report-reasons")
+  return http.get<ReportReason[]>("/api/report-reasons")
 }
 
 export const reportHeartbeat = async (reportId: number): Promise<Result> => {
-  return http.post(`/api/v1/reports/${reportId}/heartbeat`)
+  return http.post(`/api/reports/${reportId}/heartbeat`)
 }
 
 export const stopViewingReport = async (): Promise<Result> => {
@@ -116,14 +115,14 @@ export const stopViewingReport = async (): Promise<Result> => {
 }
 
 export const listAllReportReasons = async (): Promise<Result<ReportReason[]>> => {
-  return http.get<ReportReason[]>("/api/v1/report-reasons/all")
+  return http.get<ReportReason[]>("/api/report-reasons/all")
 }
 
 export const createReportReason = async (data: {
   title: string
   description?: string
 }): Promise<Result<{ id: number }>> => {
-  return http.post<{ id: number }>("/api/v1/report-reasons", data)
+  return http.post<{ id: number }>("/api/report-reasons", data)
 }
 
 export const updateReportReason = async (
@@ -134,13 +133,13 @@ export const updateReportReason = async (
     isActive: boolean
   }
 ): Promise<Result> => {
-  return http.put(`/api/v1/report-reasons/${id}`, data)
+  return http.put(`/api/report-reasons/${id}`, data)
 }
 
 export const deleteReportReason = async (id: number): Promise<Result> => {
-  return http.delete(`/api/v1/report-reasons/${id}`)
+  return http.delete(`/api/report-reasons/${id}`)
 }
 
 export const reorderReportReasons = async (ids: number[]): Promise<Result> => {
-  return http.put("/api/v1/admin/report-reasons-order", { ids })
+  return http.put("/api/admin/report-reasons-order", { ids })
 }

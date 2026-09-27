@@ -1,30 +1,27 @@
 import React, { useRef, useMemo, useState, useEffect } from "react"
-import { Page, Comment, Post } from "@fider/models"
+import { Page, Post } from "@fider/models"
 import { Markdown, Button } from "@fider/components"
 import { VStack, HStack } from "@fider/components/layout"
-import { togglePageReaction, togglePageCommentReaction } from "@fider/services/pages"
+import { togglePageReaction } from "@fider/services/pages"
 import { useTableOfContents } from "@fider/hooks"
 import { notify } from "@fider/services"
 import { EmbeddedPostsList } from "@fider/components/page/EmbeddedPostsList"
-import { ShowComment } from "@fider/pages/ShowPost/components/ShowComment"
-import { PageCommentInput } from "@fider/components/page/PageCommentInput"
+import { Discussion } from "@fider/components/discussion/Discussion"
 import { Reactions } from "@fider/components/post/Reactions"
 import { AdSlot, useAdSelection } from "@fider/components/sponsorship"
 
 interface ViewPageProps {
   page: Page
-  comments: Comment[]
 }
 
 type ContentPart = 
   | { type: "text"; content: string }
   | { type: "posts"; postIds: number[] | null; filters: Record<string, string> | null }
 
-const ViewPage = ({ page, comments: initialComments }: ViewPageProps) => {
+const ViewPage = ({ page }: ViewPageProps) => {
   const contentRef = useRef<HTMLDivElement>(null)
   const emojiSelectorRef = useRef<HTMLDivElement>(null)
   const { toc, activeId, scrollTo } = useTableOfContents(contentRef, page.title, "page-title")
-  const [comments, setComments] = useState<Comment[]>(initialComments)
   const [reactionCounts, setReactionCounts] = useState(page.reactionCounts || [])
   const { ads: pageAds, loaded: pageAdLoaded, error: pageAdError } = useAdSelection([
     { instanceId: "pages-header", placementId: "pages_header" },
@@ -144,10 +141,6 @@ const ViewPage = ({ page, comments: initialComments }: ViewPageProps) => {
     }
   }
 
-  const handleCommentAdded = (newComment: Comment) => {
-    setComments((prev) => [...prev, newComment])
-  }
-
   const shareOnTwitter = () => {
     const url = encodeURIComponent(window.location.href)
     const text = encodeURIComponent(page.title)
@@ -260,32 +253,9 @@ const ViewPage = ({ page, comments: initialComments }: ViewPageProps) => {
             </Button>
           </HStack>
 
-          {page.allowComments && (
-            <div>
-              <VStack spacing={2} className="c-comment-list mt-8">
-                <HStack justify="between" align="center">
-                  <span className="text-category">Discussion ({comments.length})</span>
-                </HStack>
-                <VStack spacing={4} className="c-comment-list">
-                  {comments.map((c) => (
-                    <ShowComment 
-                      key={c.id} 
-                      comment={c}
-                      customToggleReaction={page.allowReactions ? async (emoji) => {
-                        const result = await togglePageCommentReaction(page.id, c.id, emoji)
-                        if (result.ok) {
-                          return result.data
-                        }
-                        notify.error("Failed to toggle reaction")
-                        return undefined
-                      } : undefined}
-                    />
-                  ))}
-                  <PageCommentInput page={page} onCommentAdded={handleCommentAdded} />
-                </VStack>
-              </VStack>
-            </div>
-          )}
+          <div className="mt-8">
+            <Discussion owner={{ kind: "page", id: page.id, title: page.title, url: `/pages/${page.slug}` }} />
+          </div>
         </div>
 
       </div>

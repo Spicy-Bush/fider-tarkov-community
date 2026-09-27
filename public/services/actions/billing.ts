@@ -5,5 +5,5 @@ interface CheckoutPageLink {
 }
 
 export const generateCheckoutLink = async (planId: string): Promise<Result<CheckoutPageLink>> => {
-  return await http.post("/_api/billing/checkout-link", { planId })
+  return await http.post("/api/billing/checkout-link", { planId })
 }

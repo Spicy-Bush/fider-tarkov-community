@@ -11,7 +11,7 @@ function siteLocale(): string {
 export type { AdSelectRequestSlot }
 
 /**
- * Page-owned ad selection. POST /api/v1/ads/select once per distinct slot set.
+ * Page-owned ad selection. POST /api/ads/select once per distinct slot set.
  * Values: undefined while loading or on load failure; null = no house fill; PublicAd = fill.
  * HTTP failure must NOT map to empty inventory (would wrongly show AdSense) — surface error instead.
  */

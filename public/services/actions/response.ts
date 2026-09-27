@@ -12,7 +12,7 @@ export interface CannedResponse {
 }
 
 export const listCannedResponses = async (type: string): Promise<Result<CannedResponse[]>> => {
-  return await http.get<CannedResponse[]>(`/api/v1/responses/${type}`)
+  return await http.get<CannedResponse[]>(`/api/responses/${type}`)
 }
 
 export const createCannedResponse = async (data: {
@@ -21,7 +21,7 @@ export const createCannedResponse = async (data: {
   content: string
   duration?: string
 }): Promise<Result<CannedResponse>> => {
-  return await http.post<CannedResponse>("/api/v1/responses", data)
+  return await http.post<CannedResponse>("/api/responses", data)
 }
 
 export const updateCannedResponse = async (id: number, data: {
@@ -31,9 +31,9 @@ export const updateCannedResponse = async (id: number, data: {
   duration?: string
   isActive: boolean
 }): Promise<Result<CannedResponse>> => {
-  return await http.put<CannedResponse>(`/api/v1/responses/${id}`, data)
+  return await http.put<CannedResponse>(`/api/responses/${id}`, data)
 }
 
 export const deleteCannedResponse = async (id: number): Promise<Result<void>> => {
-  return await http.delete(`/api/v1/responses/${id}`)
+  return await http.delete(`/api/responses/${id}`)
 } 

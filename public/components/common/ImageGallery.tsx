@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { uploadedImageURL, classSet } from "@fider/services"
 import { Icon } from "@fider/components"
+import { useBodyScrollLock } from "@fider/hooks/useBodyScrollLock"
 import { heroiconsChevronUp as IconChevron, heroiconsX as IconClose } from "@fider/icons.generated"
 
 interface ImageGalleryProps {
@@ -13,16 +14,16 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loaded, setLoaded] = useState(false)
 
+  useBodyScrollLock(showModal)
+
   const openModal = (index: number) => {
     setCurrentIndex(index)
     setLoaded(false)
     setShowModal(true)
-    document.body.style.overflow = "hidden"
   }
 
   const closeModal = () => {
     setShowModal(false)
-    document.body.style.overflow = ""
   }
 
   const goToNext = useCallback(() => {
@@ -36,8 +37,11 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
   }, [bkeys.length])
 
   useEffect(() => {
+    if (!showModal) {
+      return
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!showModal) return
       if (e.key === "ArrowLeft") goToPrevious()
       if (e.key === "ArrowRight") goToNext()
       if (e.key === "Escape") closeModal()

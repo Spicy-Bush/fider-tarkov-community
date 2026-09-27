@@ -30,7 +30,7 @@ export class RequestError extends Error {
   }
 }
 
-async function toResult<T>(response: Response, method: string, path: string, includeHeaders = false): Promise<Result<T>> {
+async function toResult<T>(response: Response, method: string, path: string, options?: RequestOptions): Promise<Result<T>> {
   let body: any
   let parseFailure: unknown
   if (response.status !== 204) {
@@ -48,16 +48,18 @@ async function toResult<T>(response: Response, method: string, path: string, inc
     return {
       ok: true,
       data: body as T,
-      headers: includeHeaders ? response.headers : undefined,
+      headers: options?.includeHeaders ? response.headers : undefined,
     }
   }
 
-  if (response.status >= 500) {
-    notify.error("An unexpected error occurred while processing your request.")
-  } else if (response.status === 401) {
-    notify.error("You need to be authenticated to perform this operation.")
-  } else if (response.status === 403) {
-    notify.error("You are not authorized to perform this operation.")
+  if (options?.notifyOnError !== false) {
+    if (response.status >= 500) {
+      notify.error("An unexpected error occurred while processing your request.")
+    } else if (response.status === 401) {
+      notify.error("You need to be authenticated to perform this operation.")
+    } else if (response.status === 403) {
+      notify.error("You are not authorized to perform this operation.")
+    }
   }
 
   const failure: Failure = {
@@ -71,13 +73,14 @@ async function toResult<T>(response: Response, method: string, path: string, inc
   return {
     ok: false,
     status: response.status,
-    headers: includeHeaders ? response.headers : undefined,
+    headers: options?.includeHeaders ? response.headers : undefined,
     error: failure,
   }
 }
 interface RequestOptions {
   signal?: AbortSignal
   includeHeaders?: boolean
+  notifyOnError?: boolean
 }
 
 async function request<T>(url: string, method: "GET" | "POST" | "PUT" | "DELETE", body?: any, options?: RequestOptions): Promise<Result<T>> {
@@ -99,12 +102,12 @@ async function request<T>(url: string, method: "GET" | "POST" | "PUT" | "DELETE"
   } catch (cause) {
     throw new RequestError(method, path, "transport", cause)
   }
-  return toResult<T>(response, method, path, options?.includeHeaders)
+  return toResult<T>(response, method, path, options)
 }
 
 export const http = {
-  get: async <T = void>(url: string): Promise<Result<T>> => {
-    return await request<T>(url, "GET")
+  get: async <T = void>(url: string, options?: RequestOptions): Promise<Result<T>> => {
+    return await request<T>(url, "GET", undefined, options)
   },
   getWithHeaders: async <T = void>(url: string): Promise<Result<T>> => {
     return await request<T>(url, "GET", undefined, { includeHeaders: true })
@@ -112,11 +115,11 @@ export const http = {
   post: async <T = void>(url: string, body?: any, options?: RequestOptions): Promise<Result<T>> => {
     return await request<T>(url, "POST", body, options)
   },
-  put: async <T = void>(url: string, body?: any): Promise<Result<T>> => {
-    return await request<T>(url, "PUT", body)
+  put: async <T = void>(url: string, body?: any, options?: RequestOptions): Promise<Result<T>> => {
+    return await request<T>(url, "PUT", body, options)
   },
-  delete: async <T = void>(url: string, body?: any): Promise<Result<T>> => {
-    return await request<T>(url, "DELETE", body)
+  delete: async <T = void>(url: string, body?: any, options?: RequestOptions): Promise<Result<T>> => {
+    return await request<T>(url, "DELETE", body, options)
   },
   event:
     (category: string, action: string) =>

@@ -2,6 +2,7 @@ package middlewares_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/middlewares"
@@ -23,7 +24,7 @@ func TestSecureWithoutCDN(t *testing.T) {
 		return c.NoContent(http.StatusOK)
 	})
 
-	expectedPolicy := "base-uri 'self'; default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.paddle.com ; script-src 'self' 'unsafe-inline' 'nonce-" + ctxID + "' https://ep1.adtrafficquality.google https://www.google-analytics.com https://*.paddle.com https://*.googletagmanager.com https://pagead2.googlesyndication.com https://static.cloudflareinsights.com https://*.cloudflare.com ; img-src 'self' https: data: https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net ; font-src 'self' https://fonts.gstatic.com data: ; object-src 'none'; media-src 'none'; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net https://cloudflareinsights.com https://*.cloudflare.com ; frame-src 'self' https://*.paddle.com https://td.doubleclick.net https://www.googletagmanager.com https://www.youtube.com/ https://vk.com/ https://vkvideo.ru/"
+	expectedPolicy := expectedCSP(ctxID, "")
 
 	Expect(status).Equals(http.StatusOK)
 	Expect(response.Header().Get("Content-Security-Policy")).Equals(expectedPolicy)
@@ -46,7 +47,7 @@ func TestSecureWithCDN(t *testing.T) {
 		return c.NoContent(http.StatusOK)
 	})
 
-	expectedPolicy := "base-uri 'self'; default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.paddle.com *.test.fider.io; script-src 'self' 'unsafe-inline' 'nonce-" + ctxID + "' https://ep1.adtrafficquality.google https://www.google-analytics.com https://*.paddle.com https://*.googletagmanager.com https://pagead2.googlesyndication.com https://static.cloudflareinsights.com https://*.cloudflare.com *.test.fider.io; img-src 'self' https: data: https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net *.test.fider.io; font-src 'self' https://fonts.gstatic.com data: *.test.fider.io; object-src 'none'; media-src 'none'; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net https://cloudflareinsights.com https://*.cloudflare.com *.test.fider.io; frame-src 'self' https://*.paddle.com https://td.doubleclick.net https://www.googletagmanager.com https://www.youtube.com/ https://vk.com/ https://vkvideo.ru/"
+	expectedPolicy := expectedCSP(ctxID, "*.test.fider.io")
 
 	Expect(status).Equals(http.StatusOK)
 	Expect(response.Header().Get("Content-Security-Policy")).Equals(expectedPolicy)
@@ -69,11 +70,34 @@ func TestSecureWithCDN_SingleHost(t *testing.T) {
 		return c.NoContent(http.StatusOK)
 	})
 
-	expectedPolicy := "base-uri 'self'; default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.paddle.com test.fider.io; script-src 'self' 'unsafe-inline' 'nonce-" + ctxID + "' https://ep1.adtrafficquality.google https://www.google-analytics.com https://*.paddle.com https://*.googletagmanager.com https://pagead2.googlesyndication.com https://static.cloudflareinsights.com https://*.cloudflare.com test.fider.io; img-src 'self' https: data: https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net test.fider.io; font-src 'self' https://fonts.gstatic.com data: test.fider.io; object-src 'none'; media-src 'none'; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net https://cloudflareinsights.com https://*.cloudflare.com test.fider.io; frame-src 'self' https://*.paddle.com https://td.doubleclick.net https://www.googletagmanager.com https://www.youtube.com/ https://vk.com/ https://vkvideo.ru/"
+	expectedPolicy := expectedCSP(ctxID, "test.fider.io")
 
 	Expect(status).Equals(http.StatusOK)
 	Expect(response.Header().Get("Content-Security-Policy")).Equals(expectedPolicy)
 	Expect(response.Header().Get("X-XSS-Protection")).Equals("1; mode=block")
 	Expect(response.Header().Get("X-Content-Type-Options")).Equals("nosniff")
 	Expect(response.Header().Get("Referrer-Policy")).Equals("no-referrer-when-downgrade")
+}
+
+func expectedCSP(nonce, cdnHost string) string {
+	return strings.Join([]string{
+		"base-uri 'self'",
+		"default-src 'self'",
+		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.paddle.com " + cdnHost,
+		"script-src 'self' 'unsafe-inline' 'nonce-" + nonce + "' " +
+			"https://ep1.adtrafficquality.google https://www.google-analytics.com https://*.paddle.com " +
+			"https://*.googletagmanager.com https://pagead2.googlesyndication.com " +
+			"https://static.cloudflareinsights.com https://*.cloudflare.com " + cdnHost,
+		"img-src 'self' https: data: blob: https://*.google-analytics.com https://*.analytics.google.com " +
+			"https://*.googletagmanager.com https://*.g.doubleclick.net " + cdnHost,
+		"font-src 'self' https://fonts.gstatic.com data: " + cdnHost,
+		"object-src 'none'",
+		"media-src 'none'",
+		"connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com " +
+			"https://*.googletagmanager.com https://*.g.doubleclick.net " +
+			"https://cloudflareinsights.com https://*.cloudflare.com " + cdnHost,
+		"frame-src 'self' https://*.paddle.com https://td.doubleclick.net https://www.googletagmanager.com " +
+			"https://www.youtube.com/ https://vk.com/ https://vkvideo.ru/",
+		"frame-ancestors 'none'",
+	}, "; ")
 }

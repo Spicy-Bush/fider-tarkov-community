@@ -164,7 +164,6 @@ const PostQueuePage: React.FC<PostQueuePageProps> = (props) => {
       <QueuePreview
         selectedPost={state.selectedPost}
         tags={props.tags}
-        postComments={state.postComments}
         postAttachments={state.postAttachments}
         isCurrentPostTaggedByOther={isCurrentPostTaggedByOther}
         showDuplicateSearch={state.showDuplicateSearch}

@@ -53,11 +53,8 @@ func TestDetailsHandler(t *testing.T) {
 		return nil
 	})
 
-	bus.AddHandler(func(ctx context.Context, q *query.GetCommentsByPost) error {
-		return nil
-	})
 
-	bus.AddHandler(func(ctx context.Context, q *query.GetAttachments) error {
+	bus.AddHandler(func(ctx context.Context, q *query.GetPostAttachments) error {
 		return nil
 	})
 
@@ -77,11 +74,7 @@ func TestDetailsHandler(t *testing.T) {
 		return nil
 	})
 
-	bus.AddHandler(func(ctx context.Context, q *query.GetUserReportedItemsOnPost) error {
-		return nil
-	})
-
-	bus.AddHandler(func(ctx context.Context, q *query.CountUserReportsToday) error {
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserReportStatus) error {
 		return nil
 	})
 
@@ -115,11 +108,8 @@ func TestDetailsHandler_RedirectOnDifferentSlu(t *testing.T) {
 		return nil
 	})
 
-	bus.AddHandler(func(ctx context.Context, q *query.GetCommentsByPost) error {
-		return nil
-	})
 
-	bus.AddHandler(func(ctx context.Context, q *query.GetAttachments) error {
+	bus.AddHandler(func(ctx context.Context, q *query.GetPostAttachments) error {
 		return nil
 	})
 
@@ -135,11 +125,7 @@ func TestDetailsHandler_RedirectOnDifferentSlu(t *testing.T) {
 		return nil
 	})
 
-	bus.AddHandler(func(ctx context.Context, q *query.GetUserReportedItemsOnPost) error {
-		return nil
-	})
-
-	bus.AddHandler(func(ctx context.Context, q *query.CountUserReportsToday) error {
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserReportStatus) error {
 		return nil
 	})
 

@@ -334,19 +334,21 @@ func listModerationFailures(ctx context.Context, c *cmd.ListModerationFailures) 
 			Failed int `db:"failed"`
 		}
 
-		if err := trx.Get(&counts, `
+		if err := trx.Get(&counts, visibleCommentOwners + `
             SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE state = 'failed') AS failed
             FROM moderation_checks
-            WHERE tenant_id = $1 AND state IN ('failed', 'pending', 'running')`, tenant.ID); err != nil {
+            WHERE tenant_id = $1 AND state IN ('failed', 'pending', 'running')
+              AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))`, tenant.ID, discussionViewerRole(user)); err != nil {
 			return err
 		}
 
 		c.Total, c.Failed = counts.Total, counts.Failed
-		rows, err := trx.Query(`
+		rows, err := trx.Query(visibleCommentOwners + `
             SELECT content_type, content_id, revision, attempts, state, last_error
             FROM moderation_checks
             WHERE tenant_id = $1 AND state IN ('failed', 'pending', 'running')
-            ORDER BY (state = 'failed') DESC, updated_at LIMIT 100`, tenant.ID)
+              AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))
+            ORDER BY (state = 'failed') DESC, updated_at LIMIT 100`, tenant.ID, discussionViewerRole(user))
 
 		if err != nil {
 			return err
@@ -371,10 +373,11 @@ func listModerationFailures(ctx context.Context, c *cmd.ListModerationFailures) 
 func retryModerationFailures(ctx context.Context, c *cmd.RetryModerationFailures) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var err error
-		c.Count, err = trx.Execute(`
+		c.Count, err = trx.Execute(visibleCommentOwners + `
             UPDATE moderation_checks
             SET state = 'pending', attempts = 0, next_attempt_at = NOW(), last_error = '', updated_at = NOW()
-            WHERE tenant_id = $1 AND state = 'failed'`, tenant.ID)
+            WHERE tenant_id = $1 AND state = 'failed'
+              AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))`, tenant.ID, discussionViewerRole(user))
 		return err
 	})
 }

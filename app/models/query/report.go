@@ -28,26 +28,14 @@ type GetReportReasons struct {
 	Result []*entity.ReportReason
 }
 
-type CountUserReportsToday struct {
-	UserID int
-	Result int
-}
-
-type HasUserReportedTarget struct {
-	UserID       int
-	ReportedType enum.ReportType
-	ReportedID   int
-	Result       bool
-}
-
-type GetUserReportedItemsOnPost struct {
+type GetUserReportStatus struct {
 	PostID             int
 	CommentIDs         []int
-	HasReportedPost    bool
-	ReportedCommentIDs []int
+	HasReportedPost    bool  `db:"has_reported_post"`
+	ReportedCommentIDs []int64 `db:"reported_comment_ids"`
+	CountToday         int   `db:"count_today"`
 }
 
 type ListAllReportReasons struct {
 	Result []*entity.ReportReason
 }
-

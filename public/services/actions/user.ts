@@ -57,7 +57,7 @@ interface WarnUserRequest {
 export const updateUserSettings = async (data: {
   settings: UserSettings
 }): Promise<Result<void>> => {
-  return await http.post("/_api/user/settings", data)
+  return await http.post("/api/user/settings", data)
 }
 
 export const updateUserAvatar = async (
@@ -68,9 +68,9 @@ export const updateUserAvatar = async (
   userID?: number
 ): Promise<Result<{ avatarURL: string; avatarType: UserAvatarType; pending: boolean }>> => {
   if (userID && userID !== Fider.session.user?.id) {
-    return await http.post<{ avatarURL: string; avatarType: UserAvatarType; pending: boolean }>(`/_api/users/${userID}/avatar`, data)
+    return await http.post<{ avatarURL: string; avatarType: UserAvatarType; pending: boolean }>(`/api/users/${userID}/avatar`, data)
   }
-  return await http.post<{ avatarURL: string; avatarType: UserAvatarType; pending: boolean }>("/_api/user/avatar", data)
+  return await http.post<{ avatarURL: string; avatarType: UserAvatarType; pending: boolean }>("/api/user/avatar", data)
 }
 
 export const updateOtherUserAvatar = async (
@@ -90,9 +90,9 @@ export const updateUserName = async (
   userID?: number
 ): Promise<Result<{ name: string; pending: boolean }>> => {
   if (userID && userID !== Fider.session.user?.id) {
-    return await http.post(`/_api/users/${userID}/name`, data)
+    return await http.post(`/api/users/${userID}/name`, data)
   }
-  return await http.post("/_api/user/name", data)
+  return await http.post("/api/user/name", data)
 }
 
 export const updateOtherUserName = async (
@@ -105,25 +105,25 @@ export const updateOtherUserName = async (
 }
 
 export const changeUserEmail = async (email: string): Promise<Result<void>> => {
-  return await http.post("/_api/user/change-email", {
+  return await http.post("/api/user/change-email", {
     email,
   })
 }
 
 export const deleteCurrentAccount = async (): Promise<Result<void>> => {
-  return await http.delete("/_api/user")
+  return await http.delete("/api/user")
 }
 
 export const regenerateAPIKey = async (): Promise<Result<{ apiKey: string }>> => {
-  return await http.post<{ apiKey: string }>("/_api/user/regenerate-apikey")
+  return await http.post<{ apiKey: string }>("/api/user/regenerate-apikey")
 }
 
 export const getUserProfileStats = async (userID: number): Promise<Result<UserProfileStats>> => {
-  return await http.get<UserProfileStats>(`/api/v1/user/profile/${userID}/stats`)
+  return await http.get<UserProfileStats>(`/api/user/profile/${userID}/stats`)
 }
 
 export const getUserProfileStanding = async (userID: number): Promise<Result<UserProfileStanding>> => {
-  return await http.get<UserProfileStanding>(`/api/v1/user/profile/${userID}/standing`)
+  return await http.get<UserProfileStanding>(`/api/user/profile/${userID}/standing`)
 }
 
 export const searchUserContent = async (
@@ -138,7 +138,7 @@ export const searchUserContent = async (
     sortOrder?: string
   }
 ): Promise<Result<UserProfileContent>> => {
-  let url = `/api/v1/user/profile/${userID}/content/search?q=${encodeURIComponent(query)}`
+  let url = `/api/user/profile/${userID}/content/search?q=${encodeURIComponent(query)}`
   
   if (options) {
     if (options.contentType) {
@@ -166,36 +166,36 @@ export const searchUserContent = async (
 
 export const moderateUser = async (userID: number, action: 'mute' | 'warning', data: ModerateUserRequest): Promise<Result<void>> => {
   const apiAction = action === 'warning' ? 'warn' : action;
-  const response = await http.post(`/_api/admin/users/${userID}/${apiAction}`, data)
+  const response = await http.post(`/api/admin/users/${userID}/${apiAction}`, data)
   return response
 }
 
 export const muteUser = async (userID: number, data: MuteUserRequest): Promise<Result<void>> => {
-  const response = await http.post(`/_api/admin/users/${userID}/mute`, data)
+  const response = await http.post(`/api/admin/users/${userID}/mute`, data)
   return response
 }
 
 export const warnUser = async (userID: number, data: WarnUserRequest): Promise<Result<void>> => {
-  const response = await http.post(`/_api/admin/users/${userID}/warn`, data)
+  const response = await http.post(`/api/admin/users/${userID}/warn`, data)
   return response
 }
 
 export const deleteWarning = async (userID: number, warningID: number): Promise<Result<void>> => {
-  const response = await http.delete(`/_api/admin/users/${userID}/warnings/${warningID}`)
+  const response = await http.delete(`/api/admin/users/${userID}/warnings/${warningID}`)
   return response
 }
 
 export const deleteMute = async (userID: number, muteID: number): Promise<Result<void>> => {
-  const response = await http.delete(`/_api/admin/users/${userID}/mutes/${muteID}`)
+  const response = await http.delete(`/api/admin/users/${userID}/mutes/${muteID}`)
   return response
 }
 
 export const expireWarning = async (userID: number, warningID: number): Promise<Result<void>> => {
-  const response = await http.post(`/_api/admin/users/${userID}/warnings/${warningID}/expire`)
+  const response = await http.post(`/api/admin/users/${userID}/warnings/${warningID}/expire`)
   return response
 }
 
 export const expireMute = async (userID: number, muteID: number): Promise<Result<void>> => {
-  const response = await http.post(`/_api/admin/users/${userID}/mutes/${muteID}/expire`)
+  const response = await http.post(`/api/admin/users/${userID}/mutes/${muteID}/expire`)
   return response
 }

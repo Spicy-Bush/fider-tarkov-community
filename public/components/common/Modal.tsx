@@ -1,8 +1,7 @@
-// import "./Modal.scss"
-
 import React, { useEffect, useRef } from "react"
 import ReactDOM from "react-dom"
 import { classSet } from "@fider/services"
+import { useBodyScrollLock } from "@fider/hooks/useBodyScrollLock"
 
 interface ModalWindowProps {
   children?: React.ReactNode
@@ -30,9 +29,10 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
   onCloseRef.current = props.onClose;
   canCloseRef.current = canClose;
 
+  useBodyScrollLock(props.isOpen)
+
   useEffect(() => {
     if (props.isOpen) {
-      document.body.style.overflow = "hidden"
       document.addEventListener("keydown", keyDown, false)
 
       if (manageHistory && !pushedHistory.current) {
@@ -40,7 +40,6 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
         pushedHistory.current = true
       }
     } else {
-      document.body.style.overflow = ""
       document.removeEventListener("keydown", keyDown, false)
     }
 

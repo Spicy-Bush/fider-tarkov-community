@@ -37,6 +37,10 @@ func MultiImageUpload(ctx context.Context, currentAttachments []string, uploads 
 	newImages := 0
 
 	for _, upload := range uploads {
+		if upload == nil {
+			return []string{"Invalid attachment."}, nil
+		}
+
 		if upload.Remove {
 			delete(remaining, upload.BlobKey)
 		} else if upload.Upload != nil {

@@ -34,41 +34,7 @@ func NotifyPageSubscribers(pageID int, updatedByUserID int) worker.Task {
 					User:   subscriber,
 					Title:  title,
 					Link:   link,
-					PostID: 0,
-				}); err != nil {
-					return err
-				}
-			}
-		}
-
-		return nil
-	})
-}
-
-func NotifyPageComment(pageID int, commentID int) worker.Task {
-	return describe("Notify page comment to admins", func(c *worker.Context) error {
-		getPage := &query.GetPageByID{ID: pageID}
-		if err := bus.Dispatch(c, getPage); err != nil {
-			return err
-		}
-
-		page := getPage.Result
-
-		title := fmt.Sprintf("New comment on page: %s", page.Title)
-		link := fmt.Sprintf("/pages/%s#comment-%d", page.Slug, commentID)
-
-		getAllUsers := &query.GetAllUsers{}
-		if err := bus.Dispatch(c, getAllUsers); err != nil {
-			return err
-		}
-
-		for _, user := range getAllUsers.Result {
-			if user.IsAdministrator() || user.IsCollaborator() {
-				if err := bus.Dispatch(c, &cmd.AddNewNotification{
-					User:   user,
-					Title:  title,
-					Link:   link,
-					PostID: 0,
+					PageID: pageID,
 				}); err != nil {
 					return err
 				}

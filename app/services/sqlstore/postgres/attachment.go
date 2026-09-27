@@ -2,11 +2,13 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
@@ -16,32 +18,56 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
-func setAttachments(ctx context.Context, c *cmd.SetAttachments) error {
+type attachmentChanges struct {
+	uploaded []string
+	removed  []string
+}
+
+func uploadAttachments(ctx context.Context, images []*dto.ImageUpload) (attachmentChanges, error) {
+	var changes attachmentChanges
+	for _, attachment := range images {
+		if attachment.Remove {
+			changes.removed = append(changes.removed, attachment.BlobKey)
+			continue
+		}
+
+		if attachment.Upload == nil {
+			continue
+		}
+
+		if len(attachment.Upload.Content) == 0 {
+			return attachmentChanges{}, validate.Failed("The image is empty.")
+		}
+
+		uploaded := &dto.ImageUpload{Upload: attachment.Upload}
+		if err := uploadImage(ctx, &cmd.UploadImage{Image: uploaded, Folder: "attachments"}); err != nil {
+			return attachmentChanges{}, err
+		}
+
+		changes.uploaded = append(changes.uploaded, uploaded.BlobKey)
+	}
+
+	return changes, nil
+}
+
+func (changes attachmentChanges) apply(ctx context.Context, postID, commentID int) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		postID := c.Post.ID
-		var commentID sql.NullInt64
-		if c.Comment != nil {
-			err := commentID.Scan(c.Comment.ID)
-			if err != nil {
-				return errors.Wrap(err, "failed scan comment id")
+		for _, key := range changes.removed {
+			if _, err := trx.Execute(`
+				DELETE FROM attachments
+				WHERE tenant_id = $1 AND post_id IS NOT DISTINCT FROM NULLIF($2, 0)
+				  AND comment_id IS NOT DISTINCT FROM NULLIF($3, 0) AND attachment_bkey = $4
+			`, tenant.ID, postID, commentID, key); err != nil {
+				return errors.Wrap(err, "failed to delete attachment")
 			}
 		}
 
-		for _, attachment := range c.Attachments {
-			if attachment.Remove {
-				if _, err := trx.Execute(
-					"DELETE FROM attachments WHERE tenant_id = $1 AND post_id = $2 AND (comment_id = $3 OR ($3 IS NULL AND comment_id IS NULL)) AND attachment_bkey = $4",
-					tenant.ID, postID, commentID, attachment.BlobKey,
-				); err != nil {
-					return errors.Wrap(err, "failed to delete attachment")
-				}
-			} else {
-				if _, err := trx.Execute(
-					"INSERT INTO attachments (tenant_id, post_id, comment_id, user_id, attachment_bkey) VALUES ($1, $2, $3, $4, $5)",
-					tenant.ID, postID, commentID, user.ID, attachment.BlobKey,
-				); err != nil {
-					return errors.Wrap(err, "failed to insert attachment")
-				}
+		for _, key := range changes.uploaded {
+			if _, err := trx.Execute(`
+				INSERT INTO attachments (tenant_id, post_id, comment_id, user_id, attachment_bkey)
+				VALUES ($1, NULLIF($2, 0), NULLIF($3, 0), $4, $5)
+			`, tenant.ID, postID, commentID, user.ID, key); err != nil {
+				return errors.Wrap(err, "failed to insert attachment")
 			}
 		}
 
@@ -49,19 +75,17 @@ func setAttachments(ctx context.Context, c *cmd.SetAttachments) error {
 	})
 }
 
-func getAttachments(ctx context.Context, q *query.GetAttachments) error {
+func setCommentAttachments(ctx context.Context, postID, commentID int, images []*dto.ImageUpload) error {
+	changes, err := uploadAttachments(ctx, images)
+	if err != nil {
+		return err
+	}
+
+	return changes.apply(ctx, postID, commentID)
+}
+
+func getPostAttachments(ctx context.Context, q *query.GetPostAttachments) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		q.Result = make([]string, 0)
-
-		postID := q.Post.ID
-		var commentID sql.NullInt64
-		if q.Comment != nil {
-			err := commentID.Scan(q.Comment.ID)
-			if err != nil {
-				return errors.Wrap(err, "failed scan comment id")
-			}
-		}
-
 		type entry struct {
 			BlobKey string `db:"attachment_bkey"`
 		}
@@ -70,8 +94,8 @@ func getAttachments(ctx context.Context, q *query.GetAttachments) error {
 		err := trx.Select(&entries, `
 			SELECT attachment_bkey
 			FROM attachments
-			WHERE tenant_id = $1 AND post_id = $2 AND (comment_id = $3 OR ($3 IS NULL AND comment_id IS NULL))
-		`, tenant.ID, postID, commentID)
+			WHERE tenant_id = $1 AND post_id = $2 AND comment_id IS NULL
+		`, tenant.ID, q.PostID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get attachments")
 		}
@@ -79,6 +103,66 @@ func getAttachments(ctx context.Context, q *query.GetAttachments) error {
 		q.Result = make([]string, len(entries))
 		for i, entry := range entries {
 			q.Result[i] = entry.BlobKey
+		}
+
+		return nil
+	})
+}
+
+func canReadAttachment(ctx context.Context, q *query.CanReadAttachment) error {
+	q.Result = false
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if tenant.IsPrivate && user == nil {
+			return nil
+		}
+
+		var owners []*struct {
+			PostID    int `db:"post_id"`
+			CommentID int `db:"comment_id"`
+		}
+
+		if err := trx.Select(&owners, `
+            SELECT COALESCE(post_id, 0) AS post_id, COALESCE(comment_id, 0) AS comment_id
+            FROM attachments WHERE tenant_id = $1 AND attachment_bkey = $2
+        `, tenant.ID, q.Key); err != nil {
+			return err
+		}
+
+		for _, owner := range owners {
+			if owner.CommentID != 0 {
+				discussion := &query.GetDiscussion{CommentID: owner.CommentID}
+				if err := getDiscussion(ctx, discussion); err != nil {
+					if errors.Cause(err) == app.ErrNotFound {
+						continue
+					}
+
+					return err
+				}
+
+				comment, err := readCommentVisibility(trx, tenant.ID, owner.CommentID)
+				if err != nil {
+					return err
+				}
+
+				q.Result = comment.ContentState(user, discussion.Result) == "visible"
+			} else {
+				post := &query.GetPostByID{PostID: owner.PostID}
+				if err := getPostByID(ctx, post); err != nil {
+					if errors.Cause(err) == app.ErrNotFound {
+						continue
+					}
+
+					return err
+				}
+
+				staff := user != nil && (user.IsCollaborator() || user.IsModerator())
+				author := user != nil && post.Result.User.ID == user.ID
+				q.Result = post.Result.Status != enum.PostDeleted && (!post.Result.ModerationPending || staff || author)
+			}
+
+			if q.Result {
+				return nil
+			}
 		}
 
 		return nil
@@ -122,17 +206,5 @@ func uploadImage(ctx context.Context, c *cmd.UploadImage) error {
 	}
 
 	c.Image.BlobKey = bkey
-	return nil
-}
-
-func uploadImages(ctx context.Context, c *cmd.UploadImages) error {
-	for _, img := range c.Images {
-		if err := bus.Dispatch(ctx, &cmd.UploadImage{
-			Image:  img,
-			Folder: c.Folder,
-		}); err != nil {
-			return err
-		}
-	}
 	return nil
 }

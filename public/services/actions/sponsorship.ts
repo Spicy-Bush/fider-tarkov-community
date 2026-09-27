@@ -10,7 +10,7 @@ import {
 } from "@fider/models"
 
 export const listSponsorshipPackages = (): Promise<Result<SponsorshipPackage[]>> => {
-  return http.get<SponsorshipPackage[]>("/api/v1/sponsorship/packages")
+  return http.get<SponsorshipPackage[]>("/api/sponsorship/packages")
 }
 
 export const createSponsorshipPackage = (body: {
@@ -21,7 +21,7 @@ export const createSponsorshipPackage = (body: {
   durationDays: number
   sort: number
 }): Promise<Result<SponsorshipPackage>> => {
-  return http.post<SponsorshipPackage>("/api/v1/sponsorship/packages", body)
+  return http.post<SponsorshipPackage>("/api/sponsorship/packages", body)
 }
 
 export const updateSponsorshipPackage = (
@@ -35,15 +35,15 @@ export const updateSponsorshipPackage = (
     sort: number
   }
 ): Promise<Result<SponsorshipPackage>> => {
-  return http.put<SponsorshipPackage>(`/api/v1/sponsorship/packages/${id}`, body)
+  return http.put<SponsorshipPackage>(`/api/sponsorship/packages/${id}`, body)
 }
 
 export const deleteSponsorshipPackage = (id: number): Promise<Result> => {
-  return http.delete(`/api/v1/sponsorship/packages/${id}`)
+  return http.delete(`/api/sponsorship/packages/${id}`)
 }
 
 export const listSponsorshipCampaigns = (): Promise<Result<SponsorshipCampaign[]>> => {
-  return http.get<SponsorshipCampaign[]>("/api/v1/sponsorship/campaigns")
+  return http.get<SponsorshipCampaign[]>("/api/sponsorship/campaigns")
 }
 
 export type CreateCampaignWithGraphBody = Record<string, unknown> & {
@@ -61,18 +61,18 @@ export type CreateCampaignGraphResult = {
 export const createSponsorshipCampaign = (
   body: CreateCampaignWithGraphBody
 ): Promise<Result<SponsorshipCampaign | CreateCampaignGraphResult>> => {
-  return http.post<SponsorshipCampaign | CreateCampaignGraphResult>("/api/v1/sponsorship/campaigns", body)
+  return http.post<SponsorshipCampaign | CreateCampaignGraphResult>("/api/sponsorship/campaigns", body)
 }
 
 export const updateSponsorshipCampaign = (
   id: number,
   body: Record<string, unknown>
 ): Promise<Result<SponsorshipCampaign>> => {
-  return http.put<SponsorshipCampaign>(`/api/v1/sponsorship/campaigns/${id}`, body)
+  return http.put<SponsorshipCampaign>(`/api/sponsorship/campaigns/${id}`, body)
 }
 
 export const deleteSponsorshipCampaign = (id: number): Promise<Result> => {
-  return http.delete(`/api/v1/sponsorship/campaigns/${id}`)
+  return http.delete(`/api/sponsorship/campaigns/${id}`)
 }
 
 export type AdSelectRequestSlot = { instanceId: string; placementId: string }
@@ -83,22 +83,22 @@ export const selectAds = (
   locale: string
 ): Promise<Result<Record<string, PublicAd | null>>> => {
   const q = new URLSearchParams({ locale })
-  return http.post(`/api/v1/ads/select?${q.toString()}`, { slots })
+  return http.post(`/api/ads/select?${q.toString()}`, { slots })
 }
 
 export const listAdPlacements = (): Promise<Result<AdPlacement[]>> => {
-  return http.get<AdPlacement[]>("/api/v1/ads/placements")
+  return http.get<AdPlacement[]>("/api/ads/placements")
 }
 
 export const updateAdPlacement = (
   id: string,
   body: { adsenseSlotId?: string; adsenseFormat?: string; emptyPolicy?: "collapse" | "reserve" }
 ): Promise<Result<AdPlacement>> => {
-  return http.put<AdPlacement>(`/api/v1/ads/placements/${encodeURIComponent(id)}`, body)
+  return http.put<AdPlacement>(`/api/ads/placements/${encodeURIComponent(id)}`, body)
 }
 
 export const listCreativeVersions = (campaignId: number): Promise<Result<CreativeVersion[]>> => {
-  return http.get<CreativeVersion[]>(`/api/v1/sponsorship/campaigns/${campaignId}/versions`)
+  return http.get<CreativeVersion[]>(`/api/sponsorship/campaigns/${campaignId}/versions`)
 }
 
 export type CreateCreativeVersionResult = {
@@ -110,11 +110,11 @@ export const createCreativeVersion = (
   campaignId: number,
   body: { imageUrl: string; html: string; clickUrl: string; configVersion: number }
 ): Promise<Result<CreateCreativeVersionResult>> => {
-  return http.post<CreateCreativeVersionResult>(`/api/v1/sponsorship/campaigns/${campaignId}/versions`, body)
+  return http.post<CreateCreativeVersionResult>(`/api/sponsorship/campaigns/${campaignId}/versions`, body)
 }
 
 export const listCampaignAssignments = (campaignId: number): Promise<Result<CampaignAssignment[]>> => {
-  return http.get<CampaignAssignment[]>(`/api/v1/sponsorship/campaigns/${campaignId}/assignments`)
+  return http.get<CampaignAssignment[]>(`/api/sponsorship/campaigns/${campaignId}/assignments`)
 }
 
 export type CampaignGraphSaveBody = {
@@ -140,10 +140,10 @@ export const saveSponsorshipCampaignGraph = (
   campaignId: number,
   body: CampaignGraphSaveBody
 ): Promise<Result<CampaignGraphSaveResult>> => {
-  return http.put<CampaignGraphSaveResult>(`/api/v1/sponsorship/campaigns/${campaignId}/graph`, body)
+  return http.put<CampaignGraphSaveResult>(`/api/sponsorship/campaigns/${campaignId}/graph`, body)
 }
 
 /** Public placement AdSense / empty-policy catalog (enabled rows only). */
 export const getAdPlacementConfig = (): Promise<Result<Record<string, PlacementAdConfig>>> => {
-  return http.get<Record<string, PlacementAdConfig>>("/api/v1/ads/placement-config")
+  return http.get<Record<string, PlacementAdConfig>>("/api/ads/placement-config")
 }

@@ -5,7 +5,7 @@ import { LockStatus } from "./components/LockStatus"
 import { ArchiveStatus } from "./components/ArchiveStatus"
 import { HiddenStatus } from "./components/HiddenStatus"
 import { PostLockingModal } from "./components/PostLockingModal"
-import { Comment, Post, Tag, Vote, PostStatus, isPostLocked, isPostArchived, isPostHidden, ReportReason } from "@fider/models"
+import { Post, Tag, Vote, PostStatus, isPostLocked, isPostArchived, isPostHidden, ReportReason } from "@fider/models"
 import { actions, Fider, notify, formatDate, postPermissions } from "@fider/services"
 import { heroiconsDotsHorizontal as IconDotsHorizontal, heroiconsChevronUp as IconChevronUp } from "@fider/icons.generated"
 
@@ -42,14 +42,12 @@ import { useShowPostState } from "./hooks"
 
 interface ReportStatus {
   hasReportedPost: boolean
-  reportedCommentIds: number[]
   dailyLimitReached: boolean
 }
 
 interface ShowPostPageProps {
   post: Post
   subscribed: boolean
-  comments: Comment[]
   tags: Tag[]
   votes: Vote[]
   attachments: string[]
@@ -79,7 +77,11 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
 
   const handleCommentAdded = useCallback(() => {
     setLastActivityAt(new Date().toISOString())
-  }, [])
+
+    if (isPostArchived(props.post)) {
+      window.location.reload()
+    }
+  }, [props.post])
 
   const handleCopyEvent = useCallback(() => {
     const selection = window.getSelection()
@@ -88,62 +90,22 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
     }
   }, [state.setHasCopiedContent])
 
-  const scrollToHighlightedComment = useCallback(() => {
-    if (state.highlightedComment) {
-      setTimeout(() => {
-        const element = document.getElementById(`comment-${state.highlightedComment}`)
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "start" })
-        }
-      }, 100)
-    }
-  }, [state.highlightedComment])
-
-  const handleHashChange = useCallback(
-    (e?: Event) => {
-      const hash = window.location.hash
-      const result = /#comment-([0-9]+)/.exec(hash)
-
-      let newHighlightedComment: number | undefined
-      if (result === null) {
-        newHighlightedComment = undefined
-      } else {
-        const id = parseInt(result[1])
-        if (props.comments.map((comment) => comment.id).includes(id)) {
-          newHighlightedComment = id
-        } else {
-          window.location.href = window.location.pathname + window.location.search
-          return
-        }
-      }
-      state.setHighlightedComment(newHighlightedComment)
-    },
-    [props.comments, state.setHighlightedComment]
-  )
-
   useEffect(() => {
     state.setNewTitle(props.post.title)
     state.setNewDescription(props.post.description)
   }, [props.post.number])
 
   useEffect(() => {
-    handleHashChange()
-    window.addEventListener("hashchange", handleHashChange)
     document.addEventListener("copy", handleCopyEvent)
     const canonicalPath = `/posts/${props.post.number}/${props.post.slug}`
     if (window.location.pathname !== canonicalPath) {
-      window.history.replaceState({}, document.title, canonicalPath)
+      window.history.replaceState({}, document.title, canonicalPath + window.location.search + window.location.hash)
     }
 
     return () => {
-      window.removeEventListener("hashchange", handleHashChange)
       document.removeEventListener("copy", handleCopyEvent)
     }
-  }, [handleHashChange, handleCopyEvent, props.post.number, props.post.slug])
-
-  useEffect(() => {
-    scrollToHighlightedComment()
-  }, [scrollToHighlightedComment])
+  }, [handleCopyEvent, props.post.number, props.post.slug])
 
   const handleScrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" })
@@ -400,12 +362,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
 
               <DiscussionPanel
                 post={props.post}
-                comments={props.comments}
-                highlightedComment={state.highlightedComment}
                 subscribed={props.subscribed}
-                reportedCommentIds={props.reportStatus?.reportedCommentIds ?? []}
-                dailyLimitReached={props.reportStatus?.dailyLimitReached ?? false}
-                reportReasons={props.reportReasons}
                 onCommentAdded={handleCommentAdded}
               />
               <div className="mt-4 flex items-center justify-between">

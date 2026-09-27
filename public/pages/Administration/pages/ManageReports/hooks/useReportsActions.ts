@@ -11,13 +11,14 @@ interface UseReportsActionsConfig {
   resolveAction: "resolved" | "dismissed"
   resolutionNote: string
   reasons: ReportReason[]
-  setReports: React.Dispatch<React.SetStateAction<Report[]>>
+  updateReport: (report: Report) => void
+  removeReport: (reportId: number) => void
   setSelectedReport: React.Dispatch<React.SetStateAction<Report | null>>
   setSelectedStatus: React.Dispatch<React.SetStateAction<ReportStatus | "active">>
   setSelectedType: React.Dispatch<React.SetStateAction<ReportType | "">>
   setSelectedReason: React.Dispatch<React.SetStateAction<string>>
   setPage: React.Dispatch<React.SetStateAction<number>>
-  setNewReportIds: React.Dispatch<React.SetStateAction<Set<number>>>
+  clearNewReports: () => void
   setViewingUser: React.Dispatch<React.SetStateAction<ViewingUserType | null>>
   setProfileKey: React.Dispatch<React.SetStateAction<number>>
   setShowResolveModal: React.Dispatch<React.SetStateAction<boolean>>
@@ -57,13 +58,14 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
     resolveAction,
     resolutionNote,
     reasons,
-    setReports,
+    updateReport,
+    removeReport,
     setSelectedReport,
     setSelectedStatus,
     setSelectedType,
     setSelectedReason,
     setPage,
-    setNewReportIds,
+    clearNewReports,
     setViewingUser,
     setProfileKey,
     setShowResolveModal,
@@ -116,12 +118,7 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
     }
     setSelectedReport(report)
     setViewingUser(null)
-    setNewReportIds((prev) => {
-      const newSet = new Set(prev)
-      newSet.delete(report.id)
-      return newSet
-    })
-  }, [isNavigating, pushState, setSelectedReport, setViewingUser, setNewReportIds])
+  }, [isNavigating, pushState, setSelectedReport, setViewingUser])
 
   const handleDeselectReport = useCallback(() => {
     if (!isNavigating.current) {
@@ -156,9 +153,9 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
         assignedTo: Fider.session.user,
       }
       setSelectedReport(updatedReport)
-      setReports((prev) => prev.map((r) => (r.id === selectedReport.id ? updatedReport : r)))
+      updateReport(updatedReport)
     }
-  }, [selectedReport, setSelectedReport, setReports])
+  }, [selectedReport, setSelectedReport, updateReport])
 
   const handleUnassign = useCallback(async () => {
     if (!selectedReport) return
@@ -170,9 +167,9 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
         assignedTo: undefined,
       }
       setSelectedReport(updatedReport)
-      setReports((prev) => prev.map((r) => (r.id === selectedReport.id ? updatedReport : r)))
+      updateReport(updatedReport)
     }
-  }, [selectedReport, setSelectedReport, setReports])
+  }, [selectedReport, setSelectedReport, updateReport])
 
   const handleResolveClick = useCallback(async (status: "resolved" | "dismissed", shiftKey: boolean) => {
     if (!selectedReport) return
@@ -181,11 +178,9 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
       const result = await actions.resolveReport(selectedReport.id, status)
       if (result.ok) {
         if (selectedStatusRef.current === "active") {
-          setReports((prev) => prev.filter((r) => r.id !== selectedReport.id))
+          removeReport(selectedReport.id)
         } else {
-          setReports((prev) =>
-            prev.map((r) => (r.id === selectedReport.id ? { ...r, status: status as ReportStatus } : r))
-          )
+          updateReport({ ...selectedReport, status })
         }
         setSelectedReport(null)
       }
@@ -195,7 +190,7 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
     setResolveAction(status)
     setResolutionNote("")
     setShowResolveModal(true)
-  }, [selectedReport, selectedStatusRef, setReports, setSelectedReport, setResolveAction, setResolutionNote, setShowResolveModal])
+  }, [selectedReport, selectedStatusRef, updateReport, removeReport, setSelectedReport, setResolveAction, setResolutionNote, setShowResolveModal])
 
   const handleResolveSubmit = useCallback(async () => {
     if (!selectedReport) return
@@ -205,28 +200,24 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
     if (result.ok) {
       setShowResolveModal(false)
       if (selectedStatusRef.current === "active") {
-        setReports((prev) => prev.filter((r) => r.id !== selectedReport.id))
+        removeReport(selectedReport.id)
       } else {
-        setReports((prev) =>
-          prev.map((r) =>
-            r.id === selectedReport.id ? { ...r, status: resolveAction as ReportStatus } : r
-          )
-        )
+        updateReport({ ...selectedReport, status: resolveAction })
       }
       setSelectedReport(null)
     } else {
       setError(result.error)
     }
-  }, [selectedReport, resolveAction, resolutionNote, selectedStatusRef, setReports, setSelectedReport, setShowResolveModal, setError])
+  }, [selectedReport, resolveAction, resolutionNote, selectedStatusRef, updateReport, removeReport, setSelectedReport, setShowResolveModal, setError])
 
   const handleCloseResolveModal = useCallback(() => {
     setShowResolveModal(false)
   }, [setShowResolveModal])
 
   const handleRefreshNewReports = useCallback(() => {
-    setNewReportIds(new Set())
+    clearNewReports()
     loadReports()
-  }, [setNewReportIds, loadReports])
+  }, [clearNewReports, loadReports])
 
   const handlePrevPage = useCallback(() => {
     setPage((p) => p - 1)
@@ -257,4 +248,3 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
     handleNextPage,
   }
 }
-

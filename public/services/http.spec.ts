@@ -27,7 +27,7 @@ test("transport diagnostics preserve the cause without body or query secrets", a
   fetchMock.mockRejectedValueOnce(cause)
   let failure: RequestError | undefined
   try {
-    await http.post("/api/v1/posts?token=query-secret", { description: "private-draft" })
+    await http.post("/api/posts?token=query-secret", { description: "private-draft" })
   } catch (error) {
     failure = error as RequestError
   }
@@ -40,7 +40,7 @@ test("transport diagnostics preserve the cause without body or query secrets", a
 test("an HTML gateway failure keeps its status and parsing cause", async () => {
   const cause = new SyntaxError("not JSON")
   fetchMock.mockResolvedValueOnce(response(502, undefined, cause))
-  const result = await http.post("/api/v1/posts", { description: "private" })
+  const result = await http.post("/api/posts", { description: "private" })
   expect(result.ok).toBe(false)
   if (result.ok) throw new Error("expected failure")
   expect(result.status).toBe(502)
@@ -49,20 +49,29 @@ test("an HTML gateway failure keeps its status and parsing cause", async () => {
   expect(notify.error).toHaveBeenCalledTimes(1)
 })
 
+test.each([401, 403, 503])("callers can reconcile HTTP %i before deciding to display an error", async (status) => {
+  fetchMock.mockResolvedValueOnce(response(status, { errors: [{ message: "Request rejected" }] }))
+
+  const result = await http.post("/api/pages/1/comments", {}, { notifyOnError: false })
+
+  expect(result).toMatchObject({ ok: false, status, error: { errors: [{ message: "Request rejected" }] } })
+  expect(notify.error).not.toHaveBeenCalled()
+})
+
 test("malformed successful JSON is a response error, while 204 needs no JSON", async () => {
   const cause = new SyntaxError("truncated JSON")
   fetchMock.mockResolvedValueOnce(response(200, undefined, cause))
-  await expect(http.get("/api/v1/posts")).rejects.toMatchObject({ phase: "response", status: 200, cause })
+  await expect(http.get("/api/posts")).rejects.toMatchObject({ phase: "response", status: 200, cause })
   fetchMock.mockResolvedValueOnce(response(204, undefined, cause))
-  await expect(http.delete("/api/v1/posts/1")).resolves.toMatchObject({ ok: true, data: undefined })
+  await expect(http.delete("/api/posts/1")).resolves.toMatchObject({ ok: true, data: undefined })
 })
 
 test("serialization and notification defects retain their original cause", async () => {
   const serialization = new Error("serializer defect")
-  await expect(http.post("/api/v1/posts", { toJSON() { throw serialization } })).rejects.toBe(serialization)
+  await expect(http.post("/api/posts", { toJSON() { throw serialization } })).rejects.toBe(serialization)
   expect(fetchMock).not.toHaveBeenCalled()
   const presentation = new Error("notification defect")
   jest.mocked(notify.error).mockImplementationOnce(() => { throw presentation })
   fetchMock.mockResolvedValueOnce(response(403, {}))
-  await expect(http.get("/api/v1/posts")).rejects.toBe(presentation)
+  await expect(http.get("/api/posts")).rejects.toBe(presentation)
 })

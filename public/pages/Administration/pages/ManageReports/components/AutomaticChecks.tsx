@@ -22,7 +22,7 @@ export function AutomaticChecks() {
 
   const refresh = useCallback(async () => {
     try {
-      const result = await http.get<CheckStatus>("/_api/admin/moderation/checks")
+      const result = await http.get<CheckStatus>("/api/admin/moderation/checks")
       if (!result.ok) throw new Error()
       setStatus(result.data)
       setError("")
@@ -37,7 +37,7 @@ export function AutomaticChecks() {
 
   const retry = async () => {
     try {
-      const result = await http.post("/_api/admin/moderation/retry", {})
+      const result = await http.post("/api/admin/moderation/retry", {})
       if (!result.ok) throw new Error()
       await refresh()
     } catch {

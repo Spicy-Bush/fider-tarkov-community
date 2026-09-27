@@ -25,6 +25,14 @@ func (t *Tenant) IsDisabled() bool {
 	return t.Status == enum.TenantDisabled
 }
 
+func (t *Tenant) DailyReportLimit() int {
+	if t.GeneralSettings != nil && t.GeneralSettings.ReportLimitsPerDay > 0 {
+		return t.GeneralSettings.ReportLimitsPerDay
+	}
+
+	return 10
+}
+
 // TenantContact is a reference to an administrator account
 type TenantContact struct {
 	Name      string `json:"name"`

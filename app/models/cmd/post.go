@@ -12,6 +12,7 @@ import (
 type AddNewPost struct {
 	Title       string
 	Description string
+	Attachments []*dto.ImageUpload
 
 	Result *entity.Post
 }
@@ -20,6 +21,7 @@ type UpdatePost struct {
 	Post        *entity.Post
 	Title       string
 	Description string
+	Attachments []*dto.ImageUpload
 
 	Result *entity.Post
 }

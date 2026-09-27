@@ -2,7 +2,6 @@ package postgres_test
 
 import (
 	"bytes"
-	"context"
 	"image"
 	"image/png"
 	"strings"
@@ -94,46 +93,5 @@ func TestUploadImageRetainsOneLargeDimension(t *testing.T) {
 	decoded, _, err := image.DecodeConfig(bytes.NewReader(stored.Result.Content))
 	if err != nil || decoded.Width != 1501 || decoded.Height != 2 {
 		t.Fatalf("image with one large dimension changed size: %v error=%v", decoded, err)
-	}
-}
-
-func TestUploadMultipleImages(t *testing.T) {
-	ctx := SetupDatabaseTest(t)
-	defer TeardownDatabaseTest()
-
-	bus.AddHandler(func(ctx context.Context, c *cmd.StoreBlob) error {
-		return nil
-	})
-
-	uploadImages := &cmd.UploadImages{
-		Images: []*dto.ImageUpload{
-			{
-				Upload: &dto.ImageUploadData{
-					Content:     pngAttachment(t, 2).Upload.Content,
-					ContentType: "image/png",
-				},
-			},
-			{
-				Upload: &dto.ImageUploadData{
-					Content:     pngAttachment(t, 2).Upload.Content,
-					ContentType: "image/png",
-				},
-			},
-		},
-		Folder: "avatars",
-	}
-	err := bus.Dispatch(ctx, uploadImages)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, image := range uploadImages.Images {
-		if !strings.HasPrefix(image.BlobKey, "avatars/") || !strings.HasSuffix(image.BlobKey, ".webp") {
-			t.Fatalf("unexpected image key: %s", image.BlobKey)
-		}
-	}
-
-	if uploadImages.Images[0].BlobKey == uploadImages.Images[1].BlobKey {
-		t.Fatal("separate uploads reused the same image key")
 	}
 }

@@ -15,25 +15,26 @@ import (
 )
 
 type CreateUpdatePage struct {
-	PageID          int
-	Title           string
-	Slug            string
-	Content         string
-	Excerpt         string
-	BannerImage     *dto.ImageUpload
-	Status          string
-	Visibility      string
-	AllowedRoles    []string
-	ParentPageID    *int
-	AllowComments   bool
-	AllowReactions  bool
-	ShowTOC         bool
-	ScheduledFor    *time.Time
-	Authors         []int
-	Topics          []int
-	Tags            []int
-	MetaDescription string
-	CanonicalURL    string
+	PageID             int
+	Title              string
+	Slug               string
+	Content            string
+	Excerpt            string
+	BannerImage        *dto.ImageUpload
+	Status             string
+	Visibility         string
+	AllowedRoles       []string
+	ParentPageID       *int
+	AllowComments      bool
+	AllowCommentImages bool
+	AllowReactions     bool
+	ShowTOC            bool
+	ScheduledFor       *time.Time
+	Authors            []int
+	Topics             []int
+	Tags               []int
+	MetaDescription    string
+	CanonicalURL       string
 }
 
 func (input *CreateUpdatePage) Initialize() interface{} {
@@ -308,27 +309,6 @@ func (action *TogglePageSubscription) IsAuthorized(ctx context.Context, user *en
 
 func (action *TogglePageSubscription) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	return validate.Success()
-}
-
-type AddPageComment struct {
-	PageID  int
-	Content string
-}
-
-func (action *AddPageComment) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	return user != nil
-}
-
-func (action *AddPageComment) Validate(ctx context.Context, user *entity.User) *validate.Result {
-	result := validate.Success()
-
-	if len(strings.TrimSpace(action.Content)) == 0 {
-		result.AddFieldFailure("content", i18n.T(ctx, "validation.required"))
-	} else if len(action.Content) > 5000 {
-		result.AddFieldFailure("content", i18n.T(ctx, "validation.maxlength", i18n.Params{"max": 5000}))
-	}
-
-	return result
 }
 
 type SavePageDraft struct {

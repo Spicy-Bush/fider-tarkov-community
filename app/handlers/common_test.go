@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -65,8 +66,7 @@ func TestRobotsTXT(t *testing.T) {
 	content, _ := io.ReadAll(response.Body)
 	Expect(code).Equals(http.StatusOK)
 	Expect(string(content)).ContainsSubstring("User-agent: *")
-	Expect(string(content)).ContainsSubstring("Disallow: /_api/")
-	Expect(string(content)).ContainsSubstring("Disallow: /api/v1/")
+	Expect(string(content)).ContainsSubstring("Disallow: /api/")
 	Expect(string(content)).ContainsSubstring("Disallow: /admin/")
 	Expect(string(content)).ContainsSubstring("Disallow: /oauth/")
 	Expect(string(content)).ContainsSubstring("Disallow: /terms")
@@ -82,6 +82,10 @@ func TestSitemap(t *testing.T) {
 		q.Result = []*entity.Post{}
 		return nil
 	})
+	bus.AddHandler(func(ctx context.Context, q *query.GetAllPublishedPages) error {
+		q.Result = []*entity.Page{}
+		return nil
+	})
 
 	server := mock.NewServer()
 	code, response := server.
@@ -94,13 +98,25 @@ func TestSitemap(t *testing.T) {
 	Expect(string(bytes)).Equals(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url> <loc>http://demo.test.fider.io:3000</loc> </url></urlset>`)
 }
 
-func TestSitemap_WithPosts(t *testing.T) {
+func TestSitemap_WithPostsAndPublicPages(t *testing.T) {
 	RegisterT(t)
 
 	bus.AddHandler(func(ctx context.Context, q *query.GetAllPosts) error {
 		q.Result = []*entity.Post{
 			{Number: 1, Slug: "my-new-idea-1", Title: "My new idea 1"},
 			{Number: 2, Slug: "the-other-idea", Title: "The other idea"},
+		}
+		return nil
+	})
+	bus.AddHandler(func(ctx context.Context, q *query.GetAllPublishedPages) error {
+		q.Result = []*entity.Page{
+			{
+				Slug:       "community-guide",
+				Visibility: entity.PageVisibilityPublic,
+				UpdatedAt:  time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC),
+			},
+			{Slug: "staff-guide", Visibility: entity.PageVisibilityPrivate},
+			{Slug: "unlisted-guide", Visibility: entity.PageVisibilityUnlisted},
 		}
 		return nil
 	})
@@ -114,7 +130,14 @@ func TestSitemap_WithPosts(t *testing.T) {
 
 	bytes, _ := io.ReadAll(response.Body)
 	Expect(code).Equals(http.StatusOK)
-	Expect(string(bytes)).Equals(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url> <loc>http://demo.test.fider.io:3000</loc> </url><url> <loc>http://demo.test.fider.io:3000/posts/1/my-new-idea-1</loc> </url><url> <loc>http://demo.test.fider.io:3000/posts/2/the-other-idea</loc> </url></urlset>`)
+	expected := `<?xml version="1.0" encoding="UTF-8"?>` +
+		`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
+		`<url> <loc>http://demo.test.fider.io:3000</loc> </url>` +
+		`<url> <loc>http://demo.test.fider.io:3000/posts/1/my-new-idea-1</loc> </url>` +
+		`<url> <loc>http://demo.test.fider.io:3000/posts/2/the-other-idea</loc> </url>` +
+		`<url> <loc>http://demo.test.fider.io:3000/pages/community-guide</loc> <lastmod>2026-09-20</lastmod> </url>` +
+		`</urlset>`
+	Expect(string(bytes)).Equals(expected)
 }
 
 func TestSitemap_PrivateTenant_WithPosts(t *testing.T) {

@@ -23,6 +23,8 @@ type AddNewNotification struct {
 	Title  string
 	Link   string
 	PostID int
+	CommentID int
+	PageID int
 
 	Result *entity.Notification
 }

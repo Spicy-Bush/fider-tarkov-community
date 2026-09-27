@@ -10,6 +10,7 @@ interface MultiImageUploaderProps {
   bkeys?: string[]
   initialUploads?: ImageUpload[]
   disabled?: boolean
+  allowUploads?: boolean
   onChange?: (uploads: ImageUpload[]) => void
 }
 
@@ -114,7 +115,7 @@ export class MultiImageUploader extends React.Component<MultiImageUploaderProps,
       />
     ))
 
-    if (visible.length < this.props.maxUploads) {
+    if (this.props.allowUploads !== false && visible.length < this.props.maxUploads) {
       const instanceID = String(this.nextID)
 
       uploaders.push(
