@@ -160,10 +160,7 @@ func Favicon() web.HandlerFunc {
 			return c.PermanentRedirect(redirectURL)
 		}
 
-		var (
-			faviconBytes []byte
-			contentType  string
-		)
+		var faviconBytes []byte
 
 		if bkey != "" {
 			if !isValidBlobKey(bkey) {
@@ -175,10 +172,8 @@ func Favicon() web.HandlerFunc {
 				return c.Failure(err)
 			}
 			faviconBytes = q.Result.Content
-			contentType = q.Result.ContentType
 		} else {
 			faviconBytes = defaultFavicon
-			contentType = "image/png"
 		}
 
 		opts := []imagic.ImageOperation{
@@ -195,7 +190,7 @@ func Favicon() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		return c.Image(contentType, faviconBytes)
+		return c.Image("image/webp", faviconBytes)
 	}
 }
 
@@ -228,9 +223,18 @@ func ViewUploadedImage() web.HandlerFunc {
 
 		imgBytes := q.Result.Content
 		if canonicalSize > 0 {
-			imgBytes, err = imagic.Apply(imgBytes, imagic.Resize(canonicalSize))
+			metadata, err := imagic.Parse(imgBytes)
 			if err != nil {
 				return c.Failure(err)
+			}
+
+			if metadata.Width > canonicalSize || metadata.Height > canonicalSize {
+				imgBytes, err = imagic.Apply(imgBytes, imagic.Resize(canonicalSize))
+				if err != nil {
+					return c.Failure(err)
+				}
+
+				return c.Image("image/webp", imgBytes)
 			}
 		}
 
