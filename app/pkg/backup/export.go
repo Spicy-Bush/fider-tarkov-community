@@ -27,6 +27,17 @@ func exportTable(ctx context.Context, tableName string) ([]byte, error) {
 		pq.QuoteIdentifier(columnName),
 	)
 
+	switch tableName {
+	case "reactions":
+		statement = "SELECT * FROM reactions WHERE comment_id IN (SELECT id FROM comments WHERE tenant_id = $1)"
+
+	case "page_authors", "page_reactions", "page_subscriptions", "page_topics_map", "page_tags_map":
+		statement = fmt.Sprintf(
+			"SELECT * FROM %s WHERE page_id IN (SELECT id FROM pages WHERE tenant_id = $1)",
+			pq.QuoteIdentifier(tableName),
+		)
+	}
+
 	rows, err := trx.Query(statement, tenant.ID)
 	if err != nil {
 		return nil, err

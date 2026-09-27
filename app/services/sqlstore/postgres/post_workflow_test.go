@@ -1013,6 +1013,36 @@ func TestPostWorkflowBackupSnapshot(t *testing.T) {
 	f := newPostWorkflow(t)
 	body := submissionBody(t, "backup", false)
 
+	_, err := dbx.Connection().Exec(`
+        INSERT INTO pages (tenant_id, created_by_id, updated_by_id, title, slug, content)
+        VALUES (1, 1, 1, 'Exported Page', 'exported', 'Exported content'),
+               (2, 4, 4, 'Other tenant', 'private', 'Other content');
+
+        INSERT INTO page_drafts (page_id, tenant_id, user_id, content)
+        VALUES (1, 1, 1, 'Unpublished changes'), (2, 2, 4, 'Other draft');
+
+        INSERT INTO page_authors (page_id, user_id) VALUES (1, 1), (2, 4);
+        INSERT INTO page_subscriptions (page_id, user_id) VALUES (1, 2), (2, 5);
+        INSERT INTO page_reactions (page_id, user_id, emoji) VALUES (1, 2, '👍'), (2, 5, '👍');
+
+        INSERT INTO page_topics (tenant_id, name, slug)
+        VALUES (1, 'Exported topic', 'exported'), (2, 'Other topic', 'private');
+        INSERT INTO page_topics_map (page_id, topic_id) VALUES (1, 1), (2, 2);
+
+        INSERT INTO page_tags (tenant_id, name, slug)
+        VALUES (1, 'Exported tag', 'exported'), (2, 'Other tag', 'private');
+        INSERT INTO page_tags_map (page_id, tag_id) VALUES (1, 1), (2, 2);
+
+        INSERT INTO comments (tenant_id, page_id, user_id, content, created_at)
+        VALUES (1, 1, 2, 'Exported comment', NOW()),
+               (2, 2, 5, 'Other comment', NOW());
+        INSERT INTO reactions (comment_id, user_id, emoji, created_on)
+        VALUES (1, 2, '👍', NOW()), (2, 5, '👍', NOW());
+    `)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	recorder, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
 	if err != nil || recorder.Code != http.StatusOK {
 		t.Fatalf("setup: %v %s", err, recorder.Body)
@@ -1094,6 +1124,17 @@ func TestPostWorkflowBackupSnapshot(t *testing.T) {
 	}
 
 	expectedFiles := map[string]int{
+		"pages.json":                        1,
+		"page_drafts.json":                  1,
+		"page_authors.json":                 1,
+		"page_subscriptions.json":           1,
+		"page_reactions.json":               1,
+		"page_topics.json":                  1,
+		"page_topics_map.json":              1,
+		"page_tags.json":                    1,
+		"page_tags_map.json":                1,
+		"comments.json":                     1,
+		"reactions.json":                    1,
 		"posts.json":                        1,
 		"post_votes.json":                   1,
 		"post_vote_revisions.json":          1,
@@ -1125,6 +1166,18 @@ func TestPostWorkflowBackupSnapshot(t *testing.T) {
 
 		if len(rows) != expectedCount {
 			t.Fatalf("inconsistent %s: want %d rows, got %d", file.Name, expectedCount, len(rows))
+		}
+
+		if pageID, present := rows[0]["page_id"]; present && pageID != nil && pageID != float64(1) {
+			t.Fatalf("%s contains another tenant's Page: %v", file.Name, rows[0])
+		}
+
+		if commentID, present := rows[0]["comment_id"]; present && commentID != nil && commentID != float64(1) {
+			t.Fatalf("%s contains another tenant's comment: %v", file.Name, rows[0])
+		}
+
+		if tenantID, present := rows[0]["tenant_id"]; present && tenantID != float64(f.tenant.ID) {
+			t.Fatalf("%s contains another tenant's data: %v", file.Name, rows[0])
 		}
 
 		if file.Name == "posts.json" && rows[0]["submission_id"] != "backup" {
