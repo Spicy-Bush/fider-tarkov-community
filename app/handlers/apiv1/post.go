@@ -210,12 +210,6 @@ func CreatePost() web.HandlerFunc {
 			})
 		}
 
-		if len(action.SubmissionID) > 128 {
-			return c.BadRequest(web.Map{
-				"message": "Invalid submission identity.",
-			})
-		}
-
 		original, err := json.Marshal(action)
 		if err != nil {
 			return err

@@ -11,35 +11,38 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
 func submitPost(ctx context.Context, c *cmd.SubmitPost) error {
+	if c.SubmissionID == "" || len(c.SubmissionID) > 128 {
+		return validate.Failed("Invalid submission identity.")
+	}
+
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		if c.SubmissionID != "" {
-			lock := fmt.Sprintf("post:%d:%d:%s", tenant.ID, user.ID, c.SubmissionID)
-			if _, err := trx.Execute("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", lock); err != nil {
-				return err
+		lock := fmt.Sprintf("post:%d:%d:%s", tenant.ID, user.ID, c.SubmissionID)
+		if _, err := trx.Execute("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", lock); err != nil {
+			return err
+		}
+
+		var receipt struct {
+			Hash   string `db:"submission_hash"`
+			Result string `db:"submission_result"`
+		}
+
+		err := trx.Get(&receipt, `SELECT submission_hash, submission_result::text
+			FROM posts WHERE tenant_id = $1 AND user_id = $2 AND submission_id = $3`,
+			tenant.ID, user.ID, c.SubmissionID)
+		if err == nil {
+			if receipt.Hash != c.Fingerprint {
+				return app.ErrConflict
 			}
 
-			var receipt struct {
-				Hash   string `db:"submission_hash"`
-				Result string `db:"submission_result"`
-			}
+			return json.Unmarshal([]byte(receipt.Result), &c.Result)
+		}
 
-			err := trx.Get(&receipt, `SELECT submission_hash, submission_result::text
-				FROM posts WHERE tenant_id = $1 AND user_id = $2 AND submission_id = $3`,
-				tenant.ID, user.ID, c.SubmissionID)
-			if err == nil {
-				if receipt.Hash != c.Fingerprint {
-					return app.ErrConflict
-				}
-
-				return json.Unmarshal([]byte(receipt.Result), &c.Result)
-			}
-
-			if errors.Cause(err) != app.ErrNotFound {
-				return err
-			}
+		if errors.Cause(err) != app.ErrNotFound {
+			return err
 		}
 
 		post, err := c.Create(ctx)
@@ -54,17 +57,15 @@ func submitPost(ctx context.Context, c *cmd.SubmitPost) error {
 			Slug:   post.Slug,
 		}
 
-		if c.SubmissionID != "" {
-			encoded, err := json.Marshal(c.Result)
-			if err != nil {
-				return err
-			}
+		encoded, err := json.Marshal(c.Result)
+		if err != nil {
+			return err
+		}
 
-			if _, err := trx.Execute(`UPDATE posts SET submission_id = $1,
-				submission_hash = $2, submission_result = $3 WHERE id = $4 AND tenant_id = $5`,
-				c.SubmissionID, c.Fingerprint, string(encoded), post.ID, tenant.ID); err != nil {
-				return err
-			}
+		if _, err := trx.Execute(`UPDATE posts SET submission_id = $1,
+			submission_hash = $2, submission_result = $3 WHERE id = $4 AND tenant_id = $5`,
+			c.SubmissionID, c.Fingerprint, string(encoded), post.ID, tenant.ID); err != nil {
+			return err
 		}
 
 		return schedulePostNotification(ctx, &cmd.SchedulePostNotification{

@@ -914,6 +914,7 @@ func TestPostWorkflowConcurrentReplayAndDeletedReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	f.user.Muted = true
 	replay, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, body)
 	if err != nil {
 		t.Fatal(err)
@@ -932,6 +933,18 @@ func TestPostWorkflowConcurrentReplayAndDeletedReceipt(t *testing.T) {
 	conflict, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, changedBody)
 	if err != nil || conflict.Code != http.StatusConflict {
 		t.Fatalf("changed payload reused identity: %v %d %s", err, conflict.Code, conflict.Body)
+	}
+
+	newBody := submissionBody(t, "muted-new-operation", false)
+	denied, err := f.request(apiv1.CreatePost(), http.MethodPost, 0, newBody)
+	if err != nil || denied.Code != http.StatusBadRequest {
+		t.Fatalf("muted user created a new post: %v %d %s", err, denied.Code, denied.Body)
+	}
+
+	for _, query := range effectCounts {
+		if count := workflowCount(t, query); count != 1 {
+			t.Errorf("%s: receipt recovery or rejected submission changed effects to %d", query, count)
+		}
 	}
 }
 
