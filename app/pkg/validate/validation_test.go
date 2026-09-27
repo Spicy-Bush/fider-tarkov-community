@@ -16,6 +16,7 @@ func TestResult_Error(t *testing.T) {
 	Expect(r.Ok).IsFalse()
 	Expect(r.Authorized).IsTrue()
 	Expect(r.Err).Equals(err)
+	Expect(r.Error()).Equals(err.Error())
 }
 
 func TestResult_Unauthorized(t *testing.T) {
@@ -26,6 +27,7 @@ func TestResult_Unauthorized(t *testing.T) {
 	Expect(r.Authorized).IsFalse()
 	Expect(r.Errors).HasLen(0)
 	Expect(r.Err).IsNil()
+	Expect(r.Error()).Equals("Not authorized")
 }
 
 func TestResult_Failed(t *testing.T) {
@@ -36,6 +38,7 @@ func TestResult_Failed(t *testing.T) {
 	Expect(r.Authorized).IsTrue()
 	Expect(r.Errors).HasLen(2)
 	Expect(r.Err).IsNil()
+	Expect(r.Error()).Equals("Error #1; Error #2")
 }
 
 func TestResult_AddFieldFailure_Empty(t *testing.T) {

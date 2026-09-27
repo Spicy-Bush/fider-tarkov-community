@@ -3,6 +3,7 @@ package web_test
 import (
 	"context"
 	"crypto/tls"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -14,6 +15,8 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -53,6 +56,51 @@ func TestContextID(t *testing.T) {
 
 	Expect(ctx.ContextID()).IsNotEmpty()
 	Expect(ctx.ContextID()).HasLen(32)
+}
+
+func TestContextFailureValidation(t *testing.T) {
+	invalid := validate.Success()
+	invalid.AddFieldFailure("content", "Required", "Too long")
+	fieldErrors := `{"errors":[{"field":"content","message":"Required"},{"field":"content","message":"Too long"}]}`
+	storageError := errors.New("database unavailable")
+
+	tests := []struct {
+		name   string
+		err    error
+		status int
+		body   string
+		cause  error
+	}{
+		{"field errors", invalid, http.StatusBadRequest, fieldErrors, nil},
+		{"wrapped field errors", errors.Wrap(invalid, "save failed"), http.StatusBadRequest, fieldErrors, nil},
+		{"form error", validate.Failed("Invalid submission"), http.StatusBadRequest, `{"errors":[{"message":"Invalid submission"}]}`, nil},
+		{"unauthorized", validate.Unauthorized(), http.StatusForbidden, `{}`, nil},
+		{"wrapped unauthorized", errors.Wrap(validate.Unauthorized(), "save failed"), http.StatusForbidden, `{}`, nil},
+		{"storage error", validate.Error(storageError), http.StatusInternalServerError, `{}`, storageError},
+		{"wrapped storage error", errors.Wrap(validate.Error(storageError), "save failed"), http.StatusInternalServerError, `{}`, storageError},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/api/posts", nil)
+			request.Header.Set("Accept", "application/json")
+			response := httptest.NewRecorder()
+			ctx := web.NewContext(web.New(), request, response, nil)
+
+			err := ctx.Failure(test.err)
+			if errors.Cause(err) != test.cause {
+				t.Fatalf("failure cause: got %v, want %v", err, test.cause)
+			}
+
+			if response.Code != test.status || response.Body.String() != test.body {
+				t.Fatalf("response: got HTTP %d %s, want HTTP %d %s", response.Code, response.Body, test.status, test.body)
+			}
+
+			if response.Header().Get("Content-Type") != web.UTF8JSONContentType {
+				t.Fatalf("response content type: %q", response.Header().Get("Content-Type"))
+			}
+		})
+	}
 }
 
 func TestBaseURL(t *testing.T) {

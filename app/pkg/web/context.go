@@ -318,6 +318,9 @@ func (c *Context) Gone() error {
 func (c *Context) Failure(err error) error {
 	err = errors.StackN(err, 1)
 	cause := errors.Cause(err)
+	if validation, ok := cause.(*validate.Result); ok {
+		return c.HandleValidation(validation)
+	}
 
 	if cause == context.Canceled {
 		return nil

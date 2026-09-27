@@ -2,6 +2,7 @@ package validate
 
 import (
 	"context"
+	"strings"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 )
@@ -24,6 +25,23 @@ type Result struct {
 	Authorized bool
 	Err        error
 	Errors     []ErrorItem
+}
+
+func (r *Result) Error() string {
+	if r.Err != nil {
+		return r.Err.Error()
+	}
+
+	if !r.Authorized {
+		return "Not authorized"
+	}
+
+	messages := make([]string, 0, len(r.Errors))
+	for _, item := range r.Errors {
+		messages = append(messages, item.Message)
+	}
+
+	return strings.Join(messages, "; ")
 }
 
 // AddFieldFailure add failure message to specific field
