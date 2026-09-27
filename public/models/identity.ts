@@ -122,3 +122,16 @@ export interface CurrentUser {
   latestWarningId?: number
   latestMuteId?: number
 }
+
+export interface StandingEntry {
+  id: number
+  reason: string
+  createdAt: string
+  expiresAt?: string
+  isActive: boolean
+}
+
+export interface UserProfileStanding {
+  warnings: StandingEntry[]
+  mutes: StandingEntry[]
+}

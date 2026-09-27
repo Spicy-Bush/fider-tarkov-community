@@ -20,18 +20,11 @@ const Footer: React.FC = () => {
   useEffect(() => {
     const clamp = (val: number) => Math.min(1, Math.max(0, val))
 
-    const getScrollY = () => Math.max(
-      window.scrollY || 0,
-      window.pageYOffset || 0,
-      document.documentElement.scrollTop || 0,
-      document.body.scrollTop || 0
-    )
-
     const updateFooter = () => {
       const footer = ref.current
       if (!footer) return
 
-      const scrollY = getScrollY()
+      const scrollY = window.scrollY
       const delta = scrollY - lastScrollY.current
       const footerHeight = footer.offsetHeight || 100
       const viewportHeight = window.innerHeight
@@ -86,11 +79,9 @@ const Footer: React.FC = () => {
     }
 
     window.addEventListener("scroll", onScroll, { passive: true })
-    document.body.addEventListener("scroll", onScroll, { passive: true })
     updateFooter()
     return () => {
       window.removeEventListener("scroll", onScroll)
-      document.body.removeEventListener("scroll", onScroll)
     }
   }, [])
 

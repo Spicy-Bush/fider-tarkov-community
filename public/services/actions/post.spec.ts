@@ -1,13 +1,46 @@
 import { beforeEach, expect, test } from "@jest/globals"
-import { setVote } from "./post"
+import { searchPosts, setVote } from "./post"
 import { http } from "@fider/services"
 import { RequestError } from "@fider/services/http"
 
 jest.mock("@fider/services", () => ({
-  http: { post: jest.fn(), delete: jest.fn() },
+  http: { get: jest.fn(), post: jest.fn(), delete: jest.fn() },
+  querystring: jest.requireActual("@fider/services/querystring"),
 }))
 
 beforeEach(() => jest.resetAllMocks())
+
+test("record reads retain search criteria and forward cancellation", async () => {
+  const controller = new AbortController()
+  jest.mocked(http.get).mockResolvedValueOnce({ ok: true, data: [] })
+
+  await searchPosts({ ids: [7, 5], statuses: ["open"], query: "example", tags: ["planned"] }, {
+    signal: controller.signal,
+    notifyOnError: false,
+  })
+
+  const [url, options] = jest.mocked(http.get).mock.calls[0]
+  const parameters = new URL(url, "https://example.test").searchParams
+  expect(Object.fromEntries(parameters)).toEqual({
+    ids: "7,5",
+    statuses: "open",
+    query: "example",
+    tags: "planned",
+  })
+  expect(options).toEqual({ signal: controller.signal, includeHeaders: undefined, notifyOnError: false })
+})
+
+test("post searches forward cancellation and requested response headers", async () => {
+  const controller = new AbortController()
+  jest.mocked(http.get).mockResolvedValueOnce({ ok: true, data: [] })
+
+  await searchPosts({ view: "newest", includeCount: true }, { signal: controller.signal })
+
+  expect(http.get).toHaveBeenCalledWith(expect.stringContaining("includeCount=true"), {
+    signal: controller.signal,
+    includeHeaders: true,
+  })
+})
 
 test("a lost acknowledgement retries the original revision without overwriting a newer vote", async () => {
   jest.mocked(http.post).mockRejectedValueOnce(new RequestError("POST", "/api/posts/1/down", "transport", new Error("connection lost")))

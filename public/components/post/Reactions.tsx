@@ -90,7 +90,7 @@ export const Reactions: React.FC<ReactionsProps> = ({ emojiSelectorRef, toggleRe
       </div>
       
       {isEmojiSelectorOpen && canReact && (
-        <div className="absolute left-0 bottom-full mb-2 flex gap-1 p-2 bg-elevated border border-border rounded-card shadow-lg z-50">
+        <div className="absolute left-0 bottom-full mb-2 flex gap-1 p-2 bg-elevated border border-border rounded-card shadow-lg z-50 popover-enter origin-bottom-left">
           {availableEmojis.map((emoji) => (
             <button
               type="button"

@@ -139,6 +139,23 @@ func ReadNotification() web.HandlerFunc {
 	}
 }
 
+func MarkNotificationAsRead() web.HandlerFunc {
+	return func(c *web.Context) error {
+		id, err := c.ParamAsInt("id")
+		if err != nil {
+			return c.NotFound()
+		}
+
+		return c.WithTransaction(func() error {
+			if err := bus.Dispatch(c, &cmd.MarkNotificationAsRead{ID: id}); err != nil {
+				return c.Failure(err)
+			}
+
+			return c.Ok(web.Map{})
+		})
+	}
+}
+
 // ReadAllNotifications marks all unread notifications as read
 func ReadAllNotifications() web.HandlerFunc {
 	return func(c *web.Context) error {

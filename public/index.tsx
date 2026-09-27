@@ -1,17 +1,17 @@
 import "@fider/assets/styles/tailwind.css"
 // import "@fider/assets/styles/index.scss"
 
-import React from "react"
+import React, { useEffect } from "react"
 import { createRoot } from "react-dom/client"
-import { ErrorBoundary, ReadOnlyNotice, DevBanner, WarningBanner, AdminPageLoader } from "@fider/components"
+import { ErrorBoundary, ReadOnlyNotice, DevBanner, WarningBanner } from "@fider/components"
 import { classSet, Fider, FiderContext, actions, activateI18N, push } from "@fider/services"
 import { UserStandingProvider } from "@fider/contexts/UserStandingContext"
 import { LayoutProvider } from "@fider/contexts/LayoutContext"
-import { LayoutResolver } from "@fider/components/layouts"
 
 import { I18n } from "@lingui/core"
 import { I18nProvider } from "@lingui/react"
-import { AsyncPageLoader } from "./AsyncPages"
+import { PageRouter } from "./PageRouter"
+import { useCurrentUser } from "@fider/hooks"
 
 if ("serviceWorker" in navigator) {
   push.registerServiceWorker()
@@ -38,38 +38,25 @@ window.addEventListener("error", (evt: ErrorEvent) => {
   }
 })
 
-const bootstrapApp = (i18n: I18n) => {
-  document.body.className = classSet({
-    "is-authenticated": fider.session.isAuthenticated,
-    "is-staff": fider.session.isAuthenticated && fider.session.user.isCollaborator,
-    "is-moderator": fider.session.isAuthenticated && fider.session.user.isModerator,
-    "is-helper": fider.session.isAuthenticated && fider.session.user.isHelper,
-  })
+const SessionAppearance = () => {
+  const user = useCurrentUser()
 
+  useEffect(() => {
+    document.body.className = classSet({
+      "is-authenticated": !!user,
+      "is-staff": !!user?.isCollaborator,
+      "is-moderator": !!user?.isModerator,
+      "is-helper": !!user?.isHelper,
+    })
+  }, [user])
+
+  return null
+}
+
+const bootstrapApp = (i18n: I18n) => {
   const rootElement = document.getElementById("root")
   if (rootElement) {
     const root = createRoot(rootElement)
-    const isAdminPage = fider.session.page.startsWith("Administration/")
-
-    const pageContent = isAdminPage ? (
-      <AdminPageLoader
-        initialPageName={fider.session.page}
-        initialPageProps={fider.session.props}
-      />
-    ) : (
-      <AsyncPageLoader
-        pageName={fider.session.page}
-        pageProps={fider.session.props}
-        renderWithLayout={(Component, pageConfig, props) => (
-          <LayoutResolver
-            pageName={fider.session.page}
-            pageComponent={Component}
-            pageProps={props}
-            pageConfig={pageConfig}
-          />
-        )}
-      />
-    )
 
     root.render(
       <React.StrictMode>
@@ -78,10 +65,11 @@ const bootstrapApp = (i18n: I18n) => {
             <FiderContext.Provider value={fider}>
               <LayoutProvider>
                 <UserStandingProvider>
+                  <SessionAppearance />
                   <DevBanner />
                   <WarningBanner />
                   <ReadOnlyNotice />
-                  {pageContent}
+                  <PageRouter initialPageName={fider.session.page} />
                 </UserStandingProvider>
               </LayoutProvider>
             </FiderContext.Provider>

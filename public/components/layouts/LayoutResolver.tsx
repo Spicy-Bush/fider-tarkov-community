@@ -30,6 +30,7 @@ interface LayoutResolverProps {
   pageComponent: ComponentType<any>
   pageProps: Record<string, any>
   pageConfig?: PageConfig
+  pageKey?: React.Key
 }
 
 export const LayoutResolver: React.FC<LayoutResolverProps> = ({
@@ -37,10 +38,11 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
   pageComponent: PageComponent,
   pageProps,
   pageConfig,
+  pageKey,
 }) => {
   const layoutType = getLayoutType(pageName)
 
-  const pageContent = <PageComponent {...pageProps} />
+  const pageContent = <PageComponent key={pageKey} {...pageProps} />
 
   switch (layoutType) {
     case "admin":
@@ -63,4 +65,3 @@ export const LayoutResolver: React.FC<LayoutResolverProps> = ({
       return pageContent
   }
 }
-

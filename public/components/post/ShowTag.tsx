@@ -22,8 +22,10 @@ export const ShowTag = (props: TagProps) => {
     "text-[13px] px-2.5 py-1.5 tag-clipped-inner": !isMini && !isCircular,
     "text-[11px] px-1.5 py-0.5 tag-clipped-inner": isMini && !isCircular,
     "min-h-0 min-w-0 overflow-hidden rounded-full p-1.5": isCircular,
-    "bg-surface-alt": !props.selected,
-    "bg-success-medium": props.selected === true,
+    "bg-surface-alt": !props.selected || props.selectable === true,
+    "bg-success-medium": props.selected === true && props.selectable !== true,
+    "wipe-fill [--wipe-color:var(--color-success-medium)]": props.selectable === true,
+    "is-selected": props.selectable === true && props.selected === true,
   })
 
   const outerClassName = classSet({
@@ -68,7 +70,7 @@ export const ShowTag = (props: TagProps) => {
         {isCircular ? "" : props.tag.name || "Tag"}
         {props.selectable && (
           <span className={checkClassName}>
-            {props.selected && <Icon sprite={IconCheck} className="w-3.5 h-3.5 text-primary" />}
+            {props.selected && <Icon sprite={IconCheck} className="w-3.5 h-3.5 text-primary wipe-check" />}
           </span>
         )}
       </span>

@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Button, SignInModal } from "@fider/components"
 import { useFider } from "@fider/hooks"
 import { CommentContext, DiscussionComment, DiscussionOwner, DiscussionPage, DiscussionPermissions, DiscussionSort, ReactionCount } from "@fider/models"
-import { isNegativelyRated, loadCommentContext, loadComments } from "@fider/services/discussion"
+import { isNegativelyRated, loadCommentContext, loadCommentRecords, loadComments } from "@fider/services/discussion"
+import { savedReadingPosition, useReadingPosition } from "@fider/services/readingPosition"
+import { RequestError } from "@fider/services/http"
 import { CommentComposer } from "./CommentComposer"
 import { CommentChange, CommentInteraction, DiscussionCommentCard } from "./DiscussionCommentCard"
 import { DiscussionRow, DiscussionViewport } from "./DiscussionViewport"
@@ -15,9 +17,28 @@ interface Branch {
 }
 
 interface DiscussionState {
-  comments: Record<number, DiscussionComment>
+  comments: Record<number, DiscussionComment | PendingComment>
   branches: Record<number, Branch>
   permissions?: DiscussionPermissions
+}
+
+interface PendingComment {
+  id: number
+  parentId: number | null
+  hasReplies: boolean
+  collapsed: boolean
+  pending: "unloaded" | "unavailable"
+}
+
+interface DiscussionPosition {
+  sort: DiscussionSort
+  comments: PendingComment[]
+  branches: Record<number, Branch>
+  collapsed: Record<number, boolean>
+  expanded: Record<number, boolean>
+  measurements: [string, number][]
+  viewport?: { top: number; bottom: number }
+  anchor?: { id: number; top: number }
 }
 
 interface DiscussionProps {
@@ -133,7 +154,7 @@ export function discussionRows(
     }
 
     const comment = state.comments[row.id]
-    const closed = collapsed[row.id] ?? isNegativelyRated(comment)
+    const closed = collapsed[row.id] ?? ("pending" in comment ? comment.collapsed : isNegativelyRated(comment))
     const displayed: Extract<DiscussionRow, { kind: "comment" }> = {
       kind: "comment",
       id: row.id,
@@ -201,7 +222,8 @@ function LoadComments(props: { branch?: Branch; load: () => Promise<void> }) {
 }
 
 export function Discussion(props: DiscussionProps) {
-  const [sort, setSort] = useState<DiscussionSort>("liked")
+  const positionKey = `discussion:${props.owner.kind}:${props.owner.id}`
+  const [sort, setSort] = useState<DiscussionSort>(() => savedReadingPosition<DiscussionPosition>(positionKey)?.sort ?? "liked")
 
   return (
     <section aria-label="Discussion" className="mt-4">
@@ -230,14 +252,49 @@ export function Discussion(props: DiscussionProps) {
 
 function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { sort: DiscussionSort }) {
   const fider = useFider()
-  const [state, setState] = useState<DiscussionState>({ comments: {}, branches: {} })
-  const [collapsed, setCollapsed] = useState<Record<number, boolean>>({})
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({})
+  const container = useRef<HTMLDivElement>(null)
+  const reading = useReadingPosition<DiscussionPosition>(`discussion:${owner.kind}:${owner.id}`, (): DiscussionPosition => {
+    const anchor = [...(container.current?.querySelectorAll<HTMLElement>(".discussion-row article[id]") ?? [])]
+      .find((element) => element.getBoundingClientRect().bottom > 0)
+    const viewport = container.current?.querySelector(".discussion-threads")?.getBoundingClientRect()
+    const branches = Object.fromEntries(
+      Object.entries(state.branches).filter(([, branch]) => branch.ids.length > 0)
+    )
+
+    return {
+      sort,
+      comments: Object.values(state.comments).map((comment) => ({
+        id: comment.id,
+        parentId: comment.parentId,
+        hasReplies: comment.hasReplies,
+        collapsed: "pending" in comment ? comment.collapsed : isNegativelyRated(comment),
+        pending: "unloaded",
+      })),
+      branches,
+      collapsed,
+      expanded,
+      measurements: [...measurements.current],
+      viewport: viewport ? { top: Math.max(0, -viewport.top), bottom: window.innerHeight - viewport.top } : undefined,
+      anchor: anchor ? { id: Number(anchor.id.slice("comment-".length)), top: anchor.getBoundingClientRect().top } : undefined,
+    }
+  })
+  const [state, setState] = useState<DiscussionState>(() => ({
+    comments: Object.fromEntries(reading.saved?.comments.map((comment) => [comment.id, comment]) ?? []),
+    branches: reading.saved?.branches ?? {},
+  }))
+  const [collapsed, setCollapsed] = useState<Record<number, boolean>>(reading.saved?.collapsed ?? {})
+  const [expanded, setExpanded] = useState<Record<number, boolean>>(reading.saved?.expanded ?? {})
+  const measurements = useRef(new Map(reading.saved?.measurements))
+  const [readingTarget, setReadingTarget] = useState(reading.saved?.anchor?.id)
+  const [recordsError, setRecordsError] = useState<string>()
+  const [visibleRecords, setVisibleRecords] = useState<number[]>([])
   const [context, setContext] = useState<CommentContext>()
   const [target, setTarget] = useState<number>()
   const [contextError, setContextError] = useState<string>()
   const [signIn, setSignIn] = useState(false)
   const [interactions, setInteractions] = useState<Record<number, CommentInteraction>>({})
+  // Scrolling existing comments into view must not replay entry animations.
+  const [entering, setEntering] = useState<ReadonlySet<number>>(new Set())
   const activeActions = useRef(new Set<number>())
   const reportedComments = useRef(new Set<number>())
   const activeLoads = useRef(new Set<number>())
@@ -247,6 +304,131 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
   stateRef.current = state
 
   useEffect(() => {
+    if (recordsError) {
+      return
+    }
+
+    const ids = visibleRecords.filter((id) => {
+      const comment = state.comments[id]
+      return comment && "pending" in comment && comment.pending === "unloaded"
+    }).slice(0, 50)
+
+    if (ids.length === 0) {
+      return
+    }
+
+    const request = new AbortController()
+    const hydrate = async () => {
+      try {
+        const result = await loadCommentRecords(owner, ids, request.signal)
+
+        if (request.signal.aborted) {
+          return
+        }
+
+        if (!result.ok) {
+          setRecordsError(result.error.errors?.[0]?.message || "Could not load comments.")
+          return
+        }
+
+        setState((previous) => {
+          const comments = { ...previous.comments }
+          const found = new Map(result.data.comments.map((comment) => [comment.id, comment]))
+
+          for (const id of ids) {
+            const current = comments[id]
+
+            if (current && "pending" in current) {
+              comments[id] = found.get(id) ?? { ...current, hasReplies: false, pending: "unavailable" }
+            }
+          }
+
+          return { ...previous, comments, permissions: result.data.permissions }
+        })
+      } catch (cause) {
+        if (request.signal.aborted) {
+          return
+        }
+
+        if (!(cause instanceof RequestError)) {
+          throw cause
+        }
+
+        setRecordsError("Could not load comments. Please try again.")
+      }
+    }
+
+    void hydrate()
+    return () => request.abort()
+  }, [visibleRecords, state.comments, recordsError, owner.kind, owner.id, owner.number])
+
+  const visible = useCallback((ids: number[]) => {
+    setVisibleRecords((previous) => {
+      if (previous.length === ids.length && previous.every((id, index) => id === ids[index])) {
+        return previous
+      }
+
+      return ids
+    })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!reading.saved) {
+      return
+    }
+
+    if (recordsError) {
+      setReadingTarget(undefined)
+      reading.restored()
+      return
+    }
+
+    const anchor = reading.saved.anchor
+    const comment = anchor ? state.comments[anchor.id] : undefined
+
+    if (!anchor || reading.cancelled.current || (comment && "pending" in comment && comment.pending === "unavailable")) {
+      setReadingTarget(undefined)
+      reading.restored()
+      return
+    }
+
+    if (!comment || "pending" in comment || readingTarget === undefined) {
+      return
+    }
+
+    if (visibleRecords.some((id) => {
+      const visible = state.comments[id]
+      return visible && "pending" in visible && visible.pending === "unloaded"
+    })) {
+      return
+    }
+
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        if (!reading.cancelled.current) {
+          const element = container.current?.querySelector<HTMLElement>(`#comment-${anchor.id}`)
+
+          if (element) {
+            window.scrollBy({ top: element.getBoundingClientRect().top - anchor.top, behavior: "instant" })
+          }
+        }
+
+        setReadingTarget(undefined)
+        reading.restored()
+      })
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [state, visibleRecords, recordsError, readingTarget, reading.saved, reading.restored])
+
+  const previousSort = useRef(sort)
+
+  useEffect(() => {
+    if (previousSort.current === sort) {
+      return
+    }
+
+    previousSort.current = sort
     branchGeneration.current++
     activeLoads.current.clear()
     setState((previous) => ({ ...previous, branches: {} }))
@@ -269,6 +451,18 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
     const generation = branchGeneration.current
     const beforeRead = stateRef.current
     const branch = beforeRead.branches[parentId]
+    const failed = (message: string) => {
+      setState((previous) => ({
+        ...previous,
+        branches: {
+          ...previous.branches,
+          [parentId]: {
+            ...(previous.branches[parentId] || { ids: [], loaded: false }),
+            error: message,
+          },
+        },
+      }))
+    }
 
     try {
       const result = await loadComments(owner, sort, parentId || undefined, branch?.next, levels)
@@ -278,7 +472,8 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
       }
 
       if (!result.ok) {
-        throw new Error(result.error.errors?.[0]?.message || "Could not load comments.")
+        failed(result.error.errors?.[0]?.message || "Could not load comments.")
+        return
       }
 
       setState((previous) => {
@@ -309,16 +504,11 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
         return
       }
 
-      setState((previous) => ({
-        ...previous,
-        branches: {
-          ...previous.branches,
-          [parentId]: {
-            ...(previous.branches[parentId] || { ids: [], loaded: false }),
-            error: cause instanceof Error ? cause.message : "Could not load comments.",
-          },
-        },
-      }))
+      if (!(cause instanceof RequestError)) {
+        throw cause
+      }
+
+      failed("Could not load comments. Please try again.")
     } finally {
       if (generation === branchGeneration.current) {
         activeLoads.current.delete(parentId)
@@ -354,10 +544,16 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
 
         return next
       })
-    } catch {
-      if (request === contextRequest.current) {
-        setContextError("Could not load this thread. Retry when the connection is available.")
+    } catch (cause) {
+      if (request !== contextRequest.current) {
+        return
       }
+
+      if (!(cause instanceof RequestError)) {
+        throw cause
+      }
+
+      setContextError("Could not load this thread. Retry when the connection is available.")
     }
   }, [owner.kind, owner.id, sort, accept])
 
@@ -404,6 +600,7 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
 
     if (!existed) {
       onCommentAdded?.()
+      setEntering((previous) => new Set(previous).add(comment.id))
 
       const parent = rowsRef.current.find((row) => row.kind === "comment" && row.id === comment.parentId)
 
@@ -413,6 +610,14 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
     }
   }, [onCommentAdded])
 
+  const entered = useCallback((id: number) => {
+    setEntering((previous) => {
+      const next = new Set(previous)
+      next.delete(id)
+      return next
+    })
+  }, [])
+
   const changed = useCallback((comment: DiscussionComment, change: CommentChange) => {
     if (change === "report") {
       reportedComments.current.add(comment.id)
@@ -421,7 +626,7 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
     setState((previous) => {
       const current = previous.comments[comment.id]
 
-      if (!current || change === "delete") {
+      if (!current || "pending" in current || change === "delete") {
         return mergeRecords(previous, [comment])
       }
 
@@ -466,7 +671,7 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
     setState((previous) => {
       const comment = previous.comments[id]
 
-      if (!comment || comment.state === "deleted") {
+      if (!comment || "pending" in comment || comment.state === "deleted") {
         return previous
       }
 
@@ -518,7 +723,7 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
   }, [interact])
 
   return (
-    <div className="c-comment-list">
+    <div ref={container} className="c-comment-list">
       <SignInModal isOpen={signIn} onClose={() => setSignIn(false)} />
       {target && (
         <div className="flex gap-3 my-3">
@@ -532,7 +737,22 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
           <Button onClick={() => target ? readContext(target) : undefined}>Retry thread</Button>
         </div>
       )}
-      <DiscussionViewport key={`${sort}:${context?.commentId || 0}`} rows={rows} target={target} onCollapse={collapse}>
+      {recordsError && (
+        <div role="alert" className="sticky top-14 z-10 my-3 flex items-center gap-3 rounded border border-border bg-surface p-3">
+          <p className="flex-1 text-sm">{recordsError}</p>
+          <Button onClick={() => setRecordsError(undefined)}>Retry loading comments</Button>
+        </div>
+      )}
+      <DiscussionViewport
+        key={`${sort}:${context?.commentId || 0}`}
+        rows={rows}
+        target={target}
+        readingTarget={readingTarget}
+        measurements={measurements.current}
+        initialViewport={reading.saved?.viewport}
+        onVisible={visible}
+        onCollapse={collapse}
+      >
         {(row) => {
           if (row.kind === "continue") {
             return (
@@ -556,13 +776,36 @@ function DiscussionThreads({ owner, onCommentAdded, sort }: DiscussionProps & { 
             )
           }
 
+          const comment = state.comments[row.id]
+
+          if ("pending" in comment) {
+            return (
+              <article
+                id={`comment-${row.id}`}
+                aria-busy={comment.pending === "unloaded" && !recordsError}
+                aria-label={comment.pending === "unloaded" ? "Loading comment" : undefined}
+                className="py-3 text-muted"
+                style={{ minHeight: measurements.current.get(`comment:${row.id}`) ?? (row.collapsed ? 48 : 240) }}
+              >
+                {comment.pending === "unavailable" ? "Comment unavailable." : (
+                  <div aria-hidden="true">
+                    <div className="h-3 w-24 rounded bg-muted/15" />
+                    <div className="mt-4 h-3 w-3/4 rounded bg-muted/10" />
+                  </div>
+                )}
+              </article>
+            )
+          }
+
           return (
             <DiscussionCommentCard
               owner={owner}
-              comment={state.comments[row.id]}
+              comment={comment}
               images={!!state.permissions?.images}
               collapsed={row.collapsed}
               highlighted={row.id === target}
+              entering={entering.has(row.id)}
+              onEntered={entered}
               interaction={interactions[row.id]}
               onCreated={created}
               onChanged={changed}

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from "react"
 import { PageTopic, PageTag } from "@fider/models"
 import { Input, Icon, Button } from "@fider/components"
+import { Tabs, TabPanels } from "@fider/components/common/Tabs"
 import { heroiconsFilter as IconFilter, heroiconsSearch as IconSearch, heroiconsX as IconX, heroiconsCheck as IconCheck } from "@fider/icons.generated"
 
 type FilterTab = "tags" | "topics"
+const PAGE_FILTER_TABS: FilterTab[] = ["tags", "topics"]
 
 export interface PageFilterState {
   tags: string[]
@@ -82,14 +84,37 @@ export const PageFilterPanel = (props: PageFilterPanelProps) => {
   
   const activeFilterCount = localFilter.tags.length + (localFilter.topic ? 1 : 0)
 
-  const tabClass = (tab: FilterTab) => 
-    `flex-1 py-2 px-1 text-center text-sm cursor-pointer border-b-2 relative transition-colors hover:bg-tertiary ${
-      activeTab === tab ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted'
+  const tabLabels: Record<FilterTab, React.ReactNode> = {
+    tags: (
+      <>
+        Tags
+        {localFilter.tags.length > 0 && (
+          <span className="absolute top-0.5 right-1 text-xs bg-primary text-white rounded-full w-4 h-4 flex items-center justify-center">
+            {localFilter.tags.length}
+          </span>
+        )}
+      </>
+    ),
+    topics: (
+      <>
+        Topics
+        {localFilter.topic && (
+          <span className="absolute top-0.5 right-1 text-xs bg-primary text-white rounded-full w-4 h-4 flex items-center justify-center">
+            1
+          </span>
+        )}
+      </>
+    ),
+  }
+
+  const tabClass = (selected: boolean) =>
+    `flex-1 py-2 px-1 text-center text-sm cursor-pointer border-b-2 transition-colors hover:bg-tertiary ${
+      selected ? 'border-transparent text-primary font-semibold' : 'border-transparent text-muted'
     }`
 
   const itemClass = (selected: boolean) =>
-    `p-2 rounded-badge cursor-pointer transition-colors hover:bg-tertiary ${
-      selected ? 'bg-accent-light border border-primary' : ''
+    `p-2 rounded-badge cursor-pointer border transition-colors duration-200 ease-out hover:bg-tertiary wipe-fill ${
+      selected ? 'is-selected border-primary' : 'border-transparent'
     }`
   
   return (
@@ -109,101 +134,94 @@ export const PageFilterPanel = (props: PageFilterPanelProps) => {
 
       {isExpanded && (
         <div 
-          className="absolute top-[calc(100%+8px)] left-0 w-80 sm:w-[360px] max-h-[500px] bg-elevated border border-border rounded-card shadow-lg z-dropdown overflow-hidden"
+          className="absolute top-[calc(100%+8px)] left-0 w-80 sm:w-[360px] max-h-[500px] bg-elevated border border-border rounded-card shadow-lg z-dropdown overflow-hidden popover-enter origin-top-left"
         >
-          <div className="flex border-b border-border">
-            <div className={tabClass('tags')} onClick={() => setActiveTab('tags')}>
-              Tags
-              {localFilter.tags.length > 0 && (
-                <span className="absolute top-0.5 right-1 text-xs bg-primary text-white rounded-full w-4 h-4 flex items-center justify-center">
-                  {localFilter.tags.length}
-                </span>
-              )}
-            </div>
-            <div className={tabClass('topics')} onClick={() => setActiveTab('topics')}>
-              Topics
-              {localFilter.topic && (
-                <span className="absolute top-0.5 right-1 text-xs bg-primary text-white rounded-full w-4 h-4 flex items-center justify-center">
-                  1
-                </span>
-              )}
-            </div>
-          </div>
+          <Tabs
+            tabs={PAGE_FILTER_TABS.map((value) => ({ value, label: tabLabels[value] }))}
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            listClassName="flex border-b border-border"
+            tabClassName={tabClass}
+          />
           
-          <div className="p-3 max-h-[350px] overflow-y-auto">
-            {activeTab === 'tags' && (
-              <div>
-                {props.tags.length > 5 && (
-                  <Input
-                    field="tagSearch"
-                    placeholder="Search tags..."
-                    value={tagSearchQuery}
-                    onChange={setTagSearchQuery}
-                    icon={tagSearchQuery ? IconX : IconSearch}
-                    onIconClick={tagSearchQuery ? () => setTagSearchQuery("") : undefined}
-                  />
-                )}
+          <TabPanels keys={PAGE_FILTER_TABS} activeKey={activeTab} panelClassName="p-3 max-h-[350px] overflow-y-auto">
+            {(tab) => (
+              <>
+                {tab === 'tags' && (
+                  <div>
+                    {props.tags.length > 5 && (
+                      <Input
+                        field="tagSearch"
+                        placeholder="Search tags..."
+                        value={tagSearchQuery}
+                        onChange={setTagSearchQuery}
+                        icon={tagSearchQuery ? IconX : IconSearch}
+                        onIconClick={tagSearchQuery ? () => setTagSearchQuery("") : undefined}
+                      />
+                    )}
                 
-                <div className="mt-2">
-                  {filteredTags.length === 0 ? (
-                    <div className="text-center p-3 text-muted text-sm">
-                      {props.tags.length === 0 ? "No tags available" : "No tags match your search"}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-1">
-                      {filteredTags.map(tag => {
-                        const isSelected = localFilter.tags.includes(tag.slug)
-                        return (
-                          <div 
-                            key={tag.id} 
-                            className={itemClass(isSelected)}
-                            onClick={() => toggleTag(tag.slug)}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className={isSelected ? "font-semibold text-foreground" : "text-foreground"}>
-                                {tag.name}
-                              </span>
-                              {isSelected && <Icon sprite={IconCheck} className="h-4 text-success" />}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {activeTab === 'topics' && (
-              <div>
-                {props.topics.length === 0 ? (
-                  <div className="text-center p-3 text-muted text-sm">
-                    No topics available
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-1">
-                    {props.topics.map(topic => {
-                      const isSelected = localFilter.topic === topic.slug
-                      return (
-                        <div 
-                          key={topic.id} 
-                          className={itemClass(isSelected)}
-                          onClick={() => selectTopic(topic.slug)}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className={isSelected ? "font-semibold text-foreground" : "text-foreground"}>
-                              {topic.name}
-                            </span>
-                            {isSelected && <Icon sprite={IconCheck} className="h-4 text-success" />}
-                          </div>
+                    <div className="mt-2">
+                      {filteredTags.length === 0 ? (
+                        <div className="text-center p-3 text-muted text-sm">
+                          {props.tags.length === 0 ? "No tags available" : "No tags match your search"}
                         </div>
-                      )
-                    })}
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {filteredTags.map(tag => {
+                            const isSelected = localFilter.tags.includes(tag.slug)
+                            return (
+                              <div
+                                key={tag.id}
+                                className={itemClass(isSelected)}
+                                onClick={() => toggleTag(tag.slug)}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={isSelected ? "font-semibold text-foreground" : "text-foreground"}>
+                                    {tag.name}
+                                  </span>
+                                  {isSelected && <Icon sprite={IconCheck} className="h-4 text-success wipe-check" />}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
-              </div>
+
+                {tab === 'topics' && (
+                  <div>
+                    {props.topics.length === 0 ? (
+                      <div className="text-center p-3 text-muted text-sm">
+                        No topics available
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {props.topics.map(topic => {
+                          const isSelected = localFilter.topic === topic.slug
+                          return (
+                            <div
+                              key={topic.id}
+                              className={itemClass(isSelected)}
+                              onClick={() => selectTopic(topic.slug)}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={isSelected ? "font-semibold text-foreground" : "text-foreground"}>
+                                  {topic.name}
+                                </span>
+                                {isSelected && <Icon sprite={IconCheck} className="h-4 text-success wipe-check" />}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
-          </div>
+          </TabPanels>
           
           <div className="flex justify-between p-3 border-t border-border bg-tertiary">
             <Button variant="primary" onClick={applyFilters} size="small">
@@ -218,4 +236,3 @@ export const PageFilterPanel = (props: PageFilterPanelProps) => {
     </div>
   )
 }
-

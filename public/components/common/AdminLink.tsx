@@ -1,5 +1,4 @@
-import React, { useCallback, MouseEvent } from "react"
-import { useAdminNavigation } from "@fider/contexts/AdminNavigationContext"
+import React from "react"
 
 interface AdminLinkProps {
   href: string
@@ -10,30 +9,16 @@ interface AdminLinkProps {
 }
 
 export const AdminLink: React.FC<AdminLinkProps> = ({ href, className, title, children, onClick }) => {
-  const { navigate, prefetch } = useAdminNavigation()
-
-  const handleClick = useCallback(
-    (e: MouseEvent<HTMLAnchorElement>) => {
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
-
-      e.preventDefault()
-      onClick?.()
-      navigate(href)
-    },
-    [href, navigate, onClick]
-  )
-
-  const handleMouseEnter = useCallback(() => {
-    prefetch(href)
-  }, [href, prefetch])
-
   return (
     <a
       href={href}
       className={className}
       title={title}
-      onClick={handleClick}
-      onMouseEnter={handleMouseEnter}
+      onClick={(event) => {
+        if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+          onClick?.()
+        }
+      }}
     >
       {children}
     </a>

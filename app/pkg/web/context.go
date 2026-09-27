@@ -48,6 +48,7 @@ var (
 	PlainContentType     = "text/plain"
 	HTMLContentType      = "text/html"
 	JSONContentType      = "application/json"
+	PageDataContentType  = "application/vnd.fider.page+json"
 	XMLContentType       = "application/xml"
 	UTF8PlainContentType = PlainContentType + "; charset=utf-8"
 	UTF8HTMLContentType  = HTMLContentType + "; charset=utf-8"
@@ -395,6 +396,13 @@ func (c *Context) BadRequest(dict Map) error {
 
 // Page returns a page with given variables
 func (c *Context) Page(code int, props Props) error {
+	c.Response.Header().Add("Vary", "Accept")
+	c.Response.Header().Set("Cache-Control", "private, no-store")
+
+	if c.Request.GetHeader("Accept") == PageDataContentType {
+		return c.JSON(code, pageData(code, props, c))
+	}
+
 	if c.IsAjax() {
 		return c.JSON(code, Map{})
 	}

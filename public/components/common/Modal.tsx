@@ -118,7 +118,7 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
   }
 
   const className = classSet({
-    "z-401 text-left bg-overlay border-none rounded-modal animate-[windowFadeIn_0.5s] max-sm:w-full max-sm:h-full max-sm:rounded-none max-sm:flex max-sm:flex-col": true,
+    "z-401 text-left bg-overlay border-none rounded-modal animate-[windowFadeIn_140ms_var(--ease-out)] max-sm:w-full max-sm:h-full max-sm:rounded-none max-sm:flex max-sm:flex-col": true,
     [`${props.className}`]: !!props.className,
     "text-center": center,
     [sizeClasses[size]]: true,
@@ -126,7 +126,7 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
 
   return ReactDOM.createPortal(
     <div 
-      className="fixed inset-0 w-full h-full text-center align-middle p-4 z-overlay flex justify-center items-start overflow-y-auto animate-[dimmerFadeIn_0.5s] bg-black/80 max-sm:p-0 max-sm:items-stretch"
+      className="fixed inset-0 w-full h-full text-center align-middle p-4 z-overlay flex justify-center items-start overflow-y-auto animate-[dimmerFadeIn_120ms_var(--ease-out)] bg-black/80 max-sm:p-0 max-sm:items-stretch"
       onMouseDown={handleDimmerMouseDown}
       onMouseUp={handleDimmerMouseUp}
     >

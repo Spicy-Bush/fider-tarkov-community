@@ -1,5 +1,3 @@
-// import "./Dropdown.scss"
-
 import React, { createContext, useContext, useEffect, useRef, useState } from "react"
 import { classSet } from "@fider/services"
 
@@ -24,7 +22,7 @@ const ListItem = (props: DropdownListItemProps) => {
 
   if (props.href) {
     return (
-      <a href={props.href} className={`${baseClass} ${props.className || ""}`}>
+      <a href={props.href} onClick={handleClick} className={`${baseClass} ${props.className || ""}`}>
         {props.children}
       </a>
     )
@@ -58,6 +56,8 @@ interface DropdownContextFuncs {
 
 const DropdownContext = createContext<DropdownContextFuncs | null>(null)
 DropdownContext.displayName = "DropdownContext"
+
+export const useDropdown = () => useContext(DropdownContext)
 
 export const Dropdown = (props: DropdownProps) => {
   const node = useRef<HTMLDivElement | null>(null)
@@ -100,10 +100,11 @@ export const Dropdown = (props: DropdownProps) => {
   }, [isOpen, props.onToggled])
 
   const listClassName = classSet({
-    "absolute top-full mt-1 overflow-auto w-max min-w-40 max-w-60 py-1 bg-elevated rounded-card border border-border shadow-lg z-modal": true,
+    "absolute top-full mt-1 overflow-auto w-max min-w-40 max-w-60 py-1 bg-elevated rounded-card border border-border shadow-lg z-modal popover-enter": true,
     "max-w-[45rem]": props.wide,
     "max-sm:fixed max-sm:left-0 max-sm:right-0 max-sm:w-auto max-sm:top-[60px] max-sm:mt-0 max-sm:max-h-[calc(100vh-60px)] max-sm:rounded-none max-sm:border-x-0": props.fullscreenSm,
-    "right-0": position === "left",
+    "right-0 origin-top-right": position === "left",
+    "origin-top-left": position === "right",
   })
 
   const dropdownClassName = classSet({

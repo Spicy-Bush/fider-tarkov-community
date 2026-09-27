@@ -10,8 +10,8 @@ export function useBodyScrollLock(active: boolean) {
     }
 
     if (locks === 0) {
-      previousOverflow = document.body.style.overflow
-      document.body.style.overflow = "hidden"
+      previousOverflow = document.documentElement.style.overflow
+      document.documentElement.style.overflow = "hidden"
     }
 
     locks++
@@ -20,7 +20,7 @@ export function useBodyScrollLock(active: boolean) {
       locks--
 
       if (locks === 0) {
-        document.body.style.overflow = previousOverflow
+        document.documentElement.style.overflow = previousOverflow
       }
     }
   }, [active])

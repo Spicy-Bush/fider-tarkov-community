@@ -2,7 +2,7 @@ import React from "react"
 import { Post } from "@fider/models"
 import { classSet } from "@fider/services"
 import { usePostVote } from "@fider/hooks/usePostVote"
-import { Icon, SignInModal } from "@fider/components"
+import { AnimatedCount, Icon, SignInModal } from "@fider/components"
 import { faCaretup as FaCaretUp, faCaretdown as FaCaretDown } from "@fider/icons.generated"
 
 
@@ -16,21 +16,21 @@ export const VoteCounter = (props: VoteCounterProps) => {
   const votesDifference = upvotes - downvotes
   
   const upvoteClassName = classSet({
-    "text-lg w-11 font-bold cursor-pointer text-center mx-auto py-0.5 pb-2 text-muted flex flex-col items-center [&_svg]:text-border-strong [&_svg]:-mb-0.5": true,
+    "text-lg w-11 font-bold cursor-pointer text-center mx-auto py-0.5 pb-2 text-muted flex flex-col items-center [&_svg]:text-border-strong [&_svg]:-mb-0.5 [&_svg]:transition-[color,transform] [&_svg]:duration-100 active:[&_svg]:scale-90": true,
     "hover:text-success hover:[&_svg]:text-success": !isDisabled,
-    "text-success [&_svg]:text-success": !status.closed && voteType === 'up',
+    "text-success [&_svg]:text-success vote-pop": !status.closed && voteType === 'up',
     "opacity-50 cursor-not-allowed pointer-events-none": isDisabled,
   })
 
   const downvoteClassName = classSet({
-    "text-lg w-11 font-bold cursor-pointer text-center mx-auto py-0.5 pb-2 text-muted flex flex-col items-center [&_svg]:text-border-strong [&_svg]:-mb-0.5": true,
+    "text-lg w-11 font-bold cursor-pointer text-center mx-auto py-0.5 pb-2 text-muted flex flex-col items-center [&_svg]:text-border-strong [&_svg]:-mb-0.5 [&_svg]:transition-[color,transform] [&_svg]:duration-100 active:[&_svg]:scale-90": true,
     "hover:text-danger hover:[&_svg]:text-danger": !isDisabled,
-    "text-danger [&_svg]:text-danger": !status.closed && voteType === 'down',
+    "text-danger [&_svg]:text-danger vote-pop": !status.closed && voteType === 'down',
     "opacity-50 cursor-not-allowed pointer-events-none": isDisabled,
   })
 
   const countClassName = classSet({
-    "font-bold": true,
+    "font-bold transition-colors duration-100": true,
     "text-foreground": votesDifference > 0,
     "text-danger": votesDifference < 0,
     "text-muted": votesDifference === 0,
@@ -50,9 +50,7 @@ export const VoteCounter = (props: VoteCounterProps) => {
           <Icon sprite={FaCaretUp} height="16" width="16" />
         </button>
         
-        <div className={countClassName}>
-          {votesDifference}
-        </div>
+        <AnimatedCount value={votesDifference} className={countClassName} />
         
         <button 
           className={downvoteClassName} 

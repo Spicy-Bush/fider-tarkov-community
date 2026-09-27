@@ -15,7 +15,7 @@ import (
 	"github.com/lib/pq"
 )
 
-const visibleCommentOwners = `
+var visibleCommentOwners = `
     WITH visible_pages AS (
         SELECT id FROM pages p
         WHERE p.tenant_id = $1 AND (
@@ -30,18 +30,26 @@ const visibleCommentOwners = `
         SELECT c.id FROM comments c
         LEFT JOIN posts post ON post.id = c.post_id AND post.tenant_id = c.tenant_id
         WHERE c.tenant_id = $1 AND (
-            (post.id IS NOT NULL AND post.status <> 6)
+            (post.id IS NOT NULL AND ` + postVisibility("post", 2, 3) + `)
             OR c.page_id IN (SELECT id FROM visible_pages)
         )
     )
 `
 
-func discussionViewerRole(user *entity.User) string {
+func viewerRole(user *entity.User) string {
 	if user == nil {
 		return ""
 	}
 
 	return user.Role.String()
+}
+
+func viewerID(user *entity.User) int {
+	if user == nil {
+		return 0
+	}
+
+	return user.ID
 }
 
 func getDiscussion(ctx context.Context, q *query.GetDiscussion) error {
@@ -119,22 +127,25 @@ func loadDiscussion(ctx context.Context, q *query.GetDiscussion) error {
 			discussion = entity.PageDiscussion(model)
 		} else {
 			var post struct {
-				ID     int             `db:"id"`
-				Number int             `db:"number"`
-				Title  string          `db:"title"`
-				Slug   string          `db:"slug"`
-				Status enum.PostStatus `db:"status"`
-				Locked bool            `db:"locked"`
+				ID       int             `db:"id"`
+				Number   int             `db:"number"`
+				Title    string          `db:"title"`
+				Slug     string          `db:"slug"`
+				Status   enum.PostStatus `db:"status"`
+				Locked   bool            `db:"locked"`
+				AuthorID int             `db:"user_id"`
+				Hidden   bool            `db:"moderation_pending"`
 			}
-			selection := `SELECT id, number, title, slug, status,
+			selection := `SELECT post.id, post.number, post.title, post.slug, post.status,
+                post.user_id, post.moderation_pending,
                 COALESCE((locked_settings->>'locked')::boolean, FALSE) AS locked
-                FROM posts WHERE tenant_id = $1 AND `
+                FROM posts post WHERE post.tenant_id = $1 AND `
 			id := q.PostNumber
 			if postID != 0 {
-				selection += "id = $2"
+				selection += "post.id = $2"
 				id = postID
 			} else {
-				selection += "number = $2"
+				selection += "post.number = $2"
 			}
 			if q.LockOwner {
 				selection += " FOR NO KEY UPDATE"
@@ -143,12 +154,14 @@ func loadDiscussion(ctx context.Context, q *query.GetDiscussion) error {
 				return err
 			}
 			discussion = entity.PostDiscussion(&entity.Post{
-				ID:             post.ID,
-				Number:         post.Number,
-				Title:          post.Title,
-				Slug:           post.Slug,
-				Status:         post.Status,
-				LockedSettings: &entity.PostLockedSettings{Locked: post.Locked},
+				ID:                post.ID,
+				Number:            post.Number,
+				Title:             post.Title,
+				Slug:              post.Slug,
+				Status:            post.Status,
+				User:              &entity.User{ID: post.AuthorID},
+				ModerationPending: post.Hidden,
+				LockedSettings:    &entity.PostLockedSettings{Locked: post.Locked},
 			})
 		}
 
@@ -211,6 +224,16 @@ func getDiscussionComments(ctx context.Context, q *query.GetDiscussionComments) 
 		ownerColumn := "post_id"
 		if q.Discussion.Owner.Kind == "page" {
 			ownerColumn = "page_id"
+		}
+
+		if len(q.IDs) > 0 {
+			var err error
+			q.Result, err = readComments(ctx, trx, `
+                SELECT id, 0 AS position FROM comments
+                WHERE tenant_id = $1 AND `+pq.QuoteIdentifier(ownerColumn)+` = $3
+                  AND id = ANY($4::integer[])
+            `, tenant.ID, viewerID, q.Discussion.Owner.ID, pq.Array(q.IDs))
+			return err
 		}
 
 		if q.ParentID != nil {

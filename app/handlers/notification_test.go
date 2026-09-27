@@ -114,3 +114,38 @@ func TestReadAllNotificationsHandler(t *testing.T) {
 	Expect(code).Equals(http.StatusOK)
 	Expect(called).IsTrue()
 }
+
+func TestMarkNotificationAsReadHandler(t *testing.T) {
+	RegisterT(t)
+
+	// Authentication requires a standing lookup.
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
+	})
+
+	marked := []int{}
+	bus.AddHandler(func(ctx context.Context, c *cmd.MarkNotificationAsRead) error {
+		marked = append(marked, c.ID)
+		return nil
+	})
+
+	server := mock.NewServer()
+
+	code, _ := server.
+		OnTenant(mock.DemoTenant).
+		AsUser(mock.JonSnow).
+		AddParam("id", 2).
+		Execute(handlers.MarkNotificationAsRead())
+
+	Expect(code).Equals(http.StatusOK)
+	Expect(marked).Equals([]int{2})
+
+	code, _ = mock.NewServer().
+		OnTenant(mock.DemoTenant).
+		AsUser(mock.JonSnow).
+		AddParam("id", "abc").
+		Execute(handlers.MarkNotificationAsRead())
+
+	Expect(code).Equals(http.StatusNotFound)
+	Expect(marked).Equals([]int{2})
+}

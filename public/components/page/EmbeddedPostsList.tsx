@@ -45,7 +45,7 @@ const EmbeddedPostItem = (props: { post: Post; votePosition: "left" | "right" })
           </>
         )}
       </HStack>
-      <a className="text-lg font-medium text-primary hover:text-primary-hover block overflow-wrap-anywhere hyphens-auto" href={`/posts/${props.post.number}/${props.post.slug}`} style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+      <a className="text-lg font-medium text-primary hover:text-primary-hover block overflow-wrap-anywhere hyphens-auto" href={`/posts/${props.post.number}/${props.post.slug}`} data-morph={`post-${props.post.number}`} style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
         {props.post.title}
       </a>
       {props.post.description && (

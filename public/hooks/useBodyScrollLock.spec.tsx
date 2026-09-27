@@ -9,20 +9,20 @@ function Overlay({ open }: { open: boolean }) {
 }
 
 test("closed or removed overlays cannot unlock another open overlay", () => {
-  document.body.style.overflow = "auto"
+  document.documentElement.style.overflow = "auto"
 
   const first = render(<Overlay open />)
   const closed = render(<Overlay open={false} />)
   const second = render(<Overlay open />)
-  expect(document.body.style.overflow).toBe("hidden")
+  expect(document.documentElement.style.overflow).toBe("hidden")
 
   closed.unmount()
   first.rerender(<Overlay open={false} />)
-  expect(document.body.style.overflow).toBe("hidden")
+  expect(document.documentElement.style.overflow).toBe("hidden")
 
   second.unmount()
-  expect(document.body.style.overflow).toBe("auto")
+  expect(document.documentElement.style.overflow).toBe("auto")
 
   first.unmount()
-  document.body.style.overflow = ""
+  document.documentElement.style.overflow = ""
 })

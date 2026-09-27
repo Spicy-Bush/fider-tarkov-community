@@ -1,107 +1,92 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
-import { actions } from "@fider/services";
-import { useFider } from "@fider/hooks";
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react"
+import { actions } from "@fider/services"
+import { useFider } from "@fider/hooks"
+import { UserProfileStanding } from "@fider/models"
+import { RequestError } from "@fider/services/http"
 
-interface Warning {
-  id: number;
-  reason: string;
-  createdAt: string;
-  expiresAt?: string;
+interface UserStandingContextType extends UserProfileStanding {
+  isLoading: boolean
+  isMuted: boolean
+  muteReason: string
+  error: string | null
+  refetch: () => Promise<void>
 }
 
-interface Mute {
-  id: number;
-  reason: string;
-  createdAt: string;
-  expiresAt?: string;
-}
-
-interface UserStandingContextType {
-  isLoading: boolean;
-  isMuted: boolean;
-  muteReason: string;
-  warnings: Warning[];
-  mutes: Mute[];
-  refetch: () => Promise<void>;
-  setStandingData: (warnings: Warning[], mutes: Mute[]) => void;
-}
-
-const defaultContext: UserStandingContextType = {
+const emptyStanding = { warnings: [], mutes: [] }
+const UserStandingContext = createContext<UserStandingContextType>({
+  ...emptyStanding,
   isLoading: false,
   isMuted: false,
   muteReason: "",
-  warnings: [],
-  mutes: [],
+  error: null,
   refetch: async () => {},
-  setStandingData: () => {}
-};
-
-const UserStandingContext = createContext<UserStandingContextType>(defaultContext);
+})
 
 export const UserStandingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const fider = useFider();
-  
-  const serverIsMuted = fider.session.isAuthenticated ? fider.session.user.isMuted : false;
-  
-  const [isLoading, setIsLoading] = useState(false);
-  const [isMuted, setIsMuted] = useState(serverIsMuted);
-  const [muteReason, setMuteReason] = useState("");
-  const [warnings, setWarnings] = useState<Warning[]>([]);
-  const [mutes, setMutes] = useState<Mute[]>([]);
+  const { session } = useFider()
+  const contextID = session.contextID
+  const user = session.getUserSnapshot()
+  const request = useRef<AbortController>()
+  const [loadingContext, setLoadingContext] = useState<string>()
+  const [failure, setFailure] = useState<{ contextID: string; message: string }>()
+  const [details, setDetails] = useState<{ contextID: string; data: UserProfileStanding }>()
 
-  const updateMuteStatus = useCallback((mutesList: Mute[]) => {
-    const now = new Date();
-    const activeMute = mutesList.find(mute => 
-      !mute.expiresAt || new Date(mute.expiresAt) > now
-    );
-    
-    if (activeMute) {
-      setIsMuted(true);
-      setMuteReason(activeMute.reason);
-    } else {
-      setIsMuted(false);
-      setMuteReason("");
+  useEffect(() => () => request.current?.abort(), [contextID, user?.id])
+
+  const standing = details && details.contextID === contextID ? details.data : emptyStanding
+  const activeMute = standing.mutes.find((mute) => mute.id === user?.latestMuteId)
+
+  const refetch = useCallback(async () => {
+    if (!user || session.contextID !== contextID) {
+      return
     }
-  }, []);
 
-  const setStandingData = useCallback((newWarnings: Warning[], newMutes: Mute[]) => {
-    setWarnings(newWarnings);
-    setMutes(newMutes);
-    updateMuteStatus(newMutes);
-  }, [updateMuteStatus]);
-
-  const fetchUserStanding = useCallback(async () => {
-    if (!fider.session.isAuthenticated) {
-      return;
-    }
+    request.current?.abort()
+    const current = new AbortController()
+    request.current = current
+    setLoadingContext(contextID)
+    setFailure(undefined)
 
     try {
-      setIsLoading(true);
-      const result = await actions.getUserProfileStanding(fider.session.user.id);
-      
+      const result = await actions.getUserProfileStanding(user.id, current.signal)
+      if (current.signal.aborted || session.contextID !== contextID || session.getUserSnapshot()?.id !== user.id) {
+        return
+      }
+
       if (result.ok) {
-        setStandingData(result.data.warnings, result.data.mutes);
+        setDetails({ contextID, data: result.data })
+        session.updateUserStanding(result.data)
+      } else {
+        setFailure({ contextID, message: "Could not load account standing." })
+      }
+    } catch (error) {
+      if (!current.signal.aborted) {
+        if (!(error instanceof RequestError)) {
+          throw error
+        }
+
+        setFailure({ contextID, message: "Could not load account standing." })
       }
     } finally {
-      setIsLoading(false);
+      if (request.current === current) {
+        request.current = undefined
+        setLoadingContext(undefined)
+      }
     }
-  }, [fider.session.isAuthenticated, fider.session.isAuthenticated ? fider.session.user.id : undefined, setStandingData]);
+  }, [session, contextID, user?.id])
 
   return (
-    <UserStandingContext.Provider 
-      value={{ 
-        isLoading, 
-        isMuted, 
-        muteReason, 
-        warnings, 
-        mutes, 
-        refetch: fetchUserStanding,
-        setStandingData
-      }}
-    >
+    <UserStandingContext.Provider value={{
+      ...standing,
+      isLoading: loadingContext !== undefined && loadingContext === contextID,
+      isMuted: !!user?.isMuted,
+      muteReason: user?.isMuted ? activeMute?.reason || "" : "",
+      error: failure && failure.contextID === contextID ? failure.message : null,
+      refetch,
+    }}>
       {children}
     </UserStandingContext.Provider>
-  );
-};
+  )
+}
 
-export const useUserStanding = () => useContext(UserStandingContext); 
+export const useUserStanding = () => useContext(UserStandingContext)

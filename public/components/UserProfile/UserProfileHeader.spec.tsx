@@ -8,6 +8,7 @@ import { UserAvatarType, UserRole, UserStatus } from "@fider/models"
 import { UserMenu } from "../auth/UserMenu"
 import { UserProfileProvider } from "./context"
 import { UserProfileHeader } from "./UserProfileHeader"
+import { UserStandingProvider } from "@fider/contexts/UserStandingContext"
 
 jest.mock("@fider/services/actions")
 jest.unmock("@lingui/react")
@@ -48,10 +49,12 @@ test.each([1, 2])("saving user %i’s avatar updates their profile without chang
 
   const view = render(
     <I18nProvider i18n={i18n}>
-      <UserMenu />
-      <UserProfileProvider userId={userId} user={{ ...user, id: userId }} embedded>
-        <UserProfileHeader />
-      </UserProfileProvider>
+      <UserStandingProvider>
+        <UserMenu />
+        <UserProfileProvider userId={userId} user={{ ...user, id: userId }} embedded>
+          <UserProfileHeader />
+        </UserProfileProvider>
+      </UserStandingProvider>
     </I18nProvider>
   )
 

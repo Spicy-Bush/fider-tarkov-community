@@ -79,18 +79,8 @@ type GetUserProfileStats struct {
 type GetUserProfileStanding struct {
 	UserID int
 	Result struct {
-		Warnings []struct {
-			ID        int        `json:"id"`
-			Reason    string     `json:"reason"`
-			CreatedAt time.Time  `json:"createdAt"`
-			ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-		} `json:"warnings"`
-		Mutes []struct {
-			ID        int        `json:"id"`
-			Reason    string     `json:"reason"`
-			CreatedAt time.Time  `json:"createdAt"`
-			ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-		} `json:"mutes"`
+		Warnings []dto.UserStandingEntry `json:"warnings"`
+		Mutes    []dto.UserStandingEntry `json:"mutes"`
 	}
 }
 

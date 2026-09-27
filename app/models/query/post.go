@@ -36,6 +36,7 @@ type GetPostByNumber struct {
 }
 
 type SearchPosts struct {
+	IDs         []int
 	Query       string
 	View        string
 	Limit       string

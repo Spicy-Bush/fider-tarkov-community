@@ -8,8 +8,16 @@ import { getVotePosition } from "@fider/components/UserProfile/UserProfileSettin
 import { AdSlot, FeedNativeAd } from "@fider/components/sponsorship"
 import { FEED_AD_EVERY, PublicAd } from "@fider/models"
 
+export interface PendingPost {
+  id: number
+  height: number
+  pending: true
+}
+
+export type PostListRow = Post | PendingPost
+
 interface ListPostsProps {
-  posts?: Post[]
+  posts?: PostListRow[]
   tags: Tag[]
   emptyText: string
   loading?: boolean
@@ -17,13 +25,11 @@ interface ListPostsProps {
   insertFeedAds?: boolean
   /** Page-owned selection map keyed by feed-{i}. Required when insertFeedAds. */
   feedAds?: Record<string, PublicAd | null | undefined>
-  feedAdsLoaded?: boolean
-  /** Select HTTP failure — do not treat as empty inventory / AdSense. */
-  feedAdsError?: boolean
+  feedAdHeights?: Record<string, number>
 }
 
 interface PostWithTags {
-  post: Post
+  post: PostListRow
   tags: Tag[]
 }
 
@@ -79,7 +85,7 @@ const ListPostItem = (props: { post: Post; user?: CurrentUser; tags: Tag[]; vote
           ))}
         </HStack>
       )}
-      <a className="text-lg font-medium text-primary hover:text-primary-hover wrap-anywhere" href={`/posts/${props.post.number}/${props.post.slug}`}>
+      <a className="text-lg font-medium text-primary hover:text-primary-hover wrap-anywhere" href={`/posts/${props.post.number}/${props.post.slug}`} data-morph={`post-${props.post.number}`}>
         {props.post.title}
       </a>
       <div className="wrap-anywhere">
@@ -120,7 +126,7 @@ export const ListPosts = (props: ListPostsProps) => {
     if (!props.posts) return []
     return props.posts.map((post) => ({
       post,
-      tags: props.tags.filter((tag) => post.tags.includes(tag.slug)),
+      tags: "pending" in post ? [] : props.tags.filter((tag) => post.tags.includes(tag.slug)),
     }))
   }, [props.posts, props.tags])
 
@@ -150,27 +156,31 @@ export const ListPosts = (props: ListPostsProps) => {
         const showAd = insertFeedAds && (index + 1) % FEED_AD_EVERY === 0
         const feedIndex = Math.floor((index + 1) / FEED_AD_EVERY) - 1
         const instanceId = `feed-${feedIndex}`
-        const selectFailed = !!props.feedAdsError
-        const ad: PublicAd | null | undefined = showAd
-          ? props.feedAdsLoaded && !selectFailed
-            ? props.feedAds?.[instanceId] ?? null
-            : undefined
-          : undefined
+        const ad = props.feedAds?.[instanceId]
+        const pendingHeight = ad === undefined ? props.feedAdHeights?.[instanceId] : undefined
         return (
           <React.Fragment key={post.id}>
-            <ListPostItem post={post} tags={tags} votePosition={votePosition} />
-            {showAd && (
-              ad ? (
-                <FeedNativeAd ad={ad} />
+            <div
+              data-post-id={post.id}
+              data-post-pending={"pending" in post ? true : undefined}
+              style={"pending" in post ? { height: post.height } : undefined}
+            >
+              {"pending" in post ? (
+                <div className="h-full rounded-card bg-surface-alt" aria-label="Loading post" />
               ) : (
-                <AdSlot
-                  instanceId={instanceId}
-                  placementId="feed_native"
-                  ad={ad}
-                  selectFailed={selectFailed}
-                  placement={{ kind: "native" }}
-                />
-              )
+                <ListPostItem post={post} tags={tags} votePosition={votePosition} />
+              )}
+            </div>
+            {showAd && (
+              <div data-feed-slot={instanceId} className="[&:empty]:hidden" style={pendingHeight ? { height: pendingHeight } : undefined}>
+                {ad ? (
+                  <FeedNativeAd ad={ad} />
+                ) : pendingHeight ? (
+                  <div className="h-full rounded-card bg-surface-alt" aria-label="Loading advertisement" />
+                ) : (
+                  <AdSlot instanceId={instanceId} placementId="feed_native" ad={ad} placement={{ kind: "native" }} />
+                )}
+              </div>
             )}
           </React.Fragment>
         )

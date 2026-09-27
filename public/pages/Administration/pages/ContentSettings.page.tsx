@@ -1,11 +1,14 @@
 import React, { useState } from "react"
+import { Tabs, TabPanels } from "@fider/components/common/Tabs"
 import { Button, ButtonClickEvent, Form, Input, Toggle } from "@fider/components"
 import { actions, Failure, classSet } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { CollapsiblePanel } from "@fider/components/common/CollapsiblePanel"
-import { HStack } from "@fider/components/layout"
 import { PageConfig, useAdminLayout } from "@fider/components/layouts"
 
+
+const SETTINGS_TABS = ['global', 'post', 'comment', 'report'] as const
+type SettingsTab = (typeof SETTINGS_TABS)[number]
 
 export const pageConfig: PageConfig = {
   title: "Content Settings",
@@ -64,7 +67,7 @@ const ContentSettingsPage: React.FC = () => {
     }
   })
   const [error, setError] = useState<Failure | undefined>(undefined)
-  const [activeTab, setActiveTab] = useState<'global' | 'post' | 'comment' | 'report'>('global')
+  const [activeTab, setActiveTab] = useState<SettingsTab>('global')
 
   const { roles } = useAdminLayout()
   
@@ -135,43 +138,9 @@ const ContentSettingsPage: React.FC = () => {
     updateSetting(field, !settings[field])
   }
 
-  const renderTabNav = () => {
-    return (
-      <div className="border-b border-border mb-2">
-        <HStack spacing={0} className="mb-0">
-          {[
-            { key: 'global', label: 'Global Controls' },
-            { key: 'post', label: 'Post Settings' },
-            { key: 'comment', label: 'Comment Settings' },
-            { key: 'report', label: 'Report Settings' }
-          ].map(tab => (
-            <button 
-              key={tab.key}
-              type="button"
-              className={classSet({
-                "px-2 py-1 bg-transparent border-none border-b-2 border-transparent cursor-pointer font-medium text-sm text-muted hover:bg-tertiary hover:text-foreground": true,
-                "border-b-2! border-primary! text-primary! bg-tertiary!": activeTab === tab.key
-              })}
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveTab(tab.key as 'global' | 'post' | 'comment' | 'report');
-              }}
-            >
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </HStack>
-      </div>
-    )
-  }
-
   const renderGlobalControls = () => {
     return (
-      <div className={classSet({
-        "": true,
-        "block": activeTab === 'global',
-        "hidden": activeTab !== 'global'
-      })}>
+      <div>
         <div className="p-1.5 bg-tertiary rounded mb-2">          
           <div className="mb-2">
             <Toggle 
@@ -203,11 +172,7 @@ const ContentSettingsPage: React.FC = () => {
   
   const renderPostSettings = () => {
     return (
-      <div className={classSet({
-        "": true,
-        "block": activeTab === 'post',
-        "hidden": activeTab !== 'post'
-      })}>
+      <div>
         <div className="flex flex-col gap-2">
           <CollapsiblePanel title="Post Length Settings" defaultOpen={true}>
             <div className="grid grid-cols-2 gap-2 max-md:grid-cols-1">
@@ -346,11 +311,7 @@ const ContentSettingsPage: React.FC = () => {
 
   const renderCommentSettings = () => {
     return (
-      <div className={classSet({
-        "": true,
-        "block": activeTab === 'comment',
-        "hidden": activeTab !== 'comment'
-      })}>
+      <div>
         <div className="flex flex-col gap-2">
           <CollapsiblePanel title="Comment Media Settings" defaultOpen={true}>
             <Input
@@ -431,11 +392,7 @@ const ContentSettingsPage: React.FC = () => {
 
   const renderReportSettings = () => {
     return (
-      <div className={classSet({
-        "": true,
-        "block": activeTab === 'report',
-        "hidden": activeTab !== 'report'
-      })}>
+      <div>
         <div className="flex flex-col gap-2">
           <CollapsiblePanel title="Report Controls" defaultOpen={true}>
             <div className="mb-2">
@@ -475,14 +432,31 @@ const ContentSettingsPage: React.FC = () => {
   return (
     <Form error={error}>
       <div className="flex flex-col gap-2 max-w-[1200px]">
-        {renderTabNav()}
+        <Tabs
+          tabs={[
+            { value: "global", label: "Global Controls" },
+            { value: "post", label: "Post Settings" },
+            { value: "comment", label: "Comment Settings" },
+            { value: "report", label: "Report Settings" },
+          ]}
+          activeTab={activeTab}
+          onChange={setActiveTab}
+          className="mb-2"
+          listClassName="flex items-center border-b border-border"
+          tabClassName={(selected) => classSet({
+            "px-2 py-1 bg-transparent border-none border-b-2 border-transparent cursor-pointer font-medium text-sm text-muted hover:bg-tertiary hover:text-foreground": true,
+            "text-primary! bg-tertiary!": selected,
+          })}
+        />
         
-        <div className="settings-content">
-          {renderGlobalControls()}
-          {renderPostSettings()}
-          {renderCommentSettings()}
-          {renderReportSettings()}
-        </div>
+        <TabPanels keys={SETTINGS_TABS} activeKey={activeTab} keepMounted className="settings-content">
+          {(tab) =>
+            tab === 'global' ? renderGlobalControls()
+            : tab === 'post' ? renderPostSettings()
+            : tab === 'comment' ? renderCommentSettings()
+            : renderReportSettings()
+          }
+        </TabPanels>
 
         <div className="settings-actions c-admin-actions">
           <Button disabled={!canEdit} variant="primary" onClick={handleSave}>

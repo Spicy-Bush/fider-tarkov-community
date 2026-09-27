@@ -26,6 +26,7 @@ type GetDiscussionComments struct {
 	Discussion *entity.Discussion
 	ParentID   *int
 	Sort       string
+	IDs        []int
 	After      time.Time
 	AfterID    int
 	AfterScore int

@@ -15,7 +15,7 @@ import (
 	"github.com/lib/pq"
 )
 
-const visibleNotifications = visibleCommentOwners + `,
+var visibleNotifications = visibleCommentOwners + `,
     visible_notifications AS (
         SELECT n.* FROM notifications n
         LEFT JOIN comments comment ON comment.id = n.comment_id AND comment.tenant_id = n.tenant_id
@@ -23,7 +23,7 @@ const visibleNotifications = visibleCommentOwners + `,
         LEFT JOIN posts post ON post.id = n.post_id AND post.tenant_id = n.tenant_id
         WHERE n.tenant_id = $1 AND n.user_id = $3
           AND (n.page_id IS NULL OR n.page_id IN (SELECT id FROM visible_pages))
-          AND (n.post_id IS NULL OR (post.id IS NOT NULL AND post.status <> 6))
+          AND (n.post_id IS NULL OR (post.id IS NOT NULL AND ` + postVisibility("post", 2, 3) + `))
           AND (n.comment_id IS NULL OR (
             comment.id IN (SELECT id FROM visible_comment_owners) AND comment.deleted_at IS NULL
             AND (

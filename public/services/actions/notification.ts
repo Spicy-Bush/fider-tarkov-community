@@ -30,6 +30,10 @@ export const getNotifications = async (
   return http.get<PaginatedNotifications>(url)
 }
 
+export const markNotificationAsRead = async (id: number): Promise<Result> => {
+  return await http.post(`/api/notifications/read/${id}`)
+}
+
 export const markAllAsRead = async (): Promise<Result> => {
   return await http.post("/api/notifications/read-all")
 }

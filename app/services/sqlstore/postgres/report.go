@@ -359,9 +359,9 @@ func getReportByID(ctx context.Context, q *query.GetReportByID) error {
 			LEFT JOIN comments c ON r.reported_type = 'comment' AND c.id = r.reported_id
 			LEFT JOIN posts cp ON c.post_id = cp.id
 			LEFT JOIN pages pg ON c.page_id = pg.id AND pg.tenant_id = r.tenant_id
-			WHERE r.tenant_id = $1 AND r.id = $3
+			WHERE r.tenant_id = $1 AND r.id = $4
 			AND (r.reported_type <> 'comment' OR r.reported_id IN (SELECT id FROM visible_comment_owners))
-		`, tenant.ID, discussionViewerRole(user), q.ReportID)
+		`, tenant.ID, viewerRole(user), viewerID(user), q.ReportID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get report by ID")
 		}
@@ -381,8 +381,8 @@ func listReports(ctx context.Context, q *query.ListReports) error {
 		offset := (q.Page - 1) * q.PerPage
 
 		conditions := "r.tenant_id = $1 AND (r.reported_type <> 'comment' OR r.reported_id IN (SELECT id FROM visible_comment_owners))"
-		args := []interface{}{tenant.ID, discussionViewerRole(user)}
-		argIdx := 3
+		args := []interface{}{tenant.ID, viewerRole(user), viewerID(user)}
+		argIdx := 4
 
 		if len(q.Status) > 0 {
 			statusStrings := make([]string, len(q.Status))
@@ -451,7 +451,7 @@ func countPendingReports(ctx context.Context, q *query.CountPendingReports) erro
 			SELECT COUNT(*) FROM reports r
 			WHERE r.tenant_id = $1 AND r.status IN ('pending', 'in_review')
 			AND (r.reported_type <> 'comment' OR r.reported_id IN (SELECT id FROM visible_comment_owners))
-		`, tenant.ID, discussionViewerRole(user))
+		`, tenant.ID, viewerRole(user), viewerID(user))
 		if err != nil {
 			return errors.Wrap(err, "failed to count pending reports")
 		}

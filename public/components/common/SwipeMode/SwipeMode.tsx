@@ -64,6 +64,7 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
   const postsRef = useLatest(posts)
   const currentIndexRef = useLatest(currentIndex)
   const onCloseRef = useLatest(onClose)
+  const isOpenRef = useLatest(isOpen)
   const offsetRef = useRef(0)
   const seenPostIds = useRef(new Set<number>())
   const hasInitializedRef = useRef(false)
@@ -71,6 +72,9 @@ export const SwipeMode: React.FC<SwipeModeProps> = ({ tags, isOpen, onClose }) =
   const voteInFlight = useRef(false)
 
   const handleStateChange = useCallback((state: SwipeState | null) => {
+    if (!isOpenRef.current) {
+      return
+    }
     if (state && typeof state.swipeIndex === "number") {
       setCurrentIndex(state.swipeIndex)
     } else {

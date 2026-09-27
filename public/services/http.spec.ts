@@ -1,6 +1,7 @@
 import { test, expect, beforeEach } from "@jest/globals"
 import { http, RequestError } from "./http"
 import { notify } from "@fider/services"
+import { selectAds } from "./actions/sponsorship"
 
 jest.mock("@fider/services", () => ({ analytics: { event: jest.fn() }, notify: { error: jest.fn() } }))
 
@@ -55,6 +56,20 @@ test.each([401, 403, 503])("callers can reconcile HTTP %i before deciding to dis
   const result = await http.post("/api/pages/1/comments", {}, { notifyOnError: false })
 
   expect(result).toMatchObject({ ok: false, status, error: { errors: [{ message: "Request rejected" }] } })
+  expect(notify.error).not.toHaveBeenCalled()
+})
+
+test("ad selection leaves failure presentation to its owner and forwards cancellation", async () => {
+  const controller = new AbortController()
+  fetchMock.mockResolvedValueOnce(response(503, { errors: [{ message: "Unavailable" }] }))
+
+  const result = await selectAds([{ instanceId: "feed-0", placementId: "feed_native" }], "en", controller.signal)
+
+  expect(result).toMatchObject({ ok: false, status: 503 })
+  expect(fetchMock).toHaveBeenCalledWith("/api/ads/select?locale=en", expect.objectContaining({
+    method: "POST",
+    signal: controller.signal,
+  }))
   expect(notify.error).not.toHaveBeenCalled()
 })
 

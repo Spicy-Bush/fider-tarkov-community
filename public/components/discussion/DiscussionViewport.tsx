@@ -8,6 +8,10 @@ export type DiscussionRow =
 interface DiscussionViewportProps {
   rows: DiscussionRow[]
   target?: number
+  readingTarget?: number
+  measurements?: Map<string, number>
+  initialViewport?: { top: number; bottom: number }
+  onVisible?: (ids: number[]) => void
   onCollapse: (id: number, collapsed: boolean) => void
   children: (row: DiscussionRow) => React.ReactNode
 }
@@ -33,11 +37,11 @@ function rowAtOffset(offsets: number[], position: number): number {
   return first
 }
 
-export function DiscussionViewport({ rows, target, onCollapse, children }: DiscussionViewportProps) {
+export function DiscussionViewport({ rows, target, readingTarget, measurements, initialViewport, onVisible, onCollapse, children }: DiscussionViewportProps) {
   const container = useRef<HTMLDivElement>(null)
-  const sizes = useRef(new Map<string, number>())
+  const sizes = useRef(measurements ?? new Map<string, number>())
   const [measurement, setMeasurement] = useState(0)
-  const [viewport, setViewport] = useState({ top: 0, bottom: 1000 })
+  const [viewport, setViewport] = useState(initialViewport ?? { top: 0, bottom: 1000 })
   const lastTarget = useRef<number>()
   const [focusedRow, setFocusedRow] = useState<string>()
 
@@ -58,6 +62,9 @@ export function DiscussionViewport({ rows, target, onCollapse, children }: Discu
   const targetIndex = target && lastTarget.current !== target
     ? rows.findIndex((row) => row.kind === "comment" && row.id === target)
     : -1
+  const readingIndex = readingTarget
+    ? rows.findIndex((row) => row.kind === "comment" && row.id === readingTarget)
+    : -1
   const visible = new Set<number>()
 
   for (let index = first; index < last; index++) {
@@ -72,7 +79,18 @@ export function DiscussionViewport({ rows, target, onCollapse, children }: Discu
     visible.add(targetIndex)
   }
 
+  if (readingIndex >= 0) {
+    visible.add(readingIndex)
+  }
+
   const indexes = [...visible].sort((left, right) => left - right)
+
+  useLayoutEffect(() => {
+    onVisible?.(indexes.flatMap((index) => {
+      const row = rows[index]
+      return row.kind === "comment" ? [row.id] : []
+    }))
+  }, [rows, first, last, focusedRow, targetIndex, readingIndex, onVisible])
 
   useLayoutEffect(() => {
     const element = container.current!
@@ -99,7 +117,9 @@ export function DiscussionViewport({ rows, target, onCollapse, children }: Discu
       }
     }
 
-    update()
+    if (!initialViewport) {
+      update()
+    }
     window.addEventListener("scroll", schedule, { capture: true, passive: true })
     window.addEventListener("resize", schedule)
 

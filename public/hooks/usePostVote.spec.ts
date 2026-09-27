@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react"
 import { beforeEach, expect, test } from "@jest/globals"
 import { Post } from "@fider/models"
-import { actions, analytics } from "@fider/services"
+import { actions, analytics, notify } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { RequestError } from "@fider/services/http"
 import { usePostVote } from "./usePostVote"
@@ -11,16 +11,26 @@ jest.mock("@fider/services", () => ({ actions: { setVote: jest.fn() }, analytics
 
 const post = { id: 1, number: 7, status: "open", voteType: 0, voteRevision: 0, upvotes: 3, downvotes: 1 } as Post
 
+function deferNextVote() {
+  let finish!: (value: Awaited<ReturnType<typeof actions.setVote>>) => void
+  const response = new Promise<Awaited<ReturnType<typeof actions.setVote>>>((resolve) => {
+    finish = resolve
+  })
+
+  jest.mocked(actions.setVote).mockReturnValueOnce(response)
+  return finish
+}
+
 beforeEach(() => {
   jest.resetAllMocks()
   jest.mocked(useFider).mockReturnValue({
-    session: { isAuthenticated: true }, isReadOnly: false,
+    session: { isAuthenticated: true, user: { id: 1 }, tenant: { id: 1 } }, isReadOnly: false,
   } as ReturnType<typeof useFider>)
 })
 
 test("anonymous voting opens sign-in without writing", async () => {
   jest.mocked(useFider).mockReturnValue({
-    session: { isAuthenticated: false }, isReadOnly: false,
+    session: { isAuthenticated: false, tenant: { id: 1 } }, isReadOnly: false,
   } as ReturnType<typeof useFider>)
   const { result } = renderHook(() => usePostVote(post))
   await act(() => result.current.chooseVote("up"))
@@ -37,33 +47,301 @@ test.each(["completed", "declined", "duplicate", "deleted"])("%s posts cannot be
   expect(actions.setVote).not.toHaveBeenCalled()
 })
 
-test("one request publishes the returned vote and counts together", async () => {
-  let finish: (value: Awaited<ReturnType<typeof actions.setVote>>) => void = () => {}
-  jest.mocked(actions.setVote).mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+test("one request shows the chosen vote at once, then publishes the returned vote and counts together", async () => {
+  const finish = deferNextVote()
   const changed = jest.fn()
   const { result } = renderHook(() => usePostVote(post, changed))
   let sending: Promise<void>
+
+  act(() => {
+    sending = result.current.chooseVote("up")
+  })
+
+  expect(actions.setVote).toHaveBeenCalledTimes(1)
+  expect(actions.setVote).toHaveBeenCalledWith(7, 1, 0)
+  expect(result.current).toMatchObject({ voteType: "up", upvotes: 4, downvotes: 1, isSaving: true, isDisabled: false })
+
+  await act(async () => {
+    finish({ ok: true, data: { direction: 1, upvotes: 9, downvotes: 2, revision: 1, applied: true } })
+    await sending
+  })
+
+  expect(result.current).toMatchObject({ voteType: "up", upvotes: 9, downvotes: 2, isSaving: false, isDisabled: false })
+  expect(changed).toHaveBeenCalledWith(9, 2)
+})
+
+test.each([
+  ["opposite choices", ["up", "down"], -1, 2],
+  ["removing a pending vote", ["up", "up"], 0, 2],
+  ["returning to the first choice", ["up", "down", "up"], 1, 1],
+  ["a hundred alternating choices", Array.from({ length: 100 }, (_, index) => index % 2 ? "down" : "up"), -1, 2],
+] as const)("%s preserve the final choice with bounded writes", async (_description, choices, expected, writes) => {
+  const finish = deferNextVote()
+  jest.mocked(actions.setVote).mockResolvedValue({
+    ok: true,
+    data: { direction: expected, revision: 2, upvotes: 3, downvotes: expected === -1 ? 2 : 1, applied: true },
+  })
+
+  const { result } = renderHook(() => usePostVote(post))
+  let sending: Promise<void>
+
+  act(() => {
+    for (const choice of choices) {
+      sending = result.current.chooseVote(choice as "up" | "down")
+    }
+  })
+
+  expect(actions.setVote).toHaveBeenCalledTimes(1)
+  expect(result.current.voteType).toBe(expected === 1 ? "up" : expected === -1 ? "down" : "none")
+
+  await act(async () => {
+    finish({ ok: true, data: { direction: 1, revision: 1, upvotes: 4, downvotes: 1, applied: true } })
+    await sending
+  })
+
+  expect(actions.setVote).toHaveBeenCalledTimes(writes)
+  if (writes === 2) {
+    expect(actions.setVote).toHaveBeenLastCalledWith(7, expected, 1)
+  }
+
+  expect(result.current).toMatchObject({ voteType: expected === 1 ? "up" : expected === -1 ? "down" : "none", isSaving: false })
+  expect(analytics.event).toHaveBeenCalledTimes(writes)
+})
+
+test("a newer choice can use the revision returned by a conflicting older request", async () => {
+  const finish = deferNextVote()
+  jest.mocked(actions.setVote).mockResolvedValueOnce({
+    ok: true,
+    data: { direction: -1, revision: 8, upvotes: 3, downvotes: 2, applied: true },
+  })
+
+  const { result } = renderHook(() => usePostVote(post))
+  let sending: Promise<void>
+
   act(() => {
     sending = result.current.chooseVote("up")
     void result.current.chooseVote("down")
   })
-  expect(actions.setVote).toHaveBeenCalledTimes(1)
-  expect(actions.setVote).toHaveBeenCalledWith(7, 1, 0)
-  expect(result.current.isDisabled).toBe(true)
+
   await act(async () => {
-    finish({ ok: true, data: { direction: 1, upvotes: 4, downvotes: 1, revision: 1, applied: true } })
+    finish({ ok: true, data: { direction: 0, revision: 7, upvotes: 3, downvotes: 1, applied: false } })
     await sending
   })
-  expect(result.current).toMatchObject({ voteType: "up", upvotes: 4, downvotes: 1, isDisabled: false })
-  expect(changed).toHaveBeenCalledWith(4, 1)
+
+  expect(actions.setVote).toHaveBeenLastCalledWith(7, -1, 7)
+  expect(result.current.voteType).toBe("down")
+  expect(notify.error).not.toHaveBeenCalled()
+})
+
+test("an accepted sequence finishes after unmount without calling its detached parent", async () => {
+  const finish = deferNextVote()
+  jest.mocked(actions.setVote).mockResolvedValueOnce({
+    ok: true,
+    data: { direction: -1, revision: 2, upvotes: 3, downvotes: 2, applied: true },
+  })
+
+  const changed = jest.fn()
+  const { result, unmount } = renderHook(() => usePostVote(post, changed))
+  let sending: Promise<void>
+
+  act(() => {
+    sending = result.current.chooseVote("up")
+    void result.current.chooseVote("down")
+  })
+
+  unmount()
+
+  await act(async () => {
+    finish({ ok: true, data: { direction: 1, revision: 1, upvotes: 4, downvotes: 1, applied: true } })
+    await sending
+  })
+
+  expect(actions.setVote).toHaveBeenLastCalledWith(7, -1, 1)
+  expect(changed).not.toHaveBeenCalled()
+})
+
+test("the previous post cannot replace a new post's vote or notify its parent", async () => {
+  const finish = deferNextVote()
+  const changed = jest.fn()
+  const { result, rerender } = renderHook((current) => usePostVote(current, changed), { initialProps: post })
+  let sending: Promise<void>
+
+  act(() => {
+    sending = result.current.chooseVote("up")
+  })
+
+  rerender({ ...post, id: 2, number: 8, upvotes: 20 })
+
+  await act(async () => {
+    finish({ ok: true, data: { direction: 1, revision: 1, upvotes: 4, downvotes: 1, applied: true } })
+    await sending
+  })
+
+  expect(result.current).toMatchObject({ voteType: "none", upvotes: 20, isSaving: false })
+  expect(changed).not.toHaveBeenCalled()
+})
+
+test("older props cannot roll back a confirmed vote", async () => {
+  jest.mocked(actions.setVote).mockResolvedValueOnce({
+    ok: true,
+    data: { direction: 1, revision: 1, upvotes: 9, downvotes: 2, applied: true },
+  })
+
+  const { result, rerender } = renderHook((current) => usePostVote(current), { initialProps: post })
+  await act(() => result.current.chooseVote("up"))
+  rerender({ ...post, upvotes: 9, downvotes: 2 })
+
+  expect(result.current).toMatchObject({ voteType: "up", upvotes: 9, downvotes: 2 })
+})
+
+test("newer server props win over a late acknowledgement", async () => {
+  const finish = deferNextVote()
+  const { result, rerender } = renderHook((current) => usePostVote(current), { initialProps: post })
+  let sending: Promise<void>
+
+  act(() => {
+    sending = result.current.chooseVote("up")
+  })
+
+  rerender({ ...post, voteType: -1, voteRevision: 8, downvotes: 2 })
+
+  await act(async () => {
+    finish({ ok: true, data: { direction: 1, revision: 1, upvotes: 4, downvotes: 1, applied: true } })
+    await sending
+  })
+
+  expect(result.current).toMatchObject({ voteType: "down", upvotes: 3, downvotes: 2, isSaving: false })
+  expect(analytics.event).not.toHaveBeenCalled()
+})
+
+test("queued choices do not continue under a different signed-in user", async () => {
+  const finish = deferNextVote()
+  const fider = {
+    session: { isAuthenticated: true, user: { id: 1 }, tenant: { id: 1 } },
+    isReadOnly: false,
+  } as ReturnType<typeof useFider>
+  jest.mocked(useFider).mockReturnValue(fider)
+  const { result } = renderHook(() => usePostVote(post))
+  let sending: Promise<void>
+
+  act(() => {
+    sending = result.current.chooseVote("up")
+    void result.current.chooseVote("down")
+  })
+
+  fider.session.user.id = 2
+
+  await act(async () => {
+    finish({ ok: true, data: { direction: 1, revision: 1, upvotes: 4, downvotes: 1, applied: true } })
+    await sending
+  })
+
+  expect(actions.setVote).toHaveBeenCalledTimes(1)
+  expect(analytics.event).not.toHaveBeenCalled()
+})
+
+test.each([
+  ["user", 2, 1],
+  ["tenant", 1, 2],
+])("an uncertain request cannot migrate to a different %s", async (_changed, userID, tenantID) => {
+  jest.mocked(actions.setVote).mockRejectedValueOnce(new RequestError("POST", "/vote", "transport", new Error("offline")))
+  const { result, rerender } = renderHook(() => usePostVote(post))
+  await act(() => result.current.chooseVote("up"))
+
+  jest.mocked(useFider).mockReturnValue({
+    session: { isAuthenticated: true, user: { id: userID }, tenant: { id: tenantID } },
+    isReadOnly: false,
+  } as ReturnType<typeof useFider>)
+  jest.mocked(actions.setVote).mockResolvedValueOnce({
+    ok: true,
+    data: { direction: -1, revision: 1, upvotes: 3, downvotes: 2, applied: true },
+  })
+  rerender()
+
+  await act(() => result.current.chooseVote("down"))
+
+  expect(actions.setVote).toHaveBeenCalledTimes(2)
+  expect(actions.setVote).toHaveBeenLastCalledWith(7, -1, 0)
+  expect(result.current.voteType).toBe("down")
 })
 
 test("an uncertain response releases the control and preserves the confirmed vote", async () => {
   jest.mocked(actions.setVote).mockRejectedValueOnce(new RequestError("PUT", "/vote", "transport", new Error("offline")))
   const { result } = renderHook(() => usePostVote(post))
   await act(() => result.current.chooseVote("up"))
-  expect(result.current).toMatchObject({ voteType: "none", upvotes: 3, downvotes: 1, isDisabled: false })
+  expect(result.current).toMatchObject({ voteType: "none", upvotes: 3, downvotes: 1, isSaving: false, isDisabled: false })
   expect(analytics.event).not.toHaveBeenCalled()
+})
+
+test("a different choice after an uncertain result first resolves the original revision", async () => {
+  jest.mocked(actions.setVote).mockRejectedValueOnce(new RequestError("POST", "/vote", "transport", new Error("offline")))
+  jest.mocked(actions.setVote).mockResolvedValueOnce({
+    ok: true,
+    data: { direction: 1, revision: 1, upvotes: 4, downvotes: 1, applied: false },
+  })
+  jest.mocked(actions.setVote).mockResolvedValueOnce({
+    ok: true,
+    data: { direction: -1, revision: 2, upvotes: 3, downvotes: 2, applied: true },
+  })
+
+  const { result } = renderHook(() => usePostVote(post))
+  await act(() => result.current.chooseVote("up"))
+  await act(() => result.current.chooseVote("down"))
+
+  expect(actions.setVote).toHaveBeenNthCalledWith(1, 7, 1, 0)
+  expect(actions.setVote).toHaveBeenNthCalledWith(2, 7, 1, 0)
+  expect(actions.setVote).toHaveBeenNthCalledWith(3, 7, -1, 1)
+  expect(result.current).toMatchObject({ voteType: "down", upvotes: 3, downvotes: 2, isSaving: false })
+  expect(analytics.event).toHaveBeenCalledTimes(2)
+})
+
+test("a definitive rejection rolls back the display and permits a fresh choice", async () => {
+  jest.mocked(actions.setVote).mockResolvedValueOnce({
+    ok: false,
+    status: 403,
+    error: { errors: [{ message: "Post locked" }] },
+  })
+  jest.mocked(actions.setVote).mockResolvedValueOnce({
+    ok: true,
+    data: { direction: -1, revision: 1, upvotes: 3, downvotes: 2, applied: true },
+  })
+
+  const { result } = renderHook(() => usePostVote(post))
+  await act(() => result.current.chooseVote("up"))
+
+  expect(result.current).toMatchObject({ voteType: "none", upvotes: 3, downvotes: 1, isSaving: false })
+  expect(notify.error).toHaveBeenCalledWith("Post locked")
+  expect(analytics.event).not.toHaveBeenCalled()
+
+  await act(() => result.current.chooseVote("down"))
+
+  expect(actions.setVote).toHaveBeenCalledTimes(2)
+  expect(actions.setVote).toHaveBeenLastCalledWith(7, -1, 0)
+  expect(result.current.voteType).toBe("down")
+})
+
+test("a vote the server did not apply shows the server's state, not the optimistic one", async () => {
+  jest.mocked(actions.setVote).mockResolvedValueOnce({
+    ok: true,
+    data: { direction: -1, revision: 2, upvotes: 3, downvotes: 2, applied: false },
+  })
+  const { result } = renderHook(() => usePostVote(post))
+  await act(() => result.current.chooseVote("up"))
+  expect(result.current).toMatchObject({ voteType: "down", upvotes: 3, downvotes: 2, isSaving: false })
+})
+
+const optimisticCases: [number, number, number, number][] = [
+  [0, 1, 4, 1],
+  [0, -1, 3, 2],
+  [1, 0, 2, 1],
+  [1, -1, 2, 2],
+  [-1, 1, 4, 0],
+]
+test.each(optimisticCases)("optimistic counts: vote %s -> %s shows %s up / %s down", (before, desired, up, down) => {
+  jest.mocked(actions.setVote).mockImplementation(() => new Promise(() => {}))
+  const { result } = renderHook(() => usePostVote({ ...post, voteType: before }))
+  act(() => { void result.current.chooseVote(desired === 0 ? (before === 1 ? "up" : "down") : desired === 1 ? "up" : "down") })
+  expect(result.current).toMatchObject({ upvotes: up, downvotes: down })
 })
 
 test.each([

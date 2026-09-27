@@ -77,7 +77,7 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
     setError(undefined)
 
     const selectedToAddImages: ImageUpload[] = Array.from(selectedToAdd).map((bkey) => ({ bkey, remove: false }))
-    
+
     const allAttachments: ImageUpload[] = [
       ...newAttachments,
       ...selectedToAddImages,
@@ -187,11 +187,11 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
     if (variant === "sidebar") {
       return (
         <>
-          <div 
-            className="fixed inset-0 bg-black/50 z-1099 animate-[fadeIn_0.2s_ease]" 
-            onClick={onCancel} 
+          <div
+            className="fixed inset-0 bg-black/50 z-1099 animate-[fadeIn_120ms_var(--ease-out)]"
+            onClick={onCancel}
           />
-          <div className="fixed top-0 right-0 bottom-0 w-full max-w-[600px] z-1100 bg-elevated shadow-xl animate-[slideInFromRight_0.2s_ease] overflow-y-auto max-sm:max-w-full max-sm:left-0">
+          <div className="fixed top-0 right-0 bottom-0 w-full max-w-[600px] z-1100 bg-elevated shadow-xl animate-[slideInFromRight_160ms_var(--ease-out)] overflow-y-auto max-sm:max-w-full max-sm:left-0">
             {loadingContent}
           </div>
         </>
@@ -199,8 +199,8 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
     }
 
     return (
-      <div 
-        className="absolute inset-0 z-base bg-elevated overflow-y-auto rounded-panel animate-[slideIn_0.2s_ease] max-lg:fixed max-lg:rounded-none" 
+      <div
+        className="absolute inset-0 z-base bg-elevated overflow-y-auto rounded-panel animate-[slideIn_160ms_var(--ease-out)] max-lg:fixed max-lg:rounded-none"
         onClick={handleBackdropClick}
       >
         {loadingContent}
@@ -211,11 +211,11 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
   if (variant === "sidebar") {
     return (
       <>
-        <div 
-          className="fixed inset-0 bg-black/50 z-1099 animate-[fadeIn_0.2s_ease]" 
-          onClick={onCancel} 
+        <div
+          className="fixed inset-0 bg-black/50 z-1099 animate-[fadeIn_120ms_var(--ease-out)]"
+          onClick={onCancel}
         />
-        <div className="fixed top-0 right-0 bottom-0 w-full max-w-[600px] z-1100 bg-elevated shadow-xl animate-[slideInFromRight_0.2s_ease] overflow-y-auto max-sm:max-w-full max-sm:left-0">
+        <div className="fixed top-0 right-0 bottom-0 w-full max-w-[600px] z-1100 bg-elevated shadow-xl animate-[slideInFromRight_160ms_var(--ease-out)] overflow-y-auto max-sm:max-w-full max-sm:left-0">
           {panelContent}
         </div>
       </>
@@ -223,8 +223,8 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
   }
 
   return (
-    <div 
-      className="absolute inset-0 z-base bg-elevated overflow-y-auto rounded-panel animate-[slideIn_0.2s_ease] max-lg:fixed max-lg:rounded-none" 
+    <div
+      className="absolute inset-0 z-base bg-elevated overflow-y-auto rounded-panel animate-[slideIn_160ms_var(--ease-out)] max-lg:fixed max-lg:rounded-none"
       onClick={handleBackdropClick}
     >
       {panelContent}

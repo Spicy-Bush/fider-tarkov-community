@@ -56,11 +56,11 @@ export const Button: React.FC<ButtonProps> = ({ size = "default", variant = "sec
   }, [])
 
   const className = classSet({
-    "inline-flex items-center cursor-pointer rounded-button font-medium whitespace-nowrap leading-tight active:scale-[0.99] [&_svg+*]:ml-1 [&_img+*]:ml-1": true,
+    "inline-flex items-center cursor-pointer rounded-button font-medium whitespace-nowrap leading-tight transition-[transform,color,background-color,border-color] duration-100 ease-out active:scale-[0.98] [&_svg+*]:ml-1 [&_img+*]:ml-1": true,
     [sizeClasses[size]]: true,
     [variantClasses[variant]]: true,
-    "relative cursor-default text-transparent opacity-100 pointer-events-auto before:absolute before:content-[''] before:top-1/2 before:left-1/2 before:-mt-2.5 before:-ml-2.5 before:w-5 before:h-5 before:rounded-full before:border-2 before:border-muted after:absolute after:content-[''] after:top-1/2 after:left-1/2 after:-mt-2.5 after:-ml-2.5 after:w-5 after:h-5 after:animate-spin after:rounded-full after:border-2 after:border-t-white after:border-r-transparent after:border-b-transparent after:border-l-transparent": isLoading,
-    "opacity-50 cursor-not-allowed pointer-events-none": isLoading || props.disabled,
+    "relative cursor-default button-loading": isLoading,
+    "opacity-50 cursor-not-allowed pointer-events-none": !isLoading && props.disabled,
     [props.className || ""]: props.className,
   })
 

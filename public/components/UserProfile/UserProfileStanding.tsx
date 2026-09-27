@@ -1,7 +1,5 @@
-// UserProfileStanding converted to Tailwind
-
 import React from "react"
-import { Icon, Button } from "@fider/components"
+import { Icon, Button, Loader } from "@fider/components"
 import { useUserProfile } from "./context"
 import { Trans } from "@lingui/react/macro"
 import { actions, notify } from "@fider/services"
@@ -9,9 +7,22 @@ import { i18n } from "@lingui/core"
 import { heroiconsCalendar as IconCalendar, heroiconsExclamation as IconWarning, heroiconsMuted as IconVolumeOff, heroiconsThumbsup as IconThumbsUp } from "@fider/icons.generated"
 
 const UserProfileStandingComponent: React.FC = () => {
-  const { user, standing, canDeleteModeration, canModerate, refreshStanding, isViewingOwnProfile } = useUserProfile()
+  const { user, standing, canDeleteModeration, canModerate, refreshStanding, refreshProfile, isViewingOwnProfile, isLoading, error } = useUserProfile()
 
   if (!user) return null
+
+  if (isLoading) {
+    return <Loader />
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="flex items-center justify-between gap-4 rounded-card bg-danger-light p-4">
+        <span>{error}</span>
+        <Button onClick={refreshProfile}>Try again</Button>
+      </div>
+    )
+  }
 
   const handleDeleteWarning = async (warningId: number) => {
     const result = await actions.deleteWarning(user.id, warningId)
@@ -79,8 +90,6 @@ const UserProfileStandingComponent: React.FC = () => {
         ) : (
           <div className="divide-y divide-surface-alt">
             {standing.warnings.map(warning => {
-              const isExpired = warning.expiresAt && new Date(warning.expiresAt) < new Date()
-              const isActive = warning.expiresAt && new Date(warning.expiresAt) > new Date()
               return (
                 <div key={warning.id} className="flex items-start justify-between gap-4 p-4 transition-all hover:bg-tertiary max-md:flex-col">
                   <div className="flex-1 min-w-0">
@@ -101,12 +110,10 @@ const UserProfileStandingComponent: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0 max-md:flex-row max-md:items-center max-md:w-full max-md:mt-2">
-                    {(isExpired || isActive) && (
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${isExpired ? "bg-surface-alt text-muted" : "bg-warning-light text-warning"}`}>
-                        {isExpired ? "Expired" : "Active"}
-                      </span>
-                    )}
-                    {isActive && canModerate && (
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${warning.isActive ? "bg-warning-light text-warning" : "bg-surface-alt text-muted"}`}>
+                      {warning.isActive ? "Active" : "Expired"}
+                    </span>
+                    {warning.isActive && canModerate && (
                       <Button variant="secondary" size="small" onClick={() => handleExpireWarning(warning.id)}>
                         <Trans id="action.removeWarning">Remove</Trans>
                       </Button>
@@ -134,8 +141,6 @@ const UserProfileStandingComponent: React.FC = () => {
         ) : (
           <div className="divide-y divide-surface-alt">
             {standing.mutes.map(mute => {
-              const isExpired = mute.expiresAt && new Date(mute.expiresAt) < new Date()
-              const isActive = mute.expiresAt && new Date(mute.expiresAt) > new Date()
               return (
                 <div key={mute.id} className="flex items-start justify-between gap-4 p-4 transition-all hover:bg-tertiary max-md:flex-col">
                   <div className="flex-1 min-w-0">
@@ -156,12 +161,10 @@ const UserProfileStandingComponent: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0 max-md:flex-row max-md:items-center max-md:w-full max-md:mt-2">
-                    {(isExpired || isActive) && (
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${isExpired ? "bg-surface-alt text-muted" : "bg-warning-light text-warning"}`}>
-                        {isExpired ? "Expired" : "Active"}
-                      </span>
-                    )}
-                    {isActive && canModerate && (
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${mute.isActive ? "bg-warning-light text-warning" : "bg-surface-alt text-muted"}`}>
+                      {mute.isActive ? "Active" : "Expired"}
+                    </span>
+                    {mute.isActive && canModerate && (
                       <Button variant="secondary" size="small" onClick={() => handleExpireMute(mute.id)}>
                         <Trans id="action.unmute">Unmute</Trans>
                       </Button>

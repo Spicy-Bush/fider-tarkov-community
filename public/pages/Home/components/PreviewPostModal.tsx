@@ -22,27 +22,31 @@ export const PreviewPostModal: React.FC<PreviewPostModalProps> = (props) => {
       props.onClose()
     }
   }
-  
-  const validAttachments = props.attachments.filter(attachment => !attachment.remove)
-  const isAuthenticated = fider.session && fider.session.isAuthenticated
-    
+
+  const isAuthenticated = fider.session.isAuthenticated
+
   return (
     <Modal.Window isOpen={props.isOpen} center={false} onClose={closeModal}>
       <Modal.Header>
         <Trans id="modal.previewpost.title">Post Preview</Trans>
       </Modal.Header>
-      
+
       <Modal.Content>
         <VStack spacing={8}>
           <HStack>
-            {isAuthenticated ? ( <Avatar user={fider.session.user} />) : ( <div className="c-avatar" style={{ width: '24px', height: '24px', backgroundColor: 'var(--color-surface-alt)' }}></div> )}
-            <VStack spacing={1}> {isAuthenticated ? ( <UserName user={fider.session.user} /> ) : ( <span>Anonymous User</span> )}
+            {isAuthenticated ? (
+              <Avatar user={fider.session.user} />
+            ) : (
+              <div className="c-avatar w-6 h-6 bg-surface-alt" />
+            )}
+            <VStack spacing={1}>
+              {isAuthenticated ? <UserName user={fider.session.user} /> : <span>Anonymous User</span>}
               <Moment className="text-muted" locale={fider.currentLocale} date={currentDate} />
             </VStack>
           </HStack>
-          
-          <h1 className="text-large">{props.title}</h1>
-          
+
+          <h1 className="text-large [overflow-wrap:anywhere]">{props.title}</h1>
+
           <VStack>
             {props.description ? (
               <Markdown className="description" text={props.description} style="full" />
@@ -51,10 +55,8 @@ export const PreviewPostModal: React.FC<PreviewPostModalProps> = (props) => {
                 <Trans id="showpost.message.nodescription">No description provided.</Trans>
               </em>
             )}
-            
-            {validAttachments.filter(a => a.bkey).length > 0 && (
-              <ImageGallery bkeys={validAttachments.filter(a => a.bkey).map(a => a.bkey!)} />
-            )}
+
+            <ImageGallery uploads={props.attachments} />
           </VStack>
         </VStack>
       </Modal.Content>

@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react"
-import { UserStatus, UserAvatarType, UserRole, VisualRole } from "@fider/models"
+import { UserStatus, UserAvatarType, UserRole, VisualRole, UserProfileStanding } from "@fider/models"
 import { actions, userPermissions } from "@fider/services"
 import { useFider } from "@fider/hooks"
 import { useUserStanding } from "@fider/contexts/UserStandingContext"
+import { RequestError } from "@fider/services/http"
 
 export type ProfileTab = "search" | "standing" | "settings"
 
@@ -22,24 +23,7 @@ export interface UserProfileStats {
   votes: number
 }
 
-export interface Warning {
-  id: number
-  reason: string
-  createdAt: string
-  expiresAt?: string
-}
-
-export interface Mute {
-  id: number
-  reason: string
-  createdAt: string
-  expiresAt?: string
-}
-
-export interface UserProfileStanding {
-  warnings: Warning[]
-  mutes: Mute[]
-}
+export type { UserProfileStanding } from "@fider/models"
 
 interface UserProfileState {
   user: UserData | null
@@ -55,7 +39,7 @@ interface UserProfileState {
 interface UserProfileContextType extends UserProfileState {
   setActiveTab: (tab: ProfileTab) => void
   refreshStanding: () => Promise<void>
-  refreshStats: () => Promise<void>
+  refreshProfile: () => Promise<void>
   refreshUser: () => void
   updateUserName: (name: string) => void
   updateUserAvatar: (avatarURL: string, avatarType?: UserAvatarType) => void
@@ -92,7 +76,7 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
   const [otherUser, setOtherUser] = useState<UserData | null>(isViewingOwnProfile ? null : initialUser || null)
   const user = isViewingOwnProfile ? session.user : otherUser
   const [stats, setStats] = useState<UserProfileStats>({ posts: 0, comments: 0, votes: 0 })
-  const [standing, setStanding] = useState<UserProfileStanding>({ warnings: [], mutes: [] })
+  const [otherStanding, setOtherStanding] = useState<UserProfileStanding>({ warnings: [], mutes: [] })
   const [isLoading, setIsLoading] = useState(!initialUser)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTabState] = useState<ProfileTab>("search")
@@ -104,34 +88,66 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
   }, [initialUser?.visualRole])
 
   const globalStanding = useUserStanding()
-  const globalStandingRef = useRef(globalStanding)
+  const refreshOwnStanding = globalStanding.refetch
+  const standing = isViewingOwnProfile ? globalStanding : otherStanding
+  const standingRequest = useRef<AbortController>()
 
-  useEffect(() => {
-    globalStandingRef.current = globalStanding
-  }, [globalStanding])
+  useEffect(() => () => standingRequest.current?.abort(), [userId])
 
   const loadStats = useCallback(async () => {
-    const result = await actions.getUserProfileStats(userId)
-    if (result.ok) {
-      setStats(result.data)
-    } else {
-      setError("Failed to load profile stats")
+    try {
+      const result = await actions.getUserProfileStats(userId)
+      if (result.ok) {
+        setStats(result.data)
+      } else {
+        setError("Could not load profile stats.")
+      }
+    } catch (error) {
+      if (!(error instanceof RequestError)) {
+        throw error
+      }
+
+      setError("Could not load profile stats.")
     }
   }, [userId])
 
   const refreshStanding = useCallback(async () => {
-    const result = await actions.getUserProfileStanding(userId)
-    if (result.ok) {
-      setStanding(result.data)
-      if (isViewingOwnProfile) {
-        globalStandingRef.current.setStandingData(result.data.warnings, result.data.mutes)
+    setError(null)
+
+    if (isViewingOwnProfile) {
+      await refreshOwnStanding()
+      return
+    }
+
+    standingRequest.current?.abort()
+    const request = new AbortController()
+    standingRequest.current = request
+
+    try {
+      const result = await actions.getUserProfileStanding(userId, request.signal)
+      if (request.signal.aborted) {
+        return
+      }
+
+      if (result.ok) {
+        setOtherStanding(result.data)
+      } else {
+        setError("Could not load account standing.")
+      }
+    } catch (error) {
+      if (!request.signal.aborted) {
+        if (!(error instanceof RequestError)) {
+          throw error
+        }
+
+        setError("Could not load account standing.")
       }
     }
-  }, [userId, isViewingOwnProfile])
+  }, [userId, isViewingOwnProfile, refreshOwnStanding])
 
-  const refreshStats = useCallback(async () => {
-    await loadStats()
-  }, [loadStats])
+  const refreshProfile = useCallback(async () => {
+    await Promise.all([loadStats(), refreshStanding()])
+  }, [loadStats, refreshStanding])
 
   const refreshUser = useCallback(() => {
     window.location.reload()
@@ -188,28 +204,26 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
     [embedded]
   )
 
-  const initialLoadDone = useRef(false)
-
   useEffect(() => {
-    if (initialLoadDone.current) {
-      return
-    }
-    initialLoadDone.current = true
-
+    let mounted = true
     const init = async () => {
       setIsLoading(true)
-      await loadStats()
-      const result = await actions.getUserProfileStanding(userId)
-      if (result.ok) {
-        setStanding(result.data)
-        if (isViewingOwnProfile) {
-          globalStandingRef.current.setStandingData(result.data.warnings, result.data.mutes)
+
+      try {
+        await refreshProfile()
+      } finally {
+        if (mounted) {
+          setIsLoading(false)
         }
       }
-      setIsLoading(false)
     }
-    init()
-  }, [userId, loadStats, isViewingOwnProfile])
+
+    void init()
+
+    return () => {
+      mounted = false
+    }
+  }, [refreshProfile])
 
   useEffect(() => {
     if (embedded) return
@@ -229,14 +243,14 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
     user,
     stats,
     standing,
-    isLoading,
-    error,
+    isLoading: isLoading || (isViewingOwnProfile && globalStanding.isLoading),
+    error: isViewingOwnProfile ? globalStanding.error || error : error,
     activeTab,
     isEmbedded: embedded,
     compact,
     setActiveTab,
     refreshStanding,
-    refreshStats,
+    refreshProfile,
     refreshUser,
     updateUserName,
     updateUserAvatar,

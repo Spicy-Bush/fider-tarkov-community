@@ -34,6 +34,11 @@ export function loadCommentContext(id: number) {
   return http.get<CommentContext>(`/api/comments/${id}`, { notifyOnError: false })
 }
 
+export function loadCommentRecords(owner: DiscussionOwner, ids: number[], signal: AbortSignal) {
+  const parameters = new URLSearchParams({ ids: ids.join(",") })
+  return http.get<DiscussionPage>(`${discussionURL(owner)}?${parameters}`, { notifyOnError: false, signal })
+}
+
 export async function retryCommentRequest<T>(request: () => Promise<Result<T>>): Promise<Result<T>> {
   for (let attempt = 0; ; attempt++) {
     try {

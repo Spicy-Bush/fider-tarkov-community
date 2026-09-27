@@ -16,6 +16,7 @@ export const getPostAttachments = async (postNumber: number): Promise<Result<str
 }
 
 export interface SearchPostsParams {
+  ids?: number[]
   query?: string
   view?: string
   limit?: number
@@ -30,8 +31,12 @@ export interface SearchPostsParams {
   includeCount?: boolean
 }
 
-export const searchPosts = async (params: SearchPostsParams): Promise<Result<Post[]>> => {
+export const searchPosts = async (
+  params: SearchPostsParams,
+  options?: { signal?: AbortSignal; notifyOnError?: boolean }
+): Promise<Result<Post[]>> => {
   let qsParams = querystring.stringify({
+    ids: params.ids?.join(","),
     tags: params.tags,
     statuses: params.statuses,
     query: params.query,
@@ -52,9 +57,9 @@ export const searchPosts = async (params: SearchPostsParams): Promise<Result<Pos
   }
   if (params.includeCount) {
     qsParams += `&includeCount=true`
-    return await http.getWithHeaders<Post[]>(`/api/posts${qsParams}`)
   }
-  return await http.get<Post[]>(`/api/posts${qsParams}`)
+
+  return await http.get<Post[]>(`/api/posts${qsParams}`, { ...options, includeHeaders: params.includeCount })
 }
 
 export const deletePost = async (postNumber: number, text: string): Promise<Result> => {

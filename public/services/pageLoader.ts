@@ -62,8 +62,9 @@ export const createPageLoader = (modules: ModuleGlob, config: PageLoaderConfig):
 
     const loadPromise = retry(() => loader()).then((module: PageModule) => {
       moduleCache.set(pageName, module)
-      loadingPromises.delete(pageName)
       return module
+    }).finally(() => {
+      loadingPromises.delete(pageName)
     })
 
     loadingPromises.set(pageName, loadPromise)
@@ -81,4 +82,3 @@ export const createPageLoader = (modules: ModuleGlob, config: PageLoaderConfig):
 
   return { load, prefetch, getCached }
 }
-

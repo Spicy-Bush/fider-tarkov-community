@@ -25,6 +25,17 @@ import (
 // SearchPosts return existing posts based on search criteria
 func SearchPosts() web.HandlerFunc {
 	return func(c *web.Context) error {
+		var ids []int
+		if selection, present := c.Request.URL.Query()["ids"]; present {
+			var err error
+			ids, err = parseRecordIDs(selection)
+			if err != nil {
+				return c.BadRequest(web.Map{"message": "Invalid post selection."})
+			}
+
+			c.Response.Header().Set("Cache-Control", "private, no-store")
+		}
+
 		viewQueryParams := c.QueryParam("view")
 		if viewQueryParams == "" {
 			viewQueryParams = "all"
@@ -110,6 +121,11 @@ func SearchPosts() web.HandlerFunc {
 		dateFilter := c.QueryParam("date")
 		includeCount, _ := c.QueryParamAsBool("includeCount")
 
+		if len(ids) > 0 {
+			effectiveLimit = len(ids)
+			clientOffset = 0
+		}
+
 		isCacheable := postcache.IsCacheable(
 			viewQueryParams,
 			myVotesOnly,
@@ -118,7 +134,7 @@ func SearchPosts() web.HandlerFunc {
 			filteredTags,
 			searchQuery,
 			untagged,
-		) && clientOffset == 0 && len(statuses) == 0 && dateFilter == ""
+		) && !c.IsAuthenticated() && clientOffset == 0 && len(statuses) == 0 && dateFilter == "" && len(ids) == 0
 
 		tenantID := c.Tenant().ID
 
@@ -148,11 +164,14 @@ func SearchPosts() web.HandlerFunc {
 					}
 				}
 
-				return c.Ok(result)
+				if len(result) == effectiveLimit {
+					return c.Ok(result)
+				}
 			}
 		}
 
 		searchPosts := &query.SearchPosts{
+			IDs:         ids,
 			Query:       searchQuery,
 			View:        viewQueryParams,
 			Limit:       strconv.Itoa(effectiveLimit),

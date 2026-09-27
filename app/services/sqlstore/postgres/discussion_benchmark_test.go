@@ -54,9 +54,22 @@ func BenchmarkDiscussionReadHTTP(b *testing.B) {
 	}
 
 	params := web.StringMap{"number": fmt.Sprint(post.Result.Number)}
-	for _, order := range []string{"liked", "disliked", "replies", "latest"} {
+	var records string
+	if err := dbx.Connection().QueryRow(`
+        SELECT string_agg(id::text, ',') FROM (
+            SELECT id FROM comments WHERE post_id = $1 ORDER BY id DESC LIMIT 25
+        ) visible
+    `, post.Result.ID).Scan(&records); err != nil {
+		b.Fatal(err)
+	}
+
+	for _, order := range []string{"liked", "disliked", "replies", "latest", "records"} {
 		b.Run(order, func(b *testing.B) {
 			path := "/api/posts/" + params["number"] + "/comments?sort=" + order
+			if order == "records" {
+				path = "/api/posts/" + params["number"] + "/comments?ids=" + records
+			}
+
 			response, err := f.requestWithParams(api.ListDiscussion(), http.MethodGet, path, "", params)
 			if err != nil || response.Code != http.StatusOK {
 				b.Fatalf("read failed: %v, HTTP %d, %s", err, response.Code, response.Body)
@@ -66,7 +79,7 @@ func BenchmarkDiscussionReadHTTP(b *testing.B) {
 			if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
 				b.Fatal(err)
 			}
-			if len(page.Comments) != 25 || page.Next == "" {
+			if len(page.Comments) != 25 || (page.Next == "") != (order == "records") {
 				b.Fatal("large discussion did not return a bounded page and continuation")
 			}
 

@@ -1,26 +1,11 @@
 import { http, Result } from "@fider/services/http"
-import { UserSettings, UserAvatarType, ImageUpload } from "@fider/models"
+import { UserSettings, UserAvatarType, ImageUpload, UserProfileStanding } from "@fider/models"
 import { Fider } from "@fider/services"
 
 interface UserProfileStats {
   posts: number
   comments: number
   votes: number
-}
-
-interface UserProfileStanding {
-  warnings: Array<{
-    id: number
-    reason: string
-    createdAt: string
-    expiresAt?: string
-  }>
-  mutes: Array<{
-    id: number
-    reason: string
-    createdAt: string
-    expiresAt?: string
-  }>
 }
 
 interface UserProfileContent {
@@ -122,8 +107,8 @@ export const getUserProfileStats = async (userID: number): Promise<Result<UserPr
   return await http.get<UserProfileStats>(`/api/user/profile/${userID}/stats`)
 }
 
-export const getUserProfileStanding = async (userID: number): Promise<Result<UserProfileStanding>> => {
-  return await http.get<UserProfileStanding>(`/api/user/profile/${userID}/standing`)
+export const getUserProfileStanding = async (userID: number, signal?: AbortSignal): Promise<Result<UserProfileStanding>> => {
+  return await http.get<UserProfileStanding>(`/api/user/profile/${userID}/standing`, { signal })
 }
 
 export const searchUserContent = async (

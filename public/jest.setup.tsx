@@ -4,14 +4,6 @@ import React from "react"
 import "@testing-library/jest-dom"
 
 // Mock modules that use import.meta.glob (Vite-specific feature)
-jest.mock("@fider/contexts/AdminNavigationContext", () => ({
-  useAdminNavigation: () => ({
-    currentPage: null,
-    navigate: async () => {},
-    prefetch: () => {},
-  }),
-}))
-
 jest.mock("@fider/AsyncPages", () => ({
   usePageLoader: () => ({
     Component: null,

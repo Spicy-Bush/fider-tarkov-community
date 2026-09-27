@@ -85,6 +85,15 @@ func ListDiscussion() web.HandlerFunc {
 		}
 
 		comments := &query.GetDiscussionComments{Discussion: owner.Result}
+		if selection, present := c.Request.URL.Query()["ids"]; present {
+			ids, err := parseRecordIDs(selection)
+			if err != nil || c.QueryParam("parentId") != "" || c.QueryParam("after") != "" || c.QueryParam("depth") != "" {
+				return c.BadRequest(web.Map{"message": "Invalid comment selection."})
+			}
+
+			comments.IDs = ids
+		}
+
 		depth := 1
 		if requested := c.QueryParam("depth"); requested != "" {
 			depth, err = strconv.Atoi(requested)
@@ -135,7 +144,7 @@ func ListDiscussion() web.HandlerFunc {
 			Comments:    comments.Result,
 		}
 
-		if len(response.Comments) > 25 {
+		if len(comments.IDs) == 0 && len(response.Comments) > 25 {
 			response.Comments = response.Comments[:25]
 			last := response.Comments[24]
 			cursor, err := json.Marshal(commentCursor{

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { PublicAd } from "@fider/models"
 import { Fider } from "@fider/services"
+import { RequestError } from "@fider/services/http"
 import { selectAds, type AdSelectRequestSlot } from "@fider/services/actions/sponsorship"
 
 function siteLocale(): string {
@@ -10,77 +11,86 @@ function siteLocale(): string {
 
 export type { AdSelectRequestSlot }
 
-/**
- * Page-owned ad selection. POST /api/ads/select once per distinct slot set.
- * Values: undefined while loading or on load failure; null = no house fill; PublicAd = fill.
- * HTTP failure must NOT map to empty inventory (would wrongly show AdSense) — surface error instead.
- */
+interface AdSelection {
+  scope: string
+  ads: Record<string, PublicAd | null>
+}
+
 export function useAdSelection(slots: AdSelectRequestSlot[]): {
   ads: Record<string, PublicAd | null | undefined>
   loaded: boolean
   error: boolean
+  retry: () => void
 } {
-  const key = useMemo(() => {
-    const norm = slots
-      .filter((s) => s.instanceId && s.placementId)
-      .map((s) => `${s.instanceId}\0${s.placementId}`)
-      .sort()
-    return norm.join("|")
-  }, [slots])
-
-  const slotList = useMemo((): AdSelectRequestSlot[] => {
-    if (!key) return []
-    return key.split("|").map((pair) => {
-      const [instanceId, placementId] = pair.split("\0")
-      return { instanceId, placementId }
-    })
-  }, [key])
-
-  const [ads, setAds] = useState<Record<string, PublicAd | null | undefined>>({})
-  const [loaded, setLoaded] = useState(false)
-  const [error, setError] = useState(false)
+  const locale = siteLocale()
+  const scope = `${Fider.session.tenant.id}:${locale}`
+  const key = JSON.stringify(slots)
+  const requestKey = `${scope}:${key}`
+  // Scrolling a slot out of view must not change its ad.
+  const [selection, setSelection] = useState<AdSelection>({ scope, ads: {} })
+  const [failure, setFailure] = useState<string>()
+  const [attempt, setAttempt] = useState(0)
+  const ads = selection.scope === scope ? selection.ads : {}
+  const complete = slots.every((slot) => ads[slot.instanceId] !== undefined)
+  const error = !complete && failure === requestKey
 
   useEffect(() => {
-    let cancelled = false
-    if (slotList.length === 0) {
-      setAds({})
-      setError(false)
-      setLoaded(true)
-      return
-    }
-    setLoaded(false)
-    setError(false)
-    const pending: Record<string, PublicAd | null | undefined> = {}
-    for (const s of slotList) pending[s.instanceId] = undefined
-    setAds(pending)
-    ;(async () => {
-      const result = await selectAds(slotList, siteLocale())
-      if (cancelled) return
-      if (!result.ok || !result.data) {
-        // Do not coerce failure to null fills — AdSense must not appear on load errors.
-        setError(true)
-        setAds(pending)
-        setLoaded(true)
-        return
-      }
-      const map: Record<string, PublicAd | null> = {}
-      for (const s of slotList) {
-        const v = result.data[s.instanceId]
-        if (v && typeof v === "object" && typeof v.campaignId === "number") {
-          const advertiser = (v.advertiser || "").trim()
-          map[s.instanceId] = advertiser ? v : null // #39
-        } else {
-          map[s.instanceId] = null
-        }
-      }
-      setAds(map)
-      setError(false)
-      setLoaded(true)
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+    const request = new AbortController()
+    const missing = slots.filter((slot) => ads[slot.instanceId] === undefined)
+    setFailure(undefined)
 
-  return { ads, loaded, error }
+    const load = async () => {
+      try {
+        for (let offset = 0; offset < missing.length; offset += 32) {
+          const batch = missing.slice(offset, offset + 32)
+          const result = await selectAds(batch, locale, request.signal)
+
+          if (request.signal.aborted) {
+            return
+          }
+
+          if (!result.ok) {
+            setFailure(requestKey)
+            return
+          }
+
+          const received: Record<string, PublicAd | null> = {}
+          for (const slot of batch) {
+            const ad = result.data[slot.instanceId]
+
+            if (ad === undefined) {
+              throw new RequestError("POST", "/api/ads/select", "response", new Error(`Ad selection omitted ${slot.instanceId}`))
+            }
+
+            received[slot.instanceId] = ad
+          }
+
+          setSelection((previous) => ({
+            scope,
+            ads: { ...(previous.scope === scope ? previous.ads : {}), ...received },
+          }))
+        }
+      } catch (cause) {
+        if (request.signal.aborted) {
+          return
+        }
+
+        if (!(cause instanceof RequestError)) {
+          throw cause
+        }
+
+        setFailure(requestKey)
+      }
+    }
+
+    void load()
+    return () => request.abort()
+  }, [scope, key, attempt])
+
+  return {
+    ads,
+    loaded: complete || error,
+    error,
+    retry: () => setAttempt((previous) => previous + 1),
+  }
 }

@@ -20,11 +20,11 @@ export const DuplicateSearchPanel: React.FC<DuplicateSearchPanelProps> = ({
 }) => {
   return (
     <>
-      <div 
-        className="fixed inset-0 bg-black/50 z-1200 animate-[fadeIn_0.2s_ease]" 
-        onClick={onCancel} 
+      <div
+        className="fixed inset-0 bg-black/50 z-1200 animate-[fadeIn_120ms_var(--ease-out)]"
+        onClick={onCancel}
       />
-      <div className="fixed top-0 right-0 bottom-0 w-full max-w-[600px] z-1201 bg-elevated shadow-xl overflow-y-auto animate-[slideInFromRight_0.2s_ease] max-sm:max-w-full max-sm:left-0">
+      <div className="fixed top-0 right-0 bottom-0 w-full max-w-[600px] z-1201 bg-elevated shadow-xl overflow-y-auto animate-[slideInFromRight_160ms_var(--ease-out)] max-sm:max-w-full max-sm:left-0">
         {isLoading ? (
           <div className="flex items-center justify-center h-full min-h-[300px]">
             <Loader />

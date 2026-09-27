@@ -25,6 +25,8 @@ interface DiscussionCommentCardProps {
   images: boolean
   collapsed: boolean
   highlighted: boolean
+  entering: boolean
+  onEntered: (id: number) => void
   interaction?: CommentInteraction
   onCreated: (comment: DiscussionComment) => void
   onChanged: (comment: DiscussionComment, change: CommentChange) => void
@@ -104,7 +106,8 @@ export const DiscussionCommentCard = React.memo(function DiscussionCommentCard(p
   return (
     <article
       id={`comment-${comment.id}`}
-      className={`discussion-comment ${props.highlighted ? "highlighted-comment" : ""}`}
+      className={`discussion-comment ${props.highlighted ? "highlighted-comment" : ""} ${props.entering ? "comment-enter" : ""}`}
+      onAnimationEnd={props.entering ? (event) => event.target === event.currentTarget && event.animationName === "comment-tint" && props.onEntered(comment.id) : undefined}
       aria-label={`Comment ${comment.id}`}
     >
       <div className="flex items-center gap-2 min-w-0">

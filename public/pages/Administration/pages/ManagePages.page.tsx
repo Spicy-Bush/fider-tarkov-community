@@ -1,4 +1,5 @@
 import React, { useState } from "react"
+import { Tabs, TabPanels } from "@fider/components/common/Tabs"
 import { Page, PageTopic, PageTag } from "@fider/models"
 import { Button, Input, Modal, Icon } from "@fider/components"
 import { HStack, VStack } from "@fider/components/layout"
@@ -13,6 +14,7 @@ interface ManagePagesProps {
 }
 
 type Tab = "pages" | "configuration"
+const PAGE_TABS: Tab[] = ["pages", "configuration"]
 
 const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initialTags }: ManagePagesProps) => {
   const [activeTab, setActiveTab] = useState<Tab>("pages")
@@ -144,10 +146,10 @@ const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initial
     return classes[status as keyof typeof classes] || classes.draft
   }
 
-  const tabClass = (tab: Tab) =>
+  const tabClass = (selected: boolean) =>
     `px-4 py-2 text-sm font-medium cursor-pointer border-b-2 transition-colors ${
-      activeTab === tab
-        ? "border-primary text-primary"
+      selected
+        ? "border-transparent text-primary"
         : "border-transparent text-muted hover:text-foreground hover:border-border"
     }`
 
@@ -162,197 +164,206 @@ const ManagePages = ({ pages: initialPages, topics: initialTopics, tags: initial
         )}
       </div>
 
-      <div className="flex border-b border-border mb-6">
-        <button className={tabClass("pages")} onClick={() => setActiveTab("pages")}>
-          Pages
-        </button>
-        <button className={tabClass("configuration")} onClick={() => setActiveTab("configuration")}>
-          Configuration
-        </button>
-      </div>
+      <Tabs
+        tabs={[
+          { value: "pages", label: "Pages" },
+          { value: "configuration", label: "Configuration" },
+        ]}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        className="mb-6"
+        listClassName="flex border-b border-border"
+        tabClassName={tabClass}
+      />
 
-      {activeTab === "pages" && (
-        <>
-          <div className="mb-6">
-            <input
-              type="text"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Filter pages..."
-              className="w-full px-4 py-2 bg-elevated border border-border rounded-input text-foreground"
-            />
-          </div>
+      <TabPanels keys={PAGE_TABS} activeKey={activeTab}>
+        {(tab) => (
+          <>
+            {tab === "pages" && (
+            <>
+              <div className="mb-6">
+                <input
+                  type="text"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Filter pages..."
+                  className="w-full px-4 py-2 bg-elevated border border-border rounded-input text-foreground"
+                />
+              </div>
 
-          <div className="hidden md:block bg-elevated border border-border rounded-panel overflow-hidden">
-            <table className="min-w-full">
-              <thead className="bg-tertiary">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">
-                    Title
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">
-                    Visibility
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">
-                    Updated
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+              <div className="hidden md:block bg-elevated border border-border rounded-panel overflow-hidden">
+                <table className="min-w-full">
+                  <thead className="bg-tertiary">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">
+                        Title
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">
+                        Visibility
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">
+                        Updated
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filteredPages.map((page) => (
+                      <tr key={page.id} className="hover:bg-tertiary">
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-foreground">{page.title}</div>
+                          <div className="text-sm text-muted">{page.slug}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`px-2 py-1 text-xs font-semibold rounded-badge border ${getStatusBadge(
+                              page.status
+                            )}`}
+                          >
+                            {page.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-muted">
+                          {page.visibility}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-muted">
+                          {new Date(page.updatedAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4">
+                          <HStack spacing={4}>
+                            <a href={`/admin/pages/edit/${page.id}`} className="text-link">
+                              Edit
+                            </a>
+                            <a href={`/pages/${page.slug}`} className="text-link" target="_blank">
+                              View
+                            </a>
+                            <button
+                              onClick={() => handleDelete(page.id)}
+                              className="text-danger hover:text-danger-dark cursor-pointer"
+                            >
+                              Delete
+                            </button>
+                          </HStack>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="md:hidden space-y-3">
                 {filteredPages.map((page) => (
-                  <tr key={page.id} className="hover:bg-tertiary">
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-foreground">{page.title}</div>
-                      <div className="text-sm text-muted">{page.slug}</div>
-                    </td>
-                    <td className="px-6 py-4">
+                  <div key={page.id} className="bg-elevated border border-border rounded-card p-4">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-foreground truncate">{page.title}</div>
+                        <div className="text-xs text-muted truncate">{page.slug}</div>
+                      </div>
                       <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-badge border ${getStatusBadge(
+                        className={`px-2 py-1 text-xs font-semibold rounded-badge border shrink-0 ${getStatusBadge(
                           page.status
                         )}`}
                       >
                         {page.status}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-muted">
-                      {page.visibility}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-muted">
-                      {new Date(page.updatedAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <HStack spacing={4}>
-                        <a href={`/admin/pages/edit/${page.id}`} className="text-link">
-                          Edit
-                        </a>
-                        <a href={`/pages/${page.slug}`} className="text-link" target="_blank">
-                          View
-                        </a>
-                        <button
-                          onClick={() => handleDelete(page.id)}
-                          className="text-danger hover:text-danger-dark cursor-pointer"
-                        >
-                          Delete
-                        </button>
-                      </HStack>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="md:hidden space-y-3">
-            {filteredPages.map((page) => (
-              <div key={page.id} className="bg-elevated border border-border rounded-card p-4">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-foreground truncate">{page.title}</div>
-                    <div className="text-xs text-muted truncate">{page.slug}</div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted mb-3">
+                      <span>{page.visibility}</span>
+                      <span>{new Date(page.updatedAt).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center gap-4 pt-3 border-t border-border">
+                      <a href={`/admin/pages/edit/${page.id}`} className="text-sm text-link font-medium">
+                        Edit
+                      </a>
+                      <a href={`/pages/${page.slug}`} className="text-sm text-link" target="_blank">
+                        View
+                      </a>
+                      <button
+                        onClick={() => handleDelete(page.id)}
+                        className="text-sm text-danger hover:text-danger-dark cursor-pointer ml-auto"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                  <span
-                    className={`px-2 py-1 text-xs font-semibold rounded-badge border shrink-0 ${getStatusBadge(
-                      page.status
-                    )}`}
-                  >
-                    {page.status}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs text-muted mb-3">
-                  <span>{page.visibility}</span>
-                  <span>{new Date(page.updatedAt).toLocaleDateString()}</span>
-                </div>
-                <div className="flex items-center gap-4 pt-3 border-t border-border">
-                  <a href={`/admin/pages/edit/${page.id}`} className="text-sm text-link font-medium">
-                    Edit
-                  </a>
-                  <a href={`/pages/${page.slug}`} className="text-sm text-link" target="_blank">
-                    View
-                  </a>
-                  <button
-                    onClick={() => handleDelete(page.id)}
-                    className="text-sm text-danger hover:text-danger-dark cursor-pointer ml-auto"
-                  >
-                    Delete
-                  </button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {filteredPages.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-muted">No pages found</p>
+              {filteredPages.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-muted">No pages found</p>
+                </div>
+              )}
+            </>
+          )}
+
+            {tab === "configuration" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-elevated border border-border rounded-panel p-4">
+                <HStack justify="between" className="mb-4">
+                  <h2 className="text-lg font-semibold">Topics</h2>
+                  <Button size="small" variant="secondary" onClick={() => openTopicModal()}>
+                    <Icon sprite={IconPlus} className="h-4 w-4 mr-1" /> Add
+                  </Button>
+                </HStack>
+                {topics.length === 0 ? (
+                  <p className="text-muted text-sm">No topics created yet</p>
+                ) : (
+                  <VStack spacing={2}>
+                    {topics.map(topic => (
+                      <div key={topic.id} className="flex items-center justify-between p-2 bg-tertiary rounded-card">
+                        <span className="text-sm">{topic.name}</span>
+                        <HStack spacing={2}>
+                          <button onClick={() => openTopicModal(topic)} className="text-muted hover:text-foreground cursor-pointer">
+                            <Icon sprite={IconEdit} className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => handleDeleteTopic(topic.id)} className="text-muted hover:text-danger cursor-pointer">
+                            <Icon sprite={IconTrash} className="h-4 w-4" />
+                          </button>
+                        </HStack>
+                      </div>
+                    ))}
+                  </VStack>
+                )}
+              </div>
+
+              <div className="bg-elevated border border-border rounded-panel p-4">
+                <HStack justify="between" className="mb-4">
+                  <h2 className="text-lg font-semibold">Tags</h2>
+                  <Button size="small" variant="secondary" onClick={() => openTagModal()}>
+                    <Icon sprite={IconPlus} className="h-4 w-4 mr-1" /> Add
+                  </Button>
+                </HStack>
+                {tags.length === 0 ? (
+                  <p className="text-muted text-sm">No tags created yet</p>
+                ) : (
+                  <VStack spacing={2}>
+                    {tags.map(tag => (
+                      <div key={tag.id} className="flex items-center justify-between p-2 bg-tertiary rounded-card">
+                        <span className="text-sm">{tag.name}</span>
+                        <HStack spacing={2}>
+                          <button onClick={() => openTagModal(tag)} className="text-muted hover:text-foreground cursor-pointer">
+                            <Icon sprite={IconEdit} className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => handleDeleteTag(tag.id)} className="text-muted hover:text-danger cursor-pointer">
+                            <Icon sprite={IconTrash} className="h-4 w-4" />
+                          </button>
+                        </HStack>
+                      </div>
+                    ))}
+                  </VStack>
+                )}
+              </div>
             </div>
           )}
-        </>
-      )}
-
-      {activeTab === "configuration" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-elevated border border-border rounded-panel p-4">
-            <HStack justify="between" className="mb-4">
-              <h2 className="text-lg font-semibold">Topics</h2>
-              <Button size="small" variant="secondary" onClick={() => openTopicModal()}>
-                <Icon sprite={IconPlus} className="h-4 w-4 mr-1" /> Add
-              </Button>
-            </HStack>
-            {topics.length === 0 ? (
-              <p className="text-muted text-sm">No topics created yet</p>
-            ) : (
-              <VStack spacing={2}>
-                {topics.map(topic => (
-                  <div key={topic.id} className="flex items-center justify-between p-2 bg-tertiary rounded-card">
-                    <span className="text-sm">{topic.name}</span>
-                    <HStack spacing={2}>
-                      <button onClick={() => openTopicModal(topic)} className="text-muted hover:text-foreground cursor-pointer">
-                        <Icon sprite={IconEdit} className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => handleDeleteTopic(topic.id)} className="text-muted hover:text-danger cursor-pointer">
-                        <Icon sprite={IconTrash} className="h-4 w-4" />
-                      </button>
-                    </HStack>
-                  </div>
-                ))}
-              </VStack>
-            )}
-          </div>
-
-          <div className="bg-elevated border border-border rounded-panel p-4">
-            <HStack justify="between" className="mb-4">
-              <h2 className="text-lg font-semibold">Tags</h2>
-              <Button size="small" variant="secondary" onClick={() => openTagModal()}>
-                <Icon sprite={IconPlus} className="h-4 w-4 mr-1" /> Add
-              </Button>
-            </HStack>
-            {tags.length === 0 ? (
-              <p className="text-muted text-sm">No tags created yet</p>
-            ) : (
-              <VStack spacing={2}>
-                {tags.map(tag => (
-                  <div key={tag.id} className="flex items-center justify-between p-2 bg-tertiary rounded-card">
-                    <span className="text-sm">{tag.name}</span>
-                    <HStack spacing={2}>
-                      <button onClick={() => openTagModal(tag)} className="text-muted hover:text-foreground cursor-pointer">
-                        <Icon sprite={IconEdit} className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => handleDeleteTag(tag.id)} className="text-muted hover:text-danger cursor-pointer">
-                        <Icon sprite={IconTrash} className="h-4 w-4" />
-                      </button>
-                    </HStack>
-                  </div>
-                ))}
-              </VStack>
-            )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </TabPanels>
 
       <Modal.Window isOpen={showTopicModal} onClose={() => setShowTopicModal(false)}>
         <Modal.Header>

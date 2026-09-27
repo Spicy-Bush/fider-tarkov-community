@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react"
+import { Tabs, TabPanels } from "@fider/components/common/Tabs"
 import { 
   Button, 
   Form, 
@@ -27,6 +28,7 @@ export const pageConfig: PageConfig = {
 }
 
 type TabType = "canned" | "reasons"
+const RESPONSE_TABS: TabType[] = ["canned", "reasons"]
 
 const DEFAULT_RESPONSE_TYPES = ["warning", "mute"]
 
@@ -364,174 +366,183 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
     label: type.charAt(0).toUpperCase() + type.slice(1)
   })), [safeTypes])
 
-  const tabClass = (tab: TabType) => classSet({
+  const tabClass = (selected: boolean) => classSet({
     "px-4 py-2 font-medium cursor-pointer border-b-2 transition-colors": true,
-    "border-primary-base text-primary-base": activeTab === tab,
-    "border-transparent text-muted hover:text-foreground": activeTab !== tab,
+    "border-transparent text-primary": selected,
+    "border-transparent text-muted hover:text-foreground": !selected,
   })
 
   return (
     <div className="p-4 rounded">
-      <div className="flex border-b mb-4">
-        <button className={tabClass("canned")} onClick={() => setActiveTab("canned")}>
-          Canned Responses
-        </button>
-        <button className={tabClass("reasons")} onClick={() => setActiveTab("reasons")}>
-          Report Reasons
-        </button>
-      </div>
+      <Tabs
+        tabs={[
+          { value: "canned", label: "Canned Responses" },
+          { value: "reasons", label: "Report Reasons" },
+        ]}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        className="mb-4"
+        listClassName="flex border-b"
+        tabClassName={tabClass}
+      />
 
-      {activeTab === "canned" && (
-        <>
-          <div className="flex justify-between items-center mb-4">
-            <HStack spacing={2}>
-              <span className="font-medium whitespace-nowrap">Response Type:</span>
-              <Select
-                field="type"
-                value={selectedType}
-                options={typeOptions}
-                onChange={handleTypeChange}
-              />
-            </HStack>
-            <Button variant="primary" onClick={openCreateEditor}>
-              <HStack spacing={2}>
-                <Icon sprite={IconPlus} />
-                <span><Trans id="action.new">New</Trans></span>
-              </HStack>
-            </Button>
-          </div>
+      <TabPanels keys={RESPONSE_TABS} activeKey={activeTab}>
+        {(tab) => (
+          <>
+            {tab === "canned" && (
+            <>
+              <div className="flex justify-between items-center mb-4">
+                <HStack spacing={2}>
+                  <span className="font-medium whitespace-nowrap">Response Type:</span>
+                  <Select
+                    field="type"
+                    value={selectedType}
+                    options={typeOptions}
+                    onChange={handleTypeChange}
+                  />
+                </HStack>
+                <Button variant="primary" onClick={openCreateEditor}>
+                  <HStack spacing={2}>
+                    <Icon sprite={IconPlus} />
+                    <span><Trans id="action.new">New</Trans></span>
+                  </HStack>
+                </Button>
+              </div>
 
-          {isLoading ? (
-            <div className="py-8 text-center">
-              <Loader />
-            </div>
-          ) : error ? (
-            <div className="py-4 text-danger">{error}</div>
-          ) : responses.length === 0 ? (
-            <div className="py-8 text-center text-muted">
-              <p><Trans id="responses.empty">No responses found. Click the "New" button to create one.</Trans></p>
-            </div>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left p-2"><Trans id="responses.table.title">Title</Trans></th>
-                  <th className="text-left p-2"><Trans id="responses.table.content">Content</Trans></th>
-                  <th className="text-left p-2"><Trans id="responses.table.duration">Duration</Trans></th>
-                  <th className="text-center p-2"><Trans id="responses.table.actions">Actions</Trans></th>
-                </tr>
-              </thead>
-              <tbody>
-                {responses.map(response => (
-                  <tr key={response.id} className="border-b">
-                    <td className="p-2">{response.title}</td>
-                    <td className="p-2">
-                      <div className="truncate max-w-md">{response.content}</div>
-                    </td>
-                    <td className="p-2">{response.duration || "-"}</td>
-                    <td className="p-2 text-center">
-                      <Button 
-                        variant="secondary" 
-                        size="small" 
-                        onClick={() => openEditEditor(response)}
-                      >
-                        <Icon sprite={IconEdit} className="h-4" />
-                      </Button>
-                      <Button 
-                        variant="danger" 
-                        size="small" 
-                        className="ml-2"
-                        onClick={() => confirmDelete(response.id)}
-                      >
-                        <Icon sprite={IconTrash} className="h-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              {isLoading ? (
+                <div className="py-8 text-center">
+                  <Loader />
+                </div>
+              ) : error ? (
+                <div className="py-4 text-danger">{error}</div>
+              ) : responses.length === 0 ? (
+                <div className="py-8 text-center text-muted">
+                  <p><Trans id="responses.empty">No responses found. Click the "New" button to create one.</Trans></p>
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2"><Trans id="responses.table.title">Title</Trans></th>
+                      <th className="text-left p-2"><Trans id="responses.table.content">Content</Trans></th>
+                      <th className="text-left p-2"><Trans id="responses.table.duration">Duration</Trans></th>
+                      <th className="text-center p-2"><Trans id="responses.table.actions">Actions</Trans></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {responses.map(response => (
+                      <tr key={response.id} className="border-b">
+                        <td className="p-2">{response.title}</td>
+                        <td className="p-2">
+                          <div className="truncate max-w-md">{response.content}</div>
+                        </td>
+                        <td className="p-2">{response.duration || "-"}</td>
+                        <td className="p-2 text-center">
+                          <Button
+                            variant="secondary"
+                            size="small"
+                            onClick={() => openEditEditor(response)}
+                          >
+                            <Icon sprite={IconEdit} className="h-4" />
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="small"
+                            className="ml-2"
+                            onClick={() => confirmDelete(response.id)}
+                          >
+                            <Icon sprite={IconTrash} className="h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
           )}
-        </>
-      )}
 
-      {activeTab === "reasons" && (
-        <>
-          <div className="flex justify-between items-center mb-4">
-            <span className="font-medium">Report Reasons</span>
-            <Button variant="primary" onClick={openCreateReasonEditor}>
-              <HStack spacing={2}>
-                <Icon sprite={IconPlus} />
-                <span><Trans id="action.new">New</Trans></span>
-              </HStack>
-            </Button>
-          </div>
+            {tab === "reasons" && (
+            <>
+              <div className="flex justify-between items-center mb-4">
+                <span className="font-medium">Report Reasons</span>
+                <Button variant="primary" onClick={openCreateReasonEditor}>
+                  <HStack spacing={2}>
+                    <Icon sprite={IconPlus} />
+                    <span><Trans id="action.new">New</Trans></span>
+                  </HStack>
+                </Button>
+              </div>
 
-          {isLoadingReasons ? (
-            <div className="py-8 text-center">
-              <Loader />
-            </div>
-          ) : reasonsError ? (
-            <div className="py-4 text-danger">{reasonsError}</div>
-          ) : reasons.length === 0 ? (
-            <div className="py-8 text-center text-muted">
-              <p><Trans id="reportReasons.empty">No report reasons found. Click the "New" button to create one.</Trans></p>
-            </div>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="w-10 p-2"></th>
-                  <th className="text-left p-2"><Trans id="reportReasons.table.title">Title</Trans></th>
-                  <th className="text-left p-2"><Trans id="reportReasons.table.description">Description</Trans></th>
-                  <th className="text-center p-2"><Trans id="reportReasons.table.status">Status</Trans></th>
-                  <th className="text-center p-2"><Trans id="reportReasons.table.actions">Actions</Trans></th>
-                </tr>
-              </thead>
-              <tbody>
-                {reasons.map((reason, index) => (
-                  <tr
-                    key={reason.id}
-                    draggable
-                    onDragStart={(e) => handleReasonDragStart(e, index)}
-                    onDragOver={(e) => handleReasonDragOver(e, index)}
-                    onDragLeave={handleReasonDragLeave}
-                    onDrop={(e) => handleReasonDrop(e, index)}
-                    onDragEnd={handleReasonDragEnd}
-                    className={classSet({
-                      "border-b transition-colors": true,
-                      "opacity-50": !reason.isActive,
-                      "opacity-40": draggedReasonIndex === index,
-                      "border-t-2 border-t-primary-base": dragOverReasonIndex === index && draggedReasonIndex !== null && draggedReasonIndex > index,
-                      "border-b-2 border-b-primary-base": dragOverReasonIndex === index && draggedReasonIndex !== null && draggedReasonIndex < index,
-                    })}
-                  >
-                    <td className="p-2 cursor-grab active:cursor-grabbing">
-                      <Icon sprite={IconMenu} className="h-4 w-4 text-subtle" />
-                    </td>
-                    <td className="p-2">{reason.title}</td>
-                    <td className="p-2">
-                      <div className="truncate max-w-md">{reason.description || "-"}</div>
-                    </td>
-                    <td className="p-2 text-center">
-                      <span className={`px-2 py-1 rounded text-xs ${reason.isActive ? "bg-success-light text-success" : "bg-surface-alt text-muted"}`}>
-                        {reason.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="p-2 text-center">
-                      <Button variant="secondary" size="small" onClick={() => openEditReasonEditor(reason)}>
-                        <Icon sprite={IconEdit} className="h-4" />
-                      </Button>
-                      <Button variant="danger" size="small" className="ml-2" onClick={() => confirmDeleteReason(reason.id)}>
-                        <Icon sprite={IconTrash} className="h-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              {isLoadingReasons ? (
+                <div className="py-8 text-center">
+                  <Loader />
+                </div>
+              ) : reasonsError ? (
+                <div className="py-4 text-danger">{reasonsError}</div>
+              ) : reasons.length === 0 ? (
+                <div className="py-8 text-center text-muted">
+                  <p><Trans id="reportReasons.empty">No report reasons found. Click the "New" button to create one.</Trans></p>
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="w-10 p-2"></th>
+                      <th className="text-left p-2"><Trans id="reportReasons.table.title">Title</Trans></th>
+                      <th className="text-left p-2"><Trans id="reportReasons.table.description">Description</Trans></th>
+                      <th className="text-center p-2"><Trans id="reportReasons.table.status">Status</Trans></th>
+                      <th className="text-center p-2"><Trans id="reportReasons.table.actions">Actions</Trans></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reasons.map((reason, index) => (
+                      <tr
+                        key={reason.id}
+                        draggable
+                        onDragStart={(e) => handleReasonDragStart(e, index)}
+                        onDragOver={(e) => handleReasonDragOver(e, index)}
+                        onDragLeave={handleReasonDragLeave}
+                        onDrop={(e) => handleReasonDrop(e, index)}
+                        onDragEnd={handleReasonDragEnd}
+                        className={classSet({
+                          "border-b transition-colors": true,
+                          "opacity-50": !reason.isActive,
+                          "opacity-40": draggedReasonIndex === index,
+                          "border-t-2 border-t-primary-base": dragOverReasonIndex === index && draggedReasonIndex !== null && draggedReasonIndex > index,
+                          "border-b-2 border-b-primary-base": dragOverReasonIndex === index && draggedReasonIndex !== null && draggedReasonIndex < index,
+                        })}
+                      >
+                        <td className="p-2 cursor-grab active:cursor-grabbing">
+                          <Icon sprite={IconMenu} className="h-4 w-4 text-subtle" />
+                        </td>
+                        <td className="p-2">{reason.title}</td>
+                        <td className="p-2">
+                          <div className="truncate max-w-md">{reason.description || "-"}</div>
+                        </td>
+                        <td className="p-2 text-center">
+                          <span className={`px-2 py-1 rounded text-xs ${reason.isActive ? "bg-success-light text-success" : "bg-surface-alt text-muted"}`}>
+                            {reason.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td className="p-2 text-center">
+                          <Button variant="secondary" size="small" onClick={() => openEditReasonEditor(reason)}>
+                            <Icon sprite={IconEdit} className="h-4" />
+                          </Button>
+                          <Button variant="danger" size="small" className="ml-2" onClick={() => confirmDeleteReason(reason.id)}>
+                            <Icon sprite={IconTrash} className="h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
           )}
-        </>
-      )}
+          </>
+        )}
+      </TabPanels>
 
       <Modal.Window 
         isOpen={editorState.isOpen} 

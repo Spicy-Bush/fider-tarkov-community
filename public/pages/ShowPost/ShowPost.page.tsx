@@ -109,8 +109,6 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
 
   const handleScrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" })
-    document.documentElement.scrollTo({ top: 0, behavior: "smooth" })
-    document.body.scrollTo({ top: 0, behavior: "smooth" })
   }, [])
 
   const saveChanges = useCallback(async () => {
@@ -178,7 +176,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
     <>
       <div id="p-show-post" className="page container overflow-hidden">
         <div className="lg:grid lg:gap-6 lg:grid-cols-[2fr_6fr_1fr] lg:grid-rows-[auto] lg:items-start">
-          <div className="mb-4 lg:col-start-2 lg:col-end-3 lg:row-start-1 min-w-0 bg-border tag-clipped p-px self-start">
+          <div className="vt-panel mb-4 lg:col-start-2 lg:col-end-3 lg:row-start-1 min-w-0 bg-border tag-clipped p-px self-start">
             <div className="p-4 bg-elevated tag-clipped-inner wrap-anywhere">
               <VStack spacing={8}>
                 <HStack justify="between">
@@ -284,7 +282,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                     </Form>
                   ) : (
                     <>
-                      <h1 className="text-large">{props.post.title}</h1>
+                      <h1 className="text-large" data-morph={`post-${props.post.number}`}>{props.post.title}</h1>
                       {isPostLocked(props.post) && <LockStatus post={props.post} />}
                       {isPostArchived(props.post) && <ArchiveStatus post={props.post} />}
                       {isPostHidden(props.post) && <HiddenStatus post={props.post} />}
@@ -375,7 +373,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
               </div>
             </div>
           </div>
-          <div className="lg:col-start-1 lg:col-end-2 lg:row-start-1 min-w-0 bg-elevated rounded-panel p-4 h-fit">
+          <div className="vt-aside lg:col-start-1 lg:col-end-2 lg:row-start-1 min-w-0 bg-elevated rounded-panel p-4 h-fit">
             <VotesPanel post={props.post} votes={props.votes} />
           </div>
         </div>

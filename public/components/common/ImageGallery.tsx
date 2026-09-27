@@ -4,21 +4,32 @@ import { uploadedImageURL, classSet } from "@fider/services"
 import { Icon } from "@fider/components"
 import { useBodyScrollLock } from "@fider/hooks/useBodyScrollLock"
 import { heroiconsChevronUp as IconChevron, heroiconsX as IconClose } from "@fider/icons.generated"
+import { ImageUpload } from "@fider/models"
 
-interface ImageGalleryProps {
-  bkeys: string[]
-}
+type ImageGalleryProps = { bkeys: string[] } | { uploads: ImageUpload[] }
 
-export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
+export const ImageGallery: React.FC<ImageGalleryProps> = (props) => {
+  const images = "uploads" in props
+    ? props.uploads.filter((image) => !image.remove)
+    : props.bkeys
+
   const [showModal, setShowModal] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [loaded, setLoaded] = useState(false)
+  const [loadedSource, setLoadedSource] = useState<string>()
 
   useBodyScrollLock(showModal)
 
+  const imageURL = (image: string | ImageUpload, size: number) => {
+    if (typeof image !== "string" && image.upload) {
+      return `data:${image.upload.contentType};base64,${image.upload.content}`
+    }
+
+    return uploadedImageURL(typeof image === "string" ? image : image.bkey, size)
+  }
+
   const openModal = (index: number) => {
     setCurrentIndex(index)
-    setLoaded(false)
+    setLoadedSource(undefined)
     setShowModal(true)
   }
 
@@ -27,14 +38,12 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
   }
 
   const goToNext = useCallback(() => {
-    setLoaded(false)
-    setCurrentIndex((prev) => (prev + 1) % bkeys.length)
-  }, [bkeys.length])
+    setCurrentIndex((prev) => (prev + 1) % images.length)
+  }, [images.length])
 
   const goToPrevious = useCallback(() => {
-    setLoaded(false)
-    setCurrentIndex((prev) => (prev - 1 + bkeys.length) % bkeys.length)
-  }, [bkeys.length])
+    setCurrentIndex((prev) => (prev - 1 + images.length) % images.length)
+  }, [images.length])
 
   useEffect(() => {
     if (!showModal) {
@@ -51,7 +60,13 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [showModal, goToNext, goToPrevious])
 
-  const isSingleImage = bkeys.length === 1
+  if (images.length === 0) {
+    return null
+  }
+
+  const isSingleImage = images.length === 1
+  const currentSource = showModal ? imageURL(images[currentIndex], 1500) : undefined
+  const loaded = loadedSource === currentSource
 
   return (
     <>
@@ -62,7 +77,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
             onClick={() => openModal(0)}
           >
             <img 
-              src={uploadedImageURL(bkeys[0], 200)} 
+              src={imageURL(images[0], 200)}
               alt="" 
               loading="lazy"
               className="w-full h-auto max-h-[180px] object-cover transition-transform duration-75 hover:scale-[1.02]"
@@ -70,21 +85,21 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
           </div>
         ) : (
           <div className="flex flex-wrap gap-1.5">
-            {bkeys.slice(0, 4).map((bkey, index) => (
+            {images.slice(0, 4).map((image, index) => (
               <div 
-                key={`${bkey}-${index}`} 
+                key={index}
                 className="relative cursor-pointer overflow-hidden rounded-card w-[80px] h-[80px]"
                 onClick={() => openModal(index)}
               >
                 <img 
-                  src={uploadedImageURL(bkey, 100)} 
+                  src={imageURL(image, 100)}
                   alt="" 
                   loading="lazy"
                   className="w-full h-full object-cover transition-transform duration-75 hover:scale-105"
                 />
-                {bkeys.length > 4 && index === 3 && (
+                {images.length > 4 && index === 3 && (
                   <div className="absolute inset-0 bg-black/60 text-white flex items-center justify-center text-lg font-bold">
-                    +{bkeys.length - 4}
+                    +{images.length - 4}
                   </div>
                 )}
               </div>
@@ -105,7 +120,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
             <Icon sprite={IconClose} className="w-6 h-6" />
           </button>
 
-          {bkeys.length > 1 && (
+          {images.length > 1 && (
             <>
               <button
                 className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer border-0 transition-colors"
@@ -132,9 +147,9 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
               </div>
             )}
             <img 
-              src={uploadedImageURL(bkeys[currentIndex], 1500)}
+              src={currentSource}
               alt=""
-              onLoad={() => setLoaded(true)}
+              onLoad={() => setLoadedSource(currentSource)}
               className={classSet({
                 "max-w-full max-h-[85vh] object-contain rounded-panel transition-opacity duration-75": true,
                 "opacity-0": !loaded,
@@ -143,9 +158,9 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ bkeys }) => {
             />
           </div>
 
-          {bkeys.length > 1 && (
+          {images.length > 1 && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/80 text-sm font-medium">
-              {currentIndex + 1} / {bkeys.length}
+              {currentIndex + 1} / {images.length}
             </div>
           )}
         </div>,

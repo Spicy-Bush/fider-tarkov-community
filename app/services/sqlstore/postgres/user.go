@@ -36,20 +36,26 @@ type dbUserProvider struct {
 	UID  sql.NullString `db:"provider_uid"`
 }
 
-// dbUserWarning represents a user warning in the database
-type dbUserWarning struct {
+type dbStandingEntry struct {
 	ID        int          `db:"id"`
 	Reason    string       `db:"reason"`
 	CreatedAt time.Time    `db:"created_at"`
 	ExpiresAt sql.NullTime `db:"expires_at"`
+	IsActive  bool         `db:"is_active"`
 }
 
-// dbUserMute represents a user mute in the database
-type dbUserMute struct {
-	ID        int          `db:"id"`
-	Reason    string       `db:"reason"`
-	CreatedAt time.Time    `db:"created_at"`
-	ExpiresAt sql.NullTime `db:"expires_at"`
+func (entry *dbStandingEntry) toModel() dto.UserStandingEntry {
+	result := dto.UserStandingEntry{
+		ID:        entry.ID,
+		Reason:    entry.Reason,
+		CreatedAt: entry.CreatedAt,
+		IsActive:  entry.IsActive,
+	}
+	if entry.ExpiresAt.Valid {
+		result.ExpiresAt = &entry.ExpiresAt.Time
+	}
+
+	return result
 }
 
 // dbUserPost represents a post in the database for user content search
@@ -627,10 +633,10 @@ func getUserProfileStats(ctx context.Context, q *query.GetUserProfileStats) erro
 
 func getUserProfileStanding(ctx context.Context, q *query.GetUserProfileStanding) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		// Get warnings
-		var warnings []*dbUserWarning
+		var warnings []*dbStandingEntry
 		err := trx.Select(&warnings, `
-			SELECT id, reason, created_at, expires_at 
+			SELECT id, reason, created_at, expires_at,
+			       (expires_at IS NULL OR expires_at > NOW()) AS is_active
 			FROM user_warnings 
 			WHERE user_id = $1 AND tenant_id = $2
 			ORDER BY created_at DESC
@@ -639,35 +645,15 @@ func getUserProfileStanding(ctx context.Context, q *query.GetUserProfileStanding
 			return errors.Wrap(err, "failed to get user warnings")
 		}
 
-		q.Result.Warnings = make([]struct {
-			ID        int        `json:"id"`
-			Reason    string     `json:"reason"`
-			CreatedAt time.Time  `json:"createdAt"`
-			ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-		}, len(warnings))
-
-		for i, w := range warnings {
-			var expiresAt *time.Time
-			if w.ExpiresAt.Valid {
-				expiresAt = &w.ExpiresAt.Time
-			}
-			q.Result.Warnings[i] = struct {
-				ID        int        `json:"id"`
-				Reason    string     `json:"reason"`
-				CreatedAt time.Time  `json:"createdAt"`
-				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-			}{
-				ID:        w.ID,
-				Reason:    w.Reason,
-				CreatedAt: w.CreatedAt,
-				ExpiresAt: expiresAt,
-			}
+		q.Result.Warnings = make([]dto.UserStandingEntry, len(warnings))
+		for i, warning := range warnings {
+			q.Result.Warnings[i] = warning.toModel()
 		}
 
-		// Get mutes
-		var mutes []*dbUserMute
+		var mutes []*dbStandingEntry
 		err = trx.Select(&mutes, `
-			SELECT id, reason, created_at, expires_at 
+			SELECT id, reason, created_at, expires_at,
+			       (expires_at IS NULL OR expires_at > NOW()) AS is_active
 			FROM user_mutes 
 			WHERE user_id = $1 AND tenant_id = $2
 			ORDER BY created_at DESC
@@ -676,29 +662,9 @@ func getUserProfileStanding(ctx context.Context, q *query.GetUserProfileStanding
 			return errors.Wrap(err, "failed to get user mutes")
 		}
 
-		q.Result.Mutes = make([]struct {
-			ID        int        `json:"id"`
-			Reason    string     `json:"reason"`
-			CreatedAt time.Time  `json:"createdAt"`
-			ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-		}, len(mutes))
-
-		for i, m := range mutes {
-			var expiresAt *time.Time
-			if m.ExpiresAt.Valid {
-				expiresAt = &m.ExpiresAt.Time
-			}
-			q.Result.Mutes[i] = struct {
-				ID        int        `json:"id"`
-				Reason    string     `json:"reason"`
-				CreatedAt time.Time  `json:"createdAt"`
-				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-			}{
-				ID:        m.ID,
-				Reason:    m.Reason,
-				CreatedAt: m.CreatedAt,
-				ExpiresAt: expiresAt,
-			}
+		q.Result.Mutes = make([]dto.UserStandingEntry, len(mutes))
+		for i, mute := range mutes {
+			q.Result.Mutes[i] = mute.toModel()
 		}
 
 		return nil

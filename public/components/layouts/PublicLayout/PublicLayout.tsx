@@ -10,7 +10,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
     <div className="min-h-screen flex flex-col">
       <Header />
       <SubheaderBar />
-      <main className="flex-1 pb-24">{children}</main>
+      <main className="flex-1 pb-24 outline-none" tabIndex={-1}>{children}</main>
       <Footer />
     </div>
   )

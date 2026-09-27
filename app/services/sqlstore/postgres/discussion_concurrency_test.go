@@ -50,7 +50,7 @@ func TestDiscussionCreationObservesConcurrentLock(t *testing.T) {
 	for workflowCount(t, `
 		SELECT COUNT(*) FROM pg_stat_activity
 		WHERE datname = current_database() AND wait_event_type = 'Lock'
-		  AND query LIKE '%FROM posts WHERE tenant_id%FOR NO KEY UPDATE'
+		  AND query LIKE '%FOR NO KEY UPDATE'
 	`) == 0 {
 		select {
 		case err := <-completed:
@@ -177,7 +177,7 @@ func TestDiscussionConcurrentArchivedCreation(t *testing.T) {
                     WHERE datname = current_database() AND wait_event_type = 'Lock'
                       AND (query LIKE '%INSERT INTO comments%'
                            OR query LIKE '%SELECT pg_advisory_xact_lock(hashtextextended%'
-                           OR query LIKE '%FROM posts WHERE tenant_id%FOR NO KEY UPDATE')
+                           OR query LIKE '%FOR NO KEY UPDATE')
                 `)
 				if waiting >= 2 {
 					break

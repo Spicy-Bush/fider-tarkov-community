@@ -189,6 +189,10 @@ func getSortExpression(view string) (sort string, sortDir string) {
 
 // getStatusFilters will return the status filters for a given view
 func getStatusFilters(view string, providedStatuses []enum.PostStatus) []enum.PostStatus {
+	if len(providedStatuses) > 0 {
+		return providedStatuses
+	}
+
 	switch view {
 	case "planned":
 		return []enum.PostStatus{enum.PostPlanned}
@@ -207,9 +211,6 @@ func getStatusFilters(view string, providedStatuses []enum.PostStatus) []enum.Po
 			enum.PostDeclined,
 		}
 	default:
-		if len(providedStatuses) > 0 {
-			return providedStatuses
-		}
 		return []enum.PostStatus{
 			enum.PostOpen,
 			enum.PostStarted,
@@ -236,147 +237,99 @@ func getDateInterval(date string) string {
 	}
 }
 
-// buildCTE will constructs the CTE that finds post IDs based on filters
-// it uses different strategies depending on which filters are active
-func buildCTE(q query.SearchPosts, tenantID int, userID int) cteResult {
+func postVisibility(alias string, roleParameter int, userParameter int) string {
+	table := pq.QuoteIdentifier(alias)
+	return fmt.Sprintf(`%s.status <> %d AND (
+		NOT %s.moderation_pending OR %s.user_id = $%d
+		OR $%d IN ('administrator', 'collaborator', 'moderator')
+	)`, table, int(enum.PostDeleted), table, table, userParameter, roleParameter)
+}
+
+func buildCTE(q query.SearchPosts, tenantID int, user *entity.User) cteResult {
 	statuses := getStatusFilters(q.View, q.Statuses)
 	sort, sortDir := getSortExpression(q.View)
+	userID := viewerID(user)
 
-	// base conditions that always apply
+	if q.Query != "" && len(q.Statuses) == 0 {
+		statuses = getStatusFilters("all", nil)
+		if q.View == "make-post" {
+			statuses = append(statuses, enum.PostDuplicate)
+		}
+	}
+
 	conditions := []string{
 		"p.tenant_id = $1",
 		"p.status = ANY($2)",
-		fmt.Sprintf("p.status != %d", int(enum.PostDeleted)),
+		postVisibility("p", 3, 4),
 	}
-	params := []interface{}{tenantID, pq.Array(statuses)}
-	paramIdx := 3
+	params := []interface{}{tenantID, pq.Array(statuses), viewerRole(user), userID}
+	paramIdx := 5
 
-	// date filter
+	if len(q.IDs) > 0 {
+		conditions = append(conditions, fmt.Sprintf("p.id = ANY($%d)", paramIdx))
+		params = append(params, pq.Array(q.IDs))
+		paramIdx++
+	}
+
 	if interval := getDateInterval(q.Date); interval != "" {
 		conditions = append(conditions, fmt.Sprintf("p.created_at >= NOW() - INTERVAL '%s'", interval))
 	}
 
-	// untagged filter
 	if q.Untagged {
 		conditions = append(conditions, "NOT EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id)")
 	}
 
-	// my posts filter
 	if q.MyPostsOnly && userID > 0 {
-		conditions = append(conditions, fmt.Sprintf("p.user_id = $%d", paramIdx))
-		params = append(params, userID)
-		paramIdx++
+		conditions = append(conditions, "p.user_id = $4")
 	}
 
-	// determine the driving strategy based on the filters the user has applied
-	var cteSQL string
+	if q.MyVotesOnly && userID > 0 {
+		conditions = append(conditions, "EXISTS (SELECT 1 FROM post_votes v WHERE v.post_id = p.id AND v.user_id = $4)")
+	}
 
+	if q.NotMyVotes && userID > 0 {
+		conditions = append(conditions, "NOT EXISTS (SELECT 1 FROM post_votes v WHERE v.post_id = p.id AND v.user_id = $4)")
+	}
+
+	tagJoin := ""
 	if len(q.Tags) > 0 {
-		// tags: start from post_tags to leverage index on the tags table
-		tagConditions := make([]string, 0)
-		if q.TagLogic == "AND" {
-			// for AND logic, we need posts that have ALL the specified tags
-			for _, tag := range q.Tags {
-				tagConditions = append(tagConditions, fmt.Sprintf("$%d", paramIdx))
-				params = append(params, tag)
-				paramIdx++
-			}
-			tagFilter := fmt.Sprintf(`
-				SELECT pt.post_id
-				FROM post_tags pt
-				INNER JOIN tags t ON t.id = pt.tag_id AND t.tenant_id = pt.tenant_id
-				WHERE pt.tenant_id = $1 AND t.slug IN (%s)
-				GROUP BY pt.post_id
-				HAVING COUNT(DISTINCT t.slug) = %d
-			`, strings.Join(tagConditions, ","), len(q.Tags))
-
-			cteSQL = fmt.Sprintf(`
-				SELECT p.id, (%s) AS ranking_score
-				FROM posts p
-				INNER JOIN (%s) matching ON matching.post_id = p.id
-				WHERE %s
-				ORDER BY ranking_score %s, p.id DESC
-			`, sort, tagFilter, strings.Join(conditions, " AND "), sortDir)
-		} else {
-			// OR logic . any of the tags
-			params = append(params, pq.Array(q.Tags))
-			tagFilter := fmt.Sprintf(`
-				SELECT DISTINCT pt.post_id
-				FROM post_tags pt
-				INNER JOIN tags t ON t.id = pt.tag_id AND t.tenant_id = pt.tenant_id
-				WHERE pt.tenant_id = $1 AND t.slug = ANY($%d)
-			`, paramIdx)
-			paramIdx++
-
-			cteSQL = fmt.Sprintf(`
-				SELECT p.id, (%s) AS ranking_score
-				FROM posts p
-				INNER JOIN (%s) matching ON matching.post_id = p.id
-				WHERE %s
-				ORDER BY ranking_score %s, p.id DESC
-			`, sort, tagFilter, strings.Join(conditions, " AND "), sortDir)
-		}
-	} else if q.MyVotesOnly && userID > 0 {
-		// when a user is searching for their votes: start from post_votes
-		params = append(params, userID)
-		voteFilter := fmt.Sprintf(`
-			SELECT DISTINCT post_id FROM post_votes WHERE tenant_id = $1 AND user_id = $%d
+		params = append(params, pq.Array(q.Tags))
+		tagFilter := fmt.Sprintf(`
+			SELECT pt.post_id
+			FROM post_tags pt
+			INNER JOIN tags t ON t.id = pt.tag_id AND t.tenant_id = pt.tenant_id
+			WHERE pt.tenant_id = $1 AND t.slug = ANY($%d)
+			GROUP BY pt.post_id
 		`, paramIdx)
-		paramIdx++
 
-		cteSQL = fmt.Sprintf(`
-			SELECT p.id, (%s) AS ranking_score
-			FROM posts p
-			INNER JOIN (%s) my_votes ON my_votes.post_id = p.id
-			WHERE %s
-			ORDER BY ranking_score %s, p.id DESC
-		`, sort, voteFilter, strings.Join(conditions, " AND "), sortDir)
-	} else if q.NotMyVotes && userID > 0 {
-		// anti joining to use NOT EXISTS for "not my votes"
-		params = append(params, userID)
-		conditions = append(conditions, fmt.Sprintf("NOT EXISTS (SELECT 1 FROM post_votes v WHERE v.post_id = p.id AND v.user_id = $%d)", paramIdx))
-		paramIdx++
+		if q.TagLogic == "AND" {
+			tagFilter += fmt.Sprintf(`
+				HAVING COUNT(DISTINCT t.slug) = cardinality($%d::text[])
+			`, paramIdx)
+		}
 
-		cteSQL = fmt.Sprintf(`
-			SELECT p.id, (%s) AS ranking_score
-			FROM posts p
-			WHERE %s
-			ORDER BY ranking_score %s, p.id DESC
-		`, sort, strings.Join(conditions, " AND "), sortDir)
-	} else {
-		// if all other strategies fail, we'll use a dumb posts scan with status filter
-		cteSQL = fmt.Sprintf(`
-			SELECT p.id, (%s) AS ranking_score
-			FROM posts p
-			WHERE %s
-			ORDER BY ranking_score %s, p.id DESC
-		`, sort, strings.Join(conditions, " AND "), sortDir)
+		tagJoin = fmt.Sprintf("INNER JOIN (%s) matching ON matching.post_id = p.id", tagFilter)
 	}
 
-	return cteResult{SQL: cteSQL, Params: params}
-}
-
-// buildTextSearchCTE constructs a CTE for text search queries
-func buildTextSearchCTE(searchQuery string, tenantID int, statuses []enum.PostStatus) cteResult {
-	params := []interface{}{tenantID, pq.Array(statuses), ToTSQuery(searchQuery), SanitizeString(searchQuery)}
+	if q.Query != "" {
+		queryParameter := len(params) + 1
+		textParameter := len(params) + 2
+		params = append(params, ToTSQuery(q.Query), SanitizeString(q.Query))
+		vector := `setweight(to_tsvector('english', COALESCE(p.title, '')), 'A') ||
+			setweight(to_tsvector('english', COALESCE(p.description, '')), 'B')`
+		conditions = append(conditions, fmt.Sprintf("(%s) @@ to_tsquery('english', $%d)", vector, queryParameter))
+		sort = fmt.Sprintf(`ts_rank(%s, to_tsquery('english', $%d)) +
+			similarity(p.title, $%d) + similarity(p.description, $%d)`, vector, queryParameter, textParameter, textParameter)
+		sortDir = "DESC"
+	}
 
 	cteSQL := fmt.Sprintf(`
-		SELECT p.id,
-			ts_rank(
-				setweight(to_tsvector('english', COALESCE(p.title, '')), 'A') || 
-				setweight(to_tsvector('english', COALESCE(p.description, '')), 'B'), 
-				to_tsquery('english', $3)
-			) + similarity(p.title, $4) + similarity(p.description, $4) AS ranking_score
+		SELECT p.id, (%s) AS ranking_score
 		FROM posts p
-		WHERE p.tenant_id = $1 
-		  AND p.status = ANY($2)
-		  AND p.status != %d
-		  AND (
-			setweight(to_tsvector('english', COALESCE(p.title, '')), 'A') || 
-			setweight(to_tsvector('english', COALESCE(p.description, '')), 'B')
-		  ) @@ to_tsquery('english', $3)
-		ORDER BY ranking_score DESC, p.id DESC
-	`, int(enum.PostDeleted))
+		%s
+		WHERE %s
+		ORDER BY ranking_score %s, p.id DESC
+	`, sort, tagJoin, strings.Join(conditions, " AND "), sortDir)
 
 	return cteResult{SQL: cteSQL, Params: params}
 }
@@ -384,13 +337,10 @@ func buildTextSearchCTE(searchQuery string, tenantID int, statuses []enum.PostSt
 // buildHydration constructs the SELECT that fetches all post details
 // it takes a CTE name and produces the full hydration query
 func buildHydration(tenantID int, user *entity.User, cteName string, limit string, offset string, sortDir string, params []interface{}) cteResult {
-	params = append(params, tenantID)
-	tenantParameter := len(params)
-	userParameter := 0
-	if user != nil {
-		params = append(params, user.ID)
-		userParameter = len(params)
-	}
+	params = append(params, tenantID, viewerRole(user), viewerID(user))
+	tenantParameter := len(params) - 2
+	roleParameter := len(params) - 1
+	userParameter := len(params)
 	tagCondition := "AND t.is_public = true"
 	if user != nil && (user.IsCollaborator() || user.IsModerator()) {
 		tagCondition = ""
@@ -408,13 +358,6 @@ func buildHydration(tenantID int, user *entity.User, cteName string, limit strin
 	if user != nil {
 		voteTypeField = fmt.Sprintf("(SELECT vote_type FROM post_votes WHERE post_id = p.id AND user_id = $%d LIMIT 1)", userParameter)
 		voteRevisionField = fmt.Sprintf("COALESCE((SELECT revision FROM post_vote_revisions WHERE post_id = p.id AND user_id = $%d), 0)", userParameter)
-	}
-
-	moderationFilter := ""
-	if user == nil {
-		moderationFilter = "AND p.moderation_pending = FALSE"
-	} else if !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
-		moderationFilter = fmt.Sprintf("AND (p.moderation_pending = FALSE OR p.user_id = $%d)", userParameter)
 	}
 
 	orderClause := ""
@@ -475,10 +418,10 @@ func buildHydration(tenantID int, user *entity.User, cteName string, limit strin
 			p.moderation_pending,
 			p.moderation_data
 		FROM %s tp
-		JOIN visible_posts p ON p.id = tp.id %s
+		JOIN visible_posts p ON p.id = tp.id AND %s
 		INNER JOIN users u ON u.id = p.user_id AND u.tenant_id = $%d
 		LEFT JOIN users r ON r.id = p.response_user_id AND r.tenant_id = $%d
-		LEFT JOIN visible_posts d ON d.id = p.original_id AND d.tenant_id = $%d
+		LEFT JOIN visible_posts d ON d.id = p.original_id AND d.tenant_id = $%d AND %s
 		LEFT JOIN LATERAL (
 			SELECT 
 				ARRAY_REMOVE(ARRAY_AGG(t.slug), NULL) AS tags,
@@ -492,44 +435,17 @@ func buildHydration(tenantID int, user *entity.User, cteName string, limit strin
 		) agg_t ON true
 		%s
 		%s
-	`, tagDatesField, voteTypeField, voteRevisionField, cteName, moderationFilter, tenantParameter, tenantParameter, tenantParameter, tenantParameter, tagCondition, orderClause, limitClause)
+	`, tagDatesField, voteTypeField, voteRevisionField, cteName, postVisibility("p", roleParameter, userParameter), tenantParameter, tenantParameter, tenantParameter, postVisibility("d", roleParameter, userParameter), tenantParameter, tagCondition, orderClause, limitClause)
 	return cteResult{SQL: sql, Params: params}
 }
 
-// this will combine the buildCTE and buildHydration into a complete query to search for posts
 func buildSearchQuery(q query.SearchPosts, tenant *entity.Tenant, user *entity.User) (string, []interface{}) {
-	userID := 0
-	if user != nil {
-		userID = user.ID
-	}
-
-	// get sort direction for the view
 	_, sortDir := getSortExpression(q.View)
-
-	// handle text search separately
 	if q.Query != "" {
-		statuses := []enum.PostStatus{
-			enum.PostOpen,
-			enum.PostStarted,
-			enum.PostPlanned,
-			enum.PostCompleted,
-			enum.PostDeclined,
-		}
-		if q.View == "make-post" {
-			statuses = append(statuses, enum.PostDuplicate)
-		}
-		cte := buildTextSearchCTE(q.Query, tenant.ID, statuses)
-		// text search always uses DESC, naybe we change later
-		hydration := buildHydration(tenant.ID, user, "top_posts", q.Limit, q.Offset, "DESC", cte.Params)
-
-		fullSQL := fmt.Sprintf("WITH top_posts AS (%s LIMIT %s OFFSET %s) %s", cte.SQL, q.Limit, q.Offset, hydration.SQL)
-		return fullSQL, hydration.Params
+		sortDir = "DESC"
 	}
 
-	// build the CTE specifically for non text search queries
-	cte := buildCTE(q, tenant.ID, userID)
-
-	// add LIMIT/OFFSET to the CTE
+	cte := buildCTE(q, tenant.ID, user)
 	cteWithLimit := cte.SQL
 	if q.Limit != "" && q.Limit != "all" {
 		cteWithLimit = fmt.Sprintf("%s LIMIT %s OFFSET %s", cte.SQL, q.Limit, q.Offset)
@@ -1126,9 +1042,9 @@ func bulkArchivePosts(ctx context.Context, c *cmd.BulkArchivePosts) error {
 
 func getArchivablePosts(ctx context.Context, q *query.GetArchivablePosts) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		conditions := []string{"p.tenant_id = $1", "p.status NOT IN ($2, $3)"}
-		args := []interface{}{tenant.ID, int(enum.PostDeleted), int(enum.PostArchived)}
-		argNum := 4
+		conditions := []string{"p.tenant_id = $1", "p.status <> $2", postVisibility("p", 3, 4)}
+		args := []interface{}{tenant.ID, int(enum.PostArchived), viewerRole(user), viewerID(user)}
+		argNum := 5
 
 		if q.CreatedBefore != nil {
 			conditions = append(conditions, fmt.Sprintf("p.created_at < $%d", argNum))

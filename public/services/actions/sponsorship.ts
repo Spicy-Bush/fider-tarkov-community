@@ -80,10 +80,11 @@ export type AdSelectRequestSlot = { instanceId: string; placementId: string }
 /** Page-owned selection. Response keyed by instanceId; missing fills are null. */
 export const selectAds = (
   slots: AdSelectRequestSlot[],
-  locale: string
+  locale: string,
+  signal?: AbortSignal
 ): Promise<Result<Record<string, PublicAd | null>>> => {
   const q = new URLSearchParams({ locale })
-  return http.post(`/api/ads/select?${q.toString()}`, { slots })
+  return http.post(`/api/ads/select?${q.toString()}`, { slots }, { signal, notifyOnError: false })
 }
 
 export const listAdPlacements = (): Promise<Result<AdPlacement[]>> => {

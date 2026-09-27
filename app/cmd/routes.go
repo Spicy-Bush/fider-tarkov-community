@@ -175,6 +175,7 @@ func routes(r *web.Engine) *web.Engine {
 		membersApi.Get("/api/notifications/unread/total", handlers.TotalUnreadNotifications())
 		membersApi.Post("/api/notifications/purge-read", handlers.PurgeReadNotifications())
 		membersApi.Post("/api/notifications/read-all", handlers.ReadAllNotifications())
+		membersApi.Post("/api/notifications/read/:id", handlers.MarkNotificationAsRead())
 
 		// push notifications
 		membersApi.Post("/api/push/subscribe", handlers.SavePushSubscription())

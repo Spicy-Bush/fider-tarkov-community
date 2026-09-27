@@ -338,7 +338,7 @@ func listModerationFailures(ctx context.Context, c *cmd.ListModerationFailures) 
             SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE state = 'failed') AS failed
             FROM moderation_checks
             WHERE tenant_id = $1 AND state IN ('failed', 'pending', 'running')
-              AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))`, tenant.ID, discussionViewerRole(user)); err != nil {
+              AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))`, tenant.ID, viewerRole(user), viewerID(user)); err != nil {
 			return err
 		}
 
@@ -348,7 +348,7 @@ func listModerationFailures(ctx context.Context, c *cmd.ListModerationFailures) 
             FROM moderation_checks
             WHERE tenant_id = $1 AND state IN ('failed', 'pending', 'running')
               AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))
-            ORDER BY (state = 'failed') DESC, updated_at LIMIT 100`, tenant.ID, discussionViewerRole(user))
+            ORDER BY (state = 'failed') DESC, updated_at LIMIT 100`, tenant.ID, viewerRole(user), viewerID(user))
 
 		if err != nil {
 			return err
@@ -377,7 +377,7 @@ func retryModerationFailures(ctx context.Context, c *cmd.RetryModerationFailures
             UPDATE moderation_checks
             SET state = 'pending', attempts = 0, next_attempt_at = NOW(), last_error = '', updated_at = NOW()
             WHERE tenant_id = $1 AND state = 'failed'
-              AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))`, tenant.ID, discussionViewerRole(user))
+              AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))`, tenant.ID, viewerRole(user), viewerID(user))
 		return err
 	})
 }

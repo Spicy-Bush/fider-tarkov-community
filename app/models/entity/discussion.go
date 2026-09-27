@@ -18,18 +18,22 @@ type DiscussionOwner struct {
 type Discussion struct {
 	Owner          DiscussionOwner `json:"owner"`
 	PostStatus     enum.PostStatus `json:"-"`
-	Locked         bool             `json:"-"`
-	PageStatus     PageStatus       `json:"-"`
-	Visibility     PageVisibility   `json:"-"`
-	AllowedRoles   []string         `json:"-"`
-	AllowComments  bool             `json:"-"`
-	AllowImages    bool             `json:"-"`
-	AllowReactions bool             `json:"-"`
+	Locked         bool            `json:"-"`
+	PageStatus     PageStatus      `json:"-"`
+	Visibility     PageVisibility  `json:"-"`
+	AllowedRoles   []string        `json:"-"`
+	AllowComments  bool            `json:"-"`
+	AllowImages    bool            `json:"-"`
+	AllowReactions bool            `json:"-"`
+
+	postAuthorID int
+	postHidden   bool
 }
 
 func PostDiscussion(post *Post) *Discussion {
-	return &Discussion{
+	discussion := &Discussion{
 		PostStatus:     post.Status,
+		postHidden:     post.ModerationPending,
 		Locked:         post.IsLocked(),
 		AllowComments:  true,
 		AllowImages:    true,
@@ -42,6 +46,11 @@ func PostDiscussion(post *Post) *Discussion {
 			URL:    fmt.Sprintf("/posts/%d/%s", post.Number, post.Slug),
 		},
 	}
+	if post.User != nil {
+		discussion.postAuthorID = post.User.ID
+	}
+
+	return discussion
 }
 
 func PageDiscussion(page *Page) *Discussion {
@@ -66,7 +75,14 @@ func (discussion *Discussion) CanView(user *User) bool {
 		return canViewPage(discussion.PageStatus, discussion.Visibility, discussion.AllowedRoles, user)
 	}
 
-	return discussion.PostStatus != enum.PostDeleted
+	if discussion.PostStatus == enum.PostDeleted {
+		return false
+	}
+	if !discussion.postHidden {
+		return true
+	}
+
+	return user != nil && (user.ID == discussion.postAuthorID || user.IsCollaborator() || user.IsModerator())
 }
 
 type DiscussionPermissions struct {

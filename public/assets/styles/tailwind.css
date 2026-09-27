@@ -66,13 +66,14 @@
 html {
   height: 100%;
   box-sizing: border-box;
-  overflow-y: scroll;
+  /* Prevent page shifts when overlays disable scrolling. */
+  scrollbar-gutter: stable;
   scrollbar-color: var(--color-border) transparent;
   scrollbar-width: thin;
 }
 
 body {
-  height: 100%;
+  min-height: 100%;
   box-sizing: border-box;
 }
 
@@ -197,7 +198,8 @@ body {
 body {
   margin: 0;
   padding: 0;
-  overflow-x: hidden;
+  /* Keep the document as the scroll container for history restoration. */
+  overflow-x: clip;
   min-width: 320px;
   font-family: var(--font-family-sans);
   font-size: 16px;
@@ -581,9 +583,30 @@ p:last-child, pre:last-child { margin-bottom: 0; }
   to { background-color: rgba(0, 0, 0, 0.8); }
 }
 @keyframes windowFadeIn {
-  from { transform: scale(0.7); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from { transform: translateY(4px) scale(0.98); opacity: 0; }
+  to { transform: none; opacity: 1; }
 }
+
+.popover-enter {
+  animation: windowFadeIn 140ms var(--ease-out);
+}
+
+/* Match panel and indicator timing so they stay aligned. */
+.tab-indicator-move {
+  transition:
+    transform 220ms var(--ease-out),
+    width 220ms var(--ease-out),
+    height 220ms var(--ease-out);
+}
+.tab-slide-in-next { animation: tab-in-next 220ms var(--ease-out); }
+.tab-slide-in-prev { animation: tab-in-prev 220ms var(--ease-out); }
+.tab-slide-out-next { animation: tab-out-next 220ms var(--ease-out) forwards; }
+.tab-slide-out-prev { animation: tab-out-prev 220ms var(--ease-out) forwards; }
+@keyframes tab-in-next { from { transform: translateX(100%); } }
+@keyframes tab-in-prev { from { transform: translateX(-100%); } }
+@keyframes tab-out-next { to { transform: translateX(-100%); } }
+@keyframes tab-out-prev { to { transform: translateX(100%); } }
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: .5; }
@@ -593,12 +616,12 @@ p:last-child, pre:last-child { margin-bottom: 0; }
   to { opacity: 1; }
 }
 @keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: none; opacity: 1; }
 }
 @keyframes slideInFromRight {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
 }
 
 .skeleton {
@@ -903,4 +926,213 @@ a.vr-Sherpa {
 [class*="role-Helper"],
 .role-Helper {
   color: var(--username-Helpful) !important;
+}
+
+:root {
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+}
+
+#c-header {
+  view-transition-name: site-header;
+}
+::view-transition-group(site-header),
+::view-transition-old(site-header),
+::view-transition-new(site-header) {
+  animation: none;
+}
+::view-transition-old(root) {
+  animation: 60ms var(--ease-in) both vt-fade-out;
+}
+::view-transition-new(root) {
+  animation: 150ms var(--ease-out) both vt-settle-in;
+}
+::view-transition-group(page-hero) {
+  animation-duration: 170ms;
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-old(page-hero),
+::view-transition-new(page-hero) {
+  animation-duration: 170ms;
+  height: 100%;
+}
+/* Panel transitions assume the desktop column order. */
+@media (min-width: 64rem) {
+  .vt-aside { view-transition-name: page-aside; }
+  .vt-panel { view-transition-name: page-panel; }
+}
+::view-transition-group(page-aside),
+::view-transition-group(page-panel) {
+  animation-duration: 170ms;
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-old(page-aside),
+::view-transition-new(page-aside),
+::view-transition-old(page-panel),
+::view-transition-new(page-panel) {
+  width: 100%;
+  height: 100%;
+  object-fit: none;
+  object-position: left top;
+}
+::view-transition-old(page-aside),
+::view-transition-old(page-panel) {
+  animation: 60ms var(--ease-in) both vt-fade-out;
+}
+::view-transition-new(page-aside),
+::view-transition-new(page-panel) {
+  animation: 170ms var(--ease-out) both vt-fade-in;
+}
+@keyframes vt-fade-in {
+  from { opacity: 0; }
+}
+@keyframes vt-fade-out {
+  to { opacity: 0; }
+}
+@keyframes vt-settle-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+.nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 10000;
+  pointer-events: none;
+  background: var(--color-primary);
+  transform-origin: left;
+  opacity: 0;
+  animation:
+    nav-progress-show 0ms 120ms forwards,
+    nav-progress-grow 2s var(--ease-out) 120ms forwards;
+}
+@keyframes nav-progress-show {
+  to { opacity: 1; }
+}
+@keyframes nav-progress-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(0.85); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after,
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  /* Spinners convey that work is in progress; keep them turning. */
+  .animate-spin,
+  .button-loading::after {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+  }
+  .nav-progress {
+    display: none;
+  }
+  .popover-enter {
+    animation: none;
+  }
+}
+
+@keyframes count-roll-up {
+  from { transform: translateY(0.4em); opacity: 0; }
+}
+@keyframes count-roll-down {
+  from { transform: translateY(-0.4em); opacity: 0; }
+}
+.count-roll-up {
+  animation: count-roll-up 140ms var(--ease-out);
+}
+.count-roll-down {
+  animation: count-roll-down 140ms var(--ease-out);
+}
+
+@keyframes vote-pop {
+  40% { transform: scale(1.3); }
+}
+.vote-pop svg {
+  animation: vote-pop 180ms var(--ease-out);
+}
+
+/* Avoid flashing a spinner for quick actions. */
+.button-loading {
+  pointer-events: none;
+  animation: button-loading-label 0s 150ms forwards;
+}
+.button-loading::before,
+.button-loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: -0.625rem 0 0 -0.625rem;
+  border-radius: 9999px;
+  border: 2px solid var(--color-muted);
+  opacity: 0;
+  animation: button-loading-show 0s 150ms forwards;
+}
+.button-loading::after {
+  border-color: white transparent transparent transparent;
+  animation:
+    button-loading-show 0s 150ms forwards,
+    button-loading-spin 1s linear infinite;
+}
+@keyframes button-loading-label {
+  to { color: transparent; opacity: 0.5; }
+}
+@keyframes button-loading-show {
+  to { opacity: 1; }
+}
+@keyframes button-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes comment-enter {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+@keyframes comment-tint {
+  from { background-color: color-mix(in srgb, var(--color-primary) 12%, transparent); }
+}
+.discussion-comment.comment-enter {
+  border-radius: 4px;
+  animation:
+    comment-enter 140ms var(--ease-out),
+    comment-tint 700ms var(--ease-in) both;
+}
+
+.wipe-fill {
+  position: relative;
+  isolation: isolate;
+}
+.wipe-fill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  /* A declared default would override Tailwind's --wipe-color utilities. */
+  background: var(--wipe-color, var(--color-accent-light));
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 200ms var(--ease-out);
+}
+.wipe-fill.is-selected::before {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+.wipe-check {
+  animation: wipe-check-in 200ms var(--ease-out) 60ms backwards;
+}
+@keyframes wipe-check-in {
+  from { opacity: 0; transform: scale(0.5); }
 }

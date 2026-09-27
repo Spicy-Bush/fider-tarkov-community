@@ -1,63 +1,56 @@
 import { createContext } from "react"
-import { CurrentUser, SystemSettings, Tenant, TenantStatus, UserRole } from "@fider/models"
+import { CurrentUser, SystemSettings, Tenant, TenantStatus, UserProfileStanding } from "@fider/models"
 
-const normalizeUserRole = (user: any): CurrentUser | undefined => {
-  if (!user) return undefined
-  
-  const roleMap: Record<number, UserRole> = {
-    1: UserRole.Visitor,
-    2: UserRole.Collaborator,
-    3: UserRole.Administrator,
-    4: UserRole.Moderator,
-    5: UserRole.Helper,
-  }
-  
-  const normalizedRole = typeof user.role === "number" 
-    ? roleMap[user.role] || UserRole.Visitor 
-    : user.role
-  
-  return {
-    ...user,
-    role: normalizedRole,
-  }
+export interface ServerData {
+  title: string
+  description?: string
+  canonicalURL?: string
+  page: string
+  contextID: string
+  props: Record<string, any>
+  tenant: Tenant
+  user?: CurrentUser
+  settings: SystemSettings
 }
 
 export class FiderSession {
-  private pPage: string
-  private pContextID: string
-  private pTenant: Tenant
-  private pUser: CurrentUser | undefined
-  private userListeners = new Set<() => void>()
-  private pProps: { [key: string]: any } = {}
+  private data: ServerData
+  private listeners = new Set<() => void>()
 
-  constructor(data: any) {
-    this.pPage = data.page
-    this.pContextID = data.contextID
-    this.pProps = data.props
-    this.pUser = normalizeUserRole(data.user)
-    this.pTenant = data.tenant
+  constructor(data: ServerData) {
+    this.data = data
   }
 
   public get page(): string {
-    return this.pPage
+    return this.data.page
   }
 
   public get contextID(): string {
-    return this.pContextID
+    return this.data.contextID
   }
 
   public get user(): CurrentUser {
-    if (!this.pUser) throw new Error("User is undefined")
-    return this.pUser
+    if (!this.data.user) throw new Error("User is undefined")
+    return this.data.user
   }
 
-  public getUserSnapshot = (): CurrentUser | undefined => this.pUser
+  public getSnapshot = (): ServerData => this.data
 
-  public subscribeUser = (listener: () => void): (() => void) => {
-    this.userListeners.add(listener)
+  public getUserSnapshot = (): CurrentUser | undefined => this.data.user
+
+  public refresh(data: ServerData): void {
+    this.data = data
+
+    for (const listener of this.listeners) {
+      listener()
+    }
+  }
+
+  public subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
 
     return () => {
-      this.userListeners.delete(listener)
+      this.listeners.delete(listener)
     }
   }
 
@@ -69,53 +62,63 @@ export class FiderSession {
       return
     }
 
-    this.pUser = { ...user, ...change }
+    this.refresh({ ...this.data, user: { ...user, ...change } })
+  }
 
-    for (const listener of this.userListeners) {
-      listener()
-    }
+  public updateUserStanding(standing: UserProfileStanding): void {
+    const warning = standing.warnings.find((entry) => entry.isActive)
+    const mute = standing.mutes.find((entry) => entry.isActive)
+
+    this.refresh({
+      ...this.data,
+      user: {
+        ...this.user,
+        hasWarning: !!warning,
+        latestWarningId: warning?.id,
+        isMuted: !!mute,
+        latestMuteId: mute?.id,
+      },
+    })
   }
 
   public get tenant(): Tenant {
-    return this.pTenant
+    return this.data.tenant
   }
 
   public get props(): { [key: string]: any } {
-    return this.pProps
+    return this.data.props
   }
 
   public get isAuthenticated(): boolean {
-    return !!this.pUser
+    return !!this.data.user
   }
 }
 
 export class FiderImpl {
-  private pSettings!: SystemSettings
   private pSession!: FiderSession
 
   public initialize = (initData?: any): FiderImpl => {
-    if (initData) {
-      this.pSettings = initData.settings
-      this.pSession = new FiderSession(initData)
-      this.syncAdSenseClient()
-      return this
+    let data = initData
+
+    if (!data) {
+      const element = document.getElementById("server-data")
+      data = element ? JSON.parse(element.textContent || element.innerText) : {}
     }
 
-    const el = document.getElementById("server-data")
-    const data = el ? JSON.parse(el.textContent || el.innerText) : {}
-    this.pSettings = data.settings
     this.pSession = new FiderSession(data)
     this.syncAdSenseClient()
     return this
   }
 
-  /** Mirror GOOGLE_ADSENSE into window.__adsense_client for presentational AdSenseSlot. */
+  public refresh(data: ServerData): void {
+    this.pSession.refresh(data)
+    this.syncAdSenseClient()
+  }
+
   private syncAdSenseClient(): void {
     if (typeof window === "undefined") return
-    const client = (this.pSettings?.googleAdSense || "").trim()
-    if (client) {
-      window.__adsense_client = client
-    }
+
+    window.__adsense_client = (this.settings?.googleAdSense || "").trim()
   }
 
   public get currentLocale(): string {
@@ -130,7 +133,7 @@ export class FiderImpl {
   }
 
   public get settings(): SystemSettings {
-    return this.pSettings
+    return this.pSession.getSnapshot().settings
   }
 
   public get isReadOnly(): boolean {
@@ -138,11 +141,11 @@ export class FiderImpl {
   }
 
   public isProduction(): boolean {
-    return this.pSettings.environment === "production"
+    return this.settings.environment === "production"
   }
 
   public isSingleHostMode(): boolean {
-    return this.pSettings.mode === "single"
+    return this.settings.mode === "single"
   }
 }
 

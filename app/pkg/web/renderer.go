@@ -1,6 +1,7 @@
 package web
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -10,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
@@ -48,6 +48,7 @@ const (
 )
 
 type Renderer struct {
+	version       string
 	assets        *clientAssets
 	chunkedAssets map[string]*clientAssets
 	reactRenderer *ReactRenderer
@@ -60,6 +61,7 @@ func NewRenderer() *Renderer {
 	}
 
 	r := &Renderer{
+		version:       env.Version(),
 		reactRenderer: reactRenderer,
 	}
 
@@ -81,6 +83,7 @@ func (r *Renderer) loadAssets() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to read file: manifest.json")
 	}
+	r.version = fmt.Sprintf("%s-%x", env.Version(), sha256.Sum256(jsonBytes))
 
 	manifest := make(viteManifest)
 	if err = json.Unmarshal(jsonBytes, &manifest); err != nil {
@@ -183,7 +186,6 @@ func convertSourceToChunkName(src string) string {
 
 type userStandingInfo struct {
 	hasWarning      bool
-	isMuted         bool
 	latestWarningID int
 	latestMuteID    int
 }
@@ -243,28 +245,13 @@ func getUserStandingInfo(ctx *Context, userID int) userStandingInfo {
 
 	standing := &query.GetUserProfileStanding{
 		UserID: userID,
-		Result: struct {
-			Warnings []struct {
-				ID        int        `json:"id"`
-				Reason    string     `json:"reason"`
-				CreatedAt time.Time  `json:"createdAt"`
-				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-			} `json:"warnings"`
-			Mutes []struct {
-				ID        int        `json:"id"`
-				Reason    string     `json:"reason"`
-				CreatedAt time.Time  `json:"createdAt"`
-				ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-			} `json:"mutes"`
-		}{},
 	}
 	if err := bus.Dispatch(ctx, standing); err != nil {
 		return result
 	}
 
-	now := time.Now()
 	for _, warning := range standing.Result.Warnings {
-		if warning.ExpiresAt == nil || warning.ExpiresAt.After(now) {
+		if warning.IsActive {
 			result.hasWarning = true
 			if result.latestWarningID == 0 {
 				result.latestWarningID = warning.ID
@@ -273,8 +260,7 @@ func getUserStandingInfo(ctx *Context, userID int) userStandingInfo {
 		}
 	}
 	for _, mute := range standing.Result.Mutes {
-		if mute.ExpiresAt == nil || mute.ExpiresAt.After(now) {
-			result.isMuted = true
+		if mute.IsActive {
 			if result.latestMuteID == 0 {
 				result.latestMuteID = mute.ID
 			}
@@ -285,9 +271,8 @@ func getUserStandingInfo(ctx *Context, userID int) userStandingInfo {
 	return result
 }
 
-func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context) {
+func pageData(statusCode int, props Props, ctx *Context) Map {
 	public := make(Map)
-	private := make(Map)
 	if props.Data == nil {
 		props.Data = make(Map)
 	}
@@ -304,36 +289,16 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 	}
 
 	public["title"] = title
+	if canonicalURL := ctx.Value("Canonical-URL"); canonicalURL != nil {
+		public["canonicalURL"] = canonicalURL
+	}
 
 	if props.Description != "" {
 		description := strings.Replace(props.Description, "\n", " ", -1)
 		public["description"] = fmt.Sprintf("%.150s", description)
 	}
 
-	private["assets"] = r.assets
-	private["devUI"] = env.IsDevelopment() && env.Config.DevUI
-	private["logo"] = LogoURL(ctx)
-
 	locale := i18n.GetLocale(ctx)
-	localeChunkName := fmt.Sprintf("locale-%s-client-mjs", locale)
-	pageChunkName := strings.ReplaceAll(strings.ReplaceAll(props.Page, ".", "-"), "/", "-")
-
-	private["preloadAssets"] = []*clientAssets{
-		r.getMainImportsForPreload(),
-		r.chunkedAssets[localeChunkName],
-		r.chunkedAssets[pageChunkName],
-	}
-
-	if tenant == nil || tenant.LogoBlobKey == "" {
-		private["favicon"] = AssetsURL(ctx, "/static/favicon")
-	} else {
-		private["favicon"] = AssetsURL(ctx, "/static/favicon/%s", tenant.LogoBlobKey)
-	}
-
-	private["currentURL"] = ctx.Request.URL.String()
-	if canonicalURL := ctx.Value("Canonical-URL"); canonicalURL != nil {
-		private["canonicalURL"] = canonicalURL
-	}
 
 	var oauthProviders []*dto.OAuthProviderOption
 	if statusCode >= 200 && statusCode < 500 {
@@ -351,6 +316,7 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 	public["tenant"] = tenant
 	public["props"] = props.Data
 	public["settings"] = &Map{
+		"version":          ctx.engine.renderer.version,
 		"mode":             env.Config.HostMode,
 		"locale":           locale,
 		"environment":      env.Config.Environment,
@@ -383,10 +349,41 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 			"isModerator":     u.IsModerator(),
 			"isHelper":        u.IsHelper(),
 			"hasWarning":      standing.hasWarning,
-			"isMuted":         standing.isMuted,
+			"isMuted":         u.IsMuted(),
 			"latestWarningId": standing.latestWarningID,
 			"latestMuteId":    standing.latestMuteID,
 		}
+	}
+
+	return public
+}
+
+func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context) {
+	public := pageData(statusCode, props, ctx)
+	private := make(Map)
+	tenant := ctx.Tenant()
+	locale := i18n.GetLocale(ctx)
+	localeChunkName := fmt.Sprintf("locale-%s-client-mjs", locale)
+	pageChunkName := strings.ReplaceAll(strings.ReplaceAll(props.Page, ".", "-"), "/", "-")
+
+	private["assets"] = r.assets
+	private["devUI"] = env.IsDevelopment() && env.Config.DevUI
+	private["logo"] = LogoURL(ctx)
+	private["preloadAssets"] = []*clientAssets{
+		r.getMainImportsForPreload(),
+		r.chunkedAssets[localeChunkName],
+		r.chunkedAssets[pageChunkName],
+	}
+
+	if tenant == nil || tenant.LogoBlobKey == "" {
+		private["favicon"] = AssetsURL(ctx, "/static/favicon")
+	} else {
+		private["favicon"] = AssetsURL(ctx, "/static/favicon/%s", tenant.LogoBlobKey)
+	}
+
+	private["currentURL"] = ctx.Request.URL.String()
+	if canonicalURL := ctx.Value("Canonical-URL"); canonicalURL != nil {
+		private["canonicalURL"] = canonicalURL
 	}
 
 	templateName := "index.html"
@@ -400,7 +397,7 @@ func (r *Renderer) Render(w io.Writer, statusCode int, props Props, ctx *Context
 		}
 		if html != "" {
 			templateName = "ssr.html"
-			props.Data["html"] = template.HTML(html)
+			public["props"].(Map)["html"] = template.HTML(html)
 		}
 	}
 

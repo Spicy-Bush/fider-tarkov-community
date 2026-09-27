@@ -5,7 +5,7 @@ import { createPageLoader, PageModule } from "@fider/services"
 
 const pageModules = import.meta.glob<PageModule>("./pages/**/*.page.tsx")
 
-const pageLoader = createPageLoader(pageModules, { pathPrefix: "./pages/" })
+export const pageLoader = createPageLoader(pageModules, { pathPrefix: "./pages/" })
 
 interface PageLoaderResult {
   Component: ComponentType<any> | null

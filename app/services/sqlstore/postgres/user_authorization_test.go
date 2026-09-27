@@ -43,6 +43,10 @@ func TestUserStorageMuteSnapshot(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			if _, err := dbx.Connection().Exec("DELETE FROM user_warnings"); err != nil {
+				t.Fatal(err)
+			}
+
 			_, err := dbx.Connection().Exec(`INSERT INTO user_mutes
                 (user_id, tenant_id, reason, expires_at, created_by)
                 VALUES ($1, $2, 'test', $3, $1)`, f.user.ID, test.tenantID, test.expires)
@@ -50,14 +54,37 @@ func TestUserStorageMuteSnapshot(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			_, err = dbx.Connection().Exec(`INSERT INTO user_warnings
+				(user_id, tenant_id, reason, expires_at, created_by)
+				VALUES ($1, $2, 'test', $3, $1)`, f.user.ID, test.tenantID, test.expires)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			byID := &query.GetUserByID{UserID: f.user.ID}
 			byKey := &query.GetUserByAPIKey{APIKey: key.Result}
-			if err := bus.Dispatch(f.ctx, byID, byKey); err != nil {
+			standing := &query.GetUserProfileStanding{UserID: f.user.ID}
+			if err := bus.Dispatch(f.ctx, byID, byKey, standing); err != nil {
 				t.Fatal(err)
 			}
 
 			if byID.Result.IsMuted() != test.muted || byKey.Result.IsMuted() != test.muted {
 				t.Fatalf("wrong mute snapshot: cookie=%v API key=%v", byID.Result.IsMuted(), byKey.Result.IsMuted())
+			}
+
+			if test.tenantID != f.tenant.ID {
+				if len(standing.Result.Mutes) != 0 || len(standing.Result.Warnings) != 0 {
+					t.Fatal("standing included another tenant's moderation records")
+				}
+				return
+			}
+
+			if len(standing.Result.Mutes) != 1 || len(standing.Result.Warnings) != 1 {
+				t.Fatalf("unexpected standing: %#v", standing.Result)
+			}
+
+			if standing.Result.Mutes[0].IsActive != test.muted || standing.Result.Warnings[0].IsActive != test.muted {
+				t.Fatalf("standing disagrees with authentication: %#v", standing.Result)
 			}
 		})
 	}

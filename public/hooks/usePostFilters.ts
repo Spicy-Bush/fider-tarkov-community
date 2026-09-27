@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { querystring, Fider, PAGINATION, filterStorage, StoredFilters } from "@fider/services"
-import { Tag } from "@fider/models"
+import { Fider, PAGINATION, filterStorage, StoredFilters } from "@fider/services"
 
 export interface FilterState extends StoredFilters {
   query: string
@@ -20,7 +19,7 @@ const DEFAULT_FILTERS: FilterState = {
 }
 
 export interface UsePostFiltersOptions {
-  tags?: Tag[]
+  restoredFilters?: FilterState
 }
 
 const getUrlParams = (): FilterState | null => {
@@ -28,8 +27,8 @@ const getUrlParams = (): FilterState | null => {
   if (!params.toString()) return null
 
   return {
-    tags: querystring.getArray("tags"),
-    statuses: querystring.getArray("statuses"),
+    tags: params.getAll("tags"),
+    statuses: params.getAll("statuses"),
     myVotes: params.get("myvotes") === "true",
     myPosts: params.get("myposts") === "true",
     notMyVotes: params.get("notmyvotes") === "true",
@@ -39,6 +38,20 @@ const getUrlParams = (): FilterState | null => {
     view: params.get("view") || "trending",
     limit: Number(params.get("limit")) || PAGINATION.DEFAULT_LIMIT,
   }
+}
+
+export const hasSamePostCriteria = (left: FilterState, right: FilterState): boolean => {
+  return left.query === right.query &&
+    left.view === right.view &&
+    left.myVotes === right.myVotes &&
+    left.myPosts === right.myPosts &&
+    left.notMyVotes === right.notMyVotes &&
+    (left.date || "") === (right.date || "") &&
+    (left.tagLogic || "OR") === (right.tagLogic || "OR") &&
+    left.tags.length === right.tags.length &&
+    left.tags.every((tag, index) => tag === right.tags[index]) &&
+    left.statuses.length === right.statuses.length &&
+    left.statuses.every((status, index) => status === right.statuses[index])
 }
 
 const updateUrl = (filters: FilterState) => {
@@ -58,8 +71,12 @@ const updateUrl = (filters: FilterState) => {
   if (filters.view !== "trending") params.set("view", filters.view)
   if (filters.limit !== PAGINATION.DEFAULT_LIMIT) params.set("limit", filters.limit.toString())
 
-  const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname
-  window.history.replaceState({}, "", newUrl)
+  const query = params.toString()
+  const newUrl = window.location.pathname + (query ? `?${query}` : "") + window.location.hash
+
+  if (newUrl !== window.location.pathname + window.location.search + window.location.hash) {
+    window.history.replaceState(window.history.state, "", newUrl)
+  }
 }
 
 const toStoredFilters = (filters: FilterState): StoredFilters => {
@@ -93,47 +110,45 @@ const getStoredOrDefaultFilters = (): FilterState => {
 }
 
 export const usePostFilters = (options?: UsePostFiltersOptions) => {
-  const tagsRef = useRef(options?.tags)
-  tagsRef.current = options?.tags
-
   const isFromUrlRef = useRef(false)
   const userChangedFiltersRef = useRef(false)
 
   const [filters, setFilters] = useState<FilterState>(() => {
+    if (options?.restoredFilters) {
+      return options.restoredFilters
+    }
+
     const urlParams = getUrlParams()
     if (urlParams) {
       isFromUrlRef.current = true
       return urlParams
     }
 
-    const storedFilters = getStoredOrDefaultFilters()
-    filterStorage.save(toStoredFilters(storedFilters), tagsRef.current)
-    return storedFilters
+    return getStoredOrDefaultFilters()
   })
 
-  const [offset, setOffset] = useState(0)
-
   useEffect(() => {
-    if (isFromUrlRef.current && !userChangedFiltersRef.current) {
-      updateUrl(filters)
+    if (!userChangedFiltersRef.current && (isFromUrlRef.current || options?.restoredFilters)) {
       return
     }
-    filterStorage.save(toStoredFilters(filters), tagsRef.current)
-    updateUrl(filters)
+
+    filterStorage.save(toStoredFilters(filters))
+
+    if (userChangedFiltersRef.current) {
+      updateUrl(filters)
+    }
   }, [filters])
 
   const updateFilters = useCallback((newFilters: Partial<FilterState>) => {
     userChangedFiltersRef.current = true
     isFromUrlRef.current = false
     setFilters((prev) => ({ ...prev, ...newFilters }))
-    setOffset(0)
   }, [])
 
   const resetFilters = useCallback(() => {
     userChangedFiltersRef.current = true
     isFromUrlRef.current = false
     setFilters(DEFAULT_FILTERS)
-    setOffset(0)
     filterStorage.clear()
   }, [])
 
@@ -141,8 +156,8 @@ export const usePostFilters = (options?: UsePostFiltersOptions) => {
     userChangedFiltersRef.current = false
     isFromUrlRef.current = false
     const storedFilters = getStoredOrDefaultFilters()
+    updateUrl(storedFilters)
     setFilters(storedFilters)
-    setOffset(0)
   }, [])
 
   const hasActiveFilters = useCallback(() => {
@@ -163,8 +178,6 @@ export const usePostFilters = (options?: UsePostFiltersOptions) => {
 
   return {
     filters,
-    offset,
-    setOffset,
     updateFilters,
     resetFilters,
     restoreSavedFilters,
