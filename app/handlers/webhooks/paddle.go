@@ -27,7 +27,7 @@ import (
 // IncomingPaddleWebhook handles all incoming requests from Paddle Webhooks
 func IncomingPaddleWebhook() web.HandlerFunc {
 	return func(c *web.Context) error {
-		params, err := url.ParseQuery(c.Request.Body)
+		params, err := url.ParseQuery(string(c.Request.Body))
 		if err != nil {
 			return c.Failure(err)
 		}

@@ -37,7 +37,7 @@ func (b *DefaultBinder) Bind(target any, c *Context) error {
 			return ErrContentTypeNotAllowed
 		}
 
-		if err := json.Unmarshal([]byte(c.Request.Body), target); err != nil {
+		if err := json.Unmarshal(c.Request.Body, target); err != nil {
 			return err
 		}
 	}

@@ -89,10 +89,14 @@ func (f postWorkflow) requestWithParams(handler web.HandlerFunc, method, path, b
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
-	c := web.NewContext(f.engine, req, recorder, params)
+	c, err := web.NewContext(f.engine, req, recorder, params)
+	if err != nil {
+		return recorder, err
+	}
+
 	c.SetTenant(f.tenant)
 	c.SetUser(f.user)
-	err := handler(c)
+	err = handler(c)
 	return recorder, err
 }
 

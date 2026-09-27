@@ -46,7 +46,10 @@ func createServer() *Server {
 
 	recorder := httptest.NewRecorder()
 	params := make(web.StringMap)
-	context := web.NewContext(engine, request, recorder, params)
+	context, err := web.NewContext(engine, request, recorder, params)
+	if err != nil {
+		panic(err)
+	}
 
 	return &Server{
 		engine:     engine,
@@ -129,7 +132,7 @@ func (s *Server) ExecuteAsJSON(handler web.HandlerFunc) (int, *jsonq.Query) {
 // ExecutePost executes given handler as POST and return response
 func (s *Server) ExecutePost(handler web.HandlerFunc, body string) (int, *httptest.ResponseRecorder) {
 	s.context.Request.Method = "POST"
-	s.context.Request.Body = body
+	s.context.Request.Body = []byte(body)
 	s.context.Request.ContentLength = int64(len(body))
 	s.context.Request.SetHeader("Content-Type", web.UTF8JSONContentType)
 

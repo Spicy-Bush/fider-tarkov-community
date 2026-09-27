@@ -24,7 +24,11 @@ func TestTransactionResponseCommitFailure(t *testing.T) {
 	t.Cleanup(func() { dbx.Connection().Exec("DROP TABLE " + table) })
 
 	recorder := httptest.NewRecorder()
-	c := web.NewContext(web.New(), httptest.NewRequest(http.MethodPost, "/", nil), recorder, nil)
+	c, err := web.NewContext(web.New(), httptest.NewRequest(http.MethodPost, "/", nil), recorder, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	err = c.WithTransaction(func() error {
 		trx := c.Value(app.TransactionCtxKey).(*dbx.Trx)
 		if _, err := trx.Execute("INSERT INTO " + table + " VALUES (1), (1)"); err != nil {

@@ -37,7 +37,12 @@ func newGetContext(rawurl string, headers map[string]string) *web.Context {
 		req.Header.Set(k, v)
 	}
 
-	return web.NewContext(e, req, res, nil)
+	ctx, err := web.NewContext(e, req, res, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	return ctx
 }
 
 func newBodyContext(method string, params web.StringMap, body, contentType string) *web.Context {
@@ -46,7 +51,12 @@ func newBodyContext(method string, params web.StringMap, body, contentType strin
 	req := httptest.NewRequest(method, "/some/resource", strings.NewReader(body))
 	req.Host = "demo.test.fider.io:3000"
 	req.Header.Set("Content-Type", contentType)
-	return web.NewContext(e, req, res, params)
+	ctx, err := web.NewContext(e, req, res, params)
+	if err != nil {
+		panic(err)
+	}
+
+	return ctx
 }
 
 func TestContextID(t *testing.T) {
@@ -85,9 +95,12 @@ func TestContextFailureValidation(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/api/posts", nil)
 			request.Header.Set("Accept", "application/json")
 			response := httptest.NewRecorder()
-			ctx := web.NewContext(web.New(), request, response, nil)
+			ctx, err := web.NewContext(web.New(), request, response, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-			err := ctx.Failure(test.err)
+			err = ctx.Failure(test.err)
 			if errors.Cause(err) != test.cause {
 				t.Fatalf("failure cause: got %v, want %v", err, test.cause)
 			}
@@ -273,7 +286,11 @@ func TestContextConcurrentValuesAndCancellation(t *testing.T) {
 	parent, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	request := httptest.NewRequest("GET", "/", nil).WithContext(parent)
-	ctx := web.NewContext(nil, request, httptest.NewRecorder(), nil)
+	ctx, err := web.NewContext(nil, request, httptest.NewRecorder(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	type key struct{}
 	var work sync.WaitGroup
 	work.Add(1)

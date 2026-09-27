@@ -2,6 +2,8 @@ package web
 
 import (
 	"context"
+	"encoding/json"
+	stdErrors "errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -47,8 +49,28 @@ type notFoundHandler struct {
 }
 
 func (h *notFoundHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	ctx := NewContext(h.engine, req, res, nil)
+	ctx, err := NewContext(h.engine, req, res, nil)
+	if err != nil {
+		writeRequestError(res, err)
+		return
+	}
+
 	_ = h.handler(ctx)
+}
+
+func writeRequestError(res http.ResponseWriter, err error) {
+	status := http.StatusBadRequest
+	message := "Could not read request body."
+	var oversized *http.MaxBytesError
+	if stdErrors.As(err, &oversized) {
+		status = http.StatusRequestEntityTooLarge
+		message = "Request is too large. Upload fewer or smaller images."
+	}
+
+	res.Header().Set("Content-Type", UTF8JSONContentType)
+	res.Header().Set("Cache-Control", "no-store")
+	res.WriteHeader(status)
+	_ = json.NewEncoder(res).Encode(Map{"message": message})
 }
 
 type HandlerFunc func(*Context) error
@@ -264,7 +286,12 @@ func (e *Engine) handle(middlewares []MiddlewareFunc, handler HandlerFunc) httpr
 		for _, p := range ps {
 			params[p.Key] = p.Value
 		}
-		ctx := NewContext(e, req, res, params)
+		ctx, err := NewContext(e, req, res, params)
+		if err != nil {
+			writeRequestError(res, err)
+			return
+		}
+
 		if err := next(ctx); err != nil && ctx.Response.StatusCode == 0 {
 			_ = ctx.Failure(err)
 		}

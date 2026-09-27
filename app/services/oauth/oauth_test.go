@@ -34,7 +34,12 @@ func newGetContext(rawurl string) *web.Context {
 		req.TLS = &tls.ConnectionState{}
 	}
 
-	return web.NewContext(e, req, res, nil)
+	ctx, err := web.NewContext(e, req, res, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	return ctx
 }
 func TestGetAuthURL_Facebook(t *testing.T) {
 	RegisterT(t)

@@ -77,11 +77,28 @@ type Context struct {
 	tasks     []worker.Task
 }
 
+// Includes base64 expansion for the 50000KB file upload limit.
+const maxRequestBodyBytes = 72 * 1024 * 1024
+
 // NewContext creates a new web Context
-func NewContext(engine *Engine, req *http.Request, rw http.ResponseWriter, params StringMap) *Context {
+func NewContext(engine *Engine, req *http.Request, rw http.ResponseWriter, params StringMap) (*Context, error) {
+	if req.ContentLength > maxRequestBodyBytes {
+		return nil, &http.MaxBytesError{Limit: maxRequestBodyBytes}
+	}
+
+	var body bytes.Buffer
+	if req.Body != nil && req.Body != http.NoBody {
+		req.Body = http.MaxBytesReader(rw, req.Body, maxRequestBodyBytes)
+		if _, err := body.ReadFrom(req.Body); err != nil {
+			return nil, err
+		}
+	}
+
 	contextID := rand.String(32)
 
 	wrappedRequest := WrapRequest(req)
+	wrappedRequest.Body = body.Bytes()
+	wrappedRequest.ContentLength = int64(body.Len())
 
 	ctx := context.WithValue(req.Context(), app.RequestCtxKey, wrappedRequest)
 
@@ -97,7 +114,7 @@ func NewContext(engine *Engine, req *http.Request, rw http.ResponseWriter, param
 		Request:  wrappedRequest,
 		Response: Response{Writer: rw},
 		params:   params,
-	}
+	}, nil
 }
 
 // Engine returns main HTTP engine

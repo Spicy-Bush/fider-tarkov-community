@@ -37,7 +37,7 @@ func vote(operation cmd.VoteOperation) web.HandlerFunc {
 			Revision  *int64 `json:"revision"`
 		}
 		change := &cmd.ApplyPostVote{Number: number, Operation: operation}
-		if operation.Legacy() && c.Request.Body != "" {
+		if operation.Legacy() && len(c.Request.Body) != 0 {
 			if err := c.Bind(&input); err != nil || (input.Revision != nil && *input.Revision < 0) {
 				return c.BadRequest(web.Map{"message": "Invalid vote revision."})
 			}

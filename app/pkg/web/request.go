@@ -1,7 +1,6 @@
 package web
 
 import (
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -18,7 +17,7 @@ type Request struct {
 	instance      *http.Request
 	Method        string
 	ContentLength int64
-	Body          string
+	Body          []byte
 	IsSecure      bool
 	StartTime     time.Time
 	URL           *url.URL
@@ -42,19 +41,10 @@ func WrapRequest(request *http.Request) Request {
 		panic(errors.Wrap(err, "Failed to parse url '%s'", fullURL))
 	}
 
-	var bodyBytes []byte
-	if request.ContentLength > 0 {
-		bodyBytes, err = io.ReadAll(request.Body)
-		if err != nil {
-			panic(errors.Wrap(err, "failed to read body").Error())
-		}
-	}
-
 	return Request{
 		instance:      request,
 		Method:        request.Method,
 		ContentLength: request.ContentLength,
-		Body:          string(bodyBytes),
 		URL:           u,
 		IsSecure:      protocol == "https",
 		StartTime:     time.Now(),
