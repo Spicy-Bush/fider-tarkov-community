@@ -10,13 +10,16 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
 func applyPostVote(ctx context.Context, c *cmd.ApplyPostVote) error {
-	legacy := c.Operation.Legacy()
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		isStaff := user.IsCollaborator() || user.IsModerator() || user.IsAdministrator()
-		var post entity.Post
+		if user == nil || user.Status == enum.UserBlocked {
+			return validate.Unauthorized()
+		}
+
+		isStaff := user.IsCollaborator() || user.IsModerator()
 		var eligibility struct {
 			ID         int             `db:"id"`
 			Status     enum.PostStatus `db:"status"`
@@ -30,21 +33,16 @@ func applyPostVote(ctx context.Context, c *cmd.ApplyPostVote) error {
 			FOR NO KEY UPDATE`, c.Number, tenant.ID, user.ID, isStaff); err != nil {
 			return err
 		}
-		post = entity.Post{ID: eligibility.ID, Number: c.Number, Status: eligibility.Status}
-		if eligibility.Locked && !(user.IsCollaborator() || user.IsAdministrator()) {
-			c.Rejection = "forbidden"
-			if legacy {
-				c.Rejection = "locked"
-			}
-			return nil
+
+		post := entity.Post{ID: eligibility.ID, Number: c.Number, Status: eligibility.Status}
+		if eligibility.Locked && !user.IsCollaborator() {
+			return validate.Unauthorized()
 		}
-		if !post.CanBeVoted() || (!legacy && user.IsMuted()) {
-			// Legacy clients expect success for votes on closed posts.
-			if !legacy {
-				c.Rejection = "forbidden"
-			}
-			return nil
+
+		if !post.CanBeVoted() || user.IsMuted() {
+			return validate.Unauthorized()
 		}
+
 		read := func() error {
 			return trx.Get(&c.State, `SELECT COALESCE(v.vote_type, 0) AS direction,
 				COALESCE(r.revision, 0) AS revision, p.upvotes, p.downvotes
@@ -54,29 +52,16 @@ func applyPostVote(ctx context.Context, c *cmd.ApplyPostVote) error {
 				WHERE p.number = $1 AND p.tenant_id = $3
 				AND (p.moderation_pending = FALSE OR p.user_id = $2 OR $4)`, c.Number, user.ID, tenant.ID, isStaff)
 		}
-		if !legacy {
-			if err := read(); err != nil {
-				return err
-			}
+
+		if err := read(); err != nil {
+			return err
 		}
-		if c.Operation == cmd.SetPostVote && c.State.Revision != c.Revision {
+
+		if c.State.Revision != c.Revision {
 			return nil
 		}
-		direction := 0
-		switch c.Operation {
-		case cmd.SetPostVote:
-			direction = c.Direction
-		case cmd.UpvotePost:
-			direction = 1
-		case cmd.DownvotePost:
-			direction = -1
-		case cmd.TogglePostVote:
-			direction = 1
-			if c.State.Direction == 1 {
-				direction = -1
-			}
-		}
-		if c.State.Direction == direction && c.Operation == cmd.SetPostVote {
+
+		if c.State.Direction == c.Direction {
 			// A no-op must still invalidate older requests.
 			_, err := trx.Execute(`INSERT INTO post_vote_revisions (post_id, user_id, tenant_id, revision)
 				VALUES ($1, $2, $3, 1) ON CONFLICT (post_id, user_id)
@@ -87,14 +72,15 @@ func applyPostVote(ctx context.Context, c *cmd.ApplyPostVote) error {
 			}
 		} else {
 			var change bus.Msg = &cmd.RemoveVote{Post: &post, User: user}
-			if direction != 0 {
-				change = &cmd.AddVote{Post: &post, User: user, VoteType: enum.VoteType(direction)}
+			if c.Direction != 0 {
+				change = &cmd.AddVote{Post: &post, User: user, VoteType: enum.VoteType(c.Direction)}
 			}
 			if err := bus.Dispatch(ctx, change); err != nil {
 				return err
 			}
 		}
-		if direction == 1 && (c.Operation == cmd.SetPostVote || c.Operation == cmd.UpvotePost) && post.Status == enum.PostArchived && eligibility.ArchivedAt.Valid {
+
+		if c.Direction == 1 && post.Status == enum.PostArchived && eligibility.ArchivedAt.Valid {
 			votes := &query.CountVotesSinceArchive{PostID: post.ID, ArchivedAt: eligibility.ArchivedAt.Time}
 			if err := bus.Dispatch(ctx, votes); err != nil {
 				return err
@@ -106,12 +92,11 @@ func applyPostVote(ctx context.Context, c *cmd.ApplyPostVote) error {
 				c.Unarchived = true
 			}
 		}
-		c.State.Direction = direction
-		if c.Operation == cmd.SetPostVote {
-			if err := read(); err != nil {
-				return err
-			}
+
+		if err := read(); err != nil {
+			return err
 		}
+
 		c.State.Applied = true
 		return nil
 	})

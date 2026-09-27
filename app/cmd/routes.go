@@ -192,7 +192,6 @@ func routes(r *web.Engine) *web.Engine {
 		membersApi.Post("/api/v1/posts/:number/up", apiv1.AddVote())
 		membersApi.Post("/api/v1/posts/:number/down", apiv1.AddDownVote())
 		membersApi.Delete("/api/v1/posts/:number/votes", apiv1.RemoveVote())
-		membersApi.Post("/api/v1/posts/:number/votes/toggle", apiv1.ToggleVote())
 		membersApi.Post("/api/v1/posts/:number/subscription", apiv1.Subscribe())
 		membersApi.Delete("/api/v1/posts/:number/subscription", apiv1.Unsubscribe())
 

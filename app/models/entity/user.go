@@ -19,8 +19,7 @@ type User struct {
 	AvatarType    enum.AvatarType `json:"-"`
 	AvatarURL     string          `json:"avatarURL,omitempty"`
 	Status        enum.UserStatus `json:"status"`
-	warningCheck  func(int) bool
-	muteCheck     func(int) bool
+	Muted         bool            `json:"-"`
 }
 
 // Map permission role to equivalent visual role
@@ -74,30 +73,9 @@ func (u *User) IsHelper() bool {
 	return u.Role == enum.RoleHelper
 }
 
-// HasWarning returns true if user has an active warning
-func (u *User) HasWarning() bool {
-	if u.warningCheck != nil {
-		return u.warningCheck(u.ID)
-	}
-	return false
-}
-
 // IsMuted returns true if user is currently muted
 func (u *User) IsMuted() bool {
-	if u.muteCheck != nil {
-		return u.muteCheck(u.ID)
-	}
-	return false
-}
-
-// SetWarningCheck sets the callback function to check if a user has a warning
-func (u *User) SetWarningCheck(check func(int) bool) {
-	u.warningCheck = check
-}
-
-// SetMuteCheck sets the callback function to check if a user is muted
-func (u *User) SetMuteCheck(check func(int) bool) {
-	u.muteCheck = check
+	return u.Muted
 }
 
 // UserProvider represents the relationship between an User and an Authentication provide

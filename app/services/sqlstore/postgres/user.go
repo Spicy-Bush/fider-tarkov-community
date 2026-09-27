@@ -27,6 +27,7 @@ type dbUser struct {
 	Status        sql.NullInt64  `db:"status"`
 	AvatarType    sql.NullInt64  `db:"avatar_type"`
 	AvatarBlobKey sql.NullString `db:"avatar_bkey"`
+	Muted         bool           `db:"muted"`
 	Providers     []*dbUserProvider
 }
 
@@ -91,6 +92,7 @@ func (u *dbUser) toModel(ctx context.Context) *entity.User {
 		AvatarType:    avatarType,
 		AvatarBlobKey: u.AvatarBlobKey.String,
 		AvatarURL:     avatarURL,
+		Muted:         u.Muted,
 	}
 
 	for i, p := range u.Providers {
@@ -205,7 +207,7 @@ func getUserByAPIKey(ctx context.Context, q *query.GetUserByAPIKey) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		result, err := queryUser(ctx, trx, "api_key = $1 AND tenant_id = $2", q.APIKey, tenant.ID)
 		if err != nil {
-			return errors.Wrap(err, "failed to get user with API Key '%s'", q.APIKey)
+			return errors.Wrap(err, "failed to get user with API key")
 		}
 		q.Result = result
 		return nil
@@ -563,7 +565,14 @@ func getUsersByIDs(ctx context.Context, q *query.GetUsersByIDs) error {
 
 func queryUser(ctx context.Context, trx *dbx.Trx, filter string, args ...any) (*entity.User, error) {
 	user := dbUser{}
-	sql := fmt.Sprintf("SELECT id, name, email, tenant_id, role, visual_role, status, avatar_type, avatar_bkey FROM users WHERE status != %d AND ", enum.UserDeleted)
+	sql := fmt.Sprintf(`SELECT id, name, email, tenant_id, role, visual_role, status, avatar_type, avatar_bkey,
+        EXISTS (
+            SELECT 1 FROM user_mutes
+            WHERE user_id = users.id AND tenant_id = users.tenant_id
+            AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+        ) AS muted
+        FROM users WHERE status != $%d AND `, len(args)+1)
+	args = append(args, enum.UserDeleted)
 	err := trx.Get(&user, sql+filter, args...)
 	if err != nil {
 		return nil, err

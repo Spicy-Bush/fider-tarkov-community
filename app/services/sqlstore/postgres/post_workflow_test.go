@@ -100,10 +100,10 @@ func (f postWorkflow) requestWithParams(handler web.HandlerFunc, method, path, b
 	return recorder, err
 }
 
-func workflowCount(t testing.TB, sql string) int {
+func workflowCount(t testing.TB, sql string, args ...any) int {
 	t.Helper()
 	var count int
-	if err := dbx.Connection().QueryRow(sql).Scan(&count); err != nil {
+	if err := dbx.Connection().QueryRow(sql, args...).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	return count
@@ -286,28 +286,46 @@ func BenchmarkPostWorkflowVoteAPI(b *testing.B) {
 	})
 }
 
-func TestPostWorkflowLegacyToggleAndStaleStatus(t *testing.T) {
+func TestPostWorkflowConcurrentVotesAndStaleStatus(t *testing.T) {
 	f := newPostWorkflow(t)
-	post := &cmd.AddNewPost{Title: "Legacy vote concurrency", Description: "A post"}
+	post := &cmd.AddNewPost{Title: "Concurrent votes", Description: "A post"}
 	if err := bus.Dispatch(f.ctx, post); err != nil {
 		t.Fatal(err)
 	}
+
 	var voters sync.WaitGroup
+	var applied atomic.Int64
+	start := make(chan struct{})
 	for i := 0; i < 16; i++ {
 		voters.Add(1)
 		go func() {
 			defer voters.Done()
-			recorder, err := f.request(apiv1.ToggleVote(), http.MethodPost, post.Result.Number, "")
-			if err != nil || recorder.Code != http.StatusOK {
-				t.Errorf("legacy toggle failed: %v %d", err, recorder.Code)
+			<-start
+
+			recorder, err := f.request(apiv1.AddDownVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
+			var state cmd.PostVoteState
+			if err != nil || recorder.Code != http.StatusOK || json.Unmarshal(recorder.Body.Bytes(), &state) != nil {
+				t.Errorf("concurrent vote failed: %v %d %s", err, recorder.Code, recorder.Body)
+				return
+			}
+
+			if state.Applied {
+				applied.Add(1)
+			}
+
+			if state.Revision != 1 || state.Direction != -1 || state.Downvotes != 1 || state.Upvotes != 0 {
+				t.Errorf("concurrent request returned inconsistent state: %+v", state)
 			}
 		}()
 	}
+
+	close(start)
 	voters.Wait()
-	if workflowCount(t, "SELECT vote_type FROM post_votes") != -1 ||
-		workflowCount(t, "SELECT revision FROM post_vote_revisions") != 16 {
-		t.Fatal("concurrent toggles lost an accepted change")
+	if applied.Load() != 1 || workflowCount(t, "SELECT vote_type FROM post_votes") != -1 ||
+		workflowCount(t, "SELECT revision FROM post_vote_revisions") != 1 {
+		t.Fatal("concurrent requests applied the same revision more than once")
 	}
+
 	if err := bus.Dispatch(f.ctx, &cmd.SetPostResponse{Post: post.Result, Status: enum.PostDeleted}); err != nil {
 		t.Fatal(err)
 	}
@@ -421,58 +439,49 @@ func TestPostWorkflowDeletedOriginalAndImportedNumbers(t *testing.T) {
 	}
 }
 
-func TestPostWorkflowLegacyVoteContracts(t *testing.T) {
+func TestPostWorkflowVoteRequiresRevision(t *testing.T) {
 	f := newPostWorkflow(t)
-	post := &cmd.AddNewPost{Title: "Legacy voting", Description: "A post"}
+	post := &cmd.AddNewPost{Title: "Required vote revision", Description: "A post"}
 	if err := bus.Dispatch(f.ctx, post); err != nil {
 		t.Fatal(err)
 	}
-	for _, step := range []struct {
-		handler   web.HandlerFunc
-		method    string
-		response  string
-		upvotes   int
-		downvotes int
-	}{
-		{apiv1.AddVote(), http.MethodPost, "{}", 1, 0},
-		{apiv1.AddVote(), http.MethodPost, "{}", 1, 0},
-		{apiv1.AddDownVote(), http.MethodPost, "{}", 0, 1},
-		{apiv1.ToggleVote(), http.MethodPost, `{"voted":true}`, 1, 0},
-		{apiv1.ToggleVote(), http.MethodPost, `{"voted":false}`, 0, 1},
-		{apiv1.RemoveVote(), http.MethodDelete, "{}", 0, 0},
-	} {
-		recorder, err := f.request(step.handler, step.method, post.Result.Number, "")
-		if err != nil || recorder.Code != http.StatusOK || strings.TrimSpace(recorder.Body.String()) != step.response {
-			t.Fatalf("legacy response: %v %d %s", err, recorder.Code, recorder.Body)
-		}
-		if workflowCount(t, "SELECT upvotes FROM posts") != step.upvotes ||
-			workflowCount(t, "SELECT downvotes FROM posts") != step.downvotes {
-			t.Fatalf("legacy counts: expected %d up, %d down", step.upvotes, step.downvotes)
-		}
-	}
-	recorder, err := f.request(apiv1.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
-	if err != nil || recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"applied":false`) {
-		t.Fatalf("stale revision after legacy changes: %v %d %s", err, recorder.Code, recorder.Body)
-	}
-	visitor := f
-	visitor.user = &entity.User{ID: 2, Role: enum.RoleVisitor}
-	for _, step := range []struct {
-		settings string
-		status   int
-	}{
-		{`locked_settings = '{"locked":true}'`, http.StatusBadRequest},
-		{`locked_settings = NULL, status = 2`, http.StatusOK},
-		{`status = 6`, http.StatusNotFound},
-	} {
-		if _, err := dbx.Connection().Exec("UPDATE posts SET " + step.settings); err != nil {
-			t.Fatal(err)
-		}
-		for _, handler := range []web.HandlerFunc{apiv1.AddVote(), apiv1.AddDownVote(), apiv1.RemoveVote()} {
-			recorder, err := visitor.request(handler, http.MethodPost, post.Result.Number, "")
-			if err != nil || recorder.Code != step.status || workflowCount(t, "SELECT COUNT(*) FROM post_votes") != 0 {
-				t.Fatalf("legacy permission %s: %v %d %s", step.settings, err, recorder.Code, recorder.Body)
+
+	for _, role := range []enum.Role{enum.RoleVisitor, enum.RoleHelper, enum.RoleModerator, enum.RoleCollaborator, enum.RoleAdministrator} {
+		t.Run(role.String(), func(t *testing.T) {
+			actor := f
+			actor.user = &entity.User{ID: 2, Role: role}
+			actor.user.Muted = true
+
+			for _, endpoint := range []struct {
+				name    string
+				method  string
+				handler web.HandlerFunc
+			}{
+				{"up", http.MethodPost, apiv1.AddVote()},
+				{"down", http.MethodPost, apiv1.AddDownVote()},
+				{"remove", http.MethodDelete, apiv1.RemoveVote()},
+			} {
+				for _, body := range []string{"", "{}", "null", `{"revision":null}`, `{"revision":-1}`, `{"revision":"0"}`, `{"revision":0.5}`, `{"revision":`} {
+					t.Run(endpoint.name+"/"+body, func(t *testing.T) {
+						recorder, err := actor.request(endpoint.handler, endpoint.method, post.Result.Number, body)
+						if err != nil || recorder.Code != http.StatusBadRequest {
+							t.Fatalf("invalid revision accepted: %v %d %s", err, recorder.Code, recorder.Body)
+						}
+					})
+				}
+
+				recorder, err := actor.request(endpoint.handler, endpoint.method, post.Result.Number, `{"revision":0}`)
+				if err != nil || recorder.Code != http.StatusForbidden {
+					t.Fatalf("muted user accepted by %s: %v %d %s", endpoint.name, err, recorder.Code, recorder.Body)
+				}
 			}
-		}
+		})
+	}
+
+	if workflowCount(t, "SELECT COUNT(*) FROM post_votes") != 0 ||
+		workflowCount(t, "SELECT COUNT(*) FROM post_vote_revisions") != 0 ||
+		workflowCount(t, "SELECT upvotes + downvotes FROM posts WHERE id = $1", post.Result.ID) != 0 {
+		t.Fatal("rejected requests changed stored vote state")
 	}
 }
 
