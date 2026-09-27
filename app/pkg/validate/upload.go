@@ -32,21 +32,18 @@ type ImageUploadOpts struct {
 
 // MultiImageUpload validates multiple image uploads
 func MultiImageUpload(ctx context.Context, currentAttachments []string, uploads []*dto.ImageUpload, opts MultiImageUploadOpts) ([]string, error) {
-	if currentAttachments == nil {
-		currentAttachments = []string{}
+	remaining := make(map[string]bool, len(currentAttachments))
+	for _, key := range currentAttachments {
+		remaining[key] = true
 	}
 
-	totalCount := len(currentAttachments)
+	newImages := 0
 
 	for _, upload := range uploads {
 		if upload.Remove {
-			for _, attachment := range currentAttachments {
-				if attachment == upload.BlobKey {
-					totalCount--
-				}
-			}
+			delete(remaining, upload.BlobKey)
 		} else if upload.Upload != nil {
-			totalCount++
+			newImages++
 		}
 
 		messages, err := ImageUpload(ctx, upload, ImageUploadOpts{
@@ -64,7 +61,7 @@ func MultiImageUpload(ctx context.Context, currentAttachments []string, uploads 
 		}
 	}
 
-	if totalCount > opts.MaxUploads {
+	if len(remaining)+newImages > opts.MaxUploads {
 		return []string{i18n.T(ctx, "validation.custom.maxattachments", i18n.Params{"number": opts.MaxUploads})}, nil
 	}
 

@@ -188,3 +188,37 @@ func TestValidateMultiImageUpload_Existing(t *testing.T) {
 	Expect(messages).HasLen(0)
 	Expect(err).IsNil()
 }
+
+func TestValidateMultiImageUploadDuplicateRemovalCapacity(t *testing.T) {
+	image, err := os.ReadFile(env.Path("/app/pkg/web/testdata/logo1.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	existing := []string{"attachments/existing.webp"}
+	uploads := []*dto.ImageUpload{
+		{BlobKey: existing[0], Remove: true},
+		{BlobKey: existing[0], Remove: true},
+		{Upload: &dto.ImageUploadData{Content: image}},
+		{Upload: &dto.ImageUploadData{Content: image}},
+		{Upload: &dto.ImageUploadData{Content: image}},
+	}
+	opts := validate.MultiImageUploadOpts{MaxUploads: 2, MaxKilobytes: 7500}
+
+	messages, err := validate.MultiImageUpload(context.Background(), existing, uploads, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) == 0 {
+		t.Error("removing one existing image twice allowed three replacement images")
+	}
+
+	validReplacement := []*dto.ImageUpload{uploads[0], uploads[2], uploads[3]}
+	messages, err = validate.MultiImageUpload(context.Background(), existing, validReplacement, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 0 {
+		t.Fatalf("valid replacement did not recover: %v", messages)
+	}
+}
