@@ -1,7 +1,10 @@
 package validate_test
 
 import (
+	"bytes"
 	"context"
+	"image"
+	"image/png"
 	"os"
 	"testing"
 
@@ -11,6 +14,40 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
+func TestImageValidationPreservesRequest(t *testing.T) {
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 1501, 1501))); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name        string
+		content     []byte
+		contentType string
+		maxKB       int
+		failures    int
+	}{
+		{"valid large image", encoded.Bytes(), "image/png", 7500, 0},
+		{"oversized image", encoded.Bytes(), "image/png", 1, 1},
+		{"unsupported SVG", []byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`), "image/svg+xml", 7500, 1},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			original := append([]byte(nil), test.content...)
+			upload := &dto.ImageUpload{Upload: &dto.ImageUploadData{Content: test.content, ContentType: test.contentType}}
+			messages, err := validate.ImageUpload(context.Background(), upload, validate.ImageUploadOpts{MaxKilobytes: test.maxKB})
+			if err != nil || len(messages) != test.failures {
+				t.Fatalf("validation failures=%v error=%v", messages, err)
+			}
+
+			if !bytes.Equal(upload.Upload.Content, original) || upload.Upload.ContentType != test.contentType {
+				t.Fatal("validation changed its input image")
+			}
+		})
+	}
+}
+
 func TestValidateImageUpload(t *testing.T) {
 	RegisterT(t)
 
@@ -19,7 +56,7 @@ func TestValidateImageUpload(t *testing.T) {
 		count    int
 	}{
 		{"/app/pkg/web/testdata/logo1.png", 0},
-		{"/app/pkg/web/testdata/logo2.jpg", 2},
+		{"/app/pkg/web/testdata/logo2.jpg", 1},
 		{"/app/pkg/web/testdata/logo3.gif", 1},
 		{"/app/pkg/web/testdata/logo4.png", 1},
 		{"/app/pkg/web/testdata/logo5.png", 0},

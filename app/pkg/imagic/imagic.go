@@ -12,30 +12,55 @@ import (
 	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
 	"golang.org/x/image/draw"
-	_ "golang.org/x/image/webp"
+	xwebp "golang.org/x/image/webp"
 )
 
 var ErrNotSupported = errors.New("File not supported")
+var ErrTooLarge = errors.New("Image must be at most 8192 pixels per side and 25 megapixels")
+var ErrTooManyBytes = errors.New("Image must be at most 50000KB")
+
+const MaxImageBytes = 50000 * 1024
 
 // File contains metadata of a given image
 type File struct {
 	Width  int
 	Height int
 	Size   int
+	Format string
 }
 
 // Parse returns a File if it's in a supported format
 func Parse(file []byte) (*File, error) {
+	if len(file) > MaxImageBytes {
+		return nil, ErrTooManyBytes
+	}
+
 	reader := bytes.NewReader(file)
-	cfg, format, err := image.DecodeConfig(reader)
+	var cfg image.Config
+	var format string
+	var err error
+
+	// The encoder also registers a WebP decoder; use Go's decoder for untrusted input.
+	if len(file) >= 12 && string(file[:4]) == "RIFF" && string(file[8:12]) == "WEBP" {
+		cfg, err = xwebp.DecodeConfig(reader)
+		format = "webp"
+	} else {
+		cfg, format, err = image.DecodeConfig(reader)
+	}
+
 	if err != nil || (format != "png" && format != "gif" && format != "jpeg" && format != "webp") {
 		return nil, ErrNotSupported
+	}
+
+	if cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width > 8192 || cfg.Height > 8192 || cfg.Width > 25000000/cfg.Height {
+		return nil, ErrTooLarge
 	}
 
 	return &File{
 		Size:   len(file),
 		Width:  cfg.Width,
 		Height: cfg.Height,
+		Format: format,
 	}, nil
 }
 
@@ -90,7 +115,7 @@ func Resize(size int) ImageOperation {
 // Apply a list of operations on a given image
 // Returns the final image bytes in WEBP format
 func Apply(input []byte, operations ...ImageOperation) ([]byte, error) {
-	img, format, err := decode(input)
+	img, format, err := Decode(input)
 	if err != nil {
 		return nil, err
 	}
@@ -101,20 +126,39 @@ func Apply(input []byte, operations ...ImageOperation) ([]byte, error) {
 	}
 
 	// Encode final result as WebP
-	return encodeWebP(img)
+	return EncodeWebP(img)
 }
 
-// decode attempts to read the image bytes into an image.Image, returning its format
-func decode(file []byte) (image.Image, string, error) {
-	src, format, err := image.Decode(bytes.NewReader(file))
+// Decode checks resource limits before allocating pixels.
+func Decode(file []byte) (image.Image, string, error) {
+	metadata, err := Parse(file)
 	if err != nil {
 		return nil, "", err
 	}
-	return src, format, nil
+
+	reader := bytes.NewReader(file)
+	var src image.Image
+	if metadata.Format == "webp" {
+		src, err = xwebp.Decode(reader)
+	} else {
+		src, _, err = image.Decode(reader)
+	}
+
+	if err != nil {
+		return nil, "", ErrNotSupported
+	}
+
+	return src, metadata.Format, nil
 }
 
-// encodeWebP encodes the image.Image into WebP
-func encodeWebP(img image.Image) ([]byte, error) {
+func EncodeWebP(img image.Image) ([]byte, error) {
+	if _, ok := img.(*image.RGBA); !ok {
+		// Bulk conversion avoids the encoder's allocation for each non-RGBA pixel.
+		rgba := image.NewRGBA(img.Bounds())
+		draw.Draw(rgba, rgba.Bounds(), img, img.Bounds().Min, draw.Src)
+		img = rgba
+	}
+
 	var buf bytes.Buffer
 	options := &webp.Options{
 		Lossless: false,

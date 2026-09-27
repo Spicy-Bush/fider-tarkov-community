@@ -8,9 +8,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/imagic"
 )
 
-// MaxDimensionSize is the max width/height of an image. If image is bigger than this, it'll be resized.
-const MaxDimensionSize = 1500
-
 // MultiImageUploadOpts arguments to validate mulitple image upload process
 type MultiImageUploadOpts struct {
 	MaxUploads   int
@@ -81,10 +78,18 @@ func ImageUpload(ctx context.Context, upload *dto.ImageUpload, opts ImageUploadO
 	}
 
 	if upload != nil && upload.Upload != nil && len(upload.Upload.Content) > 0 {
+		if len(upload.Upload.Content) > opts.MaxKilobytes*1024 {
+			return []string{i18n.T(ctx, "validation.custom.maximagesize",
+				i18n.Params{"kilobytes": opts.MaxKilobytes},
+			)}, nil
+		}
+
 		logo, err := imagic.Parse(upload.Upload.Content)
 		if err != nil {
 			if err == imagic.ErrNotSupported {
 				messages = append(messages, i18n.T(ctx, "validation.custom.unsupportedfileformat"))
+			} else if err == imagic.ErrTooLarge || err == imagic.ErrTooManyBytes {
+				messages = append(messages, err.Error())
 			} else {
 				return nil, err
 			}
@@ -98,20 +103,6 @@ func ImageUpload(ctx context.Context, upload *dto.ImageUpload, opts ImageUploadO
 
 			if opts.ExactRatio && logo.Width != logo.Height {
 				messages = append(messages, i18n.T(ctx, "validation.custom.imagesquareratio"))
-			}
-
-			if logo.Size > (opts.MaxKilobytes * 1024) {
-				messages = append(messages, i18n.T(ctx, "validation.custom.maximagesize",
-					i18n.Params{"kilobytes": opts.MaxKilobytes},
-				))
-			}
-
-			if logo.Height > MaxDimensionSize && logo.Width > MaxDimensionSize {
-				newImageBytes, err := imagic.Apply(upload.Upload.Content, imagic.Resize(MaxDimensionSize))
-				if err != nil {
-					return nil, err
-				}
-				upload.Upload.Content = newImageBytes
 			}
 		}
 	}

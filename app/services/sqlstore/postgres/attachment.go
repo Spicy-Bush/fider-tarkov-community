@@ -1,11 +1,9 @@
 package postgres
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
-	"image"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -13,8 +11,9 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/imagic"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/rand"
-	"github.com/chai2010/webp"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
 func setAttachments(ctx context.Context, c *cmd.SetAttachments) error {
@@ -86,46 +85,37 @@ func getAttachments(ctx context.Context, q *query.GetAttachments) error {
 	})
 }
 
+const maxImageDimension = 1500
+
+func imageNeedsResize(width, height int) bool {
+	return width > maxImageDimension && height > maxImageDimension
+}
+
 func uploadImage(ctx context.Context, c *cmd.UploadImage) error {
 	if c.Image.Upload == nil || len(c.Image.Upload.Content) == 0 {
 		return nil
 	}
 
-	src, _, err := image.Decode(bytes.NewReader(c.Image.Upload.Content))
+	src, format, err := imagic.Decode(c.Image.Upload.Content)
 	if err != nil {
-		bkey := fmt.Sprintf("%s/%s.webp", c.Folder, rand.String(32))
-
-		err = bus.Dispatch(ctx, &cmd.StoreBlob{
-			Key:         bkey,
-			Content:     c.Image.Upload.Content,
-			ContentType: c.Image.Upload.ContentType,
-		})
-		if err != nil {
-			return errors.Wrap(err, "failed to upload new blob")
-		}
-
-		c.Image.BlobKey = bkey
-		return nil
+		return validate.Failed(err.Error())
 	}
 
-	var buf bytes.Buffer
-	encodeOptions := &webp.Options{
-		Lossless: false,
-		Quality:  80,
+	if imageNeedsResize(src.Bounds().Dx(), src.Bounds().Dy()) {
+		src = imagic.Resize(maxImageDimension)(src, format)
 	}
-	if err := webp.Encode(&buf, src, encodeOptions); err != nil {
+
+	content, err := imagic.EncodeWebP(src)
+	if err != nil {
 		return errors.Wrap(err, "failed to encode image as WebP")
 	}
-
-	c.Image.Upload.Content = buf.Bytes()
-	c.Image.Upload.ContentType = "image/webp"
 
 	bkey := fmt.Sprintf("%s/%s.webp", c.Folder, rand.String(32))
 
 	err = bus.Dispatch(ctx, &cmd.StoreBlob{
 		Key:         bkey,
-		Content:     c.Image.Upload.Content,
-		ContentType: c.Image.Upload.ContentType,
+		Content:     content,
+		ContentType: "image/webp",
 	})
 	if err != nil {
 		return errors.Wrap(err, "failed to upload new blob")

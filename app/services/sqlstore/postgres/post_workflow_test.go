@@ -80,12 +80,16 @@ func (f postWorkflow) queuePostNotification(t testing.TB) {
 }
 
 func (f postWorkflow) request(handler web.HandlerFunc, method string, number int, body string) (*httptest.ResponseRecorder, error) {
-	req := httptest.NewRequest(method, "http://localhost:3000/api/v1/posts", strings.NewReader(body))
+	return f.requestWithParams(handler, method, "http://localhost:3000/api/v1/posts", body, web.StringMap{"number": fmt.Sprint(number)})
+}
+
+func (f postWorkflow) requestWithParams(handler web.HandlerFunc, method, path, body string, params web.StringMap) (*httptest.ResponseRecorder, error) {
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.RequestURI = req.URL.RequestURI()
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
-	c := web.NewContext(f.engine, req, recorder, web.StringMap{"number": fmt.Sprint(number)})
+	c := web.NewContext(f.engine, req, recorder, params)
 	c.SetTenant(f.tenant)
 	c.SetUser(f.user)
 	err := handler(c)

@@ -15,7 +15,9 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/imagic"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/rand"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/services/blob"
 )
 
@@ -237,6 +239,21 @@ func getImageFile(ctx context.Context, q *query.GetImageFile) error {
 }
 
 func uploadImageFile(ctx context.Context, c *cmd.UploadImageFile) error {
+	src, format, err := imagic.Decode(c.Content)
+	if err != nil {
+		return validate.Failed(err.Error())
+	}
+
+	content, contentType := c.Content, "image/"+format
+	if imageNeedsResize(src.Bounds().Dx(), src.Bounds().Dy()) {
+		src = imagic.Resize(maxImageDimension)(src, format)
+		content, err = imagic.EncodeWebP(src)
+		if err != nil {
+			return errors.Wrap(err, "failed to resize uploaded image")
+		}
+		contentType = "image/webp"
+	}
+
 	prefix := c.Prefix
 	if prefix == "" {
 		prefix = "files/"
@@ -246,8 +263,8 @@ func uploadImageFile(ctx context.Context, c *cmd.UploadImageFile) error {
 
 	storeCmd := &cmd.StoreBlob{
 		Key:         blobKey,
-		Content:     c.Content,
-		ContentType: c.ContentType,
+		Content:     content,
+		ContentType: contentType,
 	}
 
 	if err := bus.Dispatch(ctx, storeCmd); err != nil {
@@ -257,8 +274,8 @@ func uploadImageFile(ctx context.Context, c *cmd.UploadImageFile) error {
 	c.Result = &dto.FileInfo{
 		Name:        c.Name,
 		BlobKey:     blobKey,
-		Size:        int64(len(c.Content)),
-		ContentType: c.ContentType,
+		Size:        int64(len(content)),
+		ContentType: contentType,
 		CreatedAt:   time.Now(),
 		IsInUse:     false,
 	}
