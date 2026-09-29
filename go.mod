@@ -1,8 +1,6 @@
-// +heroku goVersion go1.25
-
 module github.com/Spicy-Bush/fider-tarkov-community
 
-go 1.25.5
+go 1.25.14
 
 require (
 	github.com/aws/aws-sdk-go v1.55.8
@@ -12,7 +10,7 @@ require (
 	github.com/goenning/letteravatar v0.0.0-20180605200324-553181ed4055
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golangci/golangci-lint v1.59.1
-	github.com/gomarkdown/markdown v0.0.0-20240930133441-72d49d9543d8
+	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
 	github.com/gosimple/slug v1.11.0
 	github.com/gotnospirit/messageformat v0.0.0-20190719172517-c1d0bdacdea2
 	github.com/joeshaw/envdecode v0.0.0-20200121155833-099f1fc765bd
@@ -23,10 +21,11 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/client_model v0.2.0
+	github.com/reearth/ygo v1.50.0
 	github.com/robfig/cron v1.2.0
-	golang.org/x/crypto v0.45.0
-	golang.org/x/image v0.18.0
-	golang.org/x/net v0.47.0
+	golang.org/x/crypto v0.54.0
+	golang.org/x/image v0.45.0
+	golang.org/x/net v0.57.0
 	golang.org/x/oauth2 v0.27.0
 	rogchap.com/v8go v0.7.1-0.20211222173054-943fcf9e74cc
 )
@@ -62,7 +61,7 @@ require (
 	github.com/butuzov/mirror v1.2.0 // indirect
 	github.com/catenacyber/perfsprint v0.7.1 // indirect
 	github.com/ccojocar/zxcvbn-go v1.0.2 // indirect
-	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charithe/durationcheck v0.0.10 // indirect
 	github.com/chavacava/garif v0.1.0 // indirect
 	github.com/ckaznocha/intrange v0.1.2 // indirect
@@ -183,7 +182,7 @@ require (
 	github.com/ssgreg/nlreturn/v2 v2.2.1 // indirect
 	github.com/stbenjam/no-sprintf-host-port v0.1.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/stretchr/testify v1.9.0 // indirect
+	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/subosito/gotenv v1.4.1 // indirect
 	github.com/t-yuki/gocover-cobertura v0.0.0-20180217150009-aaee18c8195c // indirect
 	github.com/tdakkota/asciicheck v0.2.0 // indirect
@@ -202,17 +201,17 @@ require (
 	gitlab.com/bosi/decorder v0.4.2 // indirect
 	go-simpler.org/musttag v0.12.2 // indirect
 	go-simpler.org/sloglint v0.7.1 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/automaxprocs v1.5.3 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
-	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc // indirect
+	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/exp/typeparams v0.0.0-20240314144324-c7f7c6466f7f // indirect
-	golang.org/x/mod v0.29.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
-	golang.org/x/tools v0.38.0 // indirect
+	golang.org/x/mod v0.38.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/tools v0.48.0 // indirect
 	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
 	golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
