@@ -1,55 +1,43 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
-import { actions } from "@fider/services"
-import { useFider } from "@fider/hooks"
+import React, { createContext, useContext, useState, useEffect, useSyncExternalStore, ReactNode } from "react"
+import { useFider } from "@fider/hooks/use-fider"
+import { createNotificationInbox, NotificationInboxSnapshot } from "@fider/services/notificationInbox"
 
-interface UnreadCounts {
-  notifications: number
-  pendingReports: number
-  queueCount: number
-}
+type NotificationInbox = ReturnType<typeof createNotificationInbox>
 
 interface UnreadCountsContextValue {
-  counts: UnreadCounts
-  refreshCounts: () => void
-  setNotificationCount: (count: number) => void
+  counts: { notifications: number; pendingReports: number; queueCount: number }
+  refreshCounts: NotificationInbox["refreshCounts"]
+  inbox: NotificationInbox
+  snapshot: NotificationInboxSnapshot
 }
 
 const UnreadCountsContext = createContext<UnreadCountsContextValue | null>(null)
 
-export const UnreadCountsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const UnreadCountsProvider = ({ children }: { children: ReactNode }) => {
+  const { session } = useFider()
+  const userID = session.isAuthenticated ? session.user.id : undefined
+  return (
+    <AccountNotifications key={`${session.tenant.id}:${userID}`} tenantID={session.tenant.id} userID={userID}>
+      {children}
+    </AccountNotifications>
+  )
+}
+
+function AccountNotifications({ tenantID, userID, children }: { tenantID: number; userID?: number; children: ReactNode }) {
   const fider = useFider()
-  const [counts, setCounts] = useState<UnreadCounts>({ notifications: 0, pendingReports: 0, queueCount: 0 })
-
-  const refreshCounts = useCallback(() => {
-    if (fider.session.isAuthenticated) {
-      actions.getUnreadCounts().then((result) => {
-        if (result.ok) {
-          setCounts({
-            notifications: result.data.total || 0,
-            pendingReports: result.data.pendingReports || 0,
-            queueCount: result.data.queueCount || 0,
-          })
-        }
-      })
-    }
-  }, [fider.session.isAuthenticated])
-
-  const setNotificationCount = useCallback((count: number) => {
-    setCounts((prev) => ({ ...prev, notifications: count }))
-  }, [])
-
-  useEffect(() => {
-    refreshCounts()
-  }, [refreshCounts])
+  const [inbox] = useState(() => createNotificationInbox(() =>
+    fider.session.isAuthenticated && fider.session.tenant.id === tenantID && fider.session.user.id === userID
+  ))
+  const snapshot = useSyncExternalStore(inbox.subscribe, inbox.getSnapshot, inbox.getSnapshot)
+  useEffect(inbox.start, [inbox])
 
   return (
-    <UnreadCountsContext.Provider
-      value={{
-        counts,
-        refreshCounts,
-        setNotificationCount,
-      }}
-    >
+    <UnreadCountsContext.Provider value={{
+      counts: { notifications: snapshot.totals.unread, pendingReports: snapshot.pendingReports, queueCount: snapshot.queueCount },
+      refreshCounts: inbox.refreshCounts,
+      inbox,
+      snapshot,
+    }}>
       {children}
     </UnreadCountsContext.Provider>
   )
@@ -62,4 +50,3 @@ export const useUnreadCounts = (): UnreadCountsContextValue => {
   }
   return context
 }
-

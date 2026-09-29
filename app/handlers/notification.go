@@ -51,6 +51,8 @@ func GetAllNotifications() web.HandlerFunc {
 			"total":         q.TotalCount,
 			"page":          q.Page,
 			"perPage":       q.PerPage,
+			"unreadTotal":   q.UnreadCount,
+			"readTotal":     q.ReadCount,
 		})
 	}
 }

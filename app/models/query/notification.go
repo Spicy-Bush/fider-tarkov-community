@@ -15,11 +15,13 @@ type GetNotificationByID struct {
 }
 
 type GetActiveNotifications struct {
-	Result     []*entity.Notification
-	Type       string
-	Page       int
-	PerPage    int
-	TotalCount int
+	Result      []*entity.Notification
+	Type        string
+	Page        int
+	PerPage     int
+	TotalCount  int
+	UnreadCount int
+	ReadCount   int
 }
 
 type GetActiveSubscribers struct {

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -121,51 +122,73 @@ func getActiveNotifications(ctx context.Context, q *query.GetActiveNotifications
 			q.PerPage = 10
 		}
 
-		offset := (q.Page - 1) * q.PerPage
-
-		conditions := "TRUE"
-		args := []interface{}{tenant.ID, user.Role.String(), user.ID}
-		argIndex := 4
-
-		switch q.Type {
-		case "unread":
-			conditions += " AND n.read = false"
-		case "read":
-			conditions += " AND n.read = true AND n.updated_at > CURRENT_DATE - INTERVAL '30 days'"
-		default:
-			conditions += " AND (n.read = false OR n.updated_at > CURRENT_DATE - INTERVAL '30 days')"
+		if q.PerPage > 100 {
+			q.PerPage = 100
+		}
+		offset := int64(q.Page-1) * int64(q.PerPage)
+		condition := "TRUE"
+		if q.Type == "unread" {
+			condition = "NOT n.read"
+		} else if q.Type == "read" {
+			condition = "n.read"
 		}
 
-		countQuery := visibleNotifications + fmt.Sprintf(`
-			SELECT COUNT(*) 
-			FROM visible_notifications n
-			WHERE %s
-		`, conditions)
-
-		err := trx.Scalar(&q.TotalCount, countQuery, args...)
-		if err != nil {
-			return errors.Wrap(err, "failed to count active notifications")
+		var snapshot struct {
+			Unread int    `db:"unread"`
+			Read   int    `db:"read"`
+			Items  []byte `db:"items"`
 		}
-
-		query := visibleNotifications + fmt.Sprintf(`
-			SELECT n.id, n.title, n.link, n.read, n.created_at, n.author_id, u.avatar_type, u.avatar_bkey, u.name
-			FROM visible_notifications n
-			LEFT JOIN users u ON u.id = n.author_id
-			WHERE %s
-			ORDER BY n.updated_at DESC
-			LIMIT $%d OFFSET $%d
-		`, conditions, argIndex, argIndex+1)
-
-		args = append(args, q.PerPage, offset)
-
-		err = trx.Select(&q.Result, query, args...)
+		args := []any{tenant.ID, user.Role.String(), user.ID, q.PerPage, offset}
+		err := trx.Get(&snapshot, visibleNotifications+fmt.Sprintf(`
+			, active_notifications AS (
+				SELECT * FROM visible_notifications
+				WHERE NOT read OR updated_at > CURRENT_DATE - INTERVAL '30 days'
+			), totals AS (
+				SELECT COUNT(*) FILTER (WHERE NOT read) AS unread,
+					COUNT(*) FILTER (WHERE read) AS read
+				FROM active_notifications
+			), selected AS (
+				SELECT n.id, n.title, n.link, n.read, n.created_at AS "createdAt",
+					n.author_id, u.avatar_type, u.avatar_bkey, u.name AS "authorName"
+				FROM active_notifications n
+				LEFT JOIN users u ON u.id = n.author_id
+				WHERE %s
+				ORDER BY n.updated_at DESC, n.id DESC
+				LIMIT $4 OFFSET $5
+			)
+			SELECT totals.unread, totals.read,
+				COALESCE((SELECT json_agg(selected) FROM selected), '[]') AS items
+			FROM totals
+		`, condition), args...)
 		if err != nil {
 			return errors.Wrap(err, "failed to get active notifications")
 		}
 
-		// Iterate over notifications and build avatar URL
-		for i := range q.Result {
-			q.Result[i].AvatarURL = buildAvatarURL(ctx, q.Result[i].AvatarType, int(q.Result[i].AuthorID), q.Result[i].AuthorName, q.Result[i].AvatarBlobKey)
+		var rows []struct {
+			entity.Notification
+			AuthorID      int    `json:"author_id"`
+			AvatarBlobKey string `json:"avatar_bkey"`
+			AvatarType    int    `json:"avatar_type"`
+		}
+		if err := json.Unmarshal(snapshot.Items, &rows); err != nil {
+			return errors.Wrap(err, "failed to decode active notifications")
+		}
+		q.Result = make([]*entity.Notification, 0, len(rows))
+		for i := range rows {
+			row := &rows[i]
+			row.Notification.AuthorID = row.AuthorID
+			row.Notification.AvatarType = enum.AvatarType(row.AvatarType)
+			row.Notification.AvatarBlobKey = row.AvatarBlobKey
+			row.AvatarURL = buildAvatarURL(ctx, row.Notification.AvatarType, row.AuthorID, row.AuthorName, row.AvatarBlobKey)
+			q.Result = append(q.Result, &row.Notification)
+		}
+		q.UnreadCount = snapshot.Unread
+		q.ReadCount = snapshot.Read
+		q.TotalCount = snapshot.Unread + snapshot.Read
+		if q.Type == "unread" {
+			q.TotalCount = snapshot.Unread
+		} else if q.Type == "read" {
+			q.TotalCount = snapshot.Read
 		}
 
 		return nil

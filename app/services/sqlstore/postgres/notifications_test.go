@@ -182,3 +182,38 @@ func TestNotificationStorage_PurgeExpiredNotifications(t *testing.T) {
 	Expect(err).IsNil()
 	Expect(purgeCommand.NumOfDeletedNotifications).Equals(2)
 }
+
+func TestNotificationStorage_ListSnapshotTotalsAndEmptyPage(t *testing.T) {
+	SetupDatabaseTest(t)
+	defer TeardownDatabaseTest()
+
+	first := &cmd.AddNewNotification{User: aryaStark, Title: "First notification", Link: "/first"}
+	second := &cmd.AddNewNotification{User: aryaStark, Title: "Second notification", Link: "/second"}
+	old := &cmd.AddNewNotification{User: aryaStark, Title: "Old read notification", Link: "/old"}
+	bus.MustDispatch(jonSnowCtx, first, second, old)
+	bus.MustDispatch(aryaStarkCtx, &cmd.MarkNotificationAsRead{ID: second.Result.ID}, &cmd.MarkNotificationAsRead{ID: old.Result.ID})
+	_, err := trx.Execute("UPDATE notifications SET updated_at = $1 WHERE id = $2", time.Now().AddDate(0, 0, -31), old.Result.ID)
+	Expect(err).IsNil()
+
+	for _, kind := range []string{"unread", "read", ""} {
+		list := &query.GetActiveNotifications{Type: kind, Page: 1, PerPage: 1}
+		Expect(bus.Dispatch(aryaStarkCtx, list)).IsNil()
+		Expect(list.UnreadCount).Equals(1)
+		Expect(list.ReadCount).Equals(1)
+		Expect(list.Result).HasLen(1)
+		Expect(list.Result[0].AuthorID).Equals(jonSnow.ID)
+		Expect(list.Result[0].AuthorName).Equals(jonSnow.Name)
+		Expect(list.Result[0].AvatarURL == "").IsFalse()
+		if kind == "unread" {
+			Expect(list.Result[0].ID).Equals(first.Result.ID)
+		} else if kind == "read" {
+			Expect(list.Result[0].ID).Equals(second.Result.ID)
+		}
+
+		list.Page = 50
+		Expect(bus.Dispatch(aryaStarkCtx, list)).IsNil()
+		Expect(list.Result).HasLen(0)
+		Expect(list.UnreadCount).Equals(1)
+		Expect(list.ReadCount).Equals(1)
+	}
+}

@@ -1,11 +1,17 @@
-import React, { useEffect, useState, useRef, useCallback } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import { heroiconsTrash as IconTrash, undrawEmpty as NoDataIllustration, heroiconsBell as IconBell } from "@fider/icons.generated"
-import { actions, Fider, classSet } from "@fider/services"
-import { Avatar, Icon, Markdown, Moment, Button, ButtonClickEvent } from "../common"
+import { Fider } from "@fider/services/fider"
+import { classSet } from "@fider/services/utils"
+import { Avatar } from "@fider/components/common/Avatar"
+import { Icon } from "@fider/components/common/Icon"
+import { Markdown } from "@fider/components/common/Markdown"
+import { Moment } from "@fider/components/common/Moment"
+import { Button } from "@fider/components/common/Button"
+import { DisplayError } from "@fider/components/common/form/DisplayError"
 import { Tabs, TabPanels } from "../common/Tabs"
 import { Dropdown, useDropdown } from "../common/Dropdown"
 import { Notification } from "@fider/models"
-import { HStack, VStack } from "../layout"
+import { HStack, VStack } from "@fider/components/layout/Stack"
 import { useUnreadCounts } from "@fider/contexts/UnreadCountsContext"
 
 import { Trans } from "@lingui/react/macro"
@@ -24,11 +30,11 @@ const NotificationSkeleton = () => {
 
 export const NotificationItem = ({ notification }: { notification: Notification }) => {
   const dropdown = useDropdown()
-  const { refreshCounts } = useUnreadCounts()
+  const { inbox } = useUnreadCounts()
 
   const markRead = () => {
     if (!notification.read) {
-      void actions.markNotificationAsRead(notification.id).then(() => refreshCounts())
+      void inbox.markRead(notification.id)
     }
   }
 
@@ -85,141 +91,36 @@ const NOTIFICATION_TABS = ["unread", "read"] as const
 type NotificationTab = (typeof NOTIFICATION_TABS)[number]
 
 export const NotificationIndicator = () => {
-  const { counts, setNotificationCount, refreshCounts } = useUnreadCounts()
+  const { counts, inbox, snapshot } = useUnreadCounts()
   const [showingNotifications, setShowingNotifications] = useState(false)
   const [activeTab, setActiveTab] = useState<NotificationTab>("unread")
-  const [loading, setLoading] = useState(false)
-  const [unread, setUnread] = useState<Notification[]>([])
-  const [read, setRead] = useState<Notification[]>([])
-  const [unreadPage, setUnreadPage] = useState(1)
-  const [readPage, setReadPage] = useState(1)
-  const [unreadTotal, setUnreadTotal] = useState(0)
-  const [readTotal, setReadTotal] = useState(0)
-  const [purging, setPurging] = useState(false)
-  const [initialLoad, setInitialLoad] = useState(true)
-
   const unreadContainerRef = useRef<HTMLDivElement>(null)
   const readContainerRef = useRef<HTMLDivElement>(null)
-
-  const unreadNotifications = counts.notifications
+  const unread = snapshot.pages.unread
+  const read = snapshot.pages.read
+  const unreadTotal = snapshot.totals.unread
+  const readTotal = snapshot.totals.read
 
   useEffect(() => {
     if (showingNotifications) {
-      setInitialLoad(true)
-      loadNotifications("unread", 1, true)
-      loadNotifications("read", 1, true)
+      void inbox.refresh()
     }
-  }, [showingNotifications])
+  }, [showingNotifications, inbox])
 
-  const loadNotifications = async (type: string, page: number, reset: boolean = false) => {
-    if (loading) return
-
-    setLoading(true)
-
-    const result = await actions.getNotifications(page, 10, type)
-
-    if (result.ok && result.data) {
-      const notifications = result.data.notifications ?? []
-      const { total } = result.data
-
-      if (type === "unread") {
-        setUnreadTotal(total)
-        setUnread((prev) => (reset ? notifications : [...(prev || []), ...notifications]))
-        setUnreadPage(page)
-        setNotificationCount(total)
-      } else {
-        setReadTotal(total)
-        setRead((prev) => (reset ? notifications : [...(prev || []), ...notifications]))
-        setReadPage(page)
-      }
-    }
-
-    setLoading(false)
-    setInitialLoad(false)
-  }
-
-  const stateRef = useRef({
-    unreadPage,
-    readPage,
-    unread,
-    read,
-    unreadTotal,
-    readTotal,
-    loading,
-  })
-
-  useEffect(() => {
-    stateRef.current = { unreadPage, readPage, unread, read, unreadTotal, readTotal, loading }
-  }, [unreadPage, readPage, unread, read, unreadTotal, readTotal, loading])
-
-  const handleScroll = useCallback((type: "unread" | "read") => {
+  const handleScroll = (type: NotificationTab) => {
     const container = type === "unread" ? unreadContainerRef.current : readContainerRef.current
-    if (!container) return
-
-    const { scrollTop, scrollHeight, clientHeight } = container
-    if (scrollHeight === 0) return
-
-    const scrolledToBottom = scrollHeight - scrollTop - clientHeight < 50
-    const state = stateRef.current
-
-    if (scrolledToBottom && !state.loading) {
-      if (type === "unread" && state.unread.length < state.unreadTotal) {
-        loadNotifications("unread", state.unreadPage + 1)
-      } else if (type === "read" && state.read.length < state.readTotal) {
-        loadNotifications("read", state.readPage + 1)
-      }
+    if (container && container.scrollHeight > 0 && container.scrollHeight - container.scrollTop - container.clientHeight < 50) {
+      void inbox.load(type)
     }
-  }, [])
+  }
 
   useEffect(() => {
-    const unreadContainer = unreadContainerRef.current
-    const readContainer = readContainerRef.current
-
-    const handleUnreadScroll = () => handleScroll("unread")
-    const handleReadScroll = () => handleScroll("read")
-
-    unreadContainer?.addEventListener("scroll", handleUnreadScroll)
-    readContainer?.addEventListener("scroll", handleReadScroll)
-
-    return () => {
-      unreadContainer?.removeEventListener("scroll", handleUnreadScroll)
-      readContainer?.removeEventListener("scroll", handleReadScroll)
+    if (!showingNotifications) {
+      return
     }
-  }, [handleScroll, showingNotifications, activeTab])
-
-  const markAllAsRead = async (event: ButtonClickEvent) => {
-    const response = await actions.markAllAsRead()
-    if (response.ok) {
-      loadNotifications("unread", 1, true)
-      loadNotifications("read", 1, true)
-    }
-  }
-
-  const purgeReadNotifications = async (event: ButtonClickEvent) => {
-    if (purging) return
-
-    setPurging(true)
-    const response = await actions.purgeReadNotifications()
-
-    if (response.ok) {
-      setRead([])
-      setReadTotal(0)
-      refreshCounts()
-    }
-
-    setPurging(false)
-  }
-
-  const handleTabChange = (tab: NotificationTab) => {
-    setActiveTab(tab)
-    setTimeout(() => {
-      if (tab === "unread" && unreadContainerRef.current) {
-        handleScroll("unread")
-      } else if (tab === "read" && readContainerRef.current) {
-        handleScroll("read")
-      }
-    }, 100)
-  }
+    const timer = setTimeout(() => handleScroll(activeTab), 100)
+    return () => clearTimeout(timer)
+  }, [showingNotifications, activeTab, unread.page, read.page])
 
   return (
     <Dropdown
@@ -228,26 +129,32 @@ export const NotificationIndicator = () => {
       position="left"
       fullscreenSm={true}
       onToggled={(isOpen: boolean) => setShowingNotifications(isOpen)}
-      renderHandle={<NotificationIcon unreadNotifications={unreadNotifications} />}
+      renderHandle={<NotificationIcon unreadNotifications={counts.notifications} />}
     >
       <div className="max-h-[80vh] flex flex-col lg:min-w-[400px] lg:max-w-[500px]">
         {showingNotifications && (
           <>
+            {snapshot.error && (
+              <div className="px-4 pt-3">
+                <DisplayError error={snapshot.error} />
+                <Button size="small" variant="tertiary" onClick={() => inbox.refresh()}>Retry</Button>
+              </div>
+            )}
             <Tabs
               tabs={[
                 { value: "unread", label: <Trans id="label.unread">Unread</Trans>, counter: unreadTotal },
                 { value: "read", label: <Trans id="label.read">Read</Trans>, counter: readTotal },
               ]}
               activeTab={activeTab}
-              onChange={handleTabChange}
+              onChange={setActiveTab}
               className="px-2 pt-2"
             />
 
             <TabPanels keys={NOTIFICATION_TABS} activeKey={activeTab}>
               {(tab) =>
                 tab === "unread" ? (
-                  <div ref={unreadContainerRef} className="overflow-y-auto max-h-[400px] pb-2 scroll-smooth overscroll-contain">
-                    {loading && initialLoad ? (
+                  <div ref={unreadContainerRef} onScroll={() => handleScroll("unread")} className="overflow-y-auto max-h-[400px] pb-2 scroll-smooth overscroll-contain">
+                    {unread.loading && unread.page === 0 ? (
                       <VStack spacing={0} className="py-2" divide={false}>
                         {Array(5)
                           .fill(null)
@@ -262,17 +169,17 @@ export const NotificationIndicator = () => {
                             <Trans id="modal.notifications.unread">Unread notifications</Trans>
                           </p>
                           {unreadTotal > 1 && (
-                            <Button size="small" variant="tertiary" onClick={markAllAsRead}>
+                            <Button size="small" variant="tertiary" disabled={snapshot.changing} onClick={() => inbox.markAllRead()}>
                               <Trans id="action.markallasread">Mark All as Read</Trans>
                             </Button>
                           )}
                         </div>
                         <VStack spacing={0} className="py-2" divide={false}>
-                          {unread.map((n) => (
+                          {unread.items.map((n) => (
                             <NotificationItem key={n.id} notification={n} />
                           ))}
                         </VStack>
-                        {loading && !initialLoad && unread.length < unreadTotal && (
+                        {unread.loading && unread.page > 0 && unread.items.length < unreadTotal && (
                           <VStack spacing={0} className="py-2" divide={false}>
                             {Array(3)
                               .fill(null)
@@ -292,8 +199,8 @@ export const NotificationIndicator = () => {
                     )}
                   </div>
                 ) : (
-                  <div ref={readContainerRef} className="overflow-y-auto max-h-[400px] pb-2 scroll-smooth overscroll-contain">
-                    {loading && initialLoad ? (
+                  <div ref={readContainerRef} onScroll={() => handleScroll("read")} className="overflow-y-auto max-h-[400px] pb-2 scroll-smooth overscroll-contain">
+                    {read.loading && read.page === 0 ? (
                       <VStack spacing={0} className="py-2" divide={false}>
                         {Array(5)
                           .fill(null)
@@ -307,17 +214,17 @@ export const NotificationIndicator = () => {
                           <p className="text-subtitle mb-0">
                             <Trans id="modal.notifications.read">Read notifications</Trans>
                           </p>
-                          <Button size="small" variant="danger" disabled={purging} onClick={purgeReadNotifications}>
+                          <Button size="small" variant="danger" disabled={snapshot.changing} onClick={() => inbox.purgeRead()}>
                             <Icon sprite={IconTrash} className="h-4 mr-1" />
                             <Trans id="action.purgeread">Purge All</Trans>
                           </Button>
                         </div>
                         <VStack spacing={0} className="py-2" divide={false}>
-                          {read.map((n) => (
+                          {read.items.map((n) => (
                             <NotificationItem key={n.id} notification={n} />
                           ))}
                         </VStack>
-                        {loading && !initialLoad && read.length < readTotal && (
+                        {read.loading && read.page > 0 && read.items.length < readTotal && (
                           <VStack spacing={0} className="py-2" divide={false}>
                             {Array(3)
                               .fill(null)
