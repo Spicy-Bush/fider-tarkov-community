@@ -2,22 +2,21 @@ package httpclient
 
 import (
 	"context"
-	"io"
+	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/outbound"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/readlimit"
 )
 
+const maxResponseBytes = 8 * 1024 * 1024
+
+var client = outbound.NewClient()
+
 func init() {
-	http.DefaultClient = &http.Client{
-		Timeout: 30 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
 	bus.Register(Service{})
 }
 
@@ -53,15 +52,15 @@ func requestHandler(ctx context.Context, c *cmd.HTTPRequest) error {
 		req.SetBasicAuth(c.BasicAuth.User, c.BasicAuth.Password)
 	}
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 
 	defer res.Body.Close()
-	respBody, err := io.ReadAll(res.Body)
+	respBody, err := readlimit.ReadAll(res.Body, maxResponseBytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("read HTTP response (limit %d bytes): %w", maxResponseBytes, err)
 	}
 
 	c.ResponseBody = respBody

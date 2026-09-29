@@ -18,12 +18,15 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/jsonq"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/jwt"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/outbound"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/facebook"
 	"golang.org/x/oauth2/github"
 )
+
+var oauthHTTPClient = outbound.NewClient()
 
 func init() {
 	bus.Register(Service{})
@@ -200,6 +203,7 @@ func getOAuthProfile(ctx context.Context, q *query.GetOAuthProfile) error {
 }
 
 func getOAuthRawProfile(ctx context.Context, q *query.GetOAuthRawProfile) error {
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, oauthHTTPClient)
 	config, err := getConfig(ctx, q.Provider)
 	if err != nil {
 		return err
