@@ -34,7 +34,9 @@ func QueuePostHeartbeat() web.HandlerFunc {
 			return c.NotFound()
 		}
 
-		sse.GetHub().UpdateQueuePresence(c.Tenant().ID, c.User().ID, c.User().Name, postID)
+		if err := updateViewerPresence(c, sse.ChannelQueue, postID); err != nil {
+			return c.Failure(err)
+		}
 
 		return c.Ok(web.Map{})
 	}
@@ -42,9 +44,10 @@ func QueuePostHeartbeat() web.HandlerFunc {
 
 func StopViewingQueuePost() web.HandlerFunc {
 	return func(c *web.Context) error {
-		sse.GetHub().UpdateQueuePresence(c.Tenant().ID, c.User().ID, c.User().Name, 0)
+		if err := updateViewerPresence(c, sse.ChannelQueue, 0); err != nil {
+			return c.Failure(err)
+		}
 
 		return c.Ok(web.Map{})
 	}
 }
-

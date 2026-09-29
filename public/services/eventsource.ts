@@ -31,6 +31,7 @@ export const createEventSource = (config: EventSourceConfig): EventSourceInstanc
   const { endpoint, heartbeatConfig } = config
 
   let es: EventSource | null = null
+  let connectionId: string | undefined
   const handlers = new Map<string, Set<MessageHandler>>()
   let reconnectAttempts = 0
   let reconnectDelay = TIME.RECONNECT_DELAY_MS
@@ -53,8 +54,8 @@ export const createEventSource = (config: EventSourceConfig): EventSourceInstanc
   }
 
   const sendHeartbeat = (): void => {
-    if (!isPageVisible() || !viewingItemId || !heartbeatConfig) return
-    http.post(heartbeatConfig.heartbeatEndpoint(viewingItemId)).catch(() => {})
+    if (!isPageVisible() || !viewingItemId || !heartbeatConfig || !connectionId) return
+    http.post(heartbeatConfig.heartbeatEndpoint(viewingItemId), { connectionId }, { notifyOnError: false }).catch(() => {})
   }
 
   const isPageVisible = (): boolean => {
@@ -123,14 +124,12 @@ export const createEventSource = (config: EventSourceConfig): EventSourceInstanc
 
     setTimeout(() => {
       if (!isIntentionallyClosed && es === null) {
-        connect()
+        openConnection()
       }
     }, delay)
   }
 
-  const connect = (): void => {
-    connectionCount++
-
+  const openConnection = (): void => {
     if (es !== null) return
 
     isIntentionallyClosed = false
@@ -141,18 +140,22 @@ export const createEventSource = (config: EventSourceConfig): EventSourceInstanc
       es.onopen = () => {
         reconnectAttempts = 0
         reconnectDelay = TIME.RECONNECT_DELAY_MS
-        onReconnected()
         emit("connection.open", {})
       }
 
       es.onmessage = (event) => {
         try {
           const message: EventSourceMessage = JSON.parse(event.data)
+          if (message.type === "connection.ready") {
+            connectionId = (message.payload as { connectionId: string }).connectionId
+            onReconnected()
+          }
           emit(message.type, message.payload)
         } catch {}
       }
 
       es.onerror = () => {
+        connectionId = undefined
         emit("connection.error", {})
 
         if (es?.readyState === EventSource.CLOSED) {
@@ -169,12 +172,18 @@ export const createEventSource = (config: EventSourceConfig): EventSourceInstanc
     }
   }
 
+  const connect = (): void => {
+    connectionCount++
+    openConnection()
+  }
+
   const disconnect = (): void => {
     connectionCount = Math.max(0, connectionCount - 1)
 
     if (connectionCount > 0) return
 
     isIntentionallyClosed = true
+    connectionId = undefined
     stopHeartbeat()
     removeVisibilityListener()
     viewingItemId = null
@@ -219,7 +228,9 @@ export const createEventSource = (config: EventSourceConfig): EventSourceInstanc
     removeVisibilityListener()
     if (viewingItemId) {
       viewingItemId = null
-      http.delete(heartbeatConfig.stopViewingEndpoint).catch(() => {})
+      if (connectionId) {
+        http.delete(heartbeatConfig.stopViewingEndpoint, { connectionId }, { notifyOnError: false }).catch(() => {})
+      }
     }
   }
 

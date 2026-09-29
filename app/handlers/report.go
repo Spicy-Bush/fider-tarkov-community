@@ -327,7 +327,9 @@ func ReportHeartbeat() web.HandlerFunc {
 			return c.NotFound()
 		}
 
-		sse.GetHub().UpdatePresence(c.Tenant().ID, c.User().ID, c.User().Name, reportID)
+		if err := updateViewerPresence(c, sse.ChannelReports, reportID); err != nil {
+			return c.Failure(err)
+		}
 
 		return c.Ok(web.Map{})
 	}
@@ -335,7 +337,9 @@ func ReportHeartbeat() web.HandlerFunc {
 
 func StopViewingReport() web.HandlerFunc {
 	return func(c *web.Context) error {
-		sse.GetHub().UpdatePresence(c.Tenant().ID, c.User().ID, c.User().Name, 0)
+		if err := updateViewerPresence(c, sse.ChannelReports, 0); err != nil {
+			return c.Failure(err)
+		}
 
 		return c.Ok(web.Map{})
 	}
