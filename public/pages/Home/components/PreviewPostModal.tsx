@@ -1,6 +1,6 @@
 import React from "react"
 import { Modal, Button, Avatar, UserName, Moment, Markdown, ImageGallery } from "@fider/components"
-import { ImageUpload } from "@fider/models"
+import { DraftImage } from "@fider/services/draftImages"
 import { useFider } from "@fider/hooks"
 import { Trans } from "@lingui/react/macro"
 import { HStack, VStack } from "@fider/components/layout"
@@ -9,7 +9,7 @@ interface PreviewPostModalProps {
   isOpen: boolean
   title: string
   description: string
-  attachments: ImageUpload[]
+  attachments: DraftImage[]
   onClose?: () => void
 }
 

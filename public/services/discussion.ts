@@ -1,6 +1,7 @@
 import { CommentContext, DiscussionComment, DiscussionOwner, DiscussionPage, DiscussionSort } from "../models/discussion"
 import { ImageUpload } from "@fider/models"
-import { http, RequestError, Result } from "./http"
+import { http } from "./http"
+import { retryRequest } from "./retryRequest"
 
 export interface CommentSubmission {
   submissionId: string
@@ -46,38 +47,20 @@ export function loadCommentRecords(owner: DiscussionOwner, ids: number[], signal
   return http.get<DiscussionPage>(`${discussionURL(owner)}?${parameters}`, { notifyOnError: false, signal })
 }
 
-export async function retryCommentRequest<T>(request: () => Promise<Result<T>>): Promise<Result<T>> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      const result = await request()
-
-      if (result.ok || (result.status && result.status < 500) || attempt === 2) {
-        return result
-      }
-    } catch (cause) {
-      if (!(cause instanceof RequestError) || attempt === 2) {
-        throw cause
-      }
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
-  }
+export function submitComment(owner: DiscussionOwner, submission: CommentSubmission, signal?: AbortSignal) {
+  return retryRequest(() => http.post<DiscussionComment>(discussionURL(owner), submission, { notifyOnError: false, signal }), { signal })
 }
 
-export function submitComment(owner: DiscussionOwner, submission: CommentSubmission) {
-  return retryCommentRequest(() => http.post<DiscussionComment>(discussionURL(owner), submission, { notifyOnError: false }))
-}
-
-export function editComment(id: number, submission: CommentSubmission) {
-  return retryCommentRequest(() => http.put<DiscussionComment>(`/api/comments/${id}`, submission, { notifyOnError: false }))
+export function editComment(id: number, submission: CommentSubmission, signal?: AbortSignal) {
+  return retryRequest(() => http.put<DiscussionComment>(`/api/comments/${id}`, submission, { notifyOnError: false, signal }), { signal })
 }
 
 export function deleteComment(id: number) {
-  return retryCommentRequest(() => http.delete<DiscussionComment>(`/api/comments/${id}`, undefined, { notifyOnError: false }))
+  return retryRequest(() => http.delete<DiscussionComment>(`/api/comments/${id}`, undefined, { notifyOnError: false }))
 }
 
 export function setCommentReaction(id: number, emoji: string, active: boolean) {
-  return retryCommentRequest(() => http.put<Pick<DiscussionComment, "reactionCounts">>(
+  return retryRequest(() => http.put<Pick<DiscussionComment, "reactionCounts">>(
     `/api/comments/${id}/reactions/${encodeURIComponent(emoji)}`,
     { active },
     { notifyOnError: false }

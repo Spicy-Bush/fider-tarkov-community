@@ -1,272 +1,92 @@
-import React from "react"
-import { afterEach, beforeEach, expect, jest, test } from "@jest/globals"
-import { act, fireEvent, render, waitFor } from "@testing-library/react"
+import React, { useState } from "react"
+import { act, fireEvent, render } from "@testing-library/react"
 import { MultiImageUploader } from "./MultiImageUploader"
-import { ImageUpload } from "@fider/models"
+import { DraftImage } from "@fider/services/draftImages"
 import { Fider } from "@fider/services"
+
+jest.mock("@fider/services/postSubmission", () => {
+  let id = 0
+  return { newSubmissionID: () => `selected-${++id}` }
+})
 
 beforeEach(() => {
   Fider.initialize({ settings: { assetsURL: "" }, tenant: {} })
+  URL.createObjectURL = jest.fn(() => "blob:selected")
+  URL.revokeObjectURL = jest.fn()
 })
 
-afterEach(() => {
-  jest.restoreAllMocks()
-})
+function Editor({ initial, maxUploads = 3 }: { initial: DraftImage[]; maxUploads?: number }) {
+  const [value, setValue] = useState(initial)
+  return <MultiImageUploader field="attachments" value={value} maxUploads={maxUploads} onChange={setValue} />
+}
 
-test("existing attachments fill the limit and removal sends only the changed attachment", () => {
+test("existing images fill the limit and removing one publishes a tombstone while retaining the others", async () => {
   const onChange = jest.fn()
-  const view = render(
-    <MultiImageUploader
-      field="attachments"
-      bkeys={["first-image", "second-image"]}
-      maxUploads={2}
-      onChange={onChange}
-    />
-  )
+  const value = [{ bkey: "first", kind: "stored" }, { bkey: "second", kind: "stored" }]
+  const view = render(<MultiImageUploader field="attachments" value={value} maxUploads={2} onChange={onChange} />)
+  expect(view.queryByRole("button", { name: "Select image" })).toBeNull()
+  await act(async () => { fireEvent.click(view.getAllByRole("button", { name: "Remove image" })[0]) })
+  expect(onChange).toHaveBeenCalledWith([{ bkey: "second", kind: "stored" }, { bkey: "first", kind: "removed" }])
+})
 
+test("selecting a file immediately gives its bytes to the parent without starting a FileReader", () => {
+  const read = jest.spyOn(FileReader.prototype, "readAsDataURL")
+  const onChange = jest.fn()
+  const file = new File(["image bytes"], "draft.png", { type: "image/png" })
+  const view = render(<MultiImageUploader field="attachments" value={[]} maxUploads={2} onChange={onChange} />)
+  fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [file] } })
+  expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ kind: "local", file })])
+  expect(read).not.toHaveBeenCalled()
+  read.mockRestore()
+})
+
+test("two selected files survive normalization of a separate image and an external removal", async () => {
+  const first: DraftImage = { kind: "local", fileId: "first", file: new File(["one"], "first.png") }
+  const second: DraftImage = { kind: "local", fileId: "second", file: new File(["two"], "second.png") }
+  const previous: DraftImage = { kind: "local", fileId: "previous", file: new File(["x"], "previous.png", { type: "image/png" }) }
+  const onChange = jest.fn()
+  const view = render(<MultiImageUploader field="attachments" value={[previous, first, second]} maxUploads={3} onChange={onChange} />)
+  const normalized = { bkey: "attachments/saved", kind: "stored" }
+  view.rerender(<MultiImageUploader field="attachments" value={[normalized, first, second]} maxUploads={3} onChange={onChange} />)
+  expect(view.container.querySelectorAll("img")).toHaveLength(3)
+  view.rerender(<MultiImageUploader field="attachments" value={[normalized, second]} maxUploads={3} onChange={onChange} />)
   expect(view.container.querySelectorAll("img")).toHaveLength(2)
-  expect(view.queryByRole("button", { name: "Select image" })).toBeNull()
-  expect(onChange).not.toHaveBeenCalled()
-
-  fireEvent.click(view.getAllByRole("button", { name: "Remove image" })[0])
-
-  expect(view.container.querySelectorAll("img")).toHaveLength(1)
-  expect(view.getAllByRole("button", { name: "Select image" })).toHaveLength(1)
-  expect(onChange).toHaveBeenLastCalledWith([
-    expect.objectContaining({ bkey: "first-image", remove: true }),
-  ])
+  expect(view.getByRole("button", { name: "Select image" })).toBeVisible()
+  await act(async () => { fireEvent.click(view.getAllByRole("button", { name: "Remove image" })[0]) })
+  expect(onChange).toHaveBeenLastCalledWith([second, { bkey: "attachments/saved", kind: "removed" }])
 })
 
-test("restored uploads and removals survive replacement without duplicate upload controls", async () => {
-  const onChange = jest.fn()
-  const saved: ImageUpload[] = [
-    {
-      remove: false,
-      upload: {
-        fileName: "draft.png",
-        contentType: "image/png",
-        content: "ZHJhZnQ=",
-      },
-    },
-    { bkey: "removed-image", remove: true },
-  ]
-
-  const view = render(
-    <MultiImageUploader
-      field="attachments"
-      initialUploads={saved}
-      maxUploads={1}
-      onChange={onChange}
-    />
-  )
-
-  expect(view.container.querySelector("img")).toHaveAttribute("src", "data:image/png;base64,ZHJhZnQ=")
+test("a newly selected image reserves its slot and can be removed without any asynchronous read", async () => {
+  const view = render(<Editor initial={[]} maxUploads={1} />)
+  fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [new File(["image"], "draft.png")] } })
   expect(view.queryByRole("button", { name: "Select image" })).toBeNull()
-
-  fireEvent.click(view.getByRole("button", { name: "Remove image" }))
-
-  expect(view.container.querySelector("img")).toBeNull()
-  expect(view.getAllByRole("button", { name: "Select image" })).toHaveLength(1)
-  expect(onChange).toHaveBeenLastCalledWith([{ bkey: "removed-image", remove: true }])
-
-  fireEvent.change(view.container.querySelector('input[type="file"]')!, {
-    target: {
-      files: [new File(["replacement"], "replacement.png", { type: "image/png" })],
-    },
-  })
-
-  await waitFor(() => {
-    expect(view.container.querySelector("img")).toHaveAttribute("src", "data:image/png;base64,cmVwbGFjZW1lbnQ=")
-  })
-
-  expect(view.queryByRole("button", { name: "Select image" })).toBeNull()
-
-  const changes = onChange.mock.calls[onChange.mock.calls.length - 1][0]
-  expect(changes).toHaveLength(2)
-  expect(changes).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        remove: false,
-        upload: {
-          fileName: "replacement.png",
-          contentType: "image/png",
-          content: "cmVwbGFjZW1lbnQ=",
-        },
-      }),
-      { bkey: "removed-image", remove: true },
-    ])
-  )
+  expect(view.getByRole("button", { name: "Preview image" })).toBeVisible()
+  await act(async () => { fireEvent.click(view.getByRole("button", { name: "Remove image" })) })
+  expect(view.getByRole("button", { name: "Select image" })).toBeVisible()
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:selected")
 })
 
-test("an in-progress file read remains reflected in the parent when controls become disabled", async () => {
-  const readers: FileReader[] = []
-  jest.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {
-    readers.push(this)
-  })
-
-  const onChange = jest.fn()
-  const view = render(
-    <MultiImageUploader field="attachments" maxUploads={1} onChange={onChange} />
-  )
-
-  fireEvent.change(view.container.querySelector('input[type="file"]')!, {
-    target: {
-      files: [new File(["draft"], "draft.png", { type: "image/png" })],
-    },
-  })
-
-  view.rerender(
-    <MultiImageUploader field="attachments" maxUploads={1} onChange={onChange} disabled />
-  )
-
-  await act(async () => {
-    Object.defineProperty(readers[0], "result", { value: "data:image/png;base64,ZHJhZnQ=" })
-    readers[0].dispatchEvent(new Event("load"))
-  })
-
-  expect(view.container.querySelector("img")).toHaveAttribute("src", "data:image/png;base64,ZHJhZnQ=")
+test("disabled images retain previews and expose no removal or upload action", () => {
+  const view = render(<MultiImageUploader field="attachments" value={[{ bkey: "saved", kind: "stored" }]} maxUploads={2} disabled onChange={jest.fn()} />)
+  expect(view.getByRole("button", { name: "Preview image" })).toBeVisible()
   expect(view.queryByRole("button", { name: "Remove image" })).toBeNull()
-  expect(onChange).toHaveBeenCalledTimes(1)
-  expect(onChange).toHaveBeenLastCalledWith([
-    expect.objectContaining({ upload: expect.objectContaining({ content: "ZHJhZnQ=" }) }),
-  ])
-
-  view.rerender(
-    <MultiImageUploader field="attachments" maxUploads={1} onChange={onChange} />
-  )
-
-  fireEvent.click(view.getByRole("button", { name: "Remove image" }))
-
-  expect(onChange).toHaveBeenLastCalledWith([])
-  expect(view.container.querySelector("img")).toBeNull()
-  expect(view.getAllByRole("button", { name: "Select image" })).toHaveLength(1)
+  expect(view.getByRole("button", { name: "Select image" })).toBeDisabled()
 })
 
-test("collecting attachments waits for the selected file and reserves its upload slot", async () => {
-  let reader: FileReader
-
-  jest.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {
-    reader = this
-  })
-
-  const uploader = React.createRef<MultiImageUploader>()
-  const view = render(<MultiImageUploader ref={uploader} field="attachments" maxUploads={1} />)
+test("an unavailable image keeps its name and can be removed or replaced without an extra slot", async () => {
+  const missing = { kind: "missing", fileId: "missing", fileName: "Unavailable.png" }
+  const view = render(<Editor initial={[missing]} maxUploads={1} />)
+  expect(view.getByRole("alert")).toHaveTextContent("Unavailable.png is unavailable")
+  expect(view.getByRole("button", { name: "Remove image" })).toBeEnabled()
+  expect(view.getByRole("button", { name: "Select image" })).toBeEnabled()
 
   fireEvent.change(view.container.querySelector('input[type="file"]')!, {
-    target: {
-      files: [new File(["draft"], "draft.png", { type: "image/png" })],
-    },
+    target: { files: [new File(["replacement"], "Replacement.png", { type: "image/png" })] },
   })
+  expect(view.queryByRole("alert")).toBeNull()
+  expect(view.getByRole("button", { name: "Preview image" })).toBeVisible()
+  expect(view.queryByRole("button", { name: "Select image" })).toBeNull()
 
-  const collected = jest.fn()
-  const pending = uploader.current!.readUploads().then(collected)
-
-  await act(async () => {})
-
-  expect(collected).not.toHaveBeenCalled()
-  expect(view.container.querySelectorAll('input[type="file"]')).toHaveLength(1)
-
-  await act(async () => {
-    Object.defineProperty(reader, "result", { value: "data:image/png;base64,ZHJhZnQ=" })
-    reader.dispatchEvent(new Event("load"))
-    await pending
-  })
-
-  expect(collected).toHaveBeenCalledWith([
-    {
-      bkey: undefined,
-      remove: false,
-      upload: {
-        fileName: "draft.png",
-        contentType: "image/png",
-        content: "ZHJhZnQ=",
-      },
-    },
-  ])
-})
-
-test("a failed file read can be retried or removed without silently submitting fewer attachments", async () => {
-  const readers: FileReader[] = []
-
-  jest.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {
-    readers.push(this)
-  })
-
-  const uploader = React.createRef<MultiImageUploader>()
-  const view = render(<MultiImageUploader ref={uploader} field="attachments" maxUploads={1} />)
-
-  fireEvent.change(view.container.querySelector('input[type="file"]')!, {
-    target: {
-      files: [new File(["draft"], "draft.png", { type: "image/png" })],
-    },
-  })
-
-  await act(async () => {
-    readers[0].dispatchEvent(new Event("error"))
-  })
-
-  await expect(uploader.current!.readUploads()).resolves.toBeUndefined()
-  expect(view.getByRole("alert")).toHaveTextContent("Could not read draft.png.")
-
-  fireEvent.click(view.getByRole("button", { name: "Retry image" }))
-
-  await act(async () => {
-    Object.defineProperty(readers[1], "result", { value: "data:image/png;base64,ZHJhZnQ=" })
-    readers[1].dispatchEvent(new Event("load"))
-  })
-
-  await expect(uploader.current!.readUploads()).resolves.toEqual([
-    expect.objectContaining({ upload: expect.objectContaining({ content: "ZHJhZnQ=" }) }),
-  ])
-
-  fireEvent.click(view.getByRole("button", { name: "Remove image" }))
-  fireEvent.change(view.container.querySelector('input[type="file"]')!, {
-    target: {
-      files: [new File(["second"], "second.png", { type: "image/png" })],
-    },
-  })
-
-  await act(async () => {
-    readers[2].dispatchEvent(new Event("error"))
-  })
-
-  fireEvent.click(view.getByRole("button", { name: "Remove image" }))
-
-  await expect(uploader.current!.readUploads()).resolves.toEqual([])
-})
-
-test("a superseded file read cannot replace the newer selected image", async () => {
-  const readers: FileReader[] = []
-
-  jest.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {
-    readers.push(this)
-  })
-
-  const uploader = React.createRef<MultiImageUploader>()
-  const onChange = jest.fn()
-  const view = render(
-    <MultiImageUploader ref={uploader} field="attachments" maxUploads={1} onChange={onChange} />
-  )
-  const input = view.container.querySelector('input[type="file"]')!
-
-  for (const name of ["old", "new"]) {
-    fireEvent.change(input, {
-      target: {
-        files: [new File([name], `${name}.png`, { type: "image/png" })],
-      },
-    })
-  }
-
-  await act(async () => {
-    Object.defineProperty(readers[1], "result", { value: "data:image/png;base64,bmV3" })
-    readers[1].dispatchEvent(new Event("load"))
-    Object.defineProperty(readers[0], "result", { value: "data:image/png;base64,b2xk" })
-    readers[0].dispatchEvent(new Event("load"))
-  })
-
-  expect(onChange).toHaveBeenCalledTimes(1)
-  expect(view.container.querySelector("img")).toHaveAttribute("src", "data:image/png;base64,bmV3")
-  await expect(uploader.current!.readUploads()).resolves.toEqual([
-    expect.objectContaining({ upload: expect.objectContaining({ fileName: "new.png", content: "bmV3" }) }),
-  ])
+  await act(async () => { fireEvent.click(view.getByRole("button", { name: "Remove image" })) })
+  expect(view.getByRole("button", { name: "Select image" })).toBeVisible()
 })

@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from "react"
-import {
-  Button,
-  Loader,
-  Icon,
-  Input,
-  TextArea,
-  Form,
-  MultiImageUploader,
-} from "@fider/components"
-import { HStack } from "@fider/components/layout"
-import { actions, Fider, Failure, classSet, uploadedImageURL } from "@fider/services"
+import { Button } from "@fider/components/common/Button"
+import { Loader } from "@fider/components/common/Loader"
+import { Icon } from "@fider/components/common/Icon"
+import { Input } from "@fider/components/common/form/Input"
+import { TextArea } from "@fider/components/common/form/TextArea"
+import { Form } from "@fider/components/common/form/Form"
+import { MultiImageUploader } from "@fider/components/common/form/MultiImageUploader"
+import { HStack } from "@fider/components/layout/Stack"
+import * as postActions from "@fider/services/actions/post"
+import { Failure } from "@fider/services"
+import { Fider } from "@fider/services/fider"
+import { classSet, uploadedImageURL } from "@fider/services/utils"
 import {
   heroiconsArrowLeft as IconArrowLeft,
   heroiconsCheck as IconCheck,
 } from "@fider/icons.generated"
 import { Post, ImageUpload } from "@fider/models"
+import { DraftImage, prepareDraftImages } from "@fider/services/draftImages"
 
 export type EditOriginalPostPanelVariant = "overlay" | "sidebar"
 
@@ -40,13 +42,12 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
   const maxImages = Fider.session.tenant.generalSettings?.maxImagesPerPost || 3
   const [title, setTitle] = useState(post.title)
   const [description, setDescription] = useState(post.description || "")
-  const [existingBkeys, setExistingBkeys] = useState<string[]>(attachments)
-  const [newAttachments, setNewAttachments] = useState<ImageUpload[]>([])
+  const [images, setImages] = useState<DraftImage[]>(attachments.map(bkey => ({ kind: "stored", bkey })))
   const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set())
   const [error, setError] = useState<Failure | undefined>()
   const [isSaving, setIsSaving] = useState(false)
 
-  const currentImageCount = existingBkeys.length + newAttachments.filter((a) => !a.remove).length
+  const currentImageCount = images.filter(image => image.kind !== "removed").length
   const canAddMore = currentImageCount + selectedToAdd.size < maxImages
 
   useEffect(() => {
@@ -55,8 +56,7 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
   }, [post.number, post.title, post.description])
 
   useEffect(() => {
-    setExistingBkeys(attachments)
-    setNewAttachments([])
+    setImages(attachments.map(bkey => ({ kind: "stored", bkey })))
     setSelectedToAdd(new Set())
   }, [attachments])
 
@@ -79,11 +79,11 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
     const selectedToAddImages: ImageUpload[] = Array.from(selectedToAdd).map((bkey) => ({ bkey, remove: false }))
 
     const allAttachments: ImageUpload[] = [
-      ...newAttachments,
+      ...await prepareDraftImages(images),
       ...selectedToAddImages,
     ]
 
-    const result = await actions.updatePost(post.number, title, description, allAttachments)
+    const result = await postActions.updatePost(post.number, title, description, allAttachments)
     if (result.ok) {
       onSave({ ...post, title, description })
     } else {
@@ -128,9 +128,9 @@ export const EditOriginalPostPanel: React.FC<EditOriginalPostPanelProps> = ({
         />
         <MultiImageUploader
           field="attachments"
-          bkeys={existingBkeys}
+          value={images}
           maxUploads={maxImages}
-          onChange={setNewAttachments}
+          onChange={setImages}
         />
         {imagesToTransfer.length > 0 && (
           <div className="mt-4 p-3 bg-tertiary rounded-card border border-surface-alt">

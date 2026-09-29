@@ -1,13 +1,14 @@
 import { useState, useCallback } from "react"
-import { ImageUpload } from "@fider/models"
+import { DraftImage } from "@fider/services/draftImages"
 import { Failure } from "@fider/services"
-import { useModalState } from "@fider/hooks"
+import { useModalState } from "@fider/hooks/useModalState"
 
 type ShowPostModal = "delete" | "response" | "report" | "lock" | "unlock"
 
 interface UseShowPostStateConfig {
   initialTitle: string
   initialDescription: string
+  initialAttachments: string[]
 }
 
 interface UseShowPostStateResult {
@@ -17,8 +18,8 @@ interface UseShowPostStateResult {
   setNewTitle: (title: string) => void
   newDescription: string
   setNewDescription: (description: string) => void
-  attachments: ImageUpload[]
-  setAttachments: (attachments: ImageUpload[]) => void
+  attachments: DraftImage[]
+  setAttachments: (attachments: DraftImage[]) => void
   error: Failure | undefined
   setError: (error: Failure | undefined) => void
   hasCopiedContent: boolean
@@ -37,7 +38,7 @@ export const useShowPostState = (config: UseShowPostStateConfig): UseShowPostSta
   const [editMode, setEditMode] = useState(false)
   const [newTitle, setNewTitle] = useState(initialTitle)
   const [newDescription, setNewDescription] = useState(initialDescription)
-  const [attachments, setAttachments] = useState<ImageUpload[]>([])
+  const [attachments, setAttachments] = useState<DraftImage[]>(config.initialAttachments.map(bkey => ({ kind: "stored", bkey })))
   const [error, setError] = useState<Failure | undefined>()
   const [hasCopiedContent, setHasCopiedContent] = useState(false)
 

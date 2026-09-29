@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from "react"
 import { Button, Input, Form, TextArea, MultiImageUploader, SignInModal } from "@fider/components"
 import { PreviewPostModal } from "./PreviewPostModal"
-import { SavedPostRecovery } from "./SavedPostRecovery"
-import { cache, Failure } from "@fider/services"
-import { postSubmissions, PendingPostSubmission, newSubmissionID, sendPostSubmission, SubmissionStorageError } from "@fider/services/postSubmission"
-import { RequestError } from "@fider/services/http"
-import { ImageUpload, Post } from "@fider/models"
+import { analytics } from "@fider/services/analytics"
+import { sendPostSubmission } from "@fider/services/postSubmission"
+import { AccountDraft } from "@fider/services/browserDrafts"
+import { DraftImage } from "@fider/services/draftImages"
 import { useFider } from "@fider/hooks"
+import { useAccountDraft } from "@fider/hooks/useAccountDraft"
+import { useDraftSubmission } from "@fider/hooks/useDraftSubmission"
+import { DraftStatus } from "@fider/components/common/DraftStatus"
+import { DraftPicker } from "@fider/components/common/DraftPicker"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
 import { useUserStanding } from "@fider/contexts/UserStandingContext"
@@ -16,13 +19,25 @@ interface PostInputProps {
   onTitleChanged: (title: string) => void
 }
 
-type SubmissionState =
-  | { phase: "loading" | "load-failed" | "idle" | "countdown" | "collecting" | "complete" }
-  | { phase: "preparing" | "sending" | "unconfirmed"; submission: PendingPostSubmission }
+interface PostContent {
+  title: string
+  description: string
+  attachments: DraftImage[]
+}
+
+const submissionCacheKey = "PostInput-Submission"
+
+function rememberSubmission(id: string | null) {
+  try {
+    if (id) window.sessionStorage.setItem(submissionCacheKey, id)
+    else window.sessionStorage.removeItem(submissionCacheKey)
+  } catch (cause) {
+    console.error("Could not remember the selected submission.", cause)
+  }
+}
 
 export const PostInput = (props: PostInputProps) => {
   const fider = useFider()
-
   const account = `${fider.session.tenant.id}:${fider.session.isAuthenticated ? fider.session.user.id : "anonymous"}`
 
   return <PostDraft key={account} {...props} account={account} />
@@ -31,33 +46,45 @@ export const PostInput = (props: PostInputProps) => {
 const PostDraft = (props: PostInputProps & { account: string }) => {
   const fider = useFider()
   const { isMuted, muteReason } = useUserStanding()
-  const { account } = props
-  const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
-  const titleCacheKey = "PostInput-Title"
-  const descriptionCacheKey = "PostInput-Description"
-  const submissionCacheKey = "PostInput-Submission"
-  const editingCacheKey = "PostInput-Editing"
-  const [requestedSubmissionId] = useState(() => {
-    const search = window.location.search
-
-    return search ? new URLSearchParams(search).get("submission") : null
+  const draft = useAccountDraft<PostContent>({
+    kind: "post",
+    scope: "post:new",
+    initial: { title: "", description: "", attachments: [] },
   })
-  const uploader = useRef<MultiImageUploader>(null)
-  const [otherSubmissions, setOtherSubmissions] = useState<PendingPostSubmission[]>([])
-  const [state, setState] = useState<SubmissionState>({ phase: "loading" })
-  const phase = state.phase
-  const [loadVersion, setLoadVersion] = useState(0)
-  
-  const [title, setTitle] = useState(() => cache.session.get(titleCacheKey) || "")
-  const [description, setDescription] = useState(() => cache.session.get(descriptionCacheKey) || "")
-  const [attachments, setAttachments] = useState<ImageUpload[]>([])
-  const [error, setError] = useState<Failure | undefined>(undefined)
-  const isPendingSubmission = phase === "countdown"
-  const isSending = phase === "collecting" || phase === "preparing" || phase === "sending" || phase === "complete"
-  const isFrozen = phase !== "idle" && phase !== "countdown"
-  const [remainingSeconds, setRemainingSeconds] = useState(30)
+  const [countingDown, setCountingDown] = useState(false)
+  const [isSignInModalOpen, setIsSignInModalOpen] = useState(false)
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
-  
+  const [remainingSeconds, setRemainingSeconds] = useState(30)
+  const [selectedID] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("submission") || window.sessionStorage.getItem(submissionCacheKey)
+    } catch {
+      return null
+    }
+  })
+  const restored = useRef(false)
+  const edited = useRef(false)
+  const submission = useDraftSubmission({
+    editor: draft,
+    send: (payload, signal) => {
+      rememberSubmission(payload.submissionId)
+      return sendPostSubmission(payload, signal)
+    },
+    onUnauthorized: () => setIsSignInModalOpen(true),
+    onSaved: (post, { firstCompletion, mounted }) => {
+      if (firstCompletion) analytics.event("post", "create")
+      rememberSubmission(null)
+      if (mounted) location.href = `/posts/${post.number}/${post.slug}`
+    },
+  })
+  const { state, error } = submission
+  const phase = state.phase === "idle" && countingDown ? "countdown" : state.phase
+  const { title, description, attachments } = "submission" in state ? state.submission.payload : draft.value
+  const isPendingSubmission = phase === "countdown"
+  const isSending = submission.busy || phase === "complete"
+  const isFrozen = phase !== "idle" && phase !== "countdown"
+  const isPostingDisabled = fider.session.isAuthenticated && !fider.session.permissions.createPosts
+
   const settings = fider.session.tenant.generalSettings || {
     titleLengthMin: 15,
     titleLengthMax: 100,
@@ -65,310 +92,50 @@ const PostDraft = (props: PostInputProps & { account: string }) => {
     descriptionLengthMax: 1000,
     maxImagesPerPost: 3,
   }
-  
-  const { 
-    titleLengthMin, 
-    titleLengthMax, 
-    descriptionLengthMin, 
-    descriptionLengthMax, 
-    maxImagesPerPost
-  } = settings
-  
-  const isPostingDisabled = fider.session.isAuthenticated && !fider.session.permissions.createPosts
+  const { titleLengthMin, titleLengthMax, descriptionLengthMin, descriptionLengthMax, maxImagesPerPost } = settings
 
-  const finishSubmission = (receipt: Pick<Post, "number" | "slug">) => {
-    cache.session.remove(titleCacheKey, descriptionCacheKey, submissionCacheKey, editingCacheKey)
-    setState({ phase: "complete" })
-    location.href = `/posts/${receipt.number}/${receipt.slug}`
-  }
+  useEffect(() => { props.onTitleChanged(title) }, [title])
+
+  const resume = (saved: AccountDraft<PostContent>) => submission.submit(saved)
 
   useEffect(() => {
-    props.onTitleChanged(title)
-  }, [title])
-  
-  useEffect(() => {
-    if (!fider.session.isAuthenticated) {
-      setState({ phase: "idle" })
-      return
-    }
+    if (!draft.loaded || restored.current) return
 
-    let mounted = true
-    setState({ phase: "loading" })
-
-    postSubmissions.load(account).then((saved) => {
-      if (!mounted) {
-        return
-      }
-
-      const submissionId = requestedSubmissionId || cache.session.get(submissionCacheKey)
-      const own = saved.find((item) => item.submissionId === submissionId)
-
-      setOtherSubmissions(saved.filter((item): item is PendingPostSubmission => !("receipt" in item) && item !== own))
-
-      if (own && "receipt" in own) {
-        finishSubmission(own.receipt)
-      } else if (own) {
-        const editing = !!requestedSubmissionId || !!own.rejection || cache.session.get(editingCacheKey) === own.submissionId
-
-        setTitle(editing && !requestedSubmissionId ? cache.session.get(titleCacheKey) ?? own.title : own.title)
-        setDescription(editing && !requestedSubmissionId ? cache.session.get(descriptionCacheKey) ?? own.description : own.description)
-        setAttachments(own.attachments)
-        cache.session.set(submissionCacheKey, own.submissionId)
-
-        if (editing) {
-          if (requestedSubmissionId) {
-            cache.session.set(titleCacheKey, own.title)
-            cache.session.set(descriptionCacheKey, own.description)
-          }
-
-          cache.session.set(editingCacheKey, own.submissionId)
-          setState({ phase: "idle" })
-          history.replaceState(null, "", "/")
-        } else {
-          setState({ phase: "sending", submission: own })
-        }
-      } else {
-        setState({ phase: "idle" })
-      }
-    }).catch((cause) => {
-      if (!(cause instanceof SubmissionStorageError)) {
-        throw cause
-      }
-
-      if (mounted) {
-        setState({ phase: "load-failed" })
-        setError({ errors: [{ message: "Your browser could not load saved submissions." }] })
-      }
-    })
-
-    return () => {
-      mounted = false
-    }
-  }, [account, loadVersion])
+    restored.current = true
+    const saved = draft.pending.find(item => item.id === selectedID)
+    if (!edited.current && saved) void resume(saved)
+  }, [draft.loaded, draft.pending])
 
   useEffect(() => {
-    if (!isPendingSubmission) {
-      return
-    }
+    if (state.phase === "idle" && error) rememberSubmission(null)
+  }, [state.phase, error])
 
-    if (remainingSeconds === 0) {
-      void submitPost()
-      return
-    }
-
-    const timer = setTimeout(() => setRemainingSeconds(remainingSeconds - 1), 1000)
-
-    return () => clearTimeout(timer)
-  }, [phase, remainingSeconds])
-
-  const handleTitleChange = (value: string) => {
-    cache.session.set(titleCacheKey, value)
-    setTitle(value)
-  }
-
-  const handleDescriptionChange = (value: string) => {
-    cache.session.set(descriptionCacheKey, value)
-    setDescription(value)
-  }
-
-  const handleAttachmentsChange = (uploads: ImageUpload[]) => {
-    setAttachments(uploads)
-    const submissionId = cache.session.get(editingCacheKey)
-
-    if (!submissionId) {
-      return
-    }
-
-    postSubmissions.updateAttachments(account, submissionId, uploads).catch((cause) => {
-      if (!(cause instanceof SubmissionStorageError)) {
-        throw cause
-      }
-
-      setError({ errors: [{ message: "Attachment changes could not be saved. Keep this tab open to submit them." }] })
-    })
-  }
-  
   const submitPost = () => {
     if (!fider.session.isAuthenticated) {
       setIsSignInModalOpen(true)
       return
     }
 
-    setError(undefined)
-
-    setState((current) => {
-      if (current.phase === "unconfirmed") {
-        return { phase: "preparing", submission: current.submission }
-      }
-
-      if (current.phase === "idle" || current.phase === "countdown") {
-        return { phase: "collecting" }
-      }
-
-      return current
-    })
+    setCountingDown(false)
+    void submission.submit()
   }
 
   useEffect(() => {
-    if (phase !== "collecting") {
+    if (!isPendingSubmission) return
+    if (remainingSeconds === 0) {
+      submitPost()
       return
     }
 
-    let mounted = true
-
-    const collect = async () => {
-      const uploads = uploader.current ? await uploader.current.readUploads() : attachments
-
-      if (!mounted) {
-        return
-      }
-
-      if (!uploads) {
-        setError({ errors: [{ message: "An image could not be read. Retry or remove it before submitting." }] })
-        setState({ phase: "idle" })
-        return
-      }
-
-      setState({
-        phase: "preparing",
-        submission: {
-          submissionId: newSubmissionID(),
-          title,
-          description,
-          attachments: uploads,
-        },
-      })
-    }
-
-    void collect()
-
-    return () => {
-      mounted = false
-    }
-  }, [phase])
-
-  useEffect(() => {
-    if (state.phase !== "preparing" && state.phase !== "sending") {
-      return
-    }
-
-    const { submission } = state
-    const request = new AbortController()
-
-    const send = async () => {
-      try {
-        const result = await sendPostSubmission(submission, request.signal)
-
-        if (request.signal.aborted) {
-          return
-        }
-
-        if (result.ok || result.status === 400) {
-          if (result.ok) {
-            await postSubmissions.complete(account, submission.submissionId, result.data)
-          } else {
-            const saved = await postSubmissions.save(account, { ...submission, rejection: result.error })
-
-            if (request.signal.aborted) {
-              return
-            }
-
-            if ("receipt" in saved) {
-              finishSubmission(saved.receipt)
-              return
-            }
-
-            cache.session.set(editingCacheKey, submission.submissionId)
-          }
-          if (request.signal.aborted) {
-            return
-          }
-        }
-
-        if (result.ok) {
-          finishSubmission(result.data)
-          return
-        }
-
-        if (result.status === 400) {
-          setError(result.error)
-          setState({ phase: "idle" })
-          return
-        }
-
-        if (result.status && result.status < 500) {
-          setError(result.error)
-          setState({ phase: "unconfirmed", submission })
-          return
-        }
-      } catch (cause) {
-        if (request.signal.aborted) {
-          return
-        }
-
-        if (!(cause instanceof RequestError)) {
-          setError({ errors: [{ message: "The submission could not be completed. Your saved submission is retained." }] })
-          setState({ phase: "unconfirmed", submission })
-          if (cause instanceof SubmissionStorageError) {
-            return
-          }
-
-          throw cause
-        }
-      }
-
-      setState({ phase: "unconfirmed", submission })
-      setError({ errors: [{ message: "The submission has not been confirmed. Retry to check and finish it." }] })
-    }
-
-    if (state.phase === "preparing") {
-      cache.session.set(submissionCacheKey, submission.submissionId)
-      postSubmissions.save(account, submission, cache.session.get(editingCacheKey) || undefined).then((saved) => {
-        if (request.signal.aborted) {
-          return
-        }
-
-        if ("receipt" in saved) {
-          finishSubmission(saved.receipt)
-          return
-        }
-
-        cache.session.remove(editingCacheKey)
-        setState({ phase: "sending", submission })
-      }).catch((cause) => {
-        if (request.signal.aborted) {
-          return
-        }
-
-        if (!(cause instanceof SubmissionStorageError)) {
-          throw cause
-        }
-
-        setState({ phase: "unconfirmed", submission })
-        setError({ errors: [{ message: "Your browser could not save this submission. Retry when storage is available." }] })
-      })
-    } else {
-      void send()
-    }
-
-    return () => {
-      request.abort()
-    }
-  }, [state, account])
+    const timer = setTimeout(() => setRemainingSeconds(remainingSeconds - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [phase, remainingSeconds])
 
   useEffect(() => {
     const reconnect = () => {
-      if (phase === "unconfirmed") {
-        submitPost()
-      }
-
-      if (phase === "load-failed") {
-        setLoadVersion((version) => version + 1)
-      }
+      if (phase === "unconfirmed") submitPost()
     }
-
     window.addEventListener("online", reconnect)
-
     return () => window.removeEventListener("online", reconnect)
   }, [phase])
 
@@ -377,22 +144,26 @@ const PostDraft = (props: PostInputProps & { account: string }) => {
       setIsSignInModalOpen(true)
       return
     }
-
     if (title && phase === "idle") {
       setRemainingSeconds(30)
-      setState({ phase: "countdown" })
+      setCountingDown(true)
     }
   }
 
   const cancelSubmission = () => {
-    setState({ phase: "idle" })
+    setCountingDown(false)
     setRemainingSeconds(30)
   }
 
-  const showPreview = () => {
-    setIsPreviewModalOpen(true)
+  const change = (value: Partial<PostContent>) => {
+    edited.current = true
+    draft.change(value)
   }
-  
+  const handleTitleChange = (value: string) => change({ title: value })
+  const handleDescriptionChange = (value: string) => change({ description: value })
+  const handleAttachmentsChange = (value: DraftImage[]) => change({ attachments: value })
+  const showPreview = () => setIsPreviewModalOpen(true)
+
   const titleValidation = {
     showMinCounter: title.length > 0 && title.length < titleLengthMin,
     showMaxCounter: title.length >= titleLengthMax * 0.9,
@@ -414,14 +185,23 @@ const PostDraft = (props: PostInputProps & { account: string }) => {
 
   const progressPercentage = ((30 - remainingSeconds) / 30) * 100
 
+  const selectedSubmission = "submission" in state ? state.submission.draft.id : undefined
+  const pendingChoices = draft.pending.filter(item => item.id !== selectedSubmission)
+
   return (
     <>
-      {fider.session.isAuthenticated && <SavedPostRecovery account={account} submissions={otherSubmissions} />}
+      {pendingChoices.length > 0 && <div className="my-2">
+        <DraftPicker<PostContent>
+          drafts={pendingChoices}
+          label="Pending submissions"
+          action="Continue pending submission"
+          disabled={isFrozen}
+          onSelect={resume}
+        />
+      </div>}
       <SignInModal isOpen={isSignInModalOpen} onClose={() => setIsSignInModalOpen(false)} />
       <Form error={error}>
-        {phase === "load-failed" && (
-          <Button onClick={() => setLoadVersion((version) => version + 1)}>Reload saved submission</Button>
-        )}
+        <DraftStatus {...draft} />
         {isPostingDisabled && (
           <div className="p-3 bg-warning/10 border border-warning rounded text-warning">
             {isMuted ? (
@@ -477,16 +257,13 @@ const PostDraft = (props: PostInputProps & { account: string }) => {
                 </div>
               )}
             </div>
-            {phase !== "loading" && (
-              <MultiImageUploader
-                ref={uploader}
-                field="attachments"
-                maxUploads={maxImagesPerPost}
-                initialUploads={attachments}
-                disabled={isFrozen}
-                onChange={handleAttachmentsChange}
-              />
-            )}
+            <MultiImageUploader
+              field="attachments"
+              maxUploads={maxImagesPerPost}
+              value={attachments}
+              disabled={isFrozen}
+              onChange={handleAttachmentsChange}
+            />
 
             {isPendingSubmission ? (
               <div className="flex justify-between items-center">

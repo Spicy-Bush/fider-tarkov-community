@@ -1,28 +1,37 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { createPortal } from "react-dom"
-import { uploadedImageURL, classSet } from "@fider/services"
-import { Icon } from "@fider/components"
+import { uploadedImageURL, classSet } from "@fider/services/utils"
+import { Icon } from "@fider/components/common/Icon"
 import { useBodyScrollLock } from "@fider/hooks/useBodyScrollLock"
 import { heroiconsChevronUp as IconChevron, heroiconsX as IconClose } from "@fider/icons.generated"
-import { ImageUpload } from "@fider/models"
+import { DraftImage } from "@fider/services/draftImages"
 
-type ImageGalleryProps = { bkeys: string[] } | { uploads: ImageUpload[] }
+type ImageGalleryProps = { bkeys: string[] } | { uploads: DraftImage[] }
 
 export const ImageGallery: React.FC<ImageGalleryProps> = (props) => {
   const images = "uploads" in props
-    ? props.uploads.filter((image) => !image.remove)
+    ? props.uploads.filter((image) => image.kind === "stored" || image.kind === "local")
     : props.bkeys
 
   const [showModal, setShowModal] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loadedSource, setLoadedSource] = useState<string>()
+  const [fileURLs, setFileURLs] = useState<Map<File, string>>(new Map())
+
+  const uploads = "uploads" in props ? props.uploads : undefined
+  useEffect(() => {
+    const urls = new Map<File, string>()
+    for (const image of uploads || []) {
+      if (image.kind === "local") urls.set(image.file, URL.createObjectURL(image.file))
+    }
+    setFileURLs(urls)
+    return () => { for (const url of urls.values()) URL.revokeObjectURL(url) }
+  }, [uploads])
 
   useBodyScrollLock(showModal)
 
-  const imageURL = (image: string | ImageUpload, size: number) => {
-    if (typeof image !== "string" && image.upload) {
-      return `data:${image.upload.contentType};base64,${image.upload.content}`
-    }
+  const imageURL = (image: string | Extract<DraftImage, { kind: "local" | "stored" }>, size: number) => {
+    if (typeof image !== "string" && image.kind === "local") return fileURLs.get(image.file)
 
     return uploadedImageURL(typeof image === "string" ? image : image.bkey, size)
   }
@@ -92,7 +101,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = (props) => {
                 onClick={() => openModal(index)}
               >
                 <img 
-                  src={imageURL(image, 100)}
+                  src={imageURL(image, 200)}
                   alt="" 
                   loading="lazy"
                   className="w-full h-full object-cover transition-transform duration-75 hover:scale-105"

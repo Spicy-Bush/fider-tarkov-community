@@ -20,7 +20,8 @@ import {
   heroiconsX as IconX,
   heroiconsDuplicate as IconCopy,
 } from "@fider/icons.generated"
-import { Post, Tag, ImageUpload } from "@fider/models"
+import { Post, Tag } from "@fider/models"
+import { DraftImage, prepareDraftImages } from "@fider/services/draftImages"
 import { UserData } from "@fider/components/UserProfile"
 import { VoteSection } from "@fider/pages/ShowPost/components/VoteSection"
 import { TagsPanel } from "@fider/pages/ShowPost/components/TagsPanel"
@@ -67,7 +68,7 @@ export const PostViewer: React.FC<PostViewerProps> = ({
   const [editMode, setEditMode] = useState(false)
   const [editTitle, setEditTitle] = useState("")
   const [editDescription, setEditDescription] = useState("")
-  const [editAttachments, setEditAttachments] = useState<ImageUpload[]>([])
+  const [editAttachments, setEditAttachments] = useState<DraftImage[]>([])
   const [editError, setEditError] = useState<Failure | undefined>()
   const [isSaving, setIsSaving] = useState(false)
   const [copiedField, setCopiedField] = useState<string | null>(null)
@@ -101,20 +102,20 @@ export const PostViewer: React.FC<PostViewerProps> = ({
     if (post) {
       setEditTitle(post.title)
       setEditDescription(post.description || "")
-      setEditAttachments(attachments.map((bkey) => ({ bkey, remove: false })))
+      setEditAttachments(attachments.map((bkey) => ({ kind: "stored", bkey })))
     }
     setEditMode(false)
   }, [post?.id])
 
   useEffect(() => {
-    setEditAttachments(attachments.map((bkey) => ({ bkey, remove: false })))
+    setEditAttachments(attachments.map((bkey) => ({ kind: "stored", bkey })))
   }, [attachments])
 
   const handleStartEdit = () => {
     if (post) {
       setEditTitle(post.title)
       setEditDescription(post.description || "")
-      setEditAttachments(attachments.map((bkey) => ({ bkey, remove: false })))
+      setEditAttachments(attachments.map((bkey) => ({ kind: "stored", bkey })))
       setEditError(undefined)
       setEditMode(true)
     }
@@ -134,7 +135,7 @@ export const PostViewer: React.FC<PostViewerProps> = ({
       post.number,
       editTitle,
       editDescription,
-      editAttachments
+      await prepareDraftImages(editAttachments)
     )
     if (result.ok) {
       onPostUpdated({ id: post.id, title: editTitle, description: editDescription })
@@ -216,9 +217,7 @@ export const PostViewer: React.FC<PostViewerProps> = ({
               />
               <MultiImageUploader
                 field="attachments"
-                bkeys={editAttachments
-                  .map((a) => a.bkey)
-                  .filter((b): b is string => !!b)}
+                value={editAttachments}
                 maxUploads={3}
                 onChange={setEditAttachments}
               />

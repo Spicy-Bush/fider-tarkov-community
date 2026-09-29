@@ -11,6 +11,7 @@ import { Fider, FiderContext } from "@fider/services/fider"
 import * as infraActions from "@fider/services/actions/infra"
 import * as push from "@fider/services/push"
 import { activateI18N } from "@fider/services/i18n"
+import { AccountDraftActivity } from "@fider/components/app/AccountDraftActivity"
 import { UserStandingProvider } from "@fider/contexts/UserStandingContext"
 import { LayoutProvider } from "@fider/contexts/LayoutContext"
 
@@ -65,6 +66,7 @@ const bootstrapApp = (i18n: I18n) => {
             <FiderContext.Provider value={fider}>
               <LayoutProvider>
                 <UserStandingProvider>
+                  <AccountDraftActivity />
                   <DevBanner />
                   <WarningBanner />
                   <ReadOnlyNotice />

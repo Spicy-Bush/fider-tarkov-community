@@ -42,6 +42,7 @@ import { VotesPanel } from "./components/VotesPanel"
 import { AdSlot } from "@fider/components/sponsorship/AdSlot"
 import { useAdSelection } from "@fider/components/sponsorship/useAdSelection"
 import { useShowPostState } from "@fider/pages/ShowPost/hooks/useShowPostState"
+import { prepareDraftImages } from "@fider/services/draftImages"
 
 interface ReportStatus {
   hasReportedPost: boolean
@@ -62,6 +63,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
   const state = useShowPostState({
     initialTitle: props.post.title,
     initialDescription: props.post.description,
+    initialAttachments: props.attachments,
   })
   
   const vote = usePostVote(props.post)
@@ -106,7 +108,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
   }, [])
 
   const saveChanges = useCallback(async () => {
-    const result = await postActions.updatePost(props.post.number, state.newTitle, state.newDescription, state.attachments)
+    const result = await postActions.updatePost(props.post.number, state.newTitle, state.newDescription, await prepareDraftImages(state.attachments))
     if (result.ok) {
       location.reload()
     } else {
@@ -291,7 +293,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                       <TextArea field="description" value={state.newDescription} onChange={state.setNewDescription} />
                       <MultiImageUploader
                         field="attachments"
-                        bkeys={props.attachments}
+                        value={state.attachments}
                         maxUploads={Fider.session.tenant.generalSettings?.maxImagesPerPost || 3}
                         onChange={state.setAttachments}
                       />

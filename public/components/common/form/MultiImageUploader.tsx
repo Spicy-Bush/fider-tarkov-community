@@ -1,149 +1,68 @@
 import React from "react"
-import { ImageUploader } from "./ImageUploader"
-import { ImageUpload } from "@fider/models"
-import { ValidationContext, hasError, DisplayError } from "@fider/components"
-import { classSet } from "@fider/services"
+import { Button } from "../Button"
+import { ImagePicker } from "./ImagePicker"
+import { DraftImage } from "@fider/services/draftImages"
+import { newSubmissionID } from "@fider/services/postSubmission"
+import { uploadedImageURL } from "@fider/services/utils"
 
 interface MultiImageUploaderProps {
   field: string
   maxUploads: number
-  bkeys?: string[]
-  initialUploads?: ImageUpload[]
+  value: DraftImage[]
   disabled?: boolean
   allowUploads?: boolean
-  onChange?: (uploads: ImageUpload[]) => void
+  onChange: (images: DraftImage[]) => void
 }
 
-interface ImageEntry {
-  id: string
-  image: ImageUpload
-  read?: Promise<ImageUpload | undefined>
-}
+export function MultiImageUploader(props: MultiImageUploaderProps) {
+  const images = props.value.filter(image => image.kind !== "removed")
 
-interface MultiImageUploaderState {
-  entries: ImageEntry[]
-}
-
-export class MultiImageUploader extends React.Component<MultiImageUploaderProps, MultiImageUploaderState> {
-  private nextID = 0
-
-  constructor(props: MultiImageUploaderProps) {
-    super(props)
-
-    const saved = (props.bkeys || []).map((bkey) => ({ bkey, remove: false }))
-    const images = [...(props.initialUploads || []), ...saved]
-
-    this.state = {
-      entries: images.map((image) => ({
-        id: String(this.nextID++),
-        image,
-      })),
-    }
+  const remove = (image: DraftImage) => {
+    const remaining = props.value.filter(item => item !== image)
+    const storedKey = image.kind === "stored" ? image.bkey : image.kind === "local" ? image.replaces : undefined
+    if (storedKey) remaining.push({ kind: "removed", bkey: storedKey })
+    props.onChange(remaining)
   }
 
-  private imageReading = (read: Promise<ImageUpload | undefined>, instanceID: string) => {
-    if (instanceID === String(this.nextID)) {
-      this.nextID++
-    }
-
-    this.setState((current) => {
-      const entries = [...current.entries]
-      const index = entries.findIndex((entry) => entry.id === instanceID)
-
-      if (index < 0) {
-        entries.push({ id: instanceID, image: { remove: false }, read })
-      } else {
-        entries[index] = { ...entries[index], read }
-      }
-
-      return { entries }
-    })
-  }
-
-  public async readUploads(): Promise<ImageUpload[] | undefined> {
-    const images = await Promise.all(this.state.entries.map((entry) => entry.read || entry.image))
-
-    if (images.some((image) => !image)) {
-      return undefined
-    }
-
-    return (images as ImageUpload[]).filter((image) => image.upload || image.remove)
-  }
-
-  private imageUploaded = (image: ImageUpload, instanceID: string) => {
-    if (instanceID === String(this.nextID)) {
-      this.nextID++
-    }
-
-    this.setState(
-      (current) => {
-        const entries = [...current.entries]
-        const index = entries.findIndex((entry) => entry.id === instanceID)
-
-        if (image.remove && !image.bkey) {
-          entries.splice(index, 1)
-        } else if (index < 0) {
-          entries.push({ id: instanceID, image })
-        } else {
-          entries[index] = { id: instanceID, image }
+  return (
+    <div className="flex flex-wrap gap-2.5 mb-4">
+      {images.map((image) => {
+        if (image.kind === "missing") {
+          return (
+            <div key={image.fileId} className="rounded-card border border-warning p-3 text-sm">
+              <p role="alert" className="mb-2">{image.fileName} is unavailable. Select it again or remove it.</p>
+              <div className="flex items-start gap-2">
+                <ImagePicker field={props.field} disabled={props.disabled} onSelect={file => {
+                  const id = newSubmissionID()
+                  props.onChange(props.value.map(item => item === image ? {
+                    kind: "local",
+                    fileId: id,
+                    file,
+                  } : item))
+                }} />
+                <Button disabled={props.disabled} onClick={() => remove(image)}>Remove image</Button>
+              </div>
+            </div>
+          )
         }
 
-        return { entries }
-      },
-      () => {
-        const changes = this.state.entries
-          .map((entry) => entry.image)
-          .filter((image) => image.upload || image.remove)
-
-        this.props.onChange?.(changes)
-      }
-    )
-  }
-
-  public render() {
-    const visible = this.state.entries.filter((entry) => !entry.image.remove)
-    const uploaders = visible.map((entry) => (
-      <ImageUploader
-        key={entry.id}
-        instanceID={entry.id}
-        field="attachment"
-        bkey={entry.image.bkey}
-        initialUpload={entry.image}
-        disabled={this.props.disabled}
-        onRead={(read) => this.imageReading(read, entry.id)}
-        onChange={this.imageUploaded}
-      />
-    ))
-
-    if (this.props.allowUploads !== false && visible.length < this.props.maxUploads) {
-      const instanceID = String(this.nextID)
-
-      uploaders.push(
-        <ImageUploader
-          key={instanceID}
-          instanceID={instanceID}
-          field="attachment"
-          disabled={this.props.disabled}
-          onRead={(read) => this.imageReading(read, instanceID)}
-          onChange={this.imageUploaded}
-        />
-      )
-    }
-
-    return (
-      <ValidationContext.Consumer>
-        {(ctx) => (
-          <div
-            className={classSet({
-              "mb-4": true,
-              "has-error": hasError(this.props.field, ctx.error),
-            })}
-          >
-            <div className="flex flex-wrap gap-2.5">{uploaders}</div>
-            <DisplayError fields={[this.props.field]} error={ctx.error} />
-          </div>
-        )}
-      </ValidationContext.Consumer>
-    )
-  }
+        const preview = image.kind === "local" ? image.file : uploadedImageURL(image.bkey)
+        return (
+          <ImagePicker
+            key={image.kind === "local" ? image.fileId : image.bkey}
+            field={props.field}
+            image={preview}
+            disabled={props.disabled}
+            onRemove={() => remove(image)}
+          />
+        )
+      })}
+      {props.allowUploads !== false && images.length < props.maxUploads && (
+        <ImagePicker field={props.field} disabled={props.disabled} onSelect={file => {
+          const id = newSubmissionID()
+          props.onChange([...props.value, { kind: "local", fileId: id, file }])
+        }} />
+      )}
+    </div>
+  )
 }
