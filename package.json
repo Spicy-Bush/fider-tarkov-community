@@ -4,13 +4,21 @@
     "repository": "https://github.com/getfider/fider",
     "private": true,
     "dependencies": {
+        "@codemirror/commands": "^6.11.1",
+        "@codemirror/lang-markdown": "^6.5.2",
+        "@codemirror/state": "^6.7.6",
+        "@codemirror/view": "^6.43.13",
         "@lingui/format-json": "^5.1.2",
         "@lingui/react": "^5.1.2",
-        "dompurify": "^3.3.1",
+        "dompurify": "^3.4.16",
+        "entities": "^6.0.1",
         "marked": "^17.0.1",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
-        "react-toastify": "^11.0.5"
+        "react-toastify": "^11.0.5",
+        "y-codemirror.next": "^0.3.6",
+        "y-protocols": "^1.0.7",
+        "yjs": "^13.6.33"
     },
     "devDependencies": {
         "@babel/core": "^7.26.0",
@@ -58,6 +66,9 @@
     },
     "browserslist": ">1%, not dead",
     "jest": {
+        "roots": [
+            "<rootDir>/public"
+        ],
         "testEnvironment": "jsdom",
         "transform": {
             ".+\\.(tsx|ts)?$": "babel-jest"
@@ -89,7 +100,6 @@
         "build": "npm run typecheck && npm run build:sprites && vite build",
         "typecheck": "tsc --project tsconfig.app.json",
         "build:sprites": "node scripts/build-sprites.js",
-        "preview": "vite preview",
-        "heroku-postbuild": "make build-ssr && npm run build"
+        "preview": "vite preview"
     }
 }
