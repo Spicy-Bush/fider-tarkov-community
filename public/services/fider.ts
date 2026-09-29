@@ -1,5 +1,6 @@
 import { createContext } from "react"
-import { CurrentUser, SessionPermissions, SystemSettings, Tenant, TenantStatus, UserProfileStandingResponse } from "@fider/models"
+import { CurrentUser, SessionPermissions, SystemSettings, Tenant, UserProfileStandingResponse } from "@fider/models"
+import { TenantStatus } from "@fider/models/identity"
 
 export interface ServerData {
   title: string
@@ -59,7 +60,7 @@ export class FiderSession {
     }
   }
 
-  public updateUserProfile(change: Partial<Pick<CurrentUser, "name" | "avatarURL" | "avatarType" | "visualRole">>): void {
+  public updateUserProfile(change: Partial<Pick<CurrentUser, "name" | "avatarURL" | "avatarType" | "visualRole" | "visualRoleOverride">>): void {
     const user = this.user
     const changed = Object.entries(change).some(([key, value]) => user[key as keyof CurrentUser] !== value)
 

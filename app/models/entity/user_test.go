@@ -5,56 +5,78 @@ import (
 	"testing"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
-	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 )
 
-const emptyUserPermissions = `"permissions":{"readProfile":false,"editName":false,"editAvatar":false,` +
-	`"block":false,"moderate":false,"deleteModeration":false,"expireModeration":false,` +
-	`"changeRole":false,"changeVisualRole":false}`
-
-func TestUserWithEmail_MarshalJSON(t *testing.T) {
-
-	RegisterT(t)
-	user := entity.UserWithEmail{
-		User: &entity.User{
-			ID:     1,
-			Name:   "John Doe",
-			Email:  "johndoe@example.com",
-			Role:   1,
-			Status: 1,
-		},
+func TestUserJSONVisualRolesAndPrivateFields(t *testing.T) {
+	defaults := []struct {
+		role   enum.Role
+		visual enum.VisualRole
+	}{
+		{enum.RoleVisitor, enum.VisualRoleVisitor},
+		{enum.RoleHelper, enum.VisualRoleHelper},
+		{enum.RoleModerator, enum.VisualRoleModerator},
+		{enum.RoleCollaborator, enum.VisualRoleBSGCrew},
+		{enum.RoleAdministrator, enum.VisualRoleAdministrator},
 	}
 
-	expectedJSON := `{"id":1,"name":"John Doe","role":"visitor","status":"active",` + emptyUserPermissions +
-		`,"email":"johndoe@example.com","visualRole":"","providers":[]}`
+	for _, defaults := range defaults {
+		t.Run(defaults.role.String(), func(t *testing.T) {
+			user := entity.User{
+				ID:        1,
+				Name:      "John Doe",
+				Email:     "johndoe@example.com",
+				Role:      defaults.role,
+				Status:    enum.UserActive,
+				Providers: []*entity.UserProvider{{Name: "fixture", UID: "private-provider-id"}},
+			}
 
-	jsonData, err := json.Marshal(user)
-	if err != nil {
-		t.Errorf("Failed to marshal user to JSON: %v", err)
+			for _, override := range []enum.VisualRole{enum.VisualRoleNone, enum.VisualRoleSherpa} {
+				user.VisualRole = override
+				want := defaults.visual
+				if override != enum.VisualRoleNone {
+					want = override
+				}
+
+				for _, includePrivate := range []bool{false, true} {
+					var value any = user
+					if includePrivate {
+						value = entity.UserWithEmail{User: &user}
+					}
+
+					data, err := json.Marshal(value)
+					if err != nil {
+						t.Fatal(err)
+					}
+
+					var result map[string]any
+					if err := json.Unmarshal(data, &result); err != nil {
+						t.Fatal(err)
+					}
+
+					if result["visualRole"] != want.String() || result["role"] != defaults.role.String() {
+						t.Fatalf("incorrect effective badge or permission role: %s", data)
+					}
+
+					if result["id"] != float64(user.ID) || result["name"] != user.Name || result["permissions"] == nil {
+						t.Fatalf("user fields were lost during serialization: %s", data)
+					}
+
+					for _, field := range []string{"email", "providers", "visualRoleOverride"} {
+						if _, present := result[field]; present != includePrivate {
+							t.Errorf("private=%t: field %s present=%t", includePrivate, field, present)
+						}
+					}
+
+					if includePrivate && (result["email"] != user.Email || result["visualRoleOverride"] != override.String()) {
+						t.Fatalf("editor lost email or configured override: %s", data)
+					}
+				}
+
+				if user.VisualRole != override {
+					t.Fatal("serializing the effective badge changed the stored override")
+				}
+			}
+		})
 	}
-
-	Expect(string(jsonData)).Equals(expectedJSON)
-
-}
-
-func TestUser_MarshalJSON(t *testing.T) {
-
-	RegisterT(t)
-	user := entity.User{
-		ID:     1,
-		Name:   "John Doe",
-		Email:  "johndoe@example.com",
-		Role:   1,
-		Status: 1,
-	}
-
-	expectedJSON := `{"id":1,"name":"John Doe","role":"visitor","visualRole":"","status":"active",` + emptyUserPermissions + `}`
-
-	jsonData, err := json.Marshal(user)
-	if err != nil {
-		t.Errorf("Failed to marshal user to JSON: %v", err)
-	}
-
-	Expect(string(jsonData)).Equals(expectedJSON)
-
 }

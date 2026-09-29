@@ -237,6 +237,8 @@ func ChangeUserRole() web.HandlerFunc {
 			return c.Ok(web.Map{
 				"id": updated.Result.ID,
 				"role": updated.Result.Role,
+				"visualRole": updated.Result.GetVisualRole(),
+				"visualRoleOverride": updated.Result.VisualRole,
 				"permissions": updated.Result.AllowedActions(c.User(), c.Tenant()),
 			})
 		})
@@ -261,7 +263,16 @@ func ChangeUserVisualRole() web.HandlerFunc {
 				return c.Failure(err)
 			}
 
-			return c.Ok(web.Map{})
+			updated := &query.GetUserByID{UserID: action.UserID}
+			if err := bus.Dispatch(c, updated); err != nil {
+				return c.Failure(err)
+			}
+
+			return c.Ok(web.Map{
+				"id": updated.Result.ID,
+				"visualRole": updated.Result.GetVisualRole(),
+				"visualRoleOverride": updated.Result.VisualRole,
+			})
 		})
 	}
 }

@@ -74,13 +74,14 @@ func ViewUserProfile() web.HandlerFunc {
 			Description: fmt.Sprintf("View %s's profile and activity", getUser.Result.Name),
 			Data: web.Map{
 				"user": web.Map{
-					"id":         getUser.Result.ID,
-					"name":       getUser.Result.Name,
-					"role":       getUser.Result.Role,
-					"visualRole": getUser.Result.GetVisualRole(),
-					"avatarURL":  getUser.Result.AvatarURL,
-					"status":     getUser.Result.Status,
-					"permissions": permissions,
+					"id":                 getUser.Result.ID,
+					"name":               getUser.Result.Name,
+					"role":               getUser.Result.Role,
+					"visualRole":         getUser.Result.GetVisualRole(),
+					"visualRoleOverride": getUser.Result.VisualRole,
+					"avatarURL":          getUser.Result.AvatarURL,
+					"status":             getUser.Result.Status,
+					"permissions":        permissions,
 				},
 			},
 		})

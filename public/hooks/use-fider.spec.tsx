@@ -3,12 +3,12 @@ import React, { useState } from "react"
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react"
 import { beforeEach, expect, test } from "@jest/globals"
 import { Fider, ServerData } from "@fider/services/fider"
-import { actions } from "@fider/services"
+import * as actions from "@fider/services/actions/user"
 import { RequestError } from "@fider/services/http"
 import { UserStandingProvider, useUserStanding } from "@fider/contexts/UserStandingContext"
 import { useCurrentUser, useFider } from "./use-fider"
 
-jest.mock("@fider/services/actions")
+jest.mock("@fider/services/actions/user")
 
 const initial = {
   permissions: { ...noSessionPermissions, createPosts: true },

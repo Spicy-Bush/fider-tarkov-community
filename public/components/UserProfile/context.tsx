@@ -12,6 +12,7 @@ export interface UserData {
   name: string
   role: UserRole | number
   visualRole?: VisualRole | string
+  visualRoleOverride?: VisualRole
   avatarURL: string
   status: UserStatus | number
   permissions: UserPermissions
@@ -44,7 +45,6 @@ interface UserProfileContextType extends UserProfileState {
   refreshUser: () => void
   updateUserName: (name: string) => void
   updateUserAvatar: (avatarURL: string, avatarType?: UserAvatarType) => void
-  updateUserVisualRole: (visualRole: VisualRole | string) => void
   isViewingOwnProfile: boolean
   canModerate: boolean
   canBlock: boolean
@@ -92,11 +92,12 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
           ...previous,
           role: initialUser.role,
           visualRole: initialUser.visualRole,
+          visualRoleOverride: initialUser.visualRoleOverride,
           permissions: initialUser.permissions,
         }
       })
     }
-  }, [initialUser?.role, initialUser?.visualRole, initialUser?.permissions, isViewingOwnProfile])
+  }, [initialUser?.role, initialUser?.visualRole, initialUser?.visualRoleOverride, initialUser?.permissions, isViewingOwnProfile])
 
   const globalStanding = useUserStanding()
   const refreshOwnStanding = globalStanding.refetch
@@ -192,19 +193,6 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
     [isViewingOwnProfile, session, onUserUpdate]
   )
 
-  const updateUserVisualRole = useCallback(
-    (visualRole: VisualRole | string) => {
-      if (isViewingOwnProfile) {
-        session.updateUserProfile({ visualRole: visualRole as VisualRole })
-      } else {
-        setOtherUser((prev) => (prev ? { ...prev, visualRole } : null))
-      }
-
-      onUserUpdate?.({ visualRole } as Partial<UserData>)
-    },
-    [isViewingOwnProfile, session, onUserUpdate]
-  )
-
   const setActiveTab = useCallback(
     (tab: ProfileTab) => {
       setActiveTabState(tab)
@@ -265,7 +253,6 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({
     refreshUser,
     updateUserName,
     updateUserAvatar,
-    updateUserVisualRole,
     isViewingOwnProfile,
     canModerate: user ? user.permissions.moderate : false,
     canBlock: user ? user.permissions.block : false,

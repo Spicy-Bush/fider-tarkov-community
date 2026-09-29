@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react"
-import { actions } from "@fider/services"
-import { useFider } from "@fider/hooks"
+import * as userActions from "@fider/services/actions/user"
+import { useFider } from "@fider/hooks/use-fider"
 import { UserProfileStanding } from "@fider/models"
 import { RequestError } from "@fider/services/http"
 
@@ -48,7 +48,7 @@ export const UserStandingProvider: React.FC<{ children: ReactNode }> = ({ childr
     setFailure(undefined)
 
     try {
-      const result = await actions.getUserProfileStanding(user.id, current.signal)
+      const result = await userActions.getUserProfileStanding(user.id, current.signal)
       if (current.signal.aborted || session.contextID !== contextID || session.getUserSnapshot()?.id !== user.id) {
         return
       }

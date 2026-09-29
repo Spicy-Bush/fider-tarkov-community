@@ -209,7 +209,7 @@ const ManageMembersPage: React.FC<ManageMembersPageProps> = (props) => {
                 email={selectedUser.email}
                 providers={selectedUser.providers}
                 onRoleChange={updateUserInLists}
-                onVisualRoleChange={(visualRole) => updateUserInLists({ id: selectedUser.id, visualRole })}
+                onVisualRoleChange={updateUserInLists}
               />
               <UserProfile.Actions />
               <UserProfile.Status />

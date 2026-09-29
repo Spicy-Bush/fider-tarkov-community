@@ -4,14 +4,16 @@ import { i18n } from "@lingui/core"
 import { I18nProvider } from "@lingui/react"
 import { afterEach, expect, jest, test } from "@jest/globals"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { Fider, actions, http } from "@fider/services"
+import { Fider } from "@fider/services/fider"
+import { http } from "@fider/services/http"
+import * as actions from "@fider/services/actions/user"
 import { UserAvatarType, UserRole, UserStatus } from "@fider/models"
 import { UserMenu } from "../auth/UserMenu"
 import { UserProfileProvider } from "./context"
 import { UserProfileHeader } from "./UserProfileHeader"
 import { UserStandingProvider } from "@fider/contexts/UserStandingContext"
 
-jest.mock("@fider/services/actions")
+jest.mock("@fider/services/actions/user")
 jest.unmock("@lingui/react")
 
 afterEach(() => {

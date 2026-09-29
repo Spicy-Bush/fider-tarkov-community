@@ -1,6 +1,7 @@
 import React from "react"
-import { isAdministrator, isCollaborator, isHelper, isModerator, UserPermissions, UserRole, VisualRole } from "@fider/models"
-import { classSet } from "@fider/services"
+import { UserPermissions } from "@fider/models"
+import { UserRole, VisualRole } from "@fider/models/identity"
+import { classSet } from "@fider/services/utils"
 
 interface UserNameProps {
   user: {
@@ -16,30 +17,15 @@ interface UserNameProps {
 }
 
 export const UserName = (props: UserNameProps) => {
-  const isStaff = props.user.role && isCollaborator(props.user.role)
-  const isHelp = props.user.role && isHelper(props.user.role)
-  const isMod = props.user.role && isModerator(props.user.role)
-  const isAdmin = props.user.role && isAdministrator(props.user.role)
   const clickable = props.clickable !== undefined ? props.clickable : true
-  
-  const getDefaultVisualRole = (): VisualRole => {
-    if (!props.user.role) return VisualRole.Visitor;
-    
-    if (isAdmin) return VisualRole.Administrator;
-    if (isMod) return VisualRole.Moderator;
-    if (isStaff) return VisualRole.BSGCrew;
-    if (isHelp) return VisualRole.Helper;
-    return VisualRole.Visitor;
-  }
-  
-  const visualRole = props.user.visualRole || getDefaultVisualRole();
+  const visualRole = props.user.visualRole
   const vrClass = visualRole ? `vr-${visualRole}` : ""
 
   const userName = props.user.name || "Anonymous"
   const userEmail = props.showEmail && props.user.email && (
     <span className="ml-2.5 text-subtle text-xs font-normal">{props.user.email}</span>
   )
-  
+
   const visualRoleSpan = visualRole && visualRole !== VisualRole.Visitor && (
     <span className="c-username--visualrole"></span>
   )

@@ -45,6 +45,18 @@ func (u *User) GetVisualRole() enum.VisualRole {
 	}
 }
 
+func (u User) MarshalJSON() ([]byte, error) {
+	type userFields User
+
+	return json.Marshal(struct {
+		userFields
+		VisualRole enum.VisualRole `json:"visualRole"`
+	}{
+		userFields: userFields(u),
+		VisualRole: u.GetVisualRole(),
+	})
+}
+
 // HasProvider returns true if current user has registered with given provider
 func (u *User) HasProvider(provider string) bool {
 	for _, p := range u.Providers {
@@ -104,13 +116,15 @@ func (umc UserWithEmail) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(&struct {
 		*Alias
-		Email      string              `json:"email"`
-		VisualRole enum.VisualRole     `json:"visualRole"`
-		Providers  []map[string]string `json:"providers"`
+		Email              string              `json:"email"`
+		VisualRole         enum.VisualRole     `json:"visualRole"`
+		VisualRoleOverride enum.VisualRole     `json:"visualRoleOverride"`
+		Providers          []map[string]string `json:"providers"`
 	}{
-		Alias:      (*Alias)(umc.User),
-		Email:      umc.User.Email,
-		VisualRole: umc.User.VisualRole,
-		Providers:  providerInfo,
+		Alias:              (*Alias)(umc.User),
+		Email:              umc.User.Email,
+		VisualRole:         umc.User.GetVisualRole(),
+		VisualRoleOverride: umc.User.VisualRole,
+		Providers:          providerInfo,
 	})
 }

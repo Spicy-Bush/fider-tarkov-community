@@ -1,5 +1,7 @@
 import { http, Result } from "@fider/services/http"
-import { User, UserRole, OAuthConfig, ImageUpload, EmailVerificationKind } from "@fider/models"
+import { User, OAuthConfig, ImageUpload } from "@fider/models"
+import { UserRole, VisualRole } from "@fider/models/identity"
+import { EmailVerificationKind } from "@fider/models/settings"
 
 export interface CheckAvailabilityResponse {
   message: string
@@ -87,10 +89,30 @@ export const completeProfile = async (kind: EmailVerificationKind, key: string, 
   })
 }
 
-export const changeUserRole = async (userID: number, role: UserRole): Promise<Result<Pick<User, "id" | "role" | "permissions">>> => {
-  return await http.post<Pick<User, "id" | "role" | "permissions">>(`/api/admin/roles/${role}/users`, {
+export type ChangedUserRole = Pick<User, "id" | "role" | "permissions" | "visualRole" | "visualRoleOverride">
+export type ChangedVisualRole = Pick<User, "id" | "visualRole" | "visualRoleOverride">
+
+export const changeUserRole = async (userID: number, role: UserRole): Promise<Result<ChangedUserRole>> => {
+  return await http.post<ChangedUserRole>(`/api/admin/roles/${role}/users`, {
     userID,
   })
+}
+
+export const changeUserVisualRole = async (userID: number, role: VisualRole): Promise<Result<ChangedVisualRole>> => {
+  const roleNumbers: Record<VisualRole, number> = {
+    "": 0,
+    Visitor: 1,
+    Helper: 2,
+    Administrator: 3,
+    Moderator: 4,
+    BSGCrew: 5,
+    Developer: 6,
+    Sherpa: 7,
+    TCStaff: 8,
+    Emissary: 9,
+  }
+
+  return await http.post<ChangedVisualRole>(`/api/admin/visualroles/${roleNumbers[role]}/users`, { userID })
 }
 
 export const blockUser = async (userID: number): Promise<Result> => {

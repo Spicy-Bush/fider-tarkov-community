@@ -56,6 +56,7 @@ export interface User {
   email?: string
   role: UserRole
   visualRole?: VisualRole
+  visualRoleOverride?: VisualRole
   status: UserStatus
   permissions: UserPermissions
   avatarURL: string
@@ -90,20 +91,12 @@ export enum UserRole {
   Helper = "helper",
 }
 
-export const isHelper = (role: UserRole): boolean => {
-  return role === UserRole.Helper || role === UserRole.Moderator || role === UserRole.Administrator
-}
-
-export const isCollaborator = (role: UserRole): boolean => {
-  return role === UserRole.Collaborator || role === UserRole.Administrator
-}
-
-export const isModerator = (role: UserRole): boolean => {
-  return role === UserRole.Moderator || role === UserRole.Administrator
-}
-
-export const isAdministrator = (role: UserRole): boolean => {
-  return role === UserRole.Administrator
+export const userRoleLabels: Record<UserRole, string> = {
+  visitor: "Visitor",
+  helper: "Helper",
+  moderator: "Moderator",
+  collaborator: "Collaborator",
+  administrator: "Administrator",
 }
 
 export interface CurrentUser {
@@ -115,12 +108,9 @@ export interface CurrentUser {
   avatarURL: string
   role: UserRole
   visualRole?: VisualRole
+  visualRoleOverride?: VisualRole
   status: UserStatus
   permissions: UserPermissions
-  isAdministrator: boolean
-  isCollaborator: boolean
-  isModerator: boolean
-  isHelper: boolean
   hasWarning: boolean
   isMuted: boolean
   latestWarningId?: number

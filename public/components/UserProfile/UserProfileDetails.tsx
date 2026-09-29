@@ -1,17 +1,20 @@
 // UserProfileDetails converted to Tailwind
 
 import React, { useState } from "react"
-import { Icon, Select, SelectOption } from "@fider/components"
+import { DisplayError, Icon, Select, SelectOption } from "@fider/components"
 import { useUserProfile } from "./context"
-import { User, UserRole, VisualRole } from "@fider/models"
+import { UserRole, VisualRole, userRoleLabels } from "@fider/models"
 import { actions } from "@fider/services"
+import { ChangedUserRole, ChangedVisualRole } from "@fider/services/actions/tenant"
+import { Failure, RequestError } from "@fider/services/http"
+import { useFider } from "@fider/hooks"
 import { heroiconsChevronDown as IconChevronDown, heroiconsChevronUp as IconChevronUp, heroiconsMail as IconMail, heroiconsIdentification as IconIdentification } from "@fider/icons.generated"
 
 interface UserProfileDetailsProps {
   providers?: { name: string; uid: string }[]
   email?: string
-  onRoleChange?: (user: Pick<User, "id" | "role" | "permissions">) => void
-  onVisualRoleChange?: (visualRole: VisualRole) => void
+  onRoleChange?: (user: ChangedUserRole) => void
+  onVisualRoleChange?: (user: ChangedVisualRole) => void
 }
 
 export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
@@ -21,25 +24,21 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
   onVisualRoleChange,
 }) => {
   const { user } = useUserProfile()
+  const { session } = useFider()
   const [isExpanded, setIsExpanded] = useState(false)
   const [isChangingRole, setIsChangingRole] = useState(false)
   const [isChangingVisualRole, setIsChangingVisualRole] = useState(false)
+  const [error, setError] = useState<Failure>()
 
   if (!user) return null
 
   const canChangeRole = user.permissions.changeRole
   const canChangeVisualRole = user.permissions.changeVisualRole
 
-  const roleOptions: SelectOption[] = [
-    { label: "Visitor", value: UserRole.Visitor },
-    { label: "Helper", value: UserRole.Helper },
-    { label: "Moderator", value: UserRole.Moderator },
-    { label: "Collaborator", value: UserRole.Collaborator },
-    { label: "Administrator", value: UserRole.Administrator },
-  ]
+  const roleOptions: SelectOption[] = Object.entries(userRoleLabels).map(([value, label]) => ({ value, label }))
 
   const visualRoleOptions: SelectOption[] = [
-    { label: "None", value: "" },
+    { label: "Default", value: "" },
     { label: "Visitor", value: "Visitor" },
     { label: "Helper", value: "Helper" },
     { label: "Moderator", value: "Moderator" },
@@ -51,44 +50,50 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
     { label: "Emissary", value: "Emissary" },
   ]
 
-  const getRoleName = (role: UserRole | number): string => {
-    if (role === UserRole.Visitor) return "Visitor"
-    if (role === UserRole.Helper) return "Helper"
-    if (role === UserRole.Moderator) return "Moderator"
-    if (role === UserRole.Collaborator) return "Collaborator"
-    if (role === UserRole.Administrator) return "Administrator"
-    return "Unknown"
-  }
-
   const handleRoleChange = async (option?: SelectOption) => {
     if (!option || !onRoleChange) return
+
+    setError(undefined)
     setIsChangingRole(true)
     try {
       const newRole = option.value as UserRole
       const result = await actions.changeUserRole(user.id, newRole)
       if (result.ok) {
         onRoleChange(result.data)
+      } else {
+        setError(result.error)
       }
+    } catch (cause) {
+      if (!(cause instanceof RequestError)) throw cause
+
+      setError({ errors: [{ message: "The role change could not be confirmed. Check your connection and retry." }], cause })
     } finally {
       setIsChangingRole(false)
     }
   }
 
   const handleVisualRoleChange = async (option?: SelectOption) => {
+    if (!option || !onVisualRoleChange) return
+
+    setError(undefined)
     setIsChangingVisualRole(true)
     try {
-      const visualRoleToNumber: Record<string, number> = {
-        "": 0, "Visitor": 1, "Helper": 2, "Administrator": 3, "Moderator": 4,
-        "BSGCrew": 5, "Developer": 6, "Sherpa": 7, "TCStaff": 8, "Emissary": 9
+      const result = await actions.changeUserVisualRole(user.id, option.value as VisualRole)
+      if (result.ok) {
+        if (session.isAuthenticated && session.user.id === user.id) {
+          session.updateUserProfile({
+            visualRole: result.data.visualRole,
+            visualRoleOverride: result.data.visualRoleOverride,
+          })
+        }
+        onVisualRoleChange(result.data)
+      } else {
+        setError(result.error)
       }
-      const response = await fetch(`/api/admin/visualroles/${visualRoleToNumber[option?.value || ""]}/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userID: user.id }),
-      })
-      if (response.ok) {
-        onVisualRoleChange?.((option?.value || "") as VisualRole)
-      }
+    } catch (cause) {
+      if (!(cause instanceof RequestError)) throw cause
+
+      setError({ errors: [{ message: "The badge change could not be confirmed. Check your connection and retry." }], cause })
     } finally {
       setIsChangingVisualRole(false)
     }
@@ -106,6 +111,7 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
 
       {isExpanded && (
         <div className="px-3 pb-3 flex flex-col gap-2">
+          <DisplayError error={error} fields={["", "userID", "visualRole", "role"]} />
           {email && (
             <div className="flex items-center gap-2 text-sm">
               <Icon sprite={IconMail} className="h-4" />
@@ -139,7 +145,7 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
               <span className="text-border-strong font-medium min-w-[80px]">Role:</span>
               <Select
                 field="role"
-                defaultValue={user.role as string}
+                value={user.role as string}
                 options={roleOptions}
                 onChange={handleRoleChange}
                 disabled={isChangingRole}
@@ -150,7 +156,7 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
           {!canChangeRole && (
             <div className="flex items-center gap-2 text-sm">
               <span className="text-border-strong font-medium min-w-[80px]">Role:</span>
-              <span className="text-foreground">{getRoleName(user.role)}</span>
+              <span className="text-foreground">{userRoleLabels[user.role as UserRole]}</span>
             </div>
           )}
 
@@ -159,7 +165,7 @@ export const UserProfileDetails: React.FC<UserProfileDetailsProps> = ({
               <span className="text-border-strong font-medium min-w-[80px]">Visual Role:</span>
               <Select
                 field="visualRole"
-                value={user.visualRole || ""}
+                value={user.visualRoleOverride || ""}
                 options={visualRoleOptions}
                 onChange={handleVisualRoleChange}
                 disabled={isChangingVisualRole}
