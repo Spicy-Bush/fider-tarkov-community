@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -23,6 +24,19 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/log"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
+
+func localRedirect(target string) string {
+	u, err := url.Parse(target)
+	if err != nil || u.IsAbs() || u.Host != "" || strings.ContainsAny(u.Path, "\\\r\n") || strings.HasPrefix(u.Path, "//") {
+		return "/"
+	}
+
+	if !strings.HasPrefix(u.Path, "/") {
+		u.Path = "/" + u.Path
+	}
+
+	return u.String()
+}
 
 func Health() web.HandlerFunc {
 	return func(c *web.Context) error {
