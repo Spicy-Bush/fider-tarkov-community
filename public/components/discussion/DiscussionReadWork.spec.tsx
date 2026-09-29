@@ -29,7 +29,7 @@ jest.mock("@fider/services/discussion", () => ({
 }))
 
 const owner = { kind: "post" as const, id: 1, number: 1, title: "Post", url: "/posts/1" }
-const ownerPermissions = { comment: false, react: false, images: false }
+const ownerPermissions = { comment: false, signInToComment: false, react: false, images: false }
 const comment: DiscussionComment = {
   id: 1,
   parentId: null,
@@ -59,7 +59,7 @@ test.each([3000, 50000])("pending and failed reads preserve rows for %i retained
       data: {
         owner,
         comments: Array.from({ length: count }, (_, index) => ({ ...comment, id: index + 1 })),
-        permissions: { comment: true, react: false, images: false },
+        permissions: { comment: true, signInToComment: false, react: false, images: false },
         next: "continuation",
       },
     })

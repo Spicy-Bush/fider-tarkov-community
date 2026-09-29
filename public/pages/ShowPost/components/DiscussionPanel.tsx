@@ -11,19 +11,17 @@ interface DiscussionPanelProps {
 
 export function DiscussionPanel(props: DiscussionPanelProps) {
   return (
-    <div className="mt-8">
-      <Discussion
-        ownerPermissions={props.post.discussionPermissions}
-        owner={{
-          kind: "post",
-          id: props.post.id,
-          number: props.post.number,
-          title: props.post.title,
-          url: `/posts/${props.post.number}/${props.post.slug}`,
-        }}
-        onCommentAdded={props.onCommentAdded}
-        headerActions={<FollowButton post={props.post} subscribed={props.subscribed} />}
-      />
-    </div>
+    <Discussion
+      ownerPermissions={props.post.discussionPermissions}
+      owner={{
+        kind: "post",
+        id: props.post.id,
+        number: props.post.number,
+        title: props.post.title,
+        url: `/posts/${props.post.number}/${props.post.slug}`,
+      }}
+      onCommentAdded={props.onCommentAdded}
+      headerActions={<FollowButton post={props.post} subscribed={props.subscribed} />}
+    />
   )
 }

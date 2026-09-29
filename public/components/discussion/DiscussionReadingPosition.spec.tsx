@@ -29,7 +29,7 @@ jest.mock("@fider/services/discussion", () => ({
   loadCommentRecords: jest.fn(),
 }))
 
-const ownerPermissions = { comment: false, react: false, images: false }
+const ownerPermissions = { comment: false, signInToComment: false, react: false, images: false }
 
 const owner = { kind: "post" as const, id: 1, number: 1, title: "Post", url: "/posts/1" }
 const comments: DiscussionComment[] = Array.from({ length: 3000 }, (_, index) => ({
@@ -42,7 +42,7 @@ const comments: DiscussionComment[] = Array.from({ length: 3000 }, (_, index) =>
   state: "visible",
   permissions: { edit: true, delete: true, moderate: true, react: true, reply: true, report: false },
 }))
-const page: DiscussionPage = { owner, comments, permissions: { comment: true, react: true, images: false } }
+const page: DiscussionPage = { owner, comments, permissions: { comment: true, signInToComment: false, react: true, images: false } }
 
 beforeEach(() => {
   jest.resetAllMocks()
@@ -62,7 +62,7 @@ test.each<DiscussionOwner>([
   mockAuthenticated = false
   jest.mocked(loadComments).mockResolvedValue({
     ok: true,
-    data: { ...page, owner: discussion, comments: [], permissions: { ...page.permissions, comment: false } },
+    data: { ...page, owner: discussion, comments: [], permissions: { ...page.permissions, comment: false, signInToComment: true } },
   })
 
   const rendered = render(<Discussion ownerPermissions={ownerPermissions} owner={discussion} />)
@@ -112,7 +112,7 @@ test("an empty discussion can recover a failed read with newly restricted permis
   })
   fireEvent.click(screen.getByRole("button", { name: "Retry loading comments" }))
 
-  await screen.findByText("New comments are unavailable here.")
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Discussion" })).toBeNull())
   expect(screen.queryByRole("alert")).toBeNull()
   expect(screen.queryByRole("form", { name: "New comment" })).toBeNull()
 })

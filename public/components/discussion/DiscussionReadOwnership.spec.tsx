@@ -32,7 +32,7 @@ jest.mock("@fider/services/discussion", () => ({
   loadCommentContext: jest.fn(),
 }))
 
-const ownerPermissions = { comment: false, react: false, images: false }
+const ownerPermissions = { comment: false, signInToComment: false, react: false, images: false }
 
 const owner = { kind: "post" as const, id: 1, number: 1, title: "Post", url: "/posts/1" }
 const parent: DiscussionComment = {
@@ -45,7 +45,7 @@ const parent: DiscussionComment = {
   state: "visible",
   permissions: { edit: false, delete: false, moderate: false, react: false, reply: false, report: false },
 }
-const page: DiscussionPage = { owner, comments: [parent], permissions: { comment: true, react: false, images: false } }
+const page: DiscussionPage = { owner, comments: [parent], permissions: { comment: true, signInToComment: false, react: false, images: false } }
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -137,7 +137,7 @@ test("an older branch read cannot restore capabilities after a newer restricted 
       permissions: { ...page.permissions, comment: false },
     },
   }))
-  await screen.findByText("New comments are unavailable here.")
+  await waitFor(() => expect(screen.queryByRole("form", { name: "New comment" })).toBeNull())
   await act(async () => first.resolve({
     ok: true,
     data: { ...page, comments: [{ ...parent, id: 10, parentId: 1, hasReplies: false, content: "First reply" }] },

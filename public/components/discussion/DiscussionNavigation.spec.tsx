@@ -58,7 +58,7 @@ jest.mock("@fider/services/discussion", () => ({
   loadComments: jest.fn(),
 }))
 
-const ownerPermissions = { comment: false, react: false, images: false }
+const ownerPermissions = { comment: false, signInToComment: false, react: false, images: false }
 
 const owner = { kind: "page" as const, id: 1, title: "Page", url: "/pages/page" }
 
@@ -68,7 +68,7 @@ function response(id: number): Result<CommentContext> {
     data: {
       owner,
       commentId: id,
-      permissions: { comment: true, react: true, images: false },
+      permissions: { comment: true, signInToComment: false, react: true, images: false },
       comments: [{
         id,
         parentId: null,

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { Button, SignInModal } from "@fider/components"
-import { useFider } from "@fider/hooks"
+import { Button } from "@fider/components/common/Button"
+import { SignInModal } from "@fider/components/auth/SignInModal"
 import { DiscussionComment, DiscussionOwner, DiscussionPage, DiscussionPermissions, DiscussionSort, ReactionCount } from "@fider/models"
 import { isNegativelyRated, loadCommentContext, loadCommentRecords, loadComments } from "@fider/services/discussion"
 import { savedReadingPosition, useReadingPosition } from "@fider/services/readingPosition"
@@ -251,7 +251,6 @@ export function Discussion(props: DiscussionProps) {
 }
 
 function DiscussionThreads({ owner, ownerPermissions, onCommentAdded, headerActions }: DiscussionProps) {
-  const fider = useFider()
   const container = useRef<HTMLElement>(null)
   const positionKey = `discussion:${owner.kind}:${owner.id}`
   const [sort, setSort] = useState<DiscussionSort>(() => savedReadingPosition<DiscussionPosition>(positionKey)?.sort ?? "liked")
@@ -767,8 +766,12 @@ function DiscussionThreads({ owner, ownerPermissions, onCommentAdded, headerActi
     }
   }, [interact])
 
+  if (!state.permissions.comment && !state.permissions.signInToComment && rows.length === 0 && !target) {
+    return null
+  }
+
   return (
-    <section ref={container} aria-label="Discussion" className="c-comment-list mt-4">
+    <section ref={container} aria-label="Discussion" className="c-comment-list mt-8">
       <div className="flex items-center flex-wrap gap-3 mb-3">
         <h2 className="flex-1 text-lg font-semibold">Discussion</h2>
         {headerActions}
@@ -880,11 +883,7 @@ function DiscussionThreads({ owner, ownerPermissions, onCommentAdded, headerActi
         }}
       </DiscussionViewport>
       {state.permissions.comment && <CommentComposer owner={owner} images={state.permissions.images} onSaved={created} />}
-      {!state.permissions.comment && (
-        fider.session.isAuthenticated
-          ? <p className="text-muted my-4">New comments are unavailable here.</p>
-          : <Button onClick={() => setSignIn(true)}>Sign in to comment</Button>
-      )}
+      {state.permissions.signInToComment && <Button onClick={() => setSignIn(true)}>Sign in to comment</Button>}
     </section>
   )
 }

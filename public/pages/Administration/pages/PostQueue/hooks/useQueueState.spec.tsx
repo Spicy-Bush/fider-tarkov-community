@@ -19,7 +19,7 @@ const original = {
   description: "Original content",
   tags: [],
   permissions: { edit: true },
-  discussionPermissions: { comment: true, react: true, images: true },
+  discussionPermissions: { comment: true, signInToComment: false, react: true, images: true },
 } as Post
 
 beforeEach(() => {
@@ -32,7 +32,7 @@ test("an edit confirmed after refresh changes content without restoring captured
     ...original,
     tags: ["fresh-tag"],
     permissions: { ...original.permissions, edit: false },
-    discussionPermissions: { comment: false, react: false, images: true },
+    discussionPermissions: { comment: false, signInToComment: false, react: false, images: true },
   }
   jest.mocked(actions.getPost).mockResolvedValue({ ok: true, data: refreshed })
   const { result } = renderHook(useQueueState)

@@ -13,6 +13,7 @@ export interface DiscussionOwner {
 
 export interface DiscussionPermissions {
   comment: boolean
+  signInToComment: boolean
   react: boolean
   images: boolean
 }

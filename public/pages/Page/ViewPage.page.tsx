@@ -256,12 +256,10 @@ const ViewPage = ({ page, discussionPermissions }: ViewPageProps) => {
             </Button>
           </HStack>
 
-          <div className="mt-8">
-            <Discussion
-              owner={{ kind: "page", id: page.id, title: page.title, url: `/pages/${page.slug}` }}
-              ownerPermissions={discussionPermissions}
-            />
-          </div>
+          <Discussion
+            owner={{ kind: "page", id: page.id, title: page.title, url: `/pages/${page.slug}` }}
+            ownerPermissions={discussionPermissions}
+          />
         </div>
 
       </div>

@@ -2,11 +2,10 @@ import React from "react"
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, expect, test } from "@jest/globals"
 import { DiscussionComment, DiscussionOwner } from "@fider/models"
-import { loadCommentRecords, loadComments } from "@fider/services/discussion"
+import { loadCommentContext, loadCommentRecords, loadComments } from "@fider/services/discussion"
 import { captureReadingPosition, prepareReadingPosition } from "@fider/services/readingPosition"
 import { Discussion } from "./Discussion"
 
-jest.mock("@fider/hooks", () => ({ useFider: () => ({ session: { isAuthenticated: true } }) }))
 jest.mock("@fider/components", () => ({
   Button: jest.requireActual("@fider/components/common/Button").Button,
   SignInModal: () => null,
@@ -19,11 +18,12 @@ jest.mock("@fider/services/discussion", () => ({
   ...jest.requireActual("@fider/services/discussion"),
   loadComments: jest.fn(),
   loadCommentRecords: jest.fn(),
+  loadCommentContext: jest.fn(),
 }))
 
 const owner = { kind: "post" as const, id: 1, number: 1, title: "Post", url: "/posts/1" }
-const allowed = { comment: true, react: true, images: false }
-const restricted = { comment: false, react: false, images: false }
+const allowed = { comment: true, signInToComment: false, react: true, images: false }
+const restricted = { comment: false, signInToComment: false, react: false, images: false }
 const comment: DiscussionComment = {
   id: 1,
   parentId: null,
@@ -40,6 +40,7 @@ beforeEach(() => {
   prepareReadingPosition(undefined)
   window.history.replaceState(null, "", owner.url)
   window.scrollBy = jest.fn()
+  Element.prototype.scrollIntoView = jest.fn()
   window.IntersectionObserver = jest.fn(() => ({ observe: jest.fn(), disconnect: jest.fn() })) as any
   window.ResizeObserver = jest.fn(() => ({ observe: jest.fn(), disconnect: jest.fn() })) as any
   jest.mocked(loadComments).mockResolvedValue({ ok: true, data: { owner, comments: [], permissions: restricted } })
@@ -69,7 +70,7 @@ test.each([allowed, restricted])("offscreen restoration uses owner permissions w
     expect(screen.getByRole("form", { name: "New comment" })).toBeVisible()
   } else {
     expect(screen.queryByRole("form", { name: "New comment" })).toBeNull()
-    expect(screen.getByText("New comments are unavailable here.")).toBeVisible()
+    expect(screen.getByRole("region", { name: "Discussion" })).toBeVisible()
   }
   expect(screen.queryAllByRole("article")).toHaveLength(0)
   expect(loadComments).not.toHaveBeenCalled()
@@ -81,7 +82,7 @@ test("a fresh parent receipt updates permissions while ordinary rerenders retain
   expect(screen.getByRole("form", { name: "New comment" })).toBeVisible()
 
   fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
-  await screen.findByText("New comments are unavailable here.")
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Discussion" })).toBeNull())
 
   rendered.rerender(<Discussion owner={{ ...owner }} ownerPermissions={allowed} />)
   expect(screen.queryByRole("form", { name: "New comment" })).toBeNull()
@@ -146,3 +147,80 @@ test.each<DiscussionOwner>([owner, { kind: "page", id: 1, title: "Page", url: "/
     expect(loadComments).toHaveBeenCalledTimes(2)
   }
 )
+
+test.each<DiscussionOwner>([owner, { kind: "page", id: 1, title: "Page", url: "/pages/page" }])(
+  "a restricted $kind remains loadable until the server confirms it is empty",
+  async (discussion) => {
+    let complete!: (result: Awaited<ReturnType<typeof loadComments>>) => void
+    jest.mocked(loadComments).mockReturnValueOnce(new Promise((resolve) => { complete = resolve }))
+
+    const rendered = render(<Discussion owner={discussion} ownerPermissions={restricted} />)
+    fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
+    expect(screen.getByRole("region", { name: "Discussion" })).toBeVisible()
+
+    await act(async () => complete({ ok: true, data: { owner: discussion, comments: [], permissions: restricted } }))
+    expect(screen.queryByRole("region", { name: "Discussion" })).toBeNull()
+
+    rendered.rerender(<Discussion owner={discussion} ownerPermissions={{ ...allowed }} />)
+    expect(screen.getByRole("form", { name: "New comment" })).toBeVisible()
+  }
+)
+
+test("restricted discussions keep existing comments without unavailable copy or a composer", async () => {
+  jest.mocked(loadComments).mockResolvedValue({ ok: true, data: { owner, comments: [comment], permissions: restricted } })
+  render(<Discussion owner={owner} ownerPermissions={restricted} />)
+  fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
+
+  await screen.findByText(comment.content)
+  expect(screen.getByRole("region", { name: "Discussion" })).toBeVisible()
+  expect(screen.queryByRole("form", { name: "New comment" })).toBeNull()
+  expect(screen.queryByText("New comments are unavailable here.")).toBeNull()
+})
+
+test("a failed empty read retains retry and a successful retry can hide the discussion", async () => {
+  jest.mocked(loadComments).mockResolvedValueOnce({ ok: false, status: 503, error: {} })
+  render(<Discussion owner={owner} ownerPermissions={restricted} />)
+  fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
+  await screen.findByRole("alert")
+  expect(screen.getByRole("region", { name: "Discussion" })).toBeVisible()
+
+  fireEvent.click(screen.getByRole("button", { name: "Retry loading comments" }))
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Discussion" })).toBeNull())
+})
+
+test.each([allowed, { ...restricted, signInToComment: true }])(
+  "an empty discussion retains the server-provided commenting action: $comment/$signInToComment",
+  async (permissions) => {
+    jest.mocked(loadComments).mockResolvedValue({ ok: true, data: { owner, comments: [], permissions } })
+    render(<Discussion owner={owner} ownerPermissions={permissions} />)
+    fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Load more comments" })).toBeNull())
+
+    expect(screen.getByRole("region", { name: "Discussion" })).toBeVisible()
+    expect(screen.queryByRole("form", { name: "New comment" }) !== null).toBe(permissions.comment)
+    expect(screen.queryByRole("button", { name: "Sign in to comment" }) !== null).toBe(permissions.signInToComment)
+  }
+)
+
+test("an empty page with a cursor remains loadable and a hidden discussion can open a permalink", async () => {
+  jest.mocked(loadComments).mockResolvedValueOnce({
+    ok: true, data: { owner, comments: [], permissions: restricted, next: "another-page" },
+  })
+  render(<Discussion owner={owner} ownerPermissions={restricted} />)
+  fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
+  await waitFor(() => expect(loadComments).toHaveBeenCalledTimes(1))
+  await waitFor(() => expect(screen.getByRole("button", { name: "Load more comments" })).toBeEnabled())
+  expect(screen.getByRole("region", { name: "Discussion" })).toBeVisible()
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Discussion" })).toBeNull())
+
+  jest.mocked(loadCommentContext).mockResolvedValueOnce({
+    ok: true, data: { owner, comments: [comment], permissions: restricted, commentId: comment.id },
+  })
+  window.history.replaceState(null, "", `${owner.url}#comment-${comment.id}`)
+  fireEvent(window, new HashChangeEvent("hashchange"))
+  await screen.findByText(comment.content)
+  expect(screen.getByRole("region", { name: "Discussion" })).toBeVisible()
+  expect(screen.queryByRole("form", { name: "New comment" })).toBeNull()
+})
