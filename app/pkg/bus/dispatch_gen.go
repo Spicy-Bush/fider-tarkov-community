@@ -257,6 +257,7 @@ var qListSponsorshipCampaignsHandler func(context.Context, *query.ListSponsorshi
 var qListSponsorshipPackagesHandler func(context.Context, *query.ListSponsorshipPackages) error
 var qMarkWebhookAsFailedHandler func(context.Context, *query.MarkWebhookAsFailed) error
 var qPostIsReferencedHandler func(context.Context, *query.PostIsReferenced) error
+var qScanBlobMetadataHandler func(context.Context, *query.ScanBlobMetadata) error
 var qSearchPostsHandler func(context.Context, *query.SearchPosts) error
 var qSearchUserContentHandler func(context.Context, *query.SearchUserContent) error
 var qUserSubscribedToHandler func(context.Context, *query.UserSubscribedTo) error
@@ -761,6 +762,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		qMarkWebhookAsFailedHandler = fn
 	case func(context.Context, *query.PostIsReferenced) error:
 		qPostIsReferencedHandler = fn
+	case func(context.Context, *query.ScanBlobMetadata) error:
+		qScanBlobMetadataHandler = fn
 	case func(context.Context, *query.SearchPosts) error:
 		qSearchPostsHandler = fn
 	case func(context.Context, *query.SearchUserContent) error:
@@ -2004,6 +2007,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.PostIsReferenced")
 		}
 		return qPostIsReferencedHandler(ctx, m)
+	case *query.ScanBlobMetadata:
+		if qScanBlobMetadataHandler == nil {
+			return fmt.Errorf("handler not registered: query.ScanBlobMetadata")
+		}
+		return qScanBlobMetadataHandler(ctx, m)
 	case *query.SearchPosts:
 		if qSearchPostsHandler == nil {
 			return fmt.Errorf("handler not registered: query.SearchPosts")

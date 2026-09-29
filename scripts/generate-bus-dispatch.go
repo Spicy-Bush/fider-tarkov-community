@@ -71,7 +71,7 @@ func main() {
 		packageImportPaths[dir] = "github.com/Spicy-Bush/fider-tarkov-community/app/services/" + strings.ReplaceAll(relPath, "\\", "/")
 
 		for _, decl := range node.Decls {
-			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil {
+			if fn, ok := decl.(*ast.FuncDecl); ok {
 				packages[dir][fn.Name.Name] = fn
 			}
 		}
@@ -124,12 +124,16 @@ func main() {
 				return true
 			}
 
-			handlerIdent, ok := call.Args[0].(*ast.Ident)
-			if !ok {
+			var funcName string
+			switch handler := call.Args[0].(type) {
+			case *ast.Ident:
+				funcName = handler.Name
+			case *ast.SelectorExpr:
+				funcName = handler.Sel.Name
+			default:
 				return true
 			}
 
-			funcName := handlerIdent.Name
 			fn := funcSignatures[funcName]
 			if fn == nil {
 				return true

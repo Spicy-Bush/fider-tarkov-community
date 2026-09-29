@@ -12,6 +12,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/readlimit"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 
@@ -28,6 +29,14 @@ func init() {
 
 type Service struct{}
 
+var backend = blob.Backend{
+	Read:         getBlobByKey,
+	Write:        storeBlob,
+	Remove:       deleteBlob,
+	ListKeys:     listBlobs,
+	ScanMetadata: scanBlobMetadata,
+}
+
 func (s Service) Name() string {
 	return "SQL"
 }
@@ -41,10 +50,7 @@ func (s Service) Enabled() bool {
 }
 
 func (s Service) Init() {
-	bus.AddHandler(listBlobs)
-	bus.AddHandler(getBlobByKey)
-	bus.AddHandler(storeBlob)
-	bus.AddHandler(deleteBlob)
+	backend.Register()
 }
 
 type dbBlob struct {
@@ -52,14 +58,15 @@ type dbBlob struct {
 	ContentType string `db:"content_type"`
 	Size        int64  `db:"size"`
 	Content     []byte `db:"file"`
+	TooLarge    bool   `db:"too_large"`
 }
 
 func listBlobs(ctx context.Context, q *query.ListBlobs) error {
-	blob.EnsureAuthorizedPrefix(ctx, q.Prefix)
+	prefix := strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(q.Prefix)
 
 	return using(ctx, func(trx *dbx.Trx, tenantID sql.NullInt64) error {
 		blobs := []*dbBlob{}
-		err := trx.Select(&blobs, "SELECT key FROM blobs WHERE key LIKE $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", q.Prefix+"%", tenantID)
+		err := trx.Select(&blobs, `SELECT key FROM blobs WHERE key LIKE $1 ESCAPE '\' AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))`, prefix+"%", tenantID)
 		if err != nil {
 			return errors.Wrap(err, "failed list blobs")
 		}
@@ -77,25 +84,22 @@ func listBlobs(ctx context.Context, q *query.ListBlobs) error {
 }
 
 func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
-	if err := blob.AuthorizeRead(ctx, q); err != nil {
-		return err
-	}
-	if strings.HasPrefix(q.Key, "files/") {
-		user, ok := ctx.Value(app.UserCtxKey).(*entity.User)
-		if !ok || user == nil || !user.IsAdministrator() {
-			return blob.ErrNotFound
-		}
-	}
-	blob.EnsureAuthorizedPrefix(ctx, q.Key)
-
 	return using(ctx, func(trx *dbx.Trx, tenantID sql.NullInt64) error {
 		b := dbBlob{}
-		err := trx.Get(&b, "SELECT file, content_type, size FROM blobs WHERE key = $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", q.Key, tenantID)
+		err := trx.Get(&b, `
+			SELECT content_type, size,
+			    $3>0 AND (size>$3 OR octet_length(file)>$3) AS too_large,
+			    CASE WHEN $3>0 AND (size>$3 OR octet_length(file)>$3) THEN NULL ELSE file END AS file
+			FROM blobs WHERE key=$1 AND (tenant_id=$2 OR ($2 IS NULL AND tenant_id IS NULL))
+		`, q.Key, tenantID, q.MaxBytes)
 		if err != nil {
 			if err == app.ErrNotFound {
 				return blob.ErrNotFound
 			}
 			return errors.Wrap(err, "failed to get blob with key '%s'", q.Key)
+		}
+		if b.TooLarge {
+			return readlimit.ErrTooLarge
 		}
 
 		q.Result = &dto.Blob{
@@ -109,12 +113,6 @@ func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
 }
 
 func storeBlob(ctx context.Context, c *cmd.StoreBlob) error {
-	blob.EnsureAuthorizedPrefix(ctx, c.Key)
-
-	if err := blob.ValidateKey(c.Key); err != nil {
-		return errors.Wrap(err, "failed to validate blob key '%s'", c.Key)
-	}
-
 	return using(ctx, func(trx *dbx.Trx, tenantID sql.NullInt64) error {
 		now := time.Now()
 		_, err := trx.Execute(`
@@ -131,8 +129,6 @@ func storeBlob(ctx context.Context, c *cmd.StoreBlob) error {
 }
 
 func deleteBlob(ctx context.Context, c *cmd.DeleteBlob) error {
-	blob.EnsureAuthorizedPrefix(ctx, c.Key)
-
 	return using(ctx, func(trx *dbx.Trx, tenantID sql.NullInt64) error {
 		_, err := trx.Execute("DELETE FROM blobs WHERE key = $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", c.Key, tenantID)
 		if err != nil {

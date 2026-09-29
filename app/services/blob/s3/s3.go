@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"path"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/readlimit"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -37,6 +36,14 @@ func init() {
 
 type Service struct{}
 
+var backend = blob.Backend{
+	Read:         getBlobByKey,
+	Write:        storeBlob,
+	Remove:       deleteBlob,
+	ListKeys:     listBlobs,
+	ScanMetadata: scanBlobMetadata,
+}
+
 func (s Service) Name() string {
 	return "S3"
 }
@@ -51,54 +58,63 @@ func (s Service) Enabled() bool {
 
 func (s Service) Init() {
 	s3EnvConfig := env.Config.BlobStorage.S3
-	if s3EnvConfig.EndpointURL != "" {
-		s3Config := &aws.Config{
-			Credentials:      credentials.NewStaticCredentials(s3EnvConfig.AccessKeyID, s3EnvConfig.SecretAccessKey, ""),
-			Endpoint:         aws.String(s3EnvConfig.EndpointURL),
-			Region:           aws.String(s3EnvConfig.Region),
-			DisableSSL:       aws.Bool(strings.HasSuffix(s3EnvConfig.EndpointURL, "http://")),
-			S3ForcePathStyle: aws.Bool(true),
-		}
-		awsSession, err := session.NewSession(s3Config)
-		if err != nil {
-			panic(err)
-		}
-
-		DefaultClient = s3.New(awsSession)
+	s3Config := &aws.Config{Region: aws.String(s3EnvConfig.Region)}
+	if s3EnvConfig.AccessKeyID != "" || s3EnvConfig.SecretAccessKey != "" {
+		s3Config.Credentials = credentials.NewStaticCredentials(s3EnvConfig.AccessKeyID, s3EnvConfig.SecretAccessKey, "")
 	}
+	if s3EnvConfig.EndpointURL != "" {
+		s3Config.Endpoint = aws.String(s3EnvConfig.EndpointURL)
+		s3Config.DisableSSL = aws.Bool(strings.HasPrefix(s3EnvConfig.EndpointURL, "http://"))
+		s3Config.S3ForcePathStyle = aws.Bool(true)
+	}
+	awsSession, err := session.NewSession(s3Config)
+	if err != nil {
+		panic(err)
+	}
+	DefaultClient = s3.New(awsSession)
 
-	bus.AddHandler(listBlobs)
-	bus.AddHandler(getBlobByKey)
-	bus.AddHandler(storeBlob)
-	bus.AddHandler(deleteBlob)
+	backend.Register()
 }
 
 func listBlobs(ctx context.Context, q *query.ListBlobs) error {
 	prefix := basePath(ctx, q.Prefix)
-	response, err := DefaultClient.ListObjectsWithContext(ctx, &s3.ListObjectsInput{
+	scope := basePath(ctx, "")
+	q.Result = nil
+	files := make([]string, 0)
+	var pageError error
+	continuations := make(map[string]bool)
+	err := DefaultClient.ListObjectsV2PagesWithContext(ctx, &s3.ListObjectsV2Input{
 		Bucket:  aws.String(env.Config.BlobStorage.S3.BucketName),
 		MaxKeys: aws.Int64(1000),
 		Prefix:  aws.String(prefix),
+	}, func(response *s3.ListObjectsV2Output, _ bool) bool {
+		if aws.BoolValue(response.IsTruncated) {
+			token := aws.StringValue(response.NextContinuationToken)
+			if token == "" || continuations[token] {
+				pageError = errors.New("S3 listing did not provide a new continuation token")
+				return false
+			}
+			continuations[token] = true
+		}
+		for _, item := range response.Contents {
+			key := aws.StringValue(item.Key)
+			if !strings.HasPrefix(key, prefix) {
+				pageError = blob.ErrInvalidKeyFormat
+				return false
+			}
+			if strings.HasSuffix(key, "/") || (scope == "" && strings.HasPrefix(key, "tenants/")) {
+				continue
+			}
+			key = strings.TrimPrefix(key, scope)
+			files = append(files, key)
+		}
+		return true
 	})
 	if err != nil {
 		return wrap(err, "failed to list blobs from S3")
 	}
-
-	if response.IsTruncated != nil && *response.IsTruncated {
-		return wrap(err, "failed to return list of blobs because it was truncated")
-	}
-
-	files := make([]string, 0)
-	for _, item := range response.Contents {
-		key := *item.Key
-
-		// if it ends with '/' it's not an actual blob
-		if strings.HasSuffix(key, "/") {
-			continue
-		}
-
-		fullKey := q.Prefix + key[len(prefix):]
-		files = append(files, strings.TrimLeft(fullKey, "/"))
+	if pageError != nil {
+		return pageError
 	}
 
 	sort.Strings(files)
@@ -107,16 +123,6 @@ func listBlobs(ctx context.Context, q *query.ListBlobs) error {
 }
 
 func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
-	if err := blob.AuthorizeRead(ctx, q); err != nil {
-		return err
-	}
-	// see: filemanagement page
-	if strings.HasPrefix(q.Key, "files/") {
-		user, ok := ctx.Value(app.UserCtxKey).(*entity.User)
-		if !ok || user == nil || !user.IsAdministrator() {
-			return blob.ErrNotFound
-		}
-	}
 	resp, err := DefaultClient.GetObjectWithContext(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(env.Config.BlobStorage.S3.BucketName),
 		Key:    aws.String(keyFullPathURL(ctx, q.Key)),
@@ -128,25 +134,24 @@ func getBlobByKey(ctx context.Context, q *query.GetBlobByKey) error {
 		return wrap(err, "failed to get blob '%s' from S3", q.Key)
 	}
 	defer resp.Body.Close()
+	if q.MaxBytes > 0 && aws.Int64Value(resp.ContentLength) > q.MaxBytes {
+		return readlimit.ErrTooLarge
+	}
 
-	bytes, err := io.ReadAll(resp.Body)
+	bytes, err := readlimit.ReadAll(resp.Body, q.MaxBytes)
 	if err != nil {
 		return wrap(err, "failed to read blob body '%s' from S3", q.Key)
 	}
 
 	q.Result = &dto.Blob{
 		Content:     bytes,
-		ContentType: *resp.ContentType,
-		Size:        *resp.ContentLength,
+		ContentType: aws.StringValue(resp.ContentType),
+		Size:        int64(len(bytes)),
 	}
 	return nil
 }
 
 func storeBlob(ctx context.Context, c *cmd.StoreBlob) error {
-	if err := blob.ValidateKey(c.Key); err != nil {
-		return wrap(err, "failed to validate blob key '%s'", c.Key)
-	}
-
 	reader := bytes.NewReader(c.Content)
 	_, err := DefaultClient.PutObjectWithContext(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(env.Config.BlobStorage.S3.BucketName),
@@ -173,12 +178,10 @@ func deleteBlob(ctx context.Context, c *cmd.DeleteBlob) error {
 }
 
 func keyFullPathURL(ctx context.Context, key string) string {
-	return path.Join(basePath(ctx, ""), key)
+	return basePath(ctx, "") + key
 }
 
 func basePath(ctx context.Context, segment string) string {
-	blob.EnsureAuthorizedPrefix(ctx, segment)
-
 	tenant, ok := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 	if ok {
 		return fmt.Sprintf("tenants/%s/%s", strconv.Itoa(tenant.ID), segment)
@@ -194,8 +197,5 @@ func isNotFound(err error) bool {
 }
 
 func wrap(err error, format string, a ...any) error {
-	if awsErr, ok := err.(awserr.Error); ok {
-		return errors.Wrap(awsErr.OrigErr(), format, a...)
-	}
 	return errors.Wrap(err, format, a...)
 }
