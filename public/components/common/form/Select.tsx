@@ -1,7 +1,7 @@
 // Select converted to Tailwind
 
 import React from "react"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 import { ValidationContext } from "./Form"
 import { DisplayError, hasError } from "./DisplayError"
 
@@ -28,26 +28,14 @@ export const Select: React.FunctionComponent<SelectProps> = (props) => {
   const isControlled = props.value !== undefined
   
   const getOption = (value?: string) => {
-    if (value && Options.length > 0) {
-      const filtered = Options.filter((x) => x.value === value)
-      if (filtered && filtered.length > 0) {
-        return filtered[0]
-      }
-    }
-    return undefined;
+    return Options.find((option) => option.value === value)
   }
   
   const [internalSelected, setInternalSelected] = React.useState<SelectOption | undefined>(getOption(props.defaultValue))
   const selected = isControlled ? getOption(props.value) : internalSelected
   
   const onChange = (e: React.FormEvent<HTMLSelectElement>) => {
-    let newSelected: SelectOption | undefined
-    if (e.currentTarget.value) {
-      const options = Options.filter((o) => o.value === e.currentTarget.value)
-      if (options && options.length > 0) {
-        newSelected = options[0]
-      }
-    }
+    const newSelected = getOption(e.currentTarget.value)
 
     if (!isControlled) {
       setInternalSelected(newSelected)
