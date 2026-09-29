@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 )
@@ -57,19 +58,19 @@ func FromPosts(posts []*entity.Post) ([]byte, error) {
 
 		record := []string{
 			strconv.Itoa(post.Number),
-			post.Title,
-			post.Description,
+			textCell(post.Title),
+			textCell(post.Description),
 			post.CreatedAt.Format(time.RFC3339),
-			post.User.Name,
+			textCell(post.User.Name),
 			strconv.Itoa(post.VotesCount),
 			strconv.Itoa(post.CommentsCount),
 			post.Status.Name(),
-			respondedBy,
+			textCell(respondedBy),
 			respondedAt,
-			response,
+			textCell(response),
 			originalNumber,
-			originalTitle,
-			strings.Join(post.Tags, ", "),
+			textCell(originalTitle),
+			textCell(strings.Join(post.Tags, ", ")),
 		}
 		if err := writer.Write(record); err != nil {
 			return nil, err
@@ -83,4 +84,12 @@ func FromPosts(posts []*entity.Post) ([]byte, error) {
 	}
 
 	return buffer.Bytes(), nil
+}
+
+func textCell(value string) string {
+	leading := strings.TrimLeftFunc(value, unicode.IsSpace)
+	if leading != "" && strings.ContainsRune("=+-@", rune(leading[0])) {
+		return "'" + value
+	}
+	return value
 }

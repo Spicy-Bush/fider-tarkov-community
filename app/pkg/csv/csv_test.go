@@ -2,7 +2,9 @@ package csv_test
 
 import (
 	"bytes"
+	gocsv "encoding/csv"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,6 +57,41 @@ func TestExportPostsToCSV_MorePosts(t *testing.T) {
 	actual, err := csv.FromPosts(posts)
 	Expect(err).IsNil()
 	Expect(normalizeLineEndings(actual)).Equals(normalizeLineEndings(expected))
+}
+
+func TestExportedTextCannotBecomeSpreadsheetFormulas(t *testing.T) {
+	for _, value := range []string{"=1+1", "+1+1", "-1+1", "@SUM(1)", " \t=1+1", "\r\n=1+1"} {
+		t.Run(value, func(t *testing.T) {
+			post := *declinedPost
+			post.Title = value
+			post.Description = value
+			post.User = &entity.User{Name: value}
+			post.Tags = []string{value}
+			post.Response = &entity.PostResponse{
+				Text: value,
+				User: &entity.User{Name: value},
+				Original: &entity.OriginalPost{Number: 2, Title: value},
+			}
+
+			data, err := csv.FromPosts([]*entity.Post{&post})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows, err := gocsv.NewReader(bytes.NewReader(data)).ReadAll()
+			if err != nil || len(rows) != 2 {
+				t.Fatalf("invalid CSV: %v", err)
+			}
+
+			for _, column := range []int{1, 2, 4, 8, 10, 12, 13} {
+				if !strings.HasPrefix(rows[1][column], "'") {
+					t.Errorf("column %s contains executable spreadsheet text %q", rows[0][column], rows[1][column])
+				}
+			}
+			if rows[1][5] != "4" {
+				t.Fatal("numeric vote count became a text cell")
+			}
+		})
+	}
 }
 
 var declinedPost = &entity.Post{
