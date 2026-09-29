@@ -3,6 +3,7 @@ package imagic
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	_ "image/gif"
@@ -17,9 +18,10 @@ import (
 
 var ErrNotSupported = errors.New("File not supported")
 var ErrTooLarge = errors.New("Image must be at most 8192 pixels per side and 25 megapixels")
-var ErrTooManyBytes = errors.New("Image must be at most 50000KB")
+var ErrTooManyBytes = fmt.Errorf("Image must be at most %dKB", MaxImageKilobytes)
 
-const MaxImageBytes = 50000 * 1024
+const MaxImageKilobytes = 50000
+const MaxImageBytes = MaxImageKilobytes * 1024
 
 // File contains metadata of a given image
 type File struct {
