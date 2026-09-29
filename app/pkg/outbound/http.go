@@ -56,12 +56,12 @@ func NewClient() *http.Client {
 	dialer := &net.Dialer{
 		Timeout:   10 * time.Second,
 		KeepAlive: 30 * time.Second,
-		// Check the resolved socket address so DNS changes cannot bypass
+		// DNS answers can change before the connection is opened.
 		ControlContext: publicConnection,
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.DialContext = dialer.DialContext
-	// A proxy would resolve the destination outside this boundary
+	// A proxy would resolve the destination outside this boundary.
 	transport.Proxy = nil
 
 	return &http.Client{
