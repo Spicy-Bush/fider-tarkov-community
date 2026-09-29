@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from "react"
 import { ReactionCount } from "@fider/models"
-import { Icon } from "@fider/components"
+import { Icon } from "@fider/components/common/Icon"
 import { heroiconsSmile as IconSmile } from "@fider/icons.generated"
-import { classSet } from "@fider/services"
-import { useFider } from "@fider/hooks"
+import { classSet } from "@fider/services/utils"
+import { useFider } from "@fider/hooks/use-fider"
 
 interface ReactionsProps {
   emojiSelectorRef: React.RefObject<HTMLDivElement>
@@ -13,8 +13,6 @@ interface ReactionsProps {
   busy?: boolean
   className?: string
 }
-
-const availableEmojis = ["👍", "👎", "❤️", "🤔", "👏", "😂", "😲"]
 
 export const Reactions: React.FC<ReactionsProps> = ({ emojiSelectorRef, toggleReaction, reactions, disabled, busy, className = "mt-3" }) => {
   const fider = useFider()
@@ -91,7 +89,7 @@ export const Reactions: React.FC<ReactionsProps> = ({ emojiSelectorRef, toggleRe
       
       {isEmojiSelectorOpen && canReact && (
         <div className="absolute left-0 bottom-full mb-2 flex gap-1 p-2 bg-elevated border border-border rounded-card shadow-lg z-50 popover-enter origin-bottom-left">
-          {availableEmojis.map((emoji) => (
+          {fider.settings.reactionEmojis.map((emoji) => (
             <button
               type="button"
               key={emoji}

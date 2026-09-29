@@ -3,8 +3,8 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { expect, test } from "@jest/globals"
 import { Reactions } from "./Reactions"
 
-jest.mock("@fider/hooks", () => ({
-  useFider: () => ({ session: { isAuthenticated: true } }),
+jest.mock("@fider/hooks/use-fider", () => ({
+  useFider: () => ({ session: { isAuthenticated: true }, settings: { reactionEmojis: ["👍", "😂"] } }),
 }))
 
 test("pending reactions preserve controls, emoji nodes, counts and focus", () => {

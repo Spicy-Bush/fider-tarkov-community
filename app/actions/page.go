@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
@@ -300,7 +301,7 @@ func (action *TogglePageReaction) IsAuthorized(ctx context.Context, user *entity
 func (action *TogglePageReaction) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	result := validate.Success()
 
-	if len(action.Emoji) == 0 || len(action.Emoji) > 8 {
+	if !slices.Contains(entity.ReactionEmojis, action.Emoji) {
 		result.AddFieldFailure("emoji", "Invalid emoji")
 	}
 

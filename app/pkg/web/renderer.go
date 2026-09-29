@@ -327,6 +327,7 @@ func pageData(statusCode int, props Props, ctx *Context) Map {
 	}
 
 	public["settings"] = &Map{
+		"reactionEmojis":            entity.ReactionEmojis,
 		"queueDefaultDate":          entity.DefaultQueueDate(ctx.User(), ctx.Tenant()),
 		"notificationSubscriptions": notificationSubscriptions,
 		"version":                   ctx.engine.renderer.version,

@@ -12,6 +12,7 @@ export interface OAuthProviderOption {
 }
 
 export interface SystemSettings {
+  reactionEmojis: string[]
   queueDefaultDate: string
   notificationSubscriptions: Record<string, boolean>
   mode: string

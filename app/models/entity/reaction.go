@@ -2,6 +2,8 @@ package entity
 
 import "time"
 
+var ReactionEmojis = []string{"👍", "👎", "❤️", "🤔", "👏", "😂", "😲"}
+
 // Reaction represents a user's emoji reaction to a comment
 type Reaction struct {
 	ID        int       `json:"id"`

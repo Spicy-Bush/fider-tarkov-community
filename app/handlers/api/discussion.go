@@ -328,9 +328,7 @@ func ReactToDiscussionComment() web.HandlerFunc {
 		}
 
 		emoji := c.Param("reaction")
-		switch emoji {
-		case "👍", "👎", "❤️", "🤔", "👏", "😂", "😲":
-		default:
+		if !slices.Contains(entity.ReactionEmojis, emoji) {
 			return c.BadRequest(web.Map{"message": "Invalid reaction."})
 		}
 
