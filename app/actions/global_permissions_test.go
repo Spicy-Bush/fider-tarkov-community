@@ -64,6 +64,16 @@ func TestGlobalActionPermissions(t *testing.T) {
 			roles:      []enum.Role{enum.RoleAdministrator},
 		},
 		{
+			name:       "feedback export",
+			authorized: (&actions.PreviewFeedbackExport{}).IsAuthorized,
+			roles:      []enum.Role{enum.RoleCollaborator, enum.RoleAdministrator},
+		},
+		{
+			name:       "feedback export presets",
+			authorized: (&actions.CreateFeedbackExportPreset{}).IsAuthorized,
+			roles:      []enum.Role{enum.RoleCollaborator, enum.RoleAdministrator},
+		},
+		{
 			name:       "role permissions",
 			authorized: (&actions.UpdateRolePermissions{}).IsAuthorized,
 			roles:      []enum.Role{enum.RoleAdministrator},

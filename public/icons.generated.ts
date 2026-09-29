@@ -79,6 +79,7 @@ export const heroiconsXCircle: SpriteSymbol = { id: "heroicons-x-circle", viewBo
 export const heroiconsX: SpriteSymbol = { id: "heroicons-x", viewBox: "0 0 24 24" }
 export const permissionsMatrix: SpriteSymbol = { id: "permissions-matrix", viewBox: "0 0 24 24" }
 export const reactionAdd: SpriteSymbol = { id: "reaction-add", viewBox: "0 0 24 24" }
+export const sheetExport: SpriteSymbol = { id: "sheet-export", viewBox: "0 0 24 24" }
 export const swipeCards: SpriteSymbol = { id: "swipe-cards", viewBox: "0 0 24 24" }
 export const undrawEmpty: SpriteSymbol = { id: "undraw-empty", viewBox: "0 0 24 24" }
 export const undrawNoData: SpriteSymbol = { id: "undraw-no-data", viewBox: "0 0 647.63626 632.17383" }
@@ -160,6 +161,7 @@ export const icons: Record<string, SpriteSymbol> = {
   "heroicons-x": heroiconsX,
   "permissions-matrix": permissionsMatrix,
   "reaction-add": reactionAdd,
+  "sheet-export": sheetExport,
   "swipe-cards": swipeCards,
   "undraw-empty": undrawEmpty,
   "undraw-no-data": undrawNoData,

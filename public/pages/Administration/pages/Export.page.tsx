@@ -2,6 +2,7 @@ import React from "react"
 import { Button, Icon } from "@fider/components"
 import { heroiconsDownload as IconDownload } from "@fider/icons.generated"
 import { PageConfig } from "@fider/components/layouts"
+import { useFider } from "@fider/hooks"
 
 export const pageConfig: PageConfig = {
   title: "Export",
@@ -10,6 +11,8 @@ export const pageConfig: PageConfig = {
 }
 
 const ExportPage: React.FC = () => {
+  const fider = useFider()
+
   return (
     <>
       <h2 className="text-display">Export Posts</h2>
@@ -24,18 +27,20 @@ const ExportPage: React.FC = () => {
         </Button>
       </div>
 
-      <div className="mt-8">
-        <h2 className="text-display">Backup your data</h2>
-        <p className="text-muted">
-          Use this button to download a ZIP file with your data in JSON format. This is a full backup and contains all of your data.
-        </p>
-        <div className="c-admin-actions">
-          <Button variant="secondary" href="/admin/export/backup.zip">
-            <Icon sprite={IconDownload} />
-            <span>backup.zip</span>
-          </Button>
+      {fider.session.permissions.exportBackup && (
+        <div className="mt-8">
+          <h2 className="text-display">Backup your data</h2>
+          <p className="text-muted">
+            Use this button to download a ZIP file with your data in JSON format. This is a full backup and contains all of your data.
+          </p>
+          <div className="c-admin-actions">
+            <Button variant="secondary" href="/admin/export/backup.zip">
+              <Icon sprite={IconDownload} />
+              <span>backup.zip</span>
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </>
   )
 }

@@ -32,6 +32,7 @@ var cClaimModerationHandler func(context.Context, *cmd.ClaimModeration) error
 var cCreateCannedResponseHandler func(context.Context, *cmd.CreateCannedResponse) error
 var cCreateCommentHandler func(context.Context, *cmd.CreateComment) error
 var cCreateCreativeVersionHandler func(context.Context, *cmd.CreateCreativeVersion) error
+var cCreateFeedbackExportPresetHandler func(context.Context, *cmd.CreateFeedbackExportPreset) error
 var cCreatePageHandler func(context.Context, *cmd.CreatePage) error
 var cCreatePageTagHandler func(context.Context, *cmd.CreatePageTag) error
 var cCreatePageTopicHandler func(context.Context, *cmd.CreatePageTopic) error
@@ -45,6 +46,7 @@ var cDeleteBlobHandler func(context.Context, *cmd.DeleteBlob) error
 var cDeleteCannedResponseHandler func(context.Context, *cmd.DeleteCannedResponse) error
 var cDeleteCommentHandler func(context.Context, *cmd.DeleteComment) error
 var cDeleteCurrentUserHandler func(context.Context, *cmd.DeleteCurrentUser) error
+var cDeleteFeedbackExportPresetHandler func(context.Context, *cmd.DeleteFeedbackExportPreset) error
 var cDeleteFilesHandler func(context.Context, *cmd.DeleteFiles) error
 var cDeleteMuteHandler func(context.Context, *cmd.DeleteMute) error
 var cDeletePageHandler func(context.Context, *cmd.DeletePage) error
@@ -131,6 +133,7 @@ var cUpdateCannedResponseHandler func(context.Context, *cmd.UpdateCannedResponse
 var cUpdateCommentHandler func(context.Context, *cmd.UpdateComment) error
 var cUpdateContentSettingsHandler func(context.Context, *cmd.UpdateContentSettings) error
 var cUpdateCurrentUserSettingsHandler func(context.Context, *cmd.UpdateCurrentUserSettings) error
+var cUpdateFeedbackExportPresetHandler func(context.Context, *cmd.UpdateFeedbackExportPreset) error
 var cUpdateMessageBannerHandler func(context.Context, *cmd.UpdateMessageBanner) error
 var cUpdatePageHandler func(context.Context, *cmd.UpdatePage) error
 var cUpdatePageTagHandler func(context.Context, *cmd.UpdatePageTag) error
@@ -256,6 +259,7 @@ var qListCampaignAssignmentsByCampaignHandler func(context.Context, *query.ListC
 var qListCannedResponsesHandler func(context.Context, *query.ListCannedResponses) error
 var qListCreativeVersionsByCampaignHandler func(context.Context, *query.ListCreativeVersionsByCampaign) error
 var qListCustomOAuthConfigHandler func(context.Context, *query.ListCustomOAuthConfig) error
+var qListFeedbackExportPresetsHandler func(context.Context, *query.ListFeedbackExportPresets) error
 var qListImageFilesHandler func(context.Context, *query.ListImageFiles) error
 var qListPagesHandler func(context.Context, *query.ListPages) error
 var qListPostVotesHandler func(context.Context, *query.ListPostVotes) error
@@ -267,6 +271,7 @@ var qPostIsReferencedHandler func(context.Context, *query.PostIsReferenced) erro
 var qScanBlobMetadataHandler func(context.Context, *query.ScanBlobMetadata) error
 var qSearchPostsHandler func(context.Context, *query.SearchPosts) error
 var qSearchUserContentHandler func(context.Context, *query.SearchUserContent) error
+var qSelectFeedbackExportRowsHandler func(context.Context, *query.SelectFeedbackExportRows) error
 var qUserSubscribedToHandler func(context.Context, *query.UserSubscribedTo) error
 var qUserSubscribedToPageHandler func(context.Context, *query.UserSubscribedToPage) error
 
@@ -319,6 +324,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cCreateCommentHandler = fn
 	case func(context.Context, *cmd.CreateCreativeVersion) error:
 		cCreateCreativeVersionHandler = fn
+	case func(context.Context, *cmd.CreateFeedbackExportPreset) error:
+		cCreateFeedbackExportPresetHandler = fn
 	case func(context.Context, *cmd.CreatePage) error:
 		cCreatePageHandler = fn
 	case func(context.Context, *cmd.CreatePageTag) error:
@@ -345,6 +352,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cDeleteCommentHandler = fn
 	case func(context.Context, *cmd.DeleteCurrentUser) error:
 		cDeleteCurrentUserHandler = fn
+	case func(context.Context, *cmd.DeleteFeedbackExportPreset) error:
+		cDeleteFeedbackExportPresetHandler = fn
 	case func(context.Context, *cmd.DeleteFiles) error:
 		cDeleteFilesHandler = fn
 	case func(context.Context, *cmd.DeleteMute) error:
@@ -517,6 +526,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cUpdateContentSettingsHandler = fn
 	case func(context.Context, *cmd.UpdateCurrentUserSettings) error:
 		cUpdateCurrentUserSettingsHandler = fn
+	case func(context.Context, *cmd.UpdateFeedbackExportPreset) error:
+		cUpdateFeedbackExportPresetHandler = fn
 	case func(context.Context, *cmd.UpdateMessageBanner) error:
 		cUpdateMessageBannerHandler = fn
 	case func(context.Context, *cmd.UpdatePage) error:
@@ -767,6 +778,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		qListCreativeVersionsByCampaignHandler = fn
 	case func(context.Context, *query.ListCustomOAuthConfig) error:
 		qListCustomOAuthConfigHandler = fn
+	case func(context.Context, *query.ListFeedbackExportPresets) error:
+		qListFeedbackExportPresetsHandler = fn
 	case func(context.Context, *query.ListImageFiles) error:
 		qListImageFilesHandler = fn
 	case func(context.Context, *query.ListPages) error:
@@ -789,6 +802,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		qSearchPostsHandler = fn
 	case func(context.Context, *query.SearchUserContent) error:
 		qSearchUserContentHandler = fn
+	case func(context.Context, *query.SelectFeedbackExportRows) error:
+		qSelectFeedbackExportRowsHandler = fn
 	case func(context.Context, *query.UserSubscribedTo) error:
 		qUserSubscribedToHandler = fn
 	case func(context.Context, *query.UserSubscribedToPage) error:
@@ -903,6 +918,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.CreateCreativeVersion")
 		}
 		return cCreateCreativeVersionHandler(ctx, m)
+	case *cmd.CreateFeedbackExportPreset:
+		if cCreateFeedbackExportPresetHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.CreateFeedbackExportPreset")
+		}
+		return cCreateFeedbackExportPresetHandler(ctx, m)
 	case *cmd.CreatePage:
 		if cCreatePageHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.CreatePage")
@@ -968,6 +988,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.DeleteCurrentUser")
 		}
 		return cDeleteCurrentUserHandler(ctx, m)
+	case *cmd.DeleteFeedbackExportPreset:
+		if cDeleteFeedbackExportPresetHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.DeleteFeedbackExportPreset")
+		}
+		return cDeleteFeedbackExportPresetHandler(ctx, m)
 	case *cmd.DeleteFiles:
 		if cDeleteFilesHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.DeleteFiles")
@@ -1398,6 +1423,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.UpdateCurrentUserSettings")
 		}
 		return cUpdateCurrentUserSettingsHandler(ctx, m)
+	case *cmd.UpdateFeedbackExportPreset:
+		if cUpdateFeedbackExportPresetHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.UpdateFeedbackExportPreset")
+		}
+		return cUpdateFeedbackExportPresetHandler(ctx, m)
 	case *cmd.UpdateMessageBanner:
 		if cUpdateMessageBannerHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.UpdateMessageBanner")
@@ -2023,6 +2053,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.ListCustomOAuthConfig")
 		}
 		return qListCustomOAuthConfigHandler(ctx, m)
+	case *query.ListFeedbackExportPresets:
+		if qListFeedbackExportPresetsHandler == nil {
+			return fmt.Errorf("handler not registered: query.ListFeedbackExportPresets")
+		}
+		return qListFeedbackExportPresetsHandler(ctx, m)
 	case *query.ListImageFiles:
 		if qListImageFilesHandler == nil {
 			return fmt.Errorf("handler not registered: query.ListImageFiles")
@@ -2078,6 +2113,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.SearchUserContent")
 		}
 		return qSearchUserContentHandler(ctx, m)
+	case *query.SelectFeedbackExportRows:
+		if qSelectFeedbackExportRowsHandler == nil {
+			return fmt.Errorf("handler not registered: query.SelectFeedbackExportRows")
+		}
+		return qSelectFeedbackExportRowsHandler(ctx, m)
 	case *query.UserSubscribedTo:
 		if qUserSubscribedToHandler == nil {
 			return fmt.Errorf("handler not registered: query.UserSubscribedTo")

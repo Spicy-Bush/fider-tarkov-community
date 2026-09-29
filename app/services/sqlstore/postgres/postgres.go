@@ -289,6 +289,11 @@ func (s Service) Init() {
 	bus.AddHandler(getNavigationLinks)
 	bus.AddHandler(saveNavigationLinks)
 
+	bus.AddHandler(listFeedbackExportPresets)
+	bus.AddHandler(createFeedbackExportPreset)
+	bus.AddHandler(updateFeedbackExportPreset)
+	bus.AddHandler(deleteFeedbackExportPreset)
+	bus.AddHandler(selectFeedbackExportRows)
 }
 
 type SqlHandler func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error

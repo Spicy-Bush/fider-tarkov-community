@@ -594,11 +594,23 @@ func routes(r *web.Engine) *web.Engine {
 	exports := membersApi.Group()
 	{
 		exports.Use(middlewares.SetLocale("en"))
-		exports.Use(middlewares.RequirePermission(entity.ExportBackup))
+		exports.Use(middlewares.RequirePermission(entity.ExportFeedback))
 
 		exports.Get("/admin/export", handlers.Page("Export · Site Settings", "", "Administration/pages/Export.page"))
 		exports.Get("/admin/export/posts.csv", handlers.ExportPostsToCSV())
-		exports.Get("/admin/export/backup.zip", handlers.ExportBackupZip())
+	}
+	membersApi.Get("/admin/export/backup.zip", middlewares.RequirePermission(entity.ExportBackup)(handlers.ExportBackupZip()))
+
+	feedbackExport := membersApi.Group()
+	{
+		feedbackExport.Use(middlewares.SetLocale("en"))
+		feedbackExport.Use(middlewares.RequirePermission(entity.ExportFeedback))
+
+		feedbackExport.Get("/admin/bsg-export", handlers.FeedbackExportPage())
+		feedbackExport.Post("/api/admin/bsg-export/preview", handlers.PreviewFeedbackExport())
+		feedbackExport.Post("/api/admin/bsg-export/presets", handlers.CreateFeedbackExportPreset())
+		feedbackExport.Put("/api/admin/bsg-export/presets/:id", handlers.UpdateFeedbackExportPreset())
+		feedbackExport.Delete("/api/admin/bsg-export/presets/:id", handlers.DeleteFeedbackExportPreset())
 	}
 
 	designSystem := membersApi.Group()

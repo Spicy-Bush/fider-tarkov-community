@@ -29,6 +29,7 @@ import {
   heroiconsArchive as IconArchive,
   heroiconsSpeakerphone as IconSpeaker,
   permissionsMatrix as IconPermissions,
+  sheetExport as IconSheetExport,
 } from "@fider/icons.generated"
 
 interface SidebarItemProps {
@@ -103,6 +104,7 @@ export const AdminSidebar: React.FC = () => {
         { title: "Members", path: "members", icon: IconUsers, visible: permissions.manageMembers },
         { title: "Reports", path: "reports", icon: IconFlag, visible: permissions.manageReports },
         { title: "Archive", path: "archive", icon: IconArchive, visible: permissions.manageArchive },
+        { title: "BSG Export", path: "bsg-export", icon: IconSheetExport, visible: permissions.exportFeedback },
       ],
     },
     {
@@ -127,7 +129,7 @@ export const AdminSidebar: React.FC = () => {
         { title: "Permissions", path: "permissions", icon: IconPermissions, visible: permissions.manageRolePermissions },
         { title: "Billing", path: "billing", icon: IconCreditCard, visible: permissions.manageBilling && fider.settings.isBillingEnabled },
         { title: "Files", path: "files", icon: IconPhoto, visible: permissions.manageFiles },
-        { title: "Export", path: "export", icon: IconDownload, visible: permissions.exportBackup },
+        { title: "Export", path: "export", icon: IconDownload, visible: permissions.exportFeedback },
       ],
     },
   ]
