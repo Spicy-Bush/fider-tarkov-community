@@ -13,6 +13,25 @@ import (
 
 var binder = web.NewDefaultBinder()
 
+func TestDefaultBinder_NamedStrings(t *testing.T) {
+	type status string
+	var input struct {
+		Status  status   `json:"status" format:"lower"`
+		Allowed []status `json:"allowed" format:"lower"`
+	}
+	ctx := newBodyContext("POST", nil, `{
+		"status": " Published ",
+		"allowed": [" Draft ", " PUBLISHED "]
+	}`, "application/json")
+
+	if err := binder.Bind(&input, ctx); err != nil {
+		t.Fatal(err)
+	}
+	if input.Status != "published" || len(input.Allowed) != 2 || input.Allowed[0] != "draft" || input.Allowed[1] != "published" {
+		t.Fatalf("unexpected bound values: %+v", input)
+	}
+}
+
 func TestDefaultBinder_FromParams(t *testing.T) {
 	type updateUser struct {
 		Number int    `route:"number"`

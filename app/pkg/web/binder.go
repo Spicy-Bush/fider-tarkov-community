@@ -96,12 +96,11 @@ func (b *DefaultBinder) format(idx int, target reflect.Value, targetType reflect
 	format := targetType.Field(idx).Tag.Get("format")
 
 	if isString(fieldTypeKind) {
-		value := field.Interface().(string)
-		field.SetString(applyFormat(format, value))
+		field.SetString(applyFormat(format, field.String()))
 	} else if fieldTypeKind == reflect.Slice && isString(fieldType.Elem().Kind()) {
-		values := field.Interface().([]string)
-		for i, value := range values {
-			field.Index(i).SetString(applyFormat(format, value))
+		for i := 0; i < field.Len(); i++ {
+			value := field.Index(i)
+			value.SetString(applyFormat(format, value.String()))
 		}
 	}
 }
