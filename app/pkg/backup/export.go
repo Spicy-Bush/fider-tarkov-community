@@ -54,7 +54,7 @@ func exportTable(ctx context.Context, tableName string) ([]byte, error) {
 func jsonify(rows *sql.Rows) ([]map[string]any, error) {
 	defer rows.Close()
 
-	columns, err := rows.Columns()
+	columns, err := rows.ColumnTypes()
 	if err != nil {
 		return nil, err
 	}
@@ -75,22 +75,28 @@ func jsonify(rows *sql.Rows) ([]map[string]any, error) {
 		}
 
 		for i, value := range values {
+			name := columns[i].Name()
 			switch value := value.(type) {
 			case nil:
-				results[columns[i]] = nil
+				results[name] = nil
 
 			case []byte:
+				if columns[i].DatabaseTypeName() == "BYTEA" {
+					results[name] = value
+					continue
+				}
+
 				s := string(value)
 				x, err := strconv.Atoi(s)
 
 				if err != nil {
-					results[columns[i]] = s
+					results[name] = s
 				} else {
-					results[columns[i]] = x
+					results[name] = x
 				}
 
 			default:
-				results[columns[i]] = value
+				results[name] = value
 			}
 		}
 
