@@ -1,9 +1,10 @@
 import { test, expect, beforeEach } from "@jest/globals"
 import { http, RequestError } from "./http"
-import { notify } from "@fider/services"
+import * as notify from "./notify"
 import { selectAds } from "./actions/sponsorship"
 
-jest.mock("@fider/services", () => ({ analytics: { event: jest.fn() }, notify: { error: jest.fn() } }))
+jest.mock("./analytics", () => ({ analytics: { event: jest.fn() } }))
+jest.mock("./notify", () => ({ error: jest.fn() }))
 
 const fetchMock = jest.fn<typeof fetch>()
 beforeEach(() => {

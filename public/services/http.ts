@@ -1,4 +1,5 @@
-import { analytics, notify } from "@fider/services"
+import { analytics } from "./analytics"
+import * as notify from "./notify"
 
 export interface ErrorItem {
   field?: string
@@ -13,6 +14,16 @@ export interface Failure {
 export type Result<T = void> =
   | { ok: true; data: T; error?: never; headers?: Headers }
   | { ok: false; error: Failure; data?: never; status?: number; headers?: Headers }
+
+export function requestOutcome<T>(result: Result<T>): "ok" | "rejected" | "uncertain" {
+  if (result.ok) return "ok"
+
+  if (result.status === undefined || result.status === 408 || result.status >= 500) {
+    return "uncertain"
+  }
+
+  return "rejected"
+}
 
 export class RequestError extends Error {
   readonly cause: unknown
