@@ -1,3 +1,6 @@
+-- Restored databases may have no statistics for these joins
+ANALYZE notifications, comments, posts, pages;
+
 UPDATE notifications notification
 SET comment_id = comment.id,
     page_id = comment.page_id,

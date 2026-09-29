@@ -54,6 +54,39 @@ func indexMediaFixture(t *testing.T, trx *dbx.Trx) {
 	}
 }
 
+func TestMediaBackfillPreservesOwnersAcrossBatches(t *testing.T) {
+	_, trx := mediaReferenceTransaction(t)
+	_, err := trx.Execute(`
+		INSERT INTO posts (tenant_id, user_id, title, slug, number, status, created_at, description)
+		SELECT CASE WHEN item <= 205 THEN 1 ELSE 2 END,
+		       CASE WHEN item <= 205 THEN 1 ELSE 4 END,
+		       'Backfill ' || item, 'backfill-' || item, NULL, 0, NOW(),
+		       '![Image](/static/images/files/backfill.png)'
+		FROM generate_series(1, 315) item
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		indexMediaFixture(t, trx)
+
+		for tenantID, wanted := range map[int]int{1: 205, 2: 110} {
+			var count int
+			err := trx.Scalar(&count, `
+				SELECT count(*) FROM media_asset_refs
+				WHERE tenant_id=$1 AND key='files/backfill.png' AND kind='post' AND field='description'
+			`, tenantID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if count != wanted {
+				t.Fatalf("backfill %d, tenant %d: references=%d, want %d", attempt, tenantID, count, wanted)
+			}
+		}
+	}
+}
+
 func TestMediaReferenceText(t *testing.T) {
 	for _, test := range []struct {
 		name string

@@ -58,36 +58,27 @@ func BackfillMediaReferences(ctx context.Context, trx *dbx.Trx, version int) err
 	}
 	trx.BeforeCommit = flushMediaReferences
 
-	var kinds []*struct {
-		Kind string `db:"kind"`
-	}
-	if err := trx.Select(&kinds, `SELECT DISTINCT kind FROM media_reference_sources ORDER BY kind`); err != nil {
+	// A cursor avoids rescanning the source view for each batch
+	if _, err := trx.Execute(`
+		DECLARE media_reference_backfill NO SCROLL CURSOR FOR
+		SELECT tenant_id, kind, owner_id, source::text FROM media_reference_sources
+	`); err != nil {
 		return err
 	}
 
-	for _, kind := range kinds {
-		var tenantID, ownerID int
-		for {
-			var sources []*mediaReferenceSource
-			if err := trx.Select(&sources, `
-				SELECT tenant_id, kind, owner_id, source::text
-				FROM media_reference_sources
-				WHERE kind=$1 AND (tenant_id, owner_id)>($2, $3)
-				ORDER BY tenant_id, owner_id LIMIT 100
-			`, kind.Kind, tenantID, ownerID); err != nil {
-				return err
-			}
-			if len(sources) == 0 {
-				break
-			}
+	for {
+		var sources []*mediaReferenceSource
+		if err := trx.Select(&sources, `FETCH FORWARD 100 FROM media_reference_backfill`); err != nil {
+			return err
+		}
 
-			if err := saveMediaReferences(trx, sources); err != nil {
-				return err
-			}
-			last := sources[len(sources)-1]
-			tenantID, ownerID = last.TenantID, last.OwnerID
+		if len(sources) == 0 {
+			_, err := trx.Execute(`CLOSE media_reference_backfill`)
+			return err
+		}
+
+		if err := saveMediaReferences(trx, sources); err != nil {
+			return err
 		}
 	}
-
-	return nil
 }
