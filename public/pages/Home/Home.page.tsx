@@ -125,7 +125,7 @@ What can we do better? This is the place for you to vote, discuss and share idea
   return (
     <div id="p-home" className="page container grid grid-cols-1 gap-y-6 lg:grid-cols-3 lg:gap-x-6 lg:gap-y-0 grow">
       {/* Welcome column - 1 column on lg */}
-      <div className="p-home__welcome-col vt-aside bg-border tag-clipped p-px self-start">
+      <div className="p-home__welcome-col bg-border tag-clipped p-px self-start">
         <VStack spacing={2} className="p-4 bg-elevated tag-clipped-inner">
           <Markdown text={fider.session.tenant.welcomeMessage || defaultWelcomeMessage} style="full" />
           <PostInput placeholder={fider.session.tenant.invitation || defaultInvitation} onTitleChanged={setTitle} />
@@ -150,7 +150,7 @@ What can we do better? This is the place for you to vote, discuss and share idea
         </VStack>
       </div>
       {/* Posts column - 2 columns on lg */}
-      <div className="p-home__posts-col vt-panel col-span-1 lg:col-span-2 bg-elevated rounded-panel border border-border p-4 self-start">
+      <div className="p-home__posts-col col-span-1 lg:col-span-2 bg-elevated rounded-panel border border-border p-4 self-start">
         {isLonely() ? (
           <Lonely />
         ) : title ? (

@@ -1,11 +1,11 @@
 import React from "react"
 import { act, render, screen } from "@testing-library/react"
-import { Fider } from "@fider/services"
+import { Fider } from "@fider/services/fider"
 import { pageLoader } from "./AsyncPages"
 import { PageRouter } from "./PageRouter"
 
-jest.mock("@fider/components", () => ({ Loader: () => <span>Loading</span> }))
-jest.mock("@fider/components/layouts", () => ({
+jest.mock("@fider/components/common/Loader", () => ({ Loader: () => <span>Loading</span> }))
+jest.mock("@fider/components/layouts/LayoutResolver", () => ({
   LayoutResolver: ({ pageName, pageProps }: { pageName: string; pageProps: { title: string } }) => (
     <main>{pageName}: {pageProps.title}</main>
   ),
@@ -16,7 +16,7 @@ jest.mock("./AsyncPages", () => ({
     load: jest.fn(async () => ({ default: () => null })),
   },
 }))
-jest.mock("@fider/services", () => {
+jest.mock("@fider/services/fider", () => {
   const session = { page: "Home/Home.page", props: { title: "Initial" } }
   return {
     Fider: {
@@ -202,7 +202,11 @@ test("a cancelled view transition cannot publish or block the next navigation", 
   render(<PageRouter initialPageName={Fider.session.page} />)
   respond("/posts/1")
 
-  const { controller, interception } = startNavigation("/posts/1")
+  const trigger = document.createElement("a")
+  trigger.dataset.morph = "post-1"
+  trigger.getBoundingClientRect = () => ({ top: 20, bottom: 40 }) as DOMRect
+
+  const { controller, interception } = startNavigation("/posts/1", { sourceElement: trigger })
   document.startViewTransition = jest.fn((update: () => void) => {
     const done = Promise.resolve().then(() => {
       controller.abort()
@@ -227,6 +231,39 @@ test("a cancelled view transition cannot publish or block the next navigation", 
 
   expect(screen.getByRole("main")).toHaveTextContent("/posts/2")
   expect(Fider.refresh).toHaveBeenCalledTimes(1)
+})
+
+test.each([false, true])("page animation respects reduced motion (%s) without a shared title", async (reduced) => {
+  window.matchMedia = (() => ({ matches: reduced })) as typeof window.matchMedia
+  document.startViewTransition = jest.fn()
+  const { unmount } = render(
+    <div id="root">
+      <PageRouter initialPageName={Fider.session.page} />
+    </div>
+  )
+  const content = screen.getByRole("main")
+  const cancel = jest.fn()
+  const animatedContent: string[] = []
+  content.animate = jest.fn(() => {
+    animatedContent.push(content.textContent!)
+    return { cancel } as unknown as Animation
+  })
+
+  respond("/pages", "Page/ListPages.page")
+  const { interception } = startNavigation("/pages")
+  await finishNavigation(interception)
+
+  expect(screen.getByRole("main")).toHaveTextContent("Page/ListPages.page: /pages")
+  expect(document.startViewTransition).not.toHaveBeenCalled()
+  expect(animatedContent).toEqual(reduced ? [] : ["Page/ListPages.page: /pages"])
+
+  respond("/posts/2")
+  const next = startNavigation("/posts/2")
+  expect(cancel).toHaveBeenCalledTimes(reduced ? 0 : 1)
+  await finishNavigation(next.interception)
+
+  unmount()
+  expect(cancel).toHaveBeenCalledTimes(reduced ? 0 : 2)
 })
 
 test("page-owned filters and modal history do not fetch or remount the page", () => {

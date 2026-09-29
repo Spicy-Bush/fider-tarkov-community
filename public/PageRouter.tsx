@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react"
 import { flushSync } from "react-dom"
-import { Loader } from "@fider/components"
-import { LayoutResolver } from "@fider/components/layouts"
-import { Fider } from "@fider/services"
+import { Loader } from "@fider/components/common/Loader"
+import { LayoutResolver } from "@fider/components/layouts/LayoutResolver"
+import { Fider } from "@fider/services/fider"
 import { ServerData } from "@fider/services/fider"
 import { RequestError } from "@fider/services/http"
 import { captureReadingPosition, finishReadingPosition, prepareReadingPosition, ReadingPosition } from "@fider/services/readingPosition"
@@ -140,6 +140,7 @@ export const PageRouter: React.FC<PageRouterProps> = ({ initialPageName }) => {
     let renderedEntryKey = navigation.currentEntry.key
     let renderedPageKey = (navigation.currentEntry.getState() as PageEntry | undefined)?.pageKey || renderedEntryKey
     let transition: ViewTransition | undefined
+    let pageAnimation: Animation | undefined
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
 
     const onNavigate = (rawEvent: Event) => {
@@ -189,6 +190,7 @@ export const PageRouter: React.FC<PageRouterProps> = ({ initialPageName }) => {
       }
 
       transition?.skipTransition()
+      pageAnimation?.cancel()
       setFailedURL(null)
       setIsPending(true)
       event.signal.addEventListener("abort", () => setIsPending(false), { once: true })
@@ -258,6 +260,21 @@ export const PageRouter: React.FC<PageRouterProps> = ({ initialPageName }) => {
           await finishReadingPosition(event.signal)
         }
 
+        const animatePage = () => {
+          if (event.signal.aborted || reducedMotion.matches) {
+            return
+          }
+
+          const content = document.querySelector<HTMLElement>("#root main, #root .page")
+          pageAnimation = content?.animate(
+            [
+              { opacity: 0, transform: "translateY(6px)" },
+              { opacity: 1, transform: "translateY(0)" },
+            ],
+            { duration: 150, easing: "cubic-bezier(0.2, 0, 0, 1)" }
+          )
+        }
+
         if (reducedMotion.matches || !document.startViewTransition) {
           commit()
           await restoreScroll()
@@ -266,15 +283,20 @@ export const PageRouter: React.FC<PageRouterProps> = ({ initialPageName }) => {
 
         const outgoingHero = findHero(event.sourceElement)
         const heroKey = outgoingHero?.dataset.morph
-        if (outgoingHero && isInViewport(outgoingHero)) {
-          outgoingHero.style.viewTransitionName = "page-hero"
+
+        if (!outgoingHero || !isInViewport(outgoingHero)) {
+          commit()
+          await restoreScroll()
+          animatePage()
+          return
         }
 
+        outgoingHero.style.viewTransitionName = "page-hero"
         let incomingHero: HTMLElement | null = null
         transition = document.startViewTransition(() => {
           commit()
 
-          if (heroKey && outgoingHero?.style.viewTransitionName) {
+          if (heroKey && outgoingHero.style.viewTransitionName) {
             incomingHero = document.querySelector<HTMLElement>(`#root [data-morph="${CSS.escape(heroKey)}"]`)
             if (incomingHero && isInViewport(incomingHero)) {
               incomingHero.style.viewTransitionName = "page-hero"
@@ -283,15 +305,14 @@ export const PageRouter: React.FC<PageRouterProps> = ({ initialPageName }) => {
         })
 
         const clearHeroNames = () => {
-          if (outgoingHero) {
-            outgoingHero.style.viewTransitionName = ""
-          }
+          outgoingHero.style.viewTransitionName = ""
 
           if (incomingHero) {
             incomingHero.style.viewTransitionName = ""
           }
         }
 
+        void transition.ready.then(animatePage, () => {})
         void transition.finished.then(clearHeroNames, clearHeroNames)
         await transition.updateCallbackDone
         await restoreScroll()
@@ -316,6 +337,7 @@ export const PageRouter: React.FC<PageRouterProps> = ({ initialPageName }) => {
     return () => {
       navigation.removeEventListener("navigate", onNavigate)
       transition?.skipTransition()
+      pageAnimation?.cancel()
     }
   }, [])
 

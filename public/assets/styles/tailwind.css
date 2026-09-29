@@ -929,23 +929,9 @@ a.vr-Sherpa {
 
 :root {
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
-  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  view-transition-name: none;
 }
 
-#c-header {
-  view-transition-name: site-header;
-}
-::view-transition-group(site-header),
-::view-transition-old(site-header),
-::view-transition-new(site-header) {
-  animation: none;
-}
-::view-transition-old(root) {
-  animation: 60ms var(--ease-in) both vt-fade-out;
-}
-::view-transition-new(root) {
-  animation: 150ms var(--ease-out) both vt-settle-in;
-}
 ::view-transition-group(page-hero) {
   animation-duration: 170ms;
   animation-timing-function: var(--ease-out);
@@ -954,42 +940,6 @@ a.vr-Sherpa {
 ::view-transition-new(page-hero) {
   animation-duration: 170ms;
   height: 100%;
-}
-/* Panel transitions assume the desktop column order. */
-@media (min-width: 64rem) {
-  .vt-aside { view-transition-name: page-aside; }
-  .vt-panel { view-transition-name: page-panel; }
-}
-::view-transition-group(page-aside),
-::view-transition-group(page-panel) {
-  animation-duration: 170ms;
-  animation-timing-function: var(--ease-out);
-}
-::view-transition-old(page-aside),
-::view-transition-new(page-aside),
-::view-transition-old(page-panel),
-::view-transition-new(page-panel) {
-  width: 100%;
-  height: 100%;
-  object-fit: none;
-  object-position: left top;
-}
-::view-transition-old(page-aside),
-::view-transition-old(page-panel) {
-  animation: 60ms var(--ease-in) both vt-fade-out;
-}
-::view-transition-new(page-aside),
-::view-transition-new(page-panel) {
-  animation: 170ms var(--ease-out) both vt-fade-in;
-}
-@keyframes vt-fade-in {
-  from { opacity: 0; }
-}
-@keyframes vt-fade-out {
-  to { opacity: 0; }
-}
-@keyframes vt-settle-in {
-  from { opacity: 0; transform: translateY(6px); }
 }
 
 .nav-progress {
