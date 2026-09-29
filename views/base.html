@@ -19,7 +19,7 @@
   <!-- Preload images from custom CSS for faster LCP -->
   {{ if .public.tenant }}{{ if .public.tenant.CustomCSS }}{{ range extractCSSFonts .public.tenant.CustomCSS }}<link rel="preload" href="{{ . }}" as="font" type="font/woff2" crossorigin>
   {{ end }}{{ range extractCSSImages .public.tenant.CustomCSS }}<link rel="preload" href="{{ . }}" as="image" fetchpriority="high">
-  {{ end }}<style>{{ $.public.tenant.CustomCSS | safeCSS }}</style>{{ end }}{{ end }}
+  {{ end }}<link rel="stylesheet" href="/static/custom/{{ $.public.tenant.CustomCSS | md5 }}.css">{{ end }}{{ end }}
   {{ if .private.assets }}
     {{range .private.assets.CSS}}
       <link rel="stylesheet" href="{{ $.public.settings.assetsURL }}{{ . }}" media="print" class="async-css" />

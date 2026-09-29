@@ -98,9 +98,6 @@ var templateFunctions = map[string]any{
 	"html": func(input string) template.HTML {
 		return template.HTML(input)
 	},
-	"safeCSS": func(input string) template.CSS {
-		return template.CSS(minifyCSS(input))
-	},
 	"extractCSSImages": extractCSSImages,
 	"extractCSSFonts":  extractCSSFonts,
 	"md5": func(input string) string {
@@ -185,52 +182,4 @@ func isImageURL(url string) bool {
 		}
 	}
 	return false
-}
-
-func minifyCSS(css string) string {
-	var b strings.Builder
-	b.Grow(len(css))
-
-	inComment := false
-	lastWasSpace := false
-
-	for i := 0; i < len(css); i++ {
-		c := css[i]
-
-		if inComment {
-			if c == '*' && i+1 < len(css) && css[i+1] == '/' {
-				inComment = false
-				i++
-			}
-			continue
-		}
-
-		if c == '/' && i+1 < len(css) && css[i+1] == '*' {
-			inComment = true
-			i++
-			continue
-		}
-
-		isSpace := c == ' ' || c == '\t' || c == '\n' || c == '\r'
-
-		if isSpace {
-			if !lastWasSpace && b.Len() > 0 {
-				lastWasSpace = true
-			}
-			continue
-		}
-
-		isSpecial := c == '{' || c == '}' || c == ';' || c == ':' || c == ',' || c == '>' || c == '~' || c == '+'
-
-		if isSpecial {
-			lastWasSpace = false
-		} else if lastWasSpace {
-			b.WriteByte(' ')
-			lastWasSpace = false
-		}
-
-		b.WriteByte(c)
-	}
-
-	return b.String()
 }
