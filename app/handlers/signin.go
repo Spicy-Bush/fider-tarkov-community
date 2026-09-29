@@ -128,6 +128,10 @@ func CompleteSignInProfile() web.HandlerFunc {
 			return err
 		}
 
+		if c.Tenant().IsPrivate && result.Kind != enum.EmailVerificationKindUserInvitation {
+			return c.Forbidden()
+		}
+
 		err = bus.Dispatch(c, &query.GetUserByEmail{Email: result.Email})
 		if errors.Cause(err) != app.ErrNotFound {
 			return c.BadRequest(web.Map{})
@@ -149,6 +153,8 @@ func CompleteSignInProfile() web.HandlerFunc {
 			if err := bus.Dispatch(c, &cmd.RegisterUser{User: user}); err != nil {
 				return c.Failure(err)
 			}
+			// Saving the name for review needs an acting user.
+			c.SetUser(user)
 			if env.IsOpenAIModerationEnabled() {
 				if err := bus.Dispatch(c, &cmd.SaveProfileName{UserID: user.ID, Name: action.Name, Review: true}); err != nil {
 					return c.Failure(err)

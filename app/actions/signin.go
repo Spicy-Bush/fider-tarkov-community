@@ -90,6 +90,10 @@ func (action *CompleteProfile) IsAuthorized(ctx context.Context, user *entity.Us
 func (action *CompleteProfile) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	result := validate.Success()
 
+	if action.Kind != enum.EmailVerificationKindSignIn && action.Kind != enum.EmailVerificationKindUserInvitation {
+		result.AddFieldFailure("kind", "Use a sign-in or invitation link to create a profile.")
+	}
+
 	if action.Name == "" {
 		result.AddFieldFailure("name", propertyIsRequired(ctx, "name"))
 	} else if len(action.Name) > 50 {

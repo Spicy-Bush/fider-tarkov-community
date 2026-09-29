@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
 )
 
@@ -38,7 +39,7 @@ func TestSignInByEmail_ShouldHaveVerificationKey(t *testing.T) {
 func TestCompleteProfile_EmptyNameAndKey(t *testing.T) {
 	RegisterT(t)
 
-	action := actions.CompleteProfile{}
+	action := actions.CompleteProfile{Kind: enum.EmailVerificationKindSignIn}
 	result := action.Validate(context.Background(), nil)
 	ExpectFailed(result, "name", "key")
 }
@@ -47,6 +48,7 @@ func TestCompleteProfile_LongName(t *testing.T) {
 	RegisterT(t)
 
 	action := actions.CompleteProfile{
+		Kind: enum.EmailVerificationKindSignIn,
 		Name: "123456789012345678901234567890123456789012345678901", // 51 chars
 	}
 	result := action.Validate(context.Background(), nil)
