@@ -65,12 +65,12 @@ func (r *ReactRenderer) Render(u *url.URL, props Map) (string, error) {
 		return "", errors.Wrap(err, "failed to execute SSR script.")
 	}
 
-	jsonArg, err := json.Marshal(props)
+	jsonArgs, err := json.Marshal([]any{u.String(), props})
 	if err != nil {
-		return "", errors.Wrap(err, "failed to marshal props")
+		return "", errors.Wrap(err, "failed to marshal SSR arguments")
 	}
 
-	renderCmd := fmt.Sprintf(`ssrRender("%s", %s)`, u.String(), string(jsonArg))
+	renderCmd := fmt.Sprintf(`ssrRender(...%s)`, jsonArgs)
 	val, err := v8ctx.RunScript(renderCmd, r.scriptPath)
 	if err != nil {
 		if jsErr, ok := err.(*v8go.JSError); ok {

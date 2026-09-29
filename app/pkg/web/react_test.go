@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
@@ -12,6 +13,39 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
+
+func TestReactRenderer_TreatsRequestURLAsData(t *testing.T) {
+	previous := assets.FS
+	assets.FS = fstest.MapFS{
+		"renderer.js": &fstest.MapFile{Data: []byte(`function ssrRender(url) { return url; }`)},
+	}
+	t.Cleanup(func() { assets.FS = previous })
+
+	renderer, err := web.NewReactRenderer("renderer.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, raw := range []string{
+		`https://demo.test.fider.io/?value="+("evaluated")+"`,
+		`https://demo.test.fider.io/?value=\&text=日本語`,
+		`https://demo.test.fider.io/?value=</script>`,
+	} {
+		requestURL, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rendered, err := renderer.Render(requestURL, web.Map{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if rendered != requestURL.String() {
+			t.Fatalf("request URL changed during rendering: got %q, want %q", rendered, requestURL.String())
+		}
+	}
+}
 
 func useReactTestAssets(t *testing.T) {
 	t.Helper()
