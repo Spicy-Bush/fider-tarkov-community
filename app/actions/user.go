@@ -75,7 +75,7 @@ type ChangeUserRole struct {
 func (action *ChangeUserRole) IsAuthorized(ctx context.Context, user *entity.User) bool {
 	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 	target := &entity.User{ID: action.UserID}
-	return target.AllowedActions(user, tenant).ChangeRole
+	return target.AllowedActions(user, tenant).ChangeRole && entity.CanAssignRole(user, action.Role)
 }
 
 // Validate if current model is valid

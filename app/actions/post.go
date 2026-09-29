@@ -79,7 +79,7 @@ func (action *CreateNewPost) Validate(ctx context.Context, user *entity.User) *v
 		return result
 	}
 
-	if !user.IsCollaborator() && !user.IsModerator() && !user.IsAdministrator() {
+	if !entity.CanBypassPostingRateLimits(user, tenant) {
 		if limit, ok := generalSettings.PostLimits[user.Role.String()]; ok && limit.Count > 0 {
 			q := &query.GetUserPostCount{
 				UserID: user.ID,

@@ -47,7 +47,7 @@ func (input *CommentInput) Validate(ctx context.Context, user *entity.User) *val
 	}
 
 	settings := tenant.GeneralSettings
-	if input.Comment == nil && settings != nil && !user.IsCollaborator() && !user.IsModerator() {
+	if input.Comment == nil && settings != nil && !entity.CanBypassPostingRateLimits(user, tenant) {
 		if limit, ok := settings.CommentLimits[user.Role.String()]; ok && limit.Count > 0 {
 			count := &query.GetUserCommentCount{
 				UserID: user.ID,

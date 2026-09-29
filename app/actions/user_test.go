@@ -97,11 +97,12 @@ func TestChangeUserRole_Unauthorized(t *testing.T) {
 	RegisterT(t)
 
 	for _, user := range []*entity.User{
+		nil,
 		{ID: 1, Role: enum.RoleVisitor, Status: enum.UserActive},
 		{ID: 1, Role: enum.RoleCollaborator, Status: enum.UserActive},
 		{ID: 2, Role: enum.RoleAdministrator, Status: enum.UserActive},
 	} {
-		action := actions.ChangeUserRole{UserID: 2}
+		action := actions.ChangeUserRole{UserID: 2, Role: enum.RoleVisitor}
 		Expect(action.IsAuthorized(context.Background(), user)).IsFalse()
 	}
 }
@@ -110,8 +111,22 @@ func TestChangeUserRole_Authorized(t *testing.T) {
 	RegisterT(t)
 
 	user := &entity.User{ID: 2, Role: enum.RoleAdministrator, Status: enum.UserActive}
-	action := actions.ChangeUserRole{UserID: 1}
+	action := actions.ChangeUserRole{UserID: 1, Role: enum.RoleModerator}
 	Expect(action.IsAuthorized(context.Background(), user)).IsTrue()
+}
+
+func TestChangeUserRole_OnlyAdministratorsAssignAdministrator(t *testing.T) {
+	RegisterT(t)
+
+	tenant := &entity.Tenant{ID: 1, Status: enum.TenantActive, RolePermissions: entity.RolePermissions{
+		enum.RoleCollaborator: {entity.ChangeUserRoles: true, entity.ManageMembers: true, entity.ReadProfiles: true},
+	}}
+	ctx := context.WithValue(context.Background(), app.TenantCtxKey, tenant)
+	collaborator := &entity.User{ID: 2, Role: enum.RoleCollaborator, Status: enum.UserActive}
+
+	Expect((&actions.ChangeUserRole{UserID: 1, Role: enum.RoleModerator}).IsAuthorized(ctx, collaborator)).IsTrue()
+	Expect((&actions.ChangeUserRole{UserID: 1, Role: enum.RoleCollaborator}).IsAuthorized(ctx, collaborator)).IsFalse()
+	Expect((&actions.ChangeUserRole{UserID: 1, Role: enum.RoleAdministrator}).IsAuthorized(ctx, collaborator)).IsFalse()
 }
 
 func TestChangeUserRole_InvalidRole(t *testing.T) {
@@ -210,12 +225,12 @@ func TestChangeUserRole_CurrentUser(t *testing.T) {
 
 	status, _ := mock.NewServer().OnTenant(currentUser.Tenant).AsUser(currentUser).
 		AddParam("role", "visitor").ExecutePost(func(c *web.Context) error {
-			result := c.BindTo(&actions.ChangeUserRole{})
-			if result.Authorized {
-				t.Fatal("self role change passed request authorization")
-			}
-			return c.HandleValidation(result)
-		}, `{"userID":7}`)
+		result := c.BindTo(&actions.ChangeUserRole{})
+		if result.Authorized {
+			t.Fatal("self role change passed request authorization")
+		}
+		return c.HandleValidation(result)
+	}, `{"userID":7}`)
 
 	if status != http.StatusForbidden {
 		t.Fatalf("self role change returned %d", status)
