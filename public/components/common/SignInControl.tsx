@@ -1,10 +1,17 @@
 // SignInControl converted to Tailwind
 
 import React, { useState } from "react"
-import { SocialSignInButton, Form, Button, Input, Message } from "@fider/components"
-import { Divider } from "@fider/components/layout"
-import { device, actions, Failure, isCookieEnabled } from "@fider/services"
-import { useFider } from "@fider/hooks"
+import { SocialSignInButton } from "@fider/components/common/SocialSignInButton"
+import { Form } from "@fider/components/common/form/Form"
+import { Button } from "@fider/components/common/Button"
+import { Input } from "@fider/components/common/form/Input"
+import { Message } from "@fider/components/common/Message"
+import { Divider } from "@fider/components/layout/Divider"
+import * as device from "@fider/services/device"
+import * as tenantActions from "@fider/services/actions/tenant"
+import { Failure } from "@fider/services"
+import { isCookieEnabled } from "@fider/services/utils"
+import { useFider } from "@fider/hooks/use-fider"
 import { Trans } from "@lingui/react/macro"
 
 interface SignInControlProps {
@@ -25,7 +32,7 @@ export const SignInControl: React.FunctionComponent<SignInControlProps> = (props
   }
 
   const signIn = async () => {
-    const result = await actions.signIn(email)
+    const result = await tenantActions.signIn(email)
     if (result.ok) {
       setEmail("")
       setError(undefined)

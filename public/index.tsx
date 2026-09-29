@@ -2,9 +2,15 @@ import "@fider/assets/styles/tailwind.css"
 // import "@fider/assets/styles/index.scss"
 
 import React from "react"
-import { createRoot } from "react-dom/client"
-import { ErrorBoundary, ReadOnlyNotice, DevBanner, WarningBanner } from "@fider/components"
-import { Fider, FiderContext, actions, activateI18N, push } from "@fider/services"
+import { createRoot, Root } from "react-dom/client"
+import { ErrorBoundary } from "@fider/components/app/ErrorBoundary"
+import { ReadOnlyNotice } from "@fider/components/app/ReadOnlyNotice"
+import { DevBanner } from "@fider/components/common/DevBanner"
+import { WarningBanner } from "@fider/components/common/WarningBanner"
+import { Fider, FiderContext } from "@fider/services/fider"
+import * as infraActions from "@fider/services/actions/infra"
+import * as push from "@fider/services/push"
+import { activateI18N } from "@fider/services/i18n"
 import { UserStandingProvider } from "@fider/contexts/UserStandingContext"
 import { LayoutProvider } from "@fider/contexts/LayoutContext"
 
@@ -19,28 +25,38 @@ if ("serviceWorker" in navigator) {
 const logProductionError = (err: Error) => {
   if (Fider.isProduction()) {
     console.error(err)
-    actions.logError(`react.ErrorBoundary: ${err.message}`, err)
+    infraActions.logError(`react.ErrorBoundary: ${err.message}`, err)
   }
 }
 
-window.addEventListener("unhandledrejection", (evt: PromiseRejectionEvent) => {
+const onUnhandledRejection = (evt: PromiseRejectionEvent) => {
   if (evt.reason instanceof Error) {
-    actions.logError(`window.unhandledrejection: ${evt.reason.message}`, evt.reason)
+    infraActions.logError(`window.unhandledrejection: ${evt.reason.message}`, evt.reason)
   } else if (evt.reason) {
-    actions.logError(`window.unhandledrejection: ${evt.reason.toString()}`)
+    infraActions.logError(`window.unhandledrejection: ${evt.reason.toString()}`)
   }
-})
+}
 
-window.addEventListener("error", (evt: ErrorEvent) => {
+const onWindowError = (evt: ErrorEvent) => {
   if (evt.error && evt.colno > 0 && evt.lineno > 0) {
-    actions.logError(`window.error: ${evt.message}`, evt.error)
+    infraActions.logError(`window.error: ${evt.message}`, evt.error)
   }
-})
+}
+
+window.addEventListener("unhandledrejection", onUnhandledRejection)
+window.addEventListener("error", onWindowError)
+
+let root: Root | undefined = import.meta.hot?.data.root
+let disposed = false
 
 const bootstrapApp = (i18n: I18n) => {
+  if (disposed) {
+    return
+  }
+
   const rootElement = document.getElementById("root")
   if (rootElement) {
-    const root = createRoot(rootElement)
+    root ??= createRoot(rootElement)
 
     root.render(
       <React.StrictMode>
@@ -62,5 +78,17 @@ const bootstrapApp = (i18n: I18n) => {
     )
   }
 }
-const fider = Fider.initialize()
+const fider = Fider.initialize(import.meta.hot?.data.session)
 activateI18N(fider.currentLocale).then(bootstrapApp).catch(bootstrapApp)
+
+if (import.meta.hot) {
+  import.meta.hot.accept()
+  import.meta.hot.dispose((data) => {
+    disposed = true
+    data.root = root
+    data.session = fider.session.getSnapshot()
+
+    window.removeEventListener("unhandledrejection", onUnhandledRejection)
+    window.removeEventListener("error", onWindowError)
+  })
+}
