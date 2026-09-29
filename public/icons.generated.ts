@@ -77,6 +77,7 @@ export const heroiconsVolumeOff: SpriteSymbol = { id: "heroicons-volume-off", vi
 export const heroiconsVolumeOn: SpriteSymbol = { id: "heroicons-volume-on", viewBox: "0 0 24 24" }
 export const heroiconsXCircle: SpriteSymbol = { id: "heroicons-x-circle", viewBox: "0 0 24 24" }
 export const heroiconsX: SpriteSymbol = { id: "heroicons-x", viewBox: "0 0 24 24" }
+export const permissionsMatrix: SpriteSymbol = { id: "permissions-matrix", viewBox: "0 0 24 24" }
 export const reactionAdd: SpriteSymbol = { id: "reaction-add", viewBox: "0 0 24 24" }
 export const swipeCards: SpriteSymbol = { id: "swipe-cards", viewBox: "0 0 24 24" }
 export const undrawEmpty: SpriteSymbol = { id: "undraw-empty", viewBox: "0 0 24 24" }
@@ -157,6 +158,7 @@ export const icons: Record<string, SpriteSymbol> = {
   "heroicons-volume-on": heroiconsVolumeOn,
   "heroicons-x-circle": heroiconsXCircle,
   "heroicons-x": heroiconsX,
+  "permissions-matrix": permissionsMatrix,
   "reaction-add": reactionAdd,
   "swipe-cards": swipeCards,
   "undraw-empty": undrawEmpty,

@@ -538,6 +538,15 @@ func routes(r *web.Engine) *web.Engine {
 		authentication.Post("/api/admin/settings/emailauth", handlers.UpdateEmailAuthAllowed())
 	}
 
+	permissions := membersApi.Group()
+	{
+		permissions.Use(middlewares.SetLocale("en"))
+		permissions.Use(middlewares.RequirePermission(entity.ManageRolePermissions))
+
+		permissions.Get("/admin/permissions", handlers.ManagePermissionsPage())
+		permissions.Put("/api/admin/permissions", handlers.UpdateRolePermissions())
+	}
+
 	if env.IsBillingEnabled() {
 		billing := membersApi.Group()
 		{

@@ -1,5 +1,5 @@
 import { http, Result } from "@fider/services/http"
-import { User, OAuthConfig, ImageUpload } from "@fider/models"
+import { User, OAuthConfig, ImageUpload, PermissionAssignment, ResponsePermissionAssignment, SavedRolePermissions } from "@fider/models"
 import { UserRole, VisualRole } from "@fider/models/identity"
 import { EmailVerificationKind } from "@fider/models/settings"
 
@@ -157,4 +157,8 @@ export interface NavigationLinkInput {
 
 export const saveNavigationLinks = async (links: NavigationLinkInput[]): Promise<Result> => {
   return await http.post("/api/admin/navigation", { links })
+}
+
+export const updateRolePermissions = async (submissionId: string, changes: PermissionAssignment[], responseChanges: ResponsePermissionAssignment[]): Promise<Result<SavedRolePermissions>> => {
+  return await http.put<SavedRolePermissions>("/api/admin/permissions", { submissionId, changes, responseChanges })
 }

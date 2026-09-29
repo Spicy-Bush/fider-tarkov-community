@@ -1,12 +1,13 @@
 // AdminSidebar converted to Tailwind
 
 import React from "react"
-import { Icon, AdminLink } from "@fider/components"
-import { VStack } from "@fider/components/layout"
-import { useFider } from "@fider/hooks"
+import { Icon } from "@fider/components/common/Icon"
+import { AdminLink } from "@fider/components/common/AdminLink"
+import { VStack } from "@fider/components/layout/Stack"
+import { useFider } from "@fider/hooks/use-fider"
 import { useLayout } from "@fider/contexts/LayoutContext"
 import { useAdminLayout } from "./context"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 
 import {
   heroiconsChevronUp as IconChevron,
@@ -27,6 +28,7 @@ import {
   heroiconsDownload as IconDownload,
   heroiconsArchive as IconArchive,
   heroiconsSpeakerphone as IconSpeaker,
+  permissionsMatrix as IconPermissions,
 } from "@fider/icons.generated"
 
 interface SidebarItemProps {
@@ -122,6 +124,7 @@ export const AdminSidebar: React.FC = () => {
         { title: "Privacy", path: "privacy", icon: IconLock, visible: permissions.manageSettings },
         { title: "Invitations", path: "invitations", icon: IconEnvelope, visible: permissions.manageInvitations },
         { title: "Authentication", path: "authentication", icon: IconKey, visible: permissions.manageAuthentication },
+        { title: "Permissions", path: "permissions", icon: IconPermissions, visible: permissions.manageRolePermissions },
         { title: "Billing", path: "billing", icon: IconCreditCard, visible: permissions.manageBilling && fider.settings.isBillingEnabled },
         { title: "Files", path: "files", icon: IconPhoto, visible: permissions.manageFiles },
         { title: "Export", path: "export", icon: IconDownload, visible: permissions.exportBackup },
