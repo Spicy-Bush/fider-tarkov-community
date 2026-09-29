@@ -1,5 +1,5 @@
 import React, { ReactNode } from "react"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 import { useLayout } from "@fider/contexts/LayoutContext"
 
 interface AdminContentProps {

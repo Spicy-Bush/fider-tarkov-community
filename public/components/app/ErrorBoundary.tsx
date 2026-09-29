@@ -1,6 +1,6 @@
 import React from "react"
 import { ErrorPage } from "@fider/pages/Error/Error.page"
-import { FiderContext } from "@fider/services"
+import { FiderContext } from "@fider/services/fider"
 
 interface ErrorBoundaryProps {
   children?: React.ReactNode

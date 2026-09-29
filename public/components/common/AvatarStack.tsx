@@ -1,9 +1,9 @@
 // AvatarStack converted to Tailwind
 
 import React from "react"
-import { UserRole } from "@fider/models"
+import { UserRole } from "@fider/models/identity"
 import { Avatar } from "./Avatar"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 
 interface AvatarStackProps {
   overlap?: boolean

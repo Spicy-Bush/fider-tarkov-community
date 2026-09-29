@@ -1,4 +1,4 @@
-import { Fider } from "@fider/services"
+import { Fider } from "@fider/services/fider"
 
 const navigator = {
   url: () => {

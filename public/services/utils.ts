@@ -1,4 +1,4 @@
-import { Fider } from "."
+import { Fider } from "@fider/services/fider"
 
 export const delay = (ms: number) => {
   return new Promise((resolve) => setTimeout(resolve, ms))

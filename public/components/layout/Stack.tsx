@@ -1,5 +1,5 @@
 import React from "react"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 
 interface StackProps {
   className?: string

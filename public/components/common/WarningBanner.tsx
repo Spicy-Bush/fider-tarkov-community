@@ -1,12 +1,12 @@
 // WarningBanner converted to Tailwind
 
 import React, { useState, useEffect } from "react"
-import { useFider } from "@fider/hooks"
+import { useFider } from "@fider/hooks/use-fider"
 import { Trans } from "@lingui/react/macro"
 import { Icon } from "./Icon"
 import { heroiconsExclamation as IconExclamation, heroiconsVolumeOff as IconVolumeOff, heroiconsX as IconX } from "@fider/icons.generated"
-import { HStack } from "@fider/components/layout"
-import { classSet } from "@fider/services"
+import { HStack } from "@fider/components/layout/Stack"
+import { classSet } from "@fider/services/utils"
 
 interface DismissalRecord {
   id: number

@@ -1,4 +1,6 @@
-import { http, Result, querystring } from "@fider/services"
+import { http } from "@fider/services/http"
+import * as querystring from "@fider/services/querystring"
+import { Result } from "@fider/services"
 import { Report, ReportReason, ReportType, ReportStatus, Post, DiscussionComment } from "@fider/models"
 
 interface CreateReportResponse {

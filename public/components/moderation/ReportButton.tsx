@@ -1,8 +1,8 @@
 // ReportButton converted to Tailwind
 
 import React from "react"
-import { Icon } from "@fider/components"
-import { classSet } from "@fider/services"
+import { Icon } from "@fider/components/common/Icon"
+import { classSet } from "@fider/services/utils"
 import { heroiconsFlag as IconFlag } from "@fider/icons.generated"
 
 interface ReportButtonProps {

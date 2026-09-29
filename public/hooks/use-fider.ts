@@ -1,5 +1,5 @@
 import { useContext, useSyncExternalStore } from "react"
-import { FiderContext } from "@fider/services"
+import { FiderContext } from "@fider/services/fider"
 
 export const useFider = () => {
   const fider = useContext(FiderContext)

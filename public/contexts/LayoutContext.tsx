@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react"
-import { STORAGE_KEYS, tryParseJSON, tryLocalStorageGet, tryLocalStorageSet } from "@fider/services"
+import { STORAGE_KEYS } from "@fider/services/constants"
+import { tryParseJSON, tryLocalStorageGet, tryLocalStorageSet } from "@fider/services/errors"
 
 export type LayoutVariant = "default" | "fullWidth" | "custom"
 

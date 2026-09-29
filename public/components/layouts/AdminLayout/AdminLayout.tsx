@@ -6,7 +6,7 @@ import { AdminLayoutContext, USER_ROLES } from "./context"
 import { AdminSidebar } from "./AdminSidebar"
 import { AdminHeader } from "./AdminHeader"
 import { AdminContent } from "./AdminContent"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 
 interface AdminLayoutProps {
   children: ReactNode

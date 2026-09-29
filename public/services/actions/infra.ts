@@ -1,4 +1,7 @@
-import { http, Result, navigator, analytics } from "@fider/services"
+import { http } from "@fider/services/http"
+import { Result } from "@fider/services"
+import { default as navigator } from "@fider/services/navigator"
+import { analytics } from "@fider/services/analytics"
 
 const ignoreErrors = [
   "http://gj.track.uc.cn/collect", // CSP error: UC Browser tries to use sendBeacon to this domain, which is blocked by our CSP rule

@@ -1,8 +1,8 @@
 // import "./Loader.scss"
 
 import React, { useState } from "react"
-import { useTimeout } from "@fider/hooks"
-import { classSet } from "@fider/services"
+import { useTimeout } from "@fider/hooks/use-timeout"
+import { classSet } from "@fider/services/utils"
 
 interface LoaderProps {
   text?: string

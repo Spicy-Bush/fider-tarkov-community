@@ -1,8 +1,8 @@
 // AuthLayout converted to Tailwind
 
 import React, { ReactNode } from "react"
-import { TenantLogo } from "@fider/components"
-import { useFider } from "@fider/hooks"
+import { TenantLogo } from "@fider/components/common/Logo"
+import { useFider } from "@fider/hooks/use-fider"
 
 interface AuthLayoutProps {
   children: ReactNode

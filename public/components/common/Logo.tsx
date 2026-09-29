@@ -1,6 +1,6 @@
 import React from "react"
-import { uploadedImageURL } from "@fider/services"
-import { useFider } from "@fider/hooks"
+import { uploadedImageURL } from "@fider/services/utils"
+import { useFider } from "@fider/hooks/use-fider"
 import { Tenant } from "@fider/models"
 
 type Size = 24 | 50 | 100 | 200

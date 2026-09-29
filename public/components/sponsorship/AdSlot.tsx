@@ -3,7 +3,8 @@ import { HtmlCreativeFrame } from "./HtmlCreativeFrame"
 import { AdSenseSlot } from "./AdSenseSlot"
 import { getAdSenseClient } from "./adsenseClient"
 import { resolvePlacementAdConfig, usePlacementAdConfig } from "./usePlacementAdConfig"
-import { PlacementRenderMeta, PublicAd, resolvePlacementRenderMeta } from "@fider/models"
+import { PlacementRenderMeta, PublicAd } from "@fider/models"
+import { resolvePlacementRenderMeta } from "@fider/models/sponsorship"
 
 export interface AdSlotProps {
   instanceId: string

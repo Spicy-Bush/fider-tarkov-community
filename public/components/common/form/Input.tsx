@@ -1,11 +1,11 @@
 import React from "react"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 import { ValidationContext } from "./Form"
 import { DisplayError, hasError } from "./DisplayError"
-import { Icon } from "@fider/components"
+import { Icon } from "@fider/components/common/Icon"
 
 // import "./Input.scss"
-import { HStack } from "@fider/components/layout"
+import { HStack } from "@fider/components/layout/Stack"
 
 interface InputProps {
   children?: React.ReactNode

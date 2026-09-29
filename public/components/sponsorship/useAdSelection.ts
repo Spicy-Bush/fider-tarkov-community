@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { PublicAd } from "@fider/models"
-import { Fider } from "@fider/services"
+import { Fider } from "@fider/services/fider"
 import { RequestError } from "@fider/services/http"
 import { selectAds, type AdSelectRequestSlot } from "@fider/services/actions/sponsorship"
 

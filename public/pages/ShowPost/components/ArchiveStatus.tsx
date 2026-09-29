@@ -1,9 +1,10 @@
 import React from "react"
-import { Post, isPostArchived } from "@fider/models"
-import { Moment } from "@fider/components"
-import { useFider } from "@fider/hooks"
+import { Post } from "@fider/models"
+import { isPostArchived } from "@fider/models/post"
+import { Moment } from "@fider/components/common/Moment"
+import { useFider } from "@fider/hooks/use-fider"
 import { Trans } from "@lingui/react/macro"
-import { Icon } from "@fider/components"
+import { Icon } from "@fider/components/common/Icon"
 import { heroiconsArchive as IconArchive } from "@fider/icons.generated"
 
 interface ArchiveStatusProps {

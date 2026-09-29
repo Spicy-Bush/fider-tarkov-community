@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { classSet, formatDate, timeSince } from "@fider/services"
+import { classSet, formatDate, timeSince } from "@fider/services/utils"
 
 interface MomentText {
   locale: string

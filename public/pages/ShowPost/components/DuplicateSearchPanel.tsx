@@ -1,5 +1,5 @@
 import React from "react"
-import { Loader } from "@fider/components"
+import { Loader } from "@fider/components/common/Loader"
 import { Tag } from "@fider/models"
 import { PostQueueDuplicateSearch } from "@fider/pages/Administration/pages/PostQueue/components/PostQueueDuplicateSearch"
 

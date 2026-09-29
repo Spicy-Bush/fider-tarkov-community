@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react"
-import { Modal, SignInControl, LegalFooter } from "@fider/components"
-import { Button } from "../common"
+import { Modal } from "@fider/components/common/Modal"
+import { SignInControl } from "@fider/components/common/SignInControl"
+import { LegalFooter } from "@fider/components/common/Legal"
+import { Button } from "@fider/components/common/Button"
 import { Trans } from "@lingui/react/macro"
 
 interface SignInModalProps {

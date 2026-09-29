@@ -1,6 +1,7 @@
 import React from "react"
-import { Modal, Checkbox } from "@fider/components"
-import { useFider } from "@fider/hooks"
+import { Modal } from "@fider/components/common/Modal"
+import { Checkbox } from "@fider/components/common/form/Checkbox"
+import { useFider } from "@fider/hooks/use-fider"
 import { Trans } from "@lingui/react/macro"
 
 interface LegalAgreementProps {

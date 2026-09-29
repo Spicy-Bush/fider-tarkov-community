@@ -1,8 +1,9 @@
 import React, { useState } from "react"
 import { Post, Vote } from "@fider/models"
-import { AvatarStack, Button } from "@fider/components"
+import { AvatarStack } from "@fider/components/common/AvatarStack"
+import { Button } from "@fider/components/common/Button"
 import { VotesModal } from "./VotesModal"
-import { VStack } from "@fider/components/layout"
+import { VStack } from "@fider/components/layout/Stack"
 import { Trans } from "@lingui/react/macro"
 
 interface VotesPanelProps {

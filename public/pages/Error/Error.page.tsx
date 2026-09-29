@@ -1,6 +1,6 @@
 import React from "react"
-import { TenantLogo } from "@fider/components"
-import { useFider } from "@fider/hooks"
+import { TenantLogo } from "@fider/components/common/Logo"
+import { useFider } from "@fider/hooks/use-fider"
 
 interface ErrorPageProps {
   error: Error

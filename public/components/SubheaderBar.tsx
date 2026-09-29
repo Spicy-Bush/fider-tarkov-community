@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
-import { useFider } from "@fider/hooks"
-import { HStack } from "@fider/components/layout"
+import { useFider } from "@fider/hooks/use-fider"
+import { HStack } from "@fider/components/layout/Stack"
 import { NavigationLink } from "@fider/models"
 
 const STORAGE_KEY = "subheader_open"

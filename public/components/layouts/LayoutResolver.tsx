@@ -1,7 +1,7 @@
 import React, { ComponentType } from "react"
-import { AdminLayout } from "./AdminLayout"
-import { AuthLayout } from "./AuthLayout"
-import { PublicLayout } from "./PublicLayout"
+import { AdminLayout } from "@fider/components/layouts/AdminLayout/AdminLayout"
+import { AuthLayout } from "@fider/components/layouts/AuthLayout/AuthLayout"
+import { PublicLayout } from "@fider/components/layouts/PublicLayout/PublicLayout"
 import { PageConfig } from "./pageConfigs"
 
 export type { PageConfig }

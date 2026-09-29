@@ -1,6 +1,6 @@
 import React from "react"
-import { useFider } from "@fider/hooks"
-import { Message } from "../common"
+import { useFider } from "@fider/hooks/use-fider"
+import { Message } from "@fider/components/common/Message"
 
 export const ReadOnlyNotice = () => {
   const fider = useFider()

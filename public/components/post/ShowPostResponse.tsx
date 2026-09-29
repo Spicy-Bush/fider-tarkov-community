@@ -1,9 +1,11 @@
 import React from "react"
-import { PostResponse, PostStatus } from "@fider/models"
-import { Icon, Markdown } from "@fider/components"
+import { PostResponse } from "@fider/models"
+import { PostStatus } from "@fider/models/post"
+import { Icon } from "@fider/components/common/Icon"
+import { Markdown } from "@fider/components/common/Markdown"
 import { heroiconsDuplicate as HeroIconDuplicate, heroiconsCheckCircle as HeroIconCheck, heroiconsSparklesOutline as HeroIconSparkles, heroiconsThumbsup as HeroIconThumbsUp, heroiconsThumbsdown as HeroIconThumbsDown } from "@fider/icons.generated"
-import { HStack } from "../layout"
-import { timeSince } from "@fider/services"
+import { HStack } from "@fider/components/layout/Stack"
+import { timeSince } from "@fider/services/utils"
 
 interface PostResponseProps {
   status: string

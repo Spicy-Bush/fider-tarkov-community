@@ -1,5 +1,6 @@
 import React, { useMemo } from "react"
-import { markdown, truncate } from "@fider/services"
+import * as markdown from "@fider/services/markdown"
+import { truncate } from "@fider/services/utils"
 
 // import "./Markdown.scss"
 

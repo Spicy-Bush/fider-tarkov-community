@@ -1,5 +1,6 @@
 import React from "react"
-import { UserRole, UserAvatarType, UserPermissions } from "@fider/models"
+import { UserRole, UserAvatarType } from "@fider/models/identity"
+import { UserPermissions } from "@fider/models"
 
 const AVATAR_COLORS = [
   { bg: "linear-gradient(135deg, #86b0bc 0%, #6a9aa8 100%)", text: "#ffffff" },

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, ComponentType } from "react"
-import { Loader } from "@fider/components"
+import { Loader } from "@fider/components/common/Loader"
 import { PageConfig } from "@fider/components/layouts"
-import { createPageLoader, PageModule } from "@fider/services"
+import { createPageLoader } from "@fider/services/pageLoader"
+import { PageModule } from "@fider/services"
 
 const pageModules = import.meta.glob<PageModule>("./pages/**/*.page.tsx")
 

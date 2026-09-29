@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 
 interface TabItem<K extends string> {
   value: K

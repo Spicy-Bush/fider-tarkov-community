@@ -1,6 +1,7 @@
 import React from "react"
-import { useFider } from "@fider/hooks"
-import { Avatar, Dropdown } from "../common"
+import { useFider } from "@fider/hooks/use-fider"
+import { Avatar } from "@fider/components/common/Avatar"
+import { Dropdown } from "@fider/components/common/Dropdown"
 import { Trans } from "@lingui/react/macro"
 
 export const UserMenu = () => {

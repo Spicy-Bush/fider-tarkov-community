@@ -1,7 +1,7 @@
 // import "./Button.scss"
 
 import React, { useEffect, useRef, useState } from "react"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 
 interface ButtonProps {
   children?: React.ReactNode

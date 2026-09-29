@@ -1,7 +1,7 @@
 // DevBanner converted to Tailwind
 
 import React from "react"
-import { useFider } from "@fider/hooks"
+import { useFider } from "@fider/hooks/use-fider"
 
 export const DevBanner = () => {
   const fider = useFider()

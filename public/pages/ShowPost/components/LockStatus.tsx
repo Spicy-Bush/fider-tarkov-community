@@ -1,9 +1,10 @@
 import React from "react"
 import { Post } from "@fider/models"
-import { UserName, Moment } from "@fider/components"
-import { useFider } from "@fider/hooks"
+import { UserName } from "@fider/components/common/UserName"
+import { Moment } from "@fider/components/common/Moment"
+import { useFider } from "@fider/hooks/use-fider"
 import { Trans } from "@lingui/react/macro"
-import { Icon } from "@fider/components"
+import { Icon } from "@fider/components/common/Icon"
 import { heroiconsLock as IconLock } from "@fider/icons.generated"
 
 interface LockStatusProps {

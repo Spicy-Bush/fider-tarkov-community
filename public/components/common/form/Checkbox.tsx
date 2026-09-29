@@ -1,9 +1,10 @@
 // Checkbox converted to Tailwind
 
 import React, { useState, useEffect } from "react"
-import { classSet } from "@fider/services"
-import { DisplayError, ValidationContext, hasError } from "../"
-import { HStack } from "@fider/components/layout"
+import { classSet } from "@fider/services/utils"
+import { DisplayError, hasError } from "@fider/components/common/form/DisplayError"
+import { ValidationContext } from "@fider/components/common/form/Form"
+import { HStack } from "@fider/components/layout/Stack"
 
 interface CheckboxProps {
   children?: React.ReactNode

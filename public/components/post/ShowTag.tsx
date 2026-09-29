@@ -1,8 +1,8 @@
 import React from "react"
 import { Tag } from "@fider/models"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 import { heroiconsShieldcheck as ShieldCheck, heroiconsCheck as IconCheck } from "@fider/icons.generated"
-import { Icon } from "../common"
+import { Icon } from "@fider/components/common/Icon"
 
 interface TagProps {
   tag: Tag

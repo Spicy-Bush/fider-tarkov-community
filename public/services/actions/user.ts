@@ -1,6 +1,7 @@
 import { http, Result } from "@fider/services/http"
-import { UserSettings, UserAvatarType, ImageUpload, UserProfileStandingResponse } from "@fider/models"
-import { Fider } from "@fider/services"
+import { UserSettings, ImageUpload, UserProfileStandingResponse } from "@fider/models"
+import { UserAvatarType } from "@fider/models/identity"
+import { Fider } from "@fider/services/fider"
 
 interface UserProfileStats {
   posts: number

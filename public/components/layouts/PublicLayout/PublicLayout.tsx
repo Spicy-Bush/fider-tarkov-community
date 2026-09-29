@@ -1,5 +1,7 @@
 import React, { ReactNode } from "react"
-import { Header, Footer, SubheaderBar } from "@fider/components"
+import { Header } from "@fider/components/app/Header"
+import { default as Footer } from "@fider/components/app/Footer"
+import { SubheaderBar } from "@fider/components/SubheaderBar"
 
 interface PublicLayoutProps {
   children: ReactNode

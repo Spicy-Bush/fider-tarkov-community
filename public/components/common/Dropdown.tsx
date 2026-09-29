@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 
 interface DropdownListItemProps {
   href?: string

@@ -1,6 +1,6 @@
 import React from "react"
-import { classSet } from "@fider/services"
-import { ValidationContext } from "../"
+import { classSet } from "@fider/services/utils"
+import { ValidationContext } from "@fider/components/common/form/Form"
 import { DisplayError, hasError } from "./DisplayError"
 
 // import "./TextArea.scss"

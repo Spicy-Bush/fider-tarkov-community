@@ -1,9 +1,9 @@
 // import "./Message.scss"
 
 import React from "react"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 import { heroiconsCheckCircle as IconCheckCircle, heroiconsExclamationCircle as IconExclamationCircle, heroiconsExclamation as IconExclamation } from "@fider/icons.generated"
-import { HStack } from "@fider/components/layout"
+import { HStack } from "@fider/components/layout/Stack"
 import { Icon } from "./Icon"
 
 interface MessageProps {

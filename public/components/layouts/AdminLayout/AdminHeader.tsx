@@ -1,7 +1,8 @@
 // AdminHeader converted to Tailwind
 
 import React from "react"
-import { Header, Icon } from "@fider/components"
+import { Header } from "@fider/components/app/Header"
+import { Icon } from "@fider/components/common/Icon"
 import { useLayout } from "@fider/contexts/LayoutContext"
 import { heroiconsMenu as IconMenu } from "@fider/icons.generated"
 

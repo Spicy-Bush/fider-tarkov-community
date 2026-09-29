@@ -1,4 +1,4 @@
-import { Fider } from "@fider/services"
+import { Fider } from "@fider/services/fider"
 
 /**
  * Publisher client id from env GOOGLE_ADSENSE (settings.googleAdSense) or window.__adsense_client.

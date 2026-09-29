@@ -2,10 +2,10 @@
 
 import React from "react"
 import { heroiconsShieldcheck as IconShield } from "@fider/icons.generated"
-import { useFider } from "@fider/hooks"
-import { Icon } from "../common"
+import { useFider } from "@fider/hooks/use-fider"
+import { Icon } from "@fider/components/common/Icon"
 import { useUnreadCounts } from "@fider/contexts/UnreadCountsContext"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 
 export const ModIndicator = () => {
   const fider = useFider()

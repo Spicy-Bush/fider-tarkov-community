@@ -1,7 +1,7 @@
 import React from "react"
 import { Post } from "@fider/models"
 import { Trans } from "@lingui/react/macro"
-import { Icon } from "@fider/components"
+import { Icon } from "@fider/components/common/Icon"
 import { heroiconsExclamationCircle as IconHidden } from "@fider/icons.generated"
 
 interface HiddenStatusProps {

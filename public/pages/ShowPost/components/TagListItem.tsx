@@ -1,6 +1,6 @@
 import React from "react"
 import { Tag } from "@fider/models"
-import { ShowTag } from "@fider/components"
+import { ShowTag } from "@fider/components/post/ShowTag"
 
 interface TagListItemProps {
   tag: Tag

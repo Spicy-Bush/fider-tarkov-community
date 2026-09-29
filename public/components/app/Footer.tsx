@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react"
-import { Icon } from "@fider/components/common"
+import { Icon } from "@fider/components/common/Icon"
 import { heroiconsChevronUp, heroiconsChevronDown } from "@fider/icons.generated"
-import { useFider } from "@fider/hooks"
+import { useFider } from "@fider/hooks/use-fider"
 import { NavigationLink } from "@fider/models"
 
 type FooterState = "revealing" | "visible" | "freezing" | "hidden" | "unhiding"

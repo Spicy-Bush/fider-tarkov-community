@@ -1,4 +1,5 @@
-import { http, Result } from "@fider/services"
+import { http } from "@fider/services/http"
+import { Result } from "@fider/services"
 
 interface VAPIDKeyResponse {
   enabled: boolean

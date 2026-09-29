@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react"
-import { resolvePlacementRenderMeta } from "@fider/models"
+import { resolvePlacementRenderMeta } from "@fider/models/sponsorship"
 
 export interface AdSenseSlotProps {
   client: string
