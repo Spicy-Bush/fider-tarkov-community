@@ -433,7 +433,7 @@ func routes(r *web.Engine) *web.Engine {
 		webhooks.Post("/api/admin/webhook", handlers.CreateWebhook())
 		webhooks.Put("/api/admin/webhook/:id", handlers.UpdateWebhook())
 		webhooks.Delete("/api/admin/webhook/:id", handlers.DeleteWebhook())
-		webhooks.Get("/api/admin/webhook/test/:id", handlers.TestWebhook())
+		webhooks.Post("/api/admin/webhook/test/:id", handlers.TestWebhook())
 		webhooks.Post("/api/admin/webhook/preview", handlers.PreviewWebhook())
 		webhooks.Get("/api/admin/webhook/props/:type", handlers.GetWebhookProps())
 	}
