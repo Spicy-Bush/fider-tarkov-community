@@ -50,13 +50,13 @@ func TestEnglish_InvalidMessage(t *testing.T) {
 	key := "This message does not exist"
 
 	translated := i18n.T(emptyContext, key)
-	Expect(translated).Equals("⚠️ Missing Translation: This message does not exist")
+	Expect(translated).Equals("Missing Translation: This message does not exist")
 
 	translated = i18n.T(enContext, key)
-	Expect(translated).Equals("⚠️ Missing Translation: This message does not exist")
+	Expect(translated).Equals("Missing Translation: This message does not exist")
 
 	translated = i18n.T(ptBRContext, key)
-	Expect(translated).Equals("⚠️ Missing Translation: This message does not exist")
+	Expect(translated).Equals("Missing Translation: This message does not exist")
 }
 
 func TestGetLocale(t *testing.T) {

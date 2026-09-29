@@ -3,10 +3,15 @@ package web
 import (
 	"context"
 	"crypto/tls"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
-	"time"
+
+	"golang.org/x/net/dns/dnsmessage"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -18,8 +23,6 @@ import (
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
 )
 
-// this handler relies on real DNS records on feedbacktest.goenning.net
-// the correct subdomains are defined below to simulate a configuration match for tests
 func mockGetTenantWithCorrectSubdomains(ctx context.Context, q *query.GetTenantByDomain) error {
 	if q.Domain == "feedbacktest.goenning.net" {
 		q.Result = &entity.Tenant{Name: "Feedback for goenning.net", Subdomain: "goenning"}
@@ -29,8 +32,6 @@ func mockGetTenantWithCorrectSubdomains(ctx context.Context, q *query.GetTenantB
 	}
 }
 
-// this handler relies on real DNS records on feedbacktest.goenning.net
-// wrong subdomains are defined below to simulate a mismatch in configuration for tests
 func mockGetTenantWithIncorrectSubdomains(ctx context.Context, q *query.GetTenantByDomain) error {
 	if q.Domain == "feedbacktest.goenning.net" {
 		q.Result = &entity.Tenant{Name: "Feedback for goenning.net", Subdomain: "demo"}
@@ -40,26 +41,100 @@ func mockGetTenantWithIncorrectSubdomains(ctx context.Context, q *query.GetTenan
 	}
 }
 
+func useCertificateDNS(t *testing.T) {
+	t.Helper()
+	server, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		buffer := make([]byte, 1500)
+		for {
+			size, address, err := server.ReadFrom(buffer)
+			if err != nil {
+				return
+			}
+
+			var request dnsmessage.Message
+			if err := request.Unpack(buffer[:size]); err != nil {
+				t.Error(err)
+				return
+			}
+
+			response := dnsmessage.Message{
+				Header:    dnsmessage.Header{ID: request.ID, Response: true, Authoritative: true},
+				Questions: request.Questions,
+			}
+			target := dnsmessage.MustNewName("goenning.test.fider.io.")
+			for _, question := range request.Questions {
+				response.Answers = append(response.Answers,
+					dnsmessage.Resource{
+						Header: dnsmessage.ResourceHeader{Name: question.Name, Type: dnsmessage.TypeCNAME, Class: dnsmessage.ClassINET},
+						Body:   &dnsmessage.CNAMEResource{CNAME: target},
+					},
+					dnsmessage.Resource{
+						Header: dnsmessage.ResourceHeader{Name: target, Type: dnsmessage.TypeA, Class: dnsmessage.ClassINET},
+						Body:   &dnsmessage.AResource{A: [4]byte{127, 0, 0, 1}},
+					},
+				)
+			}
+
+			packet, err := response.Pack()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if _, err := server.WriteTo(packet, address); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+
+	previous := net.DefaultResolver
+	net.DefaultResolver = &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "udp", server.LocalAddr().String())
+		},
+	}
+	t.Cleanup(func() {
+		net.DefaultResolver = previous
+		server.Close()
+		<-finished
+	})
+}
+
 func TestUseAutoCert_WhenCNAMEAreRegistered(t *testing.T) {
+	RegisterT(t)
+	useCertificateDNS(t)
 	previousPath := env.Config.BlobStorage.FS.Path
 	env.Config.BlobStorage.FS.Path = t.TempDir()
 	t.Cleanup(func() { env.Config.BlobStorage.FS.Path = previousPath })
-	RegisterT(t)
 	bus.Init(fs.Service{})
 	bus.AddHandler(mockGetTenantWithCorrectSubdomains)
 
+	var requests atomic.Int32
+	issuer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		requests.Add(1)
+		http.Error(response, "fixture refused issuance", http.StatusBadRequest)
+	}))
+	defer issuer.Close()
+
 	manager, err := NewCertificateManager(context.Background(), "", "")
 	Expect(err).IsNil()
+	manager.autotls.Client.DirectoryURL = issuer.URL
 
 	cert, err := manager.GetCertificate(&tls.ClientHelloInfo{
 		ServerName: "feedbacktest.goenning.net",
 	})
-	Expect(err.Error()).ContainsSubstring(`acme/autocert: unable to satisfy`)
-	Expect(err.Error()).ContainsSubstring(`for domain "feedbacktest.goenning.net": no viable challenge type found`)
+	Expect(err).IsNotNil()
+	Expect(err.Error()).ContainsSubstring("fixture refused issuance")
+	Expect(requests.Load()).Equals(int32(1))
 	Expect(cert).IsNil()
-
-	// GetCertificate starts a fire and forget go routine to delete items from cache, give it 2sec to complete it
-	time.Sleep(2 * time.Second)
 }
 
 func TestGetCertificate(t *testing.T) {
@@ -118,6 +193,7 @@ func TestGetCertificate_WhenCNAMEAreNotConfigured(t *testing.T) {
 
 func TestGetCertificate_WhenCNAMEDoesntMatch(t *testing.T) {
 	RegisterT(t)
+	useCertificateDNS(t)
 	bus.Init(fs.Service{})
 
 	bus.AddHandler(mockGetTenantWithIncorrectSubdomains)
