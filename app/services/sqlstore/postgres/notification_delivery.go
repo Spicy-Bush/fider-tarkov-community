@@ -261,7 +261,7 @@ func currentNotification(trx *dbx.Trx, tenantID, postID, commentID int, intent n
 			Number:      post.Number,
 			Title:       post.Title,
 			Slug:        post.Slug,
-			Description: post.Description,
+			Description: post.Description.String,
 			CreatedAt:   post.CreatedAt,
 			Status:      enum.PostStatus(post.Status),
 		}

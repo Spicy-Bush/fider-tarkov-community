@@ -29,7 +29,7 @@ type dbPost struct {
 	Number             int            `db:"number"`
 	Title              string         `db:"title"`
 	Slug               string         `db:"slug"`
-	Description        string         `db:"description"`
+	Description        dbx.NullString `db:"description"`
 	CreatedAt          time.Time      `db:"created_at"`
 	LastActivityAt     time.Time      `db:"last_activity_at"`
 	User               *dbUser        `db:"user"`
@@ -70,7 +70,7 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 		Number:         i.Number,
 		Title:          i.Title,
 		Slug:           i.Slug,
-		Description:    i.Description,
+		Description:    i.Description.String,
 		CreatedAt:      i.CreatedAt,
 		LastActivityAt: i.LastActivityAt,
 		VoteType:       voteType,

@@ -100,6 +100,33 @@ func TestPostStorage_AddAndGet(t *testing.T) {
 	Expect(postBySlug.Result.User.Email).Equals("jon.snow@got.com")
 }
 
+func TestPostStorage_NullDescription(t *testing.T) {
+	SetupDatabaseTest(t)
+	defer TeardownDatabaseTest()
+
+	_, err := trx.Execute(`
+		INSERT INTO posts (title, slug, number, description, created_at, tenant_id, user_id, status)
+		VALUES ('Existing post', 'existing-post', 1, NULL, NOW(), 1, 1, 0)
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	post := &query.GetPostByNumber{Number: 1}
+	search := &query.SearchPosts{Query: "Existing", Limit: "20"}
+	all := &query.GetAllPosts{}
+	err = bus.Dispatch(demoTenantCtx, post, search, all)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	Expect(post.Result.Description).Equals("")
+	Expect(search.Result).HasLen(1)
+	Expect(search.Result[0].Description).Equals("")
+	Expect(all.Result).HasLen(1)
+	Expect(all.Result[0].Description).Equals("")
+}
+
 func TestPostStorage_GetInvalid(t *testing.T) {
 	SetupDatabaseTest(t)
 	defer TeardownDatabaseTest()
