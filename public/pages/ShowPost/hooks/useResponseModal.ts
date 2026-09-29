@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from "react"
-import { Post, PostStatus, PostStatusValue } from "@fider/models"
-import { actions, Failure, notify } from "@fider/services"
+import { Post } from "@fider/models"
+import { PostStatus, PostStatusValue } from "@fider/models/post"
+import * as postActions from "@fider/services/actions/post"
+import * as notify from "@fider/services/notify"
+import { Failure } from "@fider/services"
 
 interface UseResponseModalConfig {
   post: Post
@@ -106,7 +109,7 @@ export const useResponseModal = (config: UseResponseModalConfig): UseResponseMod
   }, [])
 
   const submit = useCallback(async () => {
-    const result = await actions.respond(post.number, { status, text, originalNumber })
+    const result = await postActions.respond(post.number, { status, text, originalNumber })
     if (result.ok) {
       location.reload()
     } else {
@@ -125,8 +128,8 @@ export const useResponseModal = (config: UseResponseModalConfig): UseResponseMod
     
     try {
       const [postResult, attachmentsResult] = await Promise.all([
-        actions.getPost(postNumber),
-        actions.getPostAttachments(postNumber),
+        postActions.getPost(postNumber),
+        postActions.getPostAttachments(postNumber),
       ])
       if (postResult.ok && postResult.data) {
         setEditingOriginalPost(postResult.data)

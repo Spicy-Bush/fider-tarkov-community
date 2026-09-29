@@ -1,17 +1,17 @@
 import { DiscussionPanel } from "@fider/pages/ShowPost/components/DiscussionPanel"
 import React, { useState, useEffect, useCallback, useRef } from "react"
-import {
-  Button,
-  Icon,
-  Input,
-  Loader,
-  Markdown,
-  ImageGallery,
-  ShowTag,
-} from "@fider/components"
-import { HStack, VStack } from "@fider/components/layout"
-import { Post, Tag, PostStatus } from "@fider/models"
-import { actions, classSet } from "@fider/services"
+import { Button } from "@fider/components/common/Button"
+import { Icon } from "@fider/components/common/Icon"
+import { Input } from "@fider/components/common/form/Input"
+import { Loader } from "@fider/components/common/Loader"
+import { Markdown } from "@fider/components/common/Markdown"
+import { ImageGallery } from "@fider/components/common/ImageGallery"
+import { ShowTag } from "@fider/components/post/ShowTag"
+import { HStack, VStack } from "@fider/components/layout/Stack"
+import { Post, Tag } from "@fider/models"
+import { PostStatus } from "@fider/models/post"
+import * as postActions from "@fider/services/actions/post"
+import { classSet } from "@fider/services/utils"
 import {
   heroiconsSearch as IconSearch,
   heroiconsX as IconX,
@@ -54,7 +54,7 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
 
   const searchPosts = useCallback(async () => {
     setIsLoading(true)
-    const result = await actions.searchPosts({
+    const result = await postActions.searchPosts({
       query,
       tags: selectedTags,
       statuses: ["open", "planned", "started", "completed", "declined"],
@@ -93,7 +93,7 @@ export const PostQueueDuplicateSearch: React.FC<PostQueueDuplicateSearchProps> =
     setIsLoadingExpanded(true)
     setShowComments(false)
 
-    const attachmentsResult = await actions.getPostAttachments(post.number)
+    const attachmentsResult = await postActions.getPostAttachments(post.number)
 
     setExpandedData({
       post,

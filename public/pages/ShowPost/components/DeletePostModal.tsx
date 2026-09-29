@@ -1,7 +1,12 @@
 import React, { useState } from "react"
 import { Post } from "@fider/models"
-import { actions, navigator, Failure } from "@fider/services"
-import { Form, Modal, Button, TextArea } from "@fider/components"
+import * as postActions from "@fider/services/actions/post"
+import { Failure } from "@fider/services"
+import { default as navigator } from "@fider/services/navigator"
+import { Form } from "@fider/components/common/form/Form"
+import { Modal } from "@fider/components/common/Modal"
+import { Button } from "@fider/components/common/Button"
+import { TextArea } from "@fider/components/common/form/TextArea"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
 
@@ -16,7 +21,7 @@ export const DeletePostModal = (props: DeletePostModalProps) => {
   const [error, setError] = useState<Failure>()
 
   const handleDelete = async () => {
-    const response = await actions.deletePost(props.post.number, text)
+    const response = await postActions.deletePost(props.post.number, text)
     if (response.ok) {
       props.onModalClose()
       navigator.goHome()

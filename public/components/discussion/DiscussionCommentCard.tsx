@@ -1,13 +1,24 @@
 import React, { useRef, useState } from "react"
-import {
-  Avatar, Button, Dropdown, Form, Icon, ImageGallery, Markdown, Modal,
-  Moment, Reactions, ReportModal, UserName,
-} from "@fider/components"
+import { Avatar } from "@fider/components/common/Avatar"
+import { Button } from "@fider/components/common/Button"
+import { Dropdown } from "@fider/components/common/Dropdown"
+import { Form } from "@fider/components/common/form/Form"
+import { Icon } from "@fider/components/common/Icon"
+import { ImageGallery } from "@fider/components/common/ImageGallery"
+import { Markdown } from "@fider/components/common/Markdown"
+import { Modal } from "@fider/components/common/Modal"
+import { Moment } from "@fider/components/common/Moment"
+import { Reactions } from "@fider/components/post/Reactions"
+import { ReportModal } from "@fider/components/moderation/ReportModal"
+import { UserName } from "@fider/components/common/UserName"
 import { DiscussionComment, DiscussionOwner, ReactionCount } from "@fider/models"
-import { actions, copyToClipboard, Failure, formatDate, notify } from "@fider/services"
+import * as postActions from "@fider/services/actions/post"
+import * as notify from "@fider/services/notify"
+import { Failure } from "@fider/services"
+import { copyToClipboard, formatDate } from "@fider/services/utils"
 import { deleteComment, setCommentReaction } from "@fider/services/discussion"
 import { heroiconsDotsHorizontal as IconDotsHorizontal } from "@fider/icons.generated"
-import { useFider } from "@fider/hooks"
+import { useFider } from "@fider/hooks/use-fider"
 import { CommentComposer } from "./CommentComposer"
 
 export type CommentChange = "edit" | "moderation" | "delete" | "report"
@@ -60,7 +71,7 @@ export const DiscussionCommentCard = React.memo(function DiscussionCommentCard(p
   })
 
   const moderate = (hidden: boolean) => run(async () => {
-    const result = hidden ? await actions.hideComment(comment.id) : await actions.unhideComment(comment.id)
+    const result = hidden ? await postActions.hideComment(comment.id) : await postActions.unhideComment(comment.id)
 
     if (!result.ok) {
       throw new Error(result.error.errors?.[0]?.message || "Could not moderate this comment.")

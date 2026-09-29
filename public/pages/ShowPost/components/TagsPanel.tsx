@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react"
 import { Post, Tag } from "@fider/models"
-import { actions } from "@fider/services"
-import { ShowTag, Button, Input } from "@fider/components"
+import * as tagActions from "@fider/services/actions/tag"
+import { ShowTag } from "@fider/components/post/ShowTag"
+import { Button } from "@fider/components/common/Button"
+import { Input } from "@fider/components/common/form/Input"
 import { TagListItem } from "./TagListItem"
 
-import { HStack, VStack } from "@fider/components/layout"
+import { HStack, VStack } from "@fider/components/layout/Stack"
 import { Trans } from "@lingui/react/macro"
 
 export interface TagsPanelProps {
@@ -62,7 +64,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
     let nextAssignedTags: Tag[] = []
 
     if (isAssigned) {
-      const response = await actions.unassignTag(tag.slug, props.post.number)
+      const response = await tagActions.unassignTag(tag.slug, props.post.number)
       if (response.ok) {
         nextAssignedTags = assignedTags.filter(t => t.slug !== tag.slug)
         props.onTagsChanged?.(props.post.number)
@@ -70,7 +72,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
         return
       }
     } else {
-      const response = await actions.assignTag(tag.slug, props.post.number)
+      const response = await tagActions.assignTag(tag.slug, props.post.number)
       if (response.ok) {
         nextAssignedTags = [...assignedTags, tag]
         saveRecentTag(tag)
@@ -99,7 +101,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
     const removedTags: Tag[] = []
     
     for (const tag of assignedTags.filter((tag) => tag.permissions.assign)) {
-      const response = await actions.unassignTag(tag.slug, props.post.number)
+      const response = await tagActions.unassignTag(tag.slug, props.post.number)
       if (!response.ok) {
         if (removedTags.length > 0) {
           setAssignedTags(assignedTags.filter(t => !removedTags.includes(t)))

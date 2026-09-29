@@ -1,9 +1,10 @@
 import React, { useState } from "react"
-import { Button, Icon } from "@fider/components"
-import { actions } from "@fider/services"
-import { useFider } from "@fider/hooks"
+import { Button } from "@fider/components/common/Button"
+import { Icon } from "@fider/components/common/Icon"
+import * as postActions from "@fider/services/actions/post"
+import { useFider } from "@fider/hooks/use-fider"
 import { heroiconsPlus as IconPlus, heroiconsCheck as IconCheck } from "@fider/icons.generated"
-import { VStack } from "@fider/components/layout"
+import { VStack } from "@fider/components/layout/Stack"
 import { Trans } from "@lingui/macro"
 import { Post } from "@fider/models"
 
@@ -17,7 +18,7 @@ export const FollowButton = (props: NotificationsPanelProps) => {
   const [subscribed, setSubscribed] = useState(props.subscribed)
 
   const subscribeOrUnsubscribe = async () => {
-    const action = subscribed ? actions.unsubscribe : actions.subscribe
+    const action = subscribed ? postActions.unsubscribe : postActions.subscribe
 
     const response = await action(props.post.number)
     if (response.ok) {

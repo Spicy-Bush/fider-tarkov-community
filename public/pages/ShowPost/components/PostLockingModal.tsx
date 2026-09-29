@@ -1,7 +1,9 @@
 import React, { useState } from "react"
 import { Post } from "@fider/models"
-import { Modal, Button, TextArea } from "@fider/components"
-import { actions } from "@fider/services"
+import { Modal } from "@fider/components/common/Modal"
+import { Button } from "@fider/components/common/Button"
+import { TextArea } from "@fider/components/common/form/TextArea"
+import * as postActions from "@fider/services/actions/post"
 import { Trans } from "@lingui/react/macro"
 
 interface PostLockingModalProps {
@@ -17,8 +19,8 @@ export const PostLockingModal = (props: PostLockingModalProps) => {
 
   const submit = async () => {
     const response = isLockMode 
-      ? await actions.lockPost(props.post.number, message)
-      : await actions.unlockPost(props.post.number)
+      ? await postActions.lockPost(props.post.number, message)
+      : await postActions.unlockPost(props.post.number)
     
     if (response.ok) {
       location.reload()

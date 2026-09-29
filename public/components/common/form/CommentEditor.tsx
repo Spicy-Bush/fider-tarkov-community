@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import ReactDOM from "react-dom"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 import { UserNames } from "@fider/models"
-import { actions } from "@fider/services"
+import * as postActions from "@fider/services/actions/post"
 
 interface CommentEditorProps {
   initialValue?: string
@@ -99,7 +99,7 @@ export const CommentEditor: React.FC<CommentEditorProps> = (props) => {
   useEffect(() => {
     if (showDropdown && search !== undefined) {
       const loadUsers = async () => {
-        const result = await actions.getTaggableUsers(search)
+        const result = await postActions.getTaggableUsers(search)
         if (result.ok) {
           setUsers(result.data)
           setDropdownIndex(0)

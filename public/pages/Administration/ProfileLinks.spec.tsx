@@ -46,7 +46,7 @@ const post: Post = {
   votesCount: 0,
   commentsCount: 0,
   tags: [],
-  discussionPermissions: { comment: false, react: false, images: false },
+  discussionPermissions: { comment: false, signInToComment: false, react: false, images: false },
   permissions: {
     edit: false, delete: false, respond: [], lock: false, archive: false, moderate: false,
     tag: false, report: false, viewVotes: false, vote: false, follow: false,

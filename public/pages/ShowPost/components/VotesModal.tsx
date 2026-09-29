@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from "react"
 import { Post, Vote } from "@fider/models"
-import { Modal, Button, Loader, Avatar, UserName, Moment, Input } from "@fider/components"
-import { actions } from "@fider/services"
-import { useFider } from "@fider/hooks"
+import { Modal } from "@fider/components/common/Modal"
+import { Button } from "@fider/components/common/Button"
+import { Loader } from "@fider/components/common/Loader"
+import { Avatar } from "@fider/components/common/Avatar"
+import { UserName } from "@fider/components/common/UserName"
+import { Moment } from "@fider/components/common/Moment"
+import { Input } from "@fider/components/common/form/Input"
+import * as postActions from "@fider/services/actions/post"
+import { useFider } from "@fider/hooks/use-fider"
 import { heroiconsSearch as IconSearch, heroiconsX as IconX } from "@fider/icons.generated"
-import { HStack, VStack } from "@fider/components/layout"
+import { HStack, VStack } from "@fider/components/layout/Stack"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
 
@@ -24,7 +30,7 @@ export const VotesModal: React.FC<VotesModalProps> = (props) => {
 
   useEffect(() => {
     if (props.isOpen) {
-      actions.listVotes(props.post.number).then((response) => {
+      postActions.listVotes(props.post.number).then((response) => {
         if (response.ok) {
           setAllVotes(response.data)
           setFilteredVotes(response.data)

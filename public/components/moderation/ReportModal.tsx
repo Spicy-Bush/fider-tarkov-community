@@ -1,8 +1,14 @@
 import React, { useState, useEffect, useRef } from "react"
-import { Modal, Form, TextArea, Button, Loader } from "@fider/components"
+import { Modal } from "@fider/components/common/Modal"
+import { Form } from "@fider/components/common/form/Form"
+import { TextArea } from "@fider/components/common/form/TextArea"
+import { Button } from "@fider/components/common/Button"
+import { Loader } from "@fider/components/common/Loader"
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
-import { actions, Failure, classSet } from "@fider/services"
+import * as reportActions from "@fider/services/actions/report"
+import { Failure } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 import { ReportType, ReportReason } from "@fider/models"
 
 type ReportModalProps = {
@@ -39,7 +45,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     setError(undefined)
 
     try {
-      const result = await actions.getReportReasons()
+      const result = await reportActions.getReportReasons()
 
       if (request === reasonsRequest.current) {
         if (result.ok) {
@@ -89,8 +95,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
     try {
       const result = commentId !== undefined
-        ? await actions.reportComment(commentId, selectedReason, details || undefined)
-        : await actions.reportPost(postNumber, selectedReason, details || undefined)
+        ? await reportActions.reportComment(commentId, selectedReason, details || undefined)
+        : await reportActions.reportPost(postNumber, selectedReason, details || undefined)
 
       if (result.ok) {
         setSuccess(true)
