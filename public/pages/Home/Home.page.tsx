@@ -21,6 +21,7 @@ export interface HomePageProps {
   tags: Tag[]
   countPerStatus: { [key: string]: number }
   initialFilters: FilterState
+  savedFiltersAt?: number
 }
 
 export interface HomePageState {
@@ -157,7 +158,13 @@ What can we do better? This is the place for you to vote, discuss and share idea
         ) : (
           <>
             {renderMessageBanner()}
-            <PostsContainer posts={props.posts} tags={props.tags} countPerStatus={props.countPerStatus} initialFilters={props.initialFilters} />
+            <PostsContainer
+              posts={props.posts}
+              tags={props.tags}
+              countPerStatus={props.countPerStatus}
+              initialFilters={props.initialFilters}
+              savedFiltersAt={props.savedFiltersAt}
+            />
           </>
         )}
       </div>

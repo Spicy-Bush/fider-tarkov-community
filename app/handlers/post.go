@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
@@ -10,42 +13,36 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/csv"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/markdown"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
+
+type savedPostFilters struct {
+	TagIDs           []int    `json:"tagIds"`
+	Statuses         []string `json:"statuses"`
+	View             string   `json:"view"`
+	Date             string   `json:"date"`
+	TagLogic         string   `json:"tagLogic"`
+	MyVotes          bool     `json:"myVotes"`
+	MyPosts          bool     `json:"myPosts"`
+	NotMyVotes       bool     `json:"notMyVotes"`
+	Limit            int      `json:"limit"`
+	Timestamp        int64    `json:"timestamp"`
+	WasAuthenticated bool     `json:"wasAuthenticated"`
+}
 
 // Index is the default home page
 func Index() web.HandlerFunc {
 	return func(c *web.Context) error {
 		c.SetCanonicalURL("")
 
-		tenantID := c.Tenant().ID
-
-		var (
-			tags           []*entity.Tag
-			countPerStatus map[enum.PostStatus]int
-		)
-
-		if cached, ok := postcache.GetTags(tenantID); ok {
-			tags = cached
-		} else {
-			q := &query.GetAllTags{}
-			if err := bus.Dispatch(c, q); err != nil {
-				return c.Failure(err)
-			}
-			tags = q.Result
-			postcache.SetTags(tenantID, tags)
+		tags := &query.GetAllTags{}
+		if err := bus.Dispatch(c, tags); err != nil {
+			return c.Failure(err)
 		}
 
-		if cached, ok := postcache.GetCountPerStatus(tenantID); ok {
-			countPerStatus = cached
-		} else {
-			q := &query.CountPostPerStatus{}
-			if err := bus.Dispatch(c, q); err != nil {
-				return c.Failure(err)
-			}
-			countPerStatus = q.Result
-			postcache.SetCountPerStatus(tenantID, countPerStatus)
+		counts := &query.CountPostPerStatus{}
+		if err := bus.Dispatch(c, counts); err != nil {
+			return c.Failure(err)
 		}
 
 		q := c.Request.URL.Query()
@@ -73,6 +70,44 @@ func Index() web.HandlerFunc {
 			NotMyVotes:  q.Get("notmyvotes") == "true" || (len(q) == 0 && c.IsAuthenticated()),
 		}
 		searchPosts.SetStatusesFromStrings(q["statuses"])
+		limit := 15
+		var savedFiltersAt int64
+
+		if len(q) == 0 {
+			if cookie, err := c.Request.Cookie("pfilter"); err == nil && len(cookie.Value) <= 4096 {
+				value, decodeErr := url.QueryUnescape(cookie.Value)
+				var saved savedPostFilters
+				if decodeErr == nil && json.Unmarshal([]byte(value), &saved) == nil && saved.Timestamp > 0 {
+					savedFiltersAt = saved.Timestamp
+					slugs := map[int]string{0: "untagged"}
+					for _, tag := range tags.Result {
+						slugs[tag.ID] = tag.Slug
+					}
+
+					for _, id := range saved.TagIDs {
+						if slug, found := slugs[id]; found {
+							selectedTags = append(selectedTags, slug)
+						}
+					}
+					searchPosts.Tags = selectedTags
+					searchPosts.SetStatusesFromStrings(saved.Statuses)
+					searchPosts.View = saved.View
+					if saved.View == "" || time.Since(time.UnixMilli(saved.Timestamp)) > 12*time.Hour {
+						searchPosts.View = "trending"
+					}
+					searchPosts.Date = saved.Date
+					if saved.TagLogic == "AND" {
+						searchPosts.TagLogic = "AND"
+					}
+					searchPosts.MyVotesOnly = saved.MyVotes
+					searchPosts.MyPostsOnly = saved.MyPosts
+					searchPosts.NotMyVotes = saved.NotMyVotes || (c.IsAuthenticated() && !saved.WasAuthenticated)
+					if saved.Limit >= 5 && saved.Limit <= 50 {
+						limit = saved.Limit
+					}
+				}
+			}
+		}
 
 		for _, tag := range selectedTags {
 			if tag == "untagged" {
@@ -98,12 +133,13 @@ func Index() web.HandlerFunc {
 			Description: description,
 			Data: web.Map{
 				"posts":          searchPosts.Result,
-				"tags":           tags,
-				"countPerStatus": countPerStatus,
+				"tags":           tags.Result,
+				"countPerStatus": counts.Result,
+				"savedFiltersAt": savedFiltersAt,
 				"initialFilters": web.Map{
 					"query":      searchPosts.Query,
 					"view":       searchPosts.View,
-					"limit":      20,
+					"limit":      limit,
 					"tags":       selectedTags,
 					"statuses":   searchPosts.Statuses,
 					"date":       searchPosts.Date,
@@ -178,8 +214,8 @@ func PostDetails() web.HandlerFunc {
 			}
 
 			data["reportStatus"] = web.Map{
-				"hasReportedPost":    reportedItems.HasReportedPost,
-				"dailyLimitReached":  reportedItems.CountToday >= c.Tenant().DailyReportLimit(),
+				"hasReportedPost":   reportedItems.HasReportedPost,
+				"dailyLimitReached": reportedItems.CountToday >= c.Tenant().DailyReportLimit(),
 			}
 		}
 

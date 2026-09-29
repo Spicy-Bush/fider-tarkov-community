@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Fider, PAGINATION, filterStorage, StoredFilters } from "@fider/services"
+import { FilterTag } from "@fider/services/filterStorage"
 
 export interface FilterState extends StoredFilters {
   query: string
@@ -20,6 +21,9 @@ const DEFAULT_FILTERS: FilterState = {
 
 export interface UsePostFiltersOptions {
   restoredFilters?: FilterState
+  initialFilters?: FilterState
+  savedFiltersAt?: number
+  tags?: FilterTag[]
 }
 
 const getUrlParams = (): FilterState | null => {
@@ -124,6 +128,16 @@ export const usePostFilters = (options?: UsePostFiltersOptions) => {
       return urlParams
     }
 
+    if (options?.initialFilters) {
+      const localTimestamp = filterStorage.getMetadata()?.timestamp ?? 0
+      const savedTimestamp = options.savedFiltersAt ?? 0
+      const restoredSavedFilters = savedTimestamp > 0 && savedTimestamp >= localTimestamp
+
+      if (restoredSavedFilters || !filterStorage.get()) {
+        return options.initialFilters
+      }
+    }
+
     return getStoredOrDefaultFilters()
   })
 
@@ -132,11 +146,8 @@ export const usePostFilters = (options?: UsePostFiltersOptions) => {
       return
     }
 
-    filterStorage.save(toStoredFilters(filters))
-
-    if (userChangedFiltersRef.current) {
-      updateUrl(filters)
-    }
+    filterStorage.save(toStoredFilters(filters), options?.tags)
+    updateUrl(filters)
   }, [filters])
 
   const updateFilters = useCallback((newFilters: Partial<FilterState>) => {

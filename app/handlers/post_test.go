@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 
@@ -134,7 +136,7 @@ func TestIndexUsesURLFilters(t *testing.T) {
 			if filters["query"] != received.Query || filters["view"] != received.View ||
 				filters["date"] != received.Date || filters["tagLogic"] != received.TagLogic ||
 				filters["myVotes"] != received.MyVotesOnly || filters["myPosts"] != received.MyPostsOnly ||
-				filters["notMyVotes"] != received.NotMyVotes || filters["limit"] != float64(20) {
+				filters["notMyVotes"] != received.NotMyVotes || filters["limit"] != float64(15) {
 				t.Fatalf("page criteria differ from its rows: %+v", filters)
 			}
 			if filters["tags"] == nil || filters["statuses"] == nil {
@@ -142,6 +144,101 @@ func TestIndexUsesURLFilters(t *testing.T) {
 			}
 			if received.Untagged && !reflect.DeepEqual(filters["tags"], []any{"untagged", "one"}) {
 				t.Fatalf("page lost the untagged selection: %+v", filters["tags"])
+			}
+		})
+	}
+}
+
+func TestIndexRestoresSavedFilters(t *testing.T) {
+	bus.AddHandler(func(ctx context.Context, q *query.CountPostPerStatus) error { return nil })
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error { return nil })
+	bus.AddHandler(func(ctx context.Context, q *query.GetAllTags) error {
+		q.Result = []*entity.Tag{{ID: 900001, Slug: "alpha"}, {ID: 42, Slug: "beta"}}
+		return nil
+	})
+
+	cases := []struct {
+		name          string
+		path          string
+		age           time.Duration
+		signedIn      bool
+		previousLogin bool
+		invalidCookie bool
+		view          string
+		unvoted       bool
+	}{
+		{name: "anonymous", view: "newest"},
+		{name: "existing login", signedIn: true, previousLogin: true, view: "newest"},
+		{name: "new login", signedIn: true, view: "newest", unvoted: true},
+		{name: "expired sort", age: 13 * time.Hour, view: "trending"},
+		{name: "shared URL", path: "/?view=most-wanted", view: "most-wanted"},
+		{name: "rejected cookie", invalidCookie: true, view: "trending"},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			cookie, err := json.Marshal(web.Map{
+				"tagIds":           []int{42, 900001},
+				"statuses":         []string{"planned", "open"},
+				"view":             "newest",
+				"date":             "7d",
+				"tagLogic":         "AND",
+				"limit":            15,
+				"timestamp":        time.Now().Add(-test.age).UnixMilli(),
+				"wasAuthenticated": test.previousLogin,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.invalidCookie {
+				cookie = []byte("{}")
+			}
+
+			var received *query.SearchPosts
+			calls := 0
+			bus.AddHandler(func(ctx context.Context, q *query.SearchPosts) error {
+				received = q
+				calls++
+				return nil
+			})
+
+			path := test.path
+			if path == "" {
+				path = "/"
+			}
+			server := mock.NewServer().OnTenant(mock.DemoTenant).WithURL(path).
+				AddCookie("pfilter", url.QueryEscape(string(cookie))).
+				AddHeader("Accept", web.PageDataContentType)
+			if test.signedIn {
+				server.AsUser(mock.JonSnow)
+			}
+
+			status, response := server.Execute(handlers.Index())
+			if status != http.StatusOK || calls != 1 || received.View != test.view || received.NotMyVotes != test.unvoted {
+				t.Fatalf("status %d; %d searches: %+v", status, calls, received)
+			}
+
+			var page struct {
+				Props struct {
+					SavedFiltersAt int64 `json:"savedFiltersAt"`
+				} `json:"props"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+				t.Fatal(err)
+			}
+
+			restored := test.path == "" && !test.invalidCookie
+			if (page.Props.SavedFiltersAt > 0) != restored {
+				t.Fatalf("restored=%t, saved timestamp=%d", restored, page.Props.SavedFiltersAt)
+			}
+			if restored {
+				if !reflect.DeepEqual(received.Tags, []string{"beta", "alpha"}) ||
+					!reflect.DeepEqual(received.Statuses, []enum.PostStatus{enum.PostPlanned, enum.PostOpen}) ||
+					received.Date != "7d" || received.TagLogic != "AND" {
+					t.Fatalf("lost saved selection: %+v", received)
+				}
+			} else if len(received.Tags) != 0 || len(received.Statuses) != 0 || received.Date != "" {
+				t.Fatalf("saved selection changed the shared URL: %+v", received)
 			}
 		})
 	}

@@ -18,6 +18,7 @@ interface PostsContainerProps {
   tags: Tag[]
   countPerStatus: { [key: string]: number }
   initialFilters: FilterState
+  savedFiltersAt?: number
 }
 
 interface PostPosition {
@@ -54,7 +55,12 @@ const untaggedTag: Tag = {
 
 export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
   const position = useRef(savedReadingPosition<PostPosition>("home-posts"))
-  const { filters, updateFilters, resetFilters, hasActiveFilters } = usePostFilters({ restoredFilters: position.current?.filters })
+  const { filters, updateFilters, resetFilters, hasActiveFilters } = usePostFilters({
+    restoredFilters: position.current?.filters,
+    initialFilters: props.initialFilters,
+    savedFiltersAt: props.savedFiltersAt,
+    tags: props.tags,
+  })
   const initialMatches = hasSamePostCriteria(props.initialFilters, filters)
   const initialPosts = initialMatches ? props.posts || [] : []
   const container = useRef<HTMLDivElement>(null)

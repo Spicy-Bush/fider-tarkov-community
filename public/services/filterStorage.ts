@@ -19,6 +19,11 @@ export interface FilterStorageMetadata {
   wasAuthenticated: boolean
 }
 
+export interface FilterTag {
+  id: number
+  slug: string
+}
+
 export const getStoredFilters = (): StoredFilters | null => {
   const stored = tryLocalStorageGet(STORAGE_KEYS.POST_FILTERS)
   if (!stored) return null
@@ -38,16 +43,33 @@ export const getFilterMetadata = (): FilterStorageMetadata | null => {
   }
 }
 
-export const saveFilters = (filters: StoredFilters): void => {
+export const saveFilters = (filters: StoredFilters, tags: FilterTag[] = []): void => {
+  const timestamp = Date.now()
+  const wasAuthenticated = Fider.session.isAuthenticated
   tryLocalStorageSet(STORAGE_KEYS.POST_FILTERS, JSON.stringify(filters))
-  tryLocalStorageSet(STORAGE_KEYS.POST_FILTERS_TIMESTAMP, Date.now().toString())
-  tryLocalStorageSet(STORAGE_KEYS.POST_FILTERS_AUTH, Fider.session.isAuthenticated ? "true" : "false")
+  tryLocalStorageSet(STORAGE_KEYS.POST_FILTERS_TIMESTAMP, timestamp.toString())
+  tryLocalStorageSet(STORAGE_KEYS.POST_FILTERS_AUTH, wasAuthenticated ? "true" : "false")
+
+  const ids = new Map(tags.map((tag) => [tag.slug, tag.id]))
+  ids.set("untagged", 0)
+  const { tags: selectedTags, ...selection } = filters
+  const tagIds = selectedTags.flatMap((slug) => {
+    const id = ids.get(slug)
+    return id === undefined ? [] : [id]
+  })
+  const value = encodeURIComponent(JSON.stringify({ ...selection, tagIds, timestamp, wasAuthenticated }))
+  document.cookie = `pfilter=${value};path=/;max-age=31536000;SameSite=Lax`
+
+  if (!document.cookie.split("; ").includes(`pfilter=${value}`)) {
+    document.cookie = "pfilter=;path=/;max-age=0"
+  }
 }
 
 export const clearFilters = (): void => {
   tryLocalStorageRemove(STORAGE_KEYS.POST_FILTERS)
   tryLocalStorageRemove(STORAGE_KEYS.POST_FILTERS_TIMESTAMP)
   tryLocalStorageRemove(STORAGE_KEYS.POST_FILTERS_AUTH)
+  document.cookie = "pfilter=;path=/;max-age=0"
 }
 
 export const isFilterExpired = (metadata: FilterStorageMetadata): boolean => {

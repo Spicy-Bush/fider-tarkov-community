@@ -2,7 +2,7 @@ import React from "react"
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, expect, test } from "@jest/globals"
 import { Post } from "@fider/models"
-import { actions, Fider } from "@fider/services"
+import { actions, Fider, filterStorage } from "@fider/services"
 import { RequestError } from "@fider/services/http"
 import { savedReadingPosition, useReadingPosition } from "@fider/services/readingPosition"
 import { FilterState } from "@fider/hooks/usePostFilters"
@@ -89,6 +89,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   jest.mocked(actions.searchPosts).mockReset()
   localStorage.clear()
+  document.cookie = "pfilter=;path=/;max-age=0"
   history.replaceState({}, "", "/")
   Fider.initialize({ settings: {}, tenant: { id: 1 }, props: {} })
   saved = undefined
@@ -328,6 +329,16 @@ test("an empty server list remains an authoritative empty result", () => {
 
   expect(actions.searchPosts).not.toHaveBeenCalled()
   expect(shownIDs()).toEqual([])
+})
+
+test("opening home with saved filters uses the server rows without a replacement request", () => {
+  const selected = { ...initialFilters, view: "newest", date: "7d" }
+  filterStorage.save(selected)
+  showPosts(posts(200, 20), selected)
+
+  expect(screen.getByLabelText("Order")).toHaveValue("newest")
+  expect(shownIDs()).toEqual(posts(200, 20).map((post) => post.id))
+  expect(actions.searchPosts).not.toHaveBeenCalled()
 })
 
 test("different initial criteria are replaced before their rows can appear", async () => {

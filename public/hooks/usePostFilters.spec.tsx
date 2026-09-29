@@ -12,6 +12,7 @@ jest.mock("@fider/services", () => ({
 beforeEach(() => {
   jest.restoreAllMocks()
   localStorage.clear()
+  document.cookie = "pfilter=;path=/;max-age=0"
   window.history.replaceState(null, "", "/")
   Fider.initialize({ settings: {}, tenant: { id: 1 }, props: {} })
 })
@@ -58,12 +59,44 @@ const preferences: FilterState = {
   limit: 15,
 }
 
-test("saved preferences retain large selections, dates, and tag matching without cookie limits", () => {
-  filterStorage.save(preferences)
-  const { result } = renderHook(() => usePostFilters())
+const tags = preferences.tags.map((slug, index) => ({ id: 1_000_000 + index, slug }))
+
+test("saved filters fit in a cookie even when selected tags have sparse IDs and long slugs", () => {
+  filterStorage.save(preferences, tags)
+  const { result } = renderHook(() => usePostFilters({ tags }))
 
   expect(result.current.filters).toEqual(preferences)
-  expect(document.cookie).not.toContain("pfilter=")
+  const value = document.cookie.split("; ").find((cookie) => cookie.startsWith("pfilter="))!.slice(8)
+  expect(value.length).toBeLessThan(2000)
+  expect(JSON.parse(decodeURIComponent(value))).toMatchObject({
+    tagIds: tags.map((tag) => tag.id),
+    date: "7d",
+    tagLogic: "AND",
+    view: "newest",
+    statuses: ["open", "planned"],
+  })
+})
+
+test("the server's saved selection owns initial rendering, including expired sorting", () => {
+  filterStorage.save(preferences, tags)
+  const initialFilters = { ...preferences, view: "trending" }
+  const savedFiltersAt = filterStorage.getMetadata()!.timestamp
+  const { result } = renderHook(() => usePostFilters({ initialFilters, savedFiltersAt, tags }))
+
+  expect(result.current.filters).toEqual(initialFilters)
+  expect(new URLSearchParams(window.location.search).get("view")).toBeNull()
+  expect(new URLSearchParams(window.location.search).get("date")).toBe("7d")
+})
+
+test.each(["rejected cookie", "older accepted cookie"])("%s preserves the newer local selection", (kind) => {
+  filterStorage.save(preferences, tags)
+  const timestamp = filterStorage.getMetadata()!.timestamp
+  document.cookie = "pfilter=%7B%7D;path=/"
+  const initialFilters = { ...preferences, tags: [], statuses: [], view: "trending", date: "", tagLogic: "OR" as const }
+  const savedFiltersAt = kind === "rejected cookie" ? 0 : timestamp - 1
+  const { result } = renderHook(() => usePostFilters({ initialFilters, savedFiltersAt, tags }))
+
+  expect(result.current.filters).toEqual(preferences)
 })
 
 test("expired sorting resets while the remaining saved selection survives", () => {
