@@ -222,7 +222,8 @@ func loadPageRelations(ctx context.Context, trx *dbx.Trx, user *entity.User, pag
 
 	topics := []*entity.PageTopic{}
 	err = trx.Select(&topics, `
-		SELECT pt.id, pt.name, pt.slug, pt.description, pt.color
+		SELECT pt.id, pt.name, pt.slug,
+			COALESCE(pt.description, '') AS description, COALESCE(pt.color, '') AS color
 		FROM page_topics pt
 		INNER JOIN page_topics_map ptm ON ptm.topic_id = pt.id AND ptm.tenant_id = pt.tenant_id
 		WHERE ptm.page_id = $1 AND ptm.tenant_id = $2

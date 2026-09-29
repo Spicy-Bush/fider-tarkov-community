@@ -15,7 +15,8 @@ func getPageTopics(ctx context.Context, q *query.GetPageTopics) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		topics := []*entity.PageTopic{}
 		err := trx.Select(&topics, `
-			SELECT id, name, slug, description, color
+			SELECT id, name, slug,
+				COALESCE(description, '') AS description, COALESCE(color, '') AS color
 			FROM page_topics
 			WHERE tenant_id = $1
 			ORDER BY name ASC
@@ -34,7 +35,8 @@ func getPageTopicByID(ctx context.Context, q *query.GetPageTopicByID) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		topic := &entity.PageTopic{}
 		err := trx.Get(topic, `
-			SELECT id, name, slug, description, color
+			SELECT id, name, slug,
+				COALESCE(description, '') AS description, COALESCE(color, '') AS color
 			FROM page_topics
 			WHERE id = $1 AND tenant_id = $2
 		`, q.ID, tenant.ID)
