@@ -388,7 +388,6 @@ textarea:focus-visible,
 select:focus-visible {
   outline: none;
 }
-img { height: 100%; }
 p, pre { margin: 0 0 14px; line-height: 1.5; }
 p:last-child, pre:last-child { margin-bottom: 0; }
 

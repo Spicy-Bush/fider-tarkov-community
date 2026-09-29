@@ -197,9 +197,12 @@ const ViewPage = ({ page, discussionPermissions }: ViewPageProps) => {
               <img 
                 src={`/static/images/${page.bannerImageBKey}`} 
                 alt={page.title} 
-                className="w-full h-16 object-cover"
-                style={{ maskImage: "linear-gradient(to bottom, black 0%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 0%, transparent 100%)" }}
-                fetchPriority="high"
+                className="mb-4 h-auto w-full rounded-card"
+                style={{
+                  maskImage: "linear-gradient(to bottom, black 0%, transparent 100%)",
+                  WebkitMaskImage: "linear-gradient(to bottom, black 0%, transparent 100%)",
+                }}
+                {...{ fetchpriority: "high" }}
                 loading="eager"
                 decoding="async"
               />
@@ -207,7 +210,6 @@ const ViewPage = ({ page, discussionPermissions }: ViewPageProps) => {
             <h1 
               id="page-title"
               className="text-large"
-              style={{ marginTop: page.bannerImageBKey ? "-0.8rem" : "0" }}
             >
               {page.title}
             </h1>
