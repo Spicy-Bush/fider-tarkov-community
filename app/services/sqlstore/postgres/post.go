@@ -892,30 +892,34 @@ func unlockPost(ctx context.Context, c *cmd.UnlockPost) error {
 
 func refreshPostStats(ctx context.Context, c *cmd.RefreshPostStats) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, _ *entity.Tenant, _ *entity.User) error {
-		baseQuery := `
-			UPDATE posts p SET
-				recent_votes = COALESCE((
-					SELECT SUM(v.vote_type) 
-					FROM post_votes v 
-					WHERE v.post_id = p.id AND v.tenant_id = p.tenant_id 
-					AND v.created_at > CURRENT_DATE - INTERVAL '30 days'
-				), 0),
-				recent_comments = COALESCE((
-					SELECT COUNT(*) 
-					FROM comments c 
-					WHERE c.post_id = p.id AND c.tenant_id = p.tenant_id 
-					AND c.deleted_at IS NULL 
-					AND c.created_at > CURRENT_DATE - INTERVAL '30 days'
-				), 0)
-			WHERE p.status NOT IN ($1, $2)`
-
-		var rowsUpdated int64
-		var err error
-		if c.Since != nil {
-			rowsUpdated, err = trx.Execute(baseQuery+" AND p.last_activity_at >= $3", int(enum.PostDeleted), int(enum.PostArchived), *c.Since)
-		} else {
-			rowsUpdated, err = trx.Execute(baseQuery, int(enum.PostDeleted), int(enum.PostArchived))
-		}
+		rowsUpdated, err := trx.Execute(`
+			WITH votes AS (
+				SELECT tenant_id, post_id, SUM(vote_type)::integer AS total
+				FROM post_votes
+				WHERE created_at > CURRENT_DATE - INTERVAL '30 days'
+				GROUP BY tenant_id, post_id
+			), comments AS (
+				SELECT tenant_id, post_id, COUNT(*)::integer AS total
+				FROM comments
+				WHERE post_id IS NOT NULL AND deleted_at IS NULL
+					AND created_at > CURRENT_DATE - INTERVAL '30 days'
+				GROUP BY tenant_id, post_id
+			), changed AS MATERIALIZED (
+				SELECT post.id, post.tenant_id,
+					COALESCE(votes.total, 0) AS votes,
+					COALESCE(comments.total, 0) AS comments
+				FROM posts post
+				LEFT JOIN votes ON votes.tenant_id = post.tenant_id AND votes.post_id = post.id
+				LEFT JOIN comments ON comments.tenant_id = post.tenant_id AND comments.post_id = post.id
+				WHERE post.status NOT IN ($1, $2)
+					AND (post.recent_votes, post.recent_comments) IS DISTINCT FROM
+						(COALESCE(votes.total, 0), COALESCE(comments.total, 0))
+			)
+			UPDATE posts post
+			SET recent_votes = changed.votes, recent_comments = changed.comments
+			FROM changed
+			WHERE post.id = changed.id AND post.tenant_id = changed.tenant_id
+		`, int(enum.PostDeleted), int(enum.PostArchived))
 		if err != nil {
 			return errors.Wrap(err, "failed to refresh post stats")
 		}

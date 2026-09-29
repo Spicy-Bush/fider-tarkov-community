@@ -18,9 +18,7 @@ func (e RefreshPostStatsJobHandler) Schedule() string {
 func (e RefreshPostStatsJobHandler) Run(ctx Context) error {
 	log.Debug(ctx, "refreshing post stats for 30-day window metrics")
 
-	c := &cmd.RefreshPostStats{
-		Since: ctx.LastSuccessfulRun,
-	}
+	c := &cmd.RefreshPostStats{}
 	err := bus.Dispatch(ctx, c)
 	if err != nil {
 		return err

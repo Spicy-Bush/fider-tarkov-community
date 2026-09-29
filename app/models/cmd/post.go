@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -42,7 +41,6 @@ type UnlockPost struct {
 }
 
 type RefreshPostStats struct {
-	Since       *time.Time
 	RowsUpdated int64
 }
 
