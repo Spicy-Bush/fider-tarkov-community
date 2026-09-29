@@ -2,8 +2,8 @@ package postgres
 
 import (
 	"context"
-	"strings"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -15,6 +15,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/adsselect"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
 type dbAdPlacement struct {
@@ -56,10 +57,13 @@ func listAdPlacements(ctx context.Context, q *query.ListAdPlacements) error {
 		q.Result = []*entity.AdPlacement{}
 		rows := []*dbAdPlacement{}
 		err := trx.Select(&rows, `
-			SELECT id, name, description, kind, max_width, max_height, sort, enabled,
-			       adsense_slot_id, adsense_format, empty_policy
-			FROM ad_placements
-			ORDER BY sort ASC, id ASC`)
+			SELECT p.id, p.name, p.description, p.kind, p.max_width, p.max_height, p.sort, p.enabled,
+			       COALESCE(s.adsense_slot_id, '') AS adsense_slot_id,
+			       COALESCE(s.adsense_format, p.default_adsense_format) AS adsense_format,
+			       COALESCE(s.empty_policy, 'collapse') AS empty_policy
+			FROM ad_placements p
+			LEFT JOIN ad_placement_settings s ON s.placement_id = p.id AND s.tenant_id = $1
+			ORDER BY p.sort ASC, p.id ASC`, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to list ad placements")
 		}
@@ -352,6 +356,10 @@ func listCampaignAssignmentsByCampaign(ctx context.Context, q *query.ListCampaig
 
 func updateAdPlacement(ctx context.Context, c *cmd.UpdateAdPlacement) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if !entity.Can(user, tenant, entity.ManageSponsorship) {
+			return validate.Unauthorized()
+		}
+
 		policy := strings.TrimSpace(c.EmptyPolicy)
 		if policy == "" {
 			policy = "collapse"
@@ -364,14 +372,19 @@ func updateAdPlacement(ctx context.Context, c *cmd.UpdateAdPlacement) error {
 
 		var row dbAdPlacement
 		err := trx.Get(&row, `
-			UPDATE ad_placements
-			SET adsense_slot_id = $2,
-			    adsense_format = $3,
-			    empty_policy = $4
-			WHERE id = $1
-			RETURNING id, name, description, kind, max_width, max_height, sort, enabled,
-			          adsense_slot_id, adsense_format, empty_policy`,
-			c.ID, slotID, format, policy)
+			WITH saved AS (
+				INSERT INTO ad_placement_settings (tenant_id, placement_id, adsense_slot_id, adsense_format, empty_policy)
+				SELECT $1, id, $3, $4, $5 FROM ad_placements WHERE id = $2
+				ON CONFLICT (tenant_id, placement_id) DO UPDATE SET
+					adsense_slot_id = EXCLUDED.adsense_slot_id,
+					adsense_format = EXCLUDED.adsense_format,
+					empty_policy = EXCLUDED.empty_policy
+				RETURNING placement_id, adsense_slot_id, adsense_format, empty_policy
+			)
+			SELECT p.id, p.name, p.description, p.kind, p.max_width, p.max_height, p.sort, p.enabled,
+			       saved.adsense_slot_id, saved.adsense_format, saved.empty_policy
+			FROM saved JOIN ad_placements p ON p.id = saved.placement_id`,
+			tenant.ID, c.ID, slotID, format, policy)
 		if err != nil {
 			if errors.Cause(err) == app.ErrNotFound {
 				return app.ErrNotFound

@@ -3,6 +3,10 @@ package handlers_test
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 	"net/http"
 	"os"
 	"testing"
@@ -181,4 +185,100 @@ func TestManageMembersHandler(t *testing.T) {
 		)
 
 	Expect(code).Equals(http.StatusOK)
+}
+
+func TestManagePermissionsPage(t *testing.T) {
+	RegisterT(t)
+	bus.AddHandler(func(ctx context.Context, q *query.GetRolePermissionState) error {
+		tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+		q.Result = tenant.PermissionState(ctx.Value(app.UserCtxKey).(*entity.User))
+		return nil
+	})
+	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
+		return nil
+	})
+
+	tenant := *mock.DemoTenant
+	tenant.RolePermissions = entity.RolePermissions{enum.RoleHelper: {entity.ManageReports: true}}
+	status, response := mock.NewServer().
+		OnTenant(&tenant).
+		AsUser(mock.JonSnow).
+		AddHeader("Accept", web.PageDataContentType).
+		Execute(handlers.ManagePermissionsPage())
+	Expect(status).Equals(http.StatusOK)
+
+	var page struct {
+		Page  string `json:"page"`
+		Props struct {
+			Permissions map[string][]string          `json:"permissions"`
+			Defaults    map[string][]string          `json:"defaults"`
+			Requires    map[string][]string          `json:"requires"`
+			BaseLocks   map[string]map[string]string `json:"baseLocks"`
+		} `json:"props"`
+	}
+	Expect(json.Unmarshal(response.Body.Bytes(), &page)).IsNil()
+	Expect(page.Page).Equals("Administration/pages/ManagePermissions.page")
+	Expect(page.Props.Permissions["helper"]).Equals([]string{"createPosts", "editPosts", "manageQueue", "manageReports", "tagPosts"})
+	Expect(page.Props.Defaults["helper"]).Equals([]string{"createPosts", "editPosts", "manageQueue", "tagPosts"})
+	Expect(page.Props.Permissions["visitor"]).Equals([]string{"createPosts", "editPosts"})
+	Expect(page.Props.Requires["manageReportReasons"]).Equals([]string{"manageReports"})
+	Expect(len(page.Props.BaseLocks["administrator"])).Equals(len(page.Props.Permissions["administrator"]))
+	Expect(page.Props.BaseLocks["administrator"]["manageAuthentication"]).Equals("Administrators have every permission")
+	Expect(page.Props.BaseLocks["visitor"]).Equals(map[string]string{
+		"manageAuthentication": "Only administrators can manage authentication",
+		"exportBackup":         "Only administrators can export full backups",
+	})
+}
+
+func TestUpdateRolePermissionsHandler(t *testing.T) {
+	RegisterT(t)
+
+	bus.AddHandler(func(ctx context.Context, c *cmd.UpdateRolePermissions) error {
+		tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+		next, blocked := tenant.RolePermissions.ApplyChanges(ctx.Value(app.UserCtxKey).(*entity.User), tenant, c.Changes)
+		Expect(blocked).Equals("")
+		tenant.RolePermissions = next
+		c.Result.RolePermissionState = tenant.PermissionState(ctx.Value(app.UserCtxKey).(*entity.User))
+		return nil
+	})
+
+	tenant := *mock.DemoTenant
+	status, response := mock.NewServer().
+		OnTenant(&tenant).
+		AsUser(mock.JonSnow).
+		ExecutePost(handlers.UpdateRolePermissions(), `{ "changes": [{ "role": "visitor", "permission": "manageTags", "granted": true }], "submissionId": "permission-save" }`)
+
+	Expect(status).Equals(http.StatusOK)
+	var saved struct {
+		Permissions map[string][]string `json:"permissions"`
+	}
+	Expect(json.Unmarshal(response.Body.Bytes(), &saved)).IsNil()
+	Expect(saved.Permissions["visitor"]).Equals([]string{"createPosts", "editPosts", "manageTags", "viewPrivateTags"})
+	ExpectHandler(&cmd.UpdateRolePermissions{}).CalledOnce()
+}
+
+func TestUpdateRolePermissionsHandler_Rejects(t *testing.T) {
+	RegisterT(t)
+
+	for _, test := range []struct {
+		name   string
+		user   *entity.User
+		body   string
+		status int
+	}{
+		{"visitor", mock.AryaStark, `{ "changes": [{ "role": "visitor", "permission": "manageTags", "granted": true }] }`, http.StatusForbidden},
+		{"no changes", mock.JonSnow, `{ "changes": [], "submissionId": "permission-save" }`, http.StatusBadRequest},
+		{"unknown role", mock.JonSnow, `{ "changes": [{ "role": "owner", "permission": "manageTags", "granted": true }], "submissionId": "permission-save" }`, http.StatusBadRequest},
+		{"unknown permission", mock.JonSnow, `{ "changes": [{ "role": "visitor", "permission": "root", "granted": true }], "submissionId": "permission-save" }`, http.StatusBadRequest},
+		{"missing identity", mock.JonSnow, `{ "changes": [{ "role": "visitor", "permission": "manageTags", "granted": true }] }`, http.StatusBadRequest},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			status, _ := mock.NewServer().
+				OnTenant(mock.DemoTenant).
+				AsUser(test.user).
+				ExecutePost(handlers.UpdateRolePermissions(), test.body)
+			Expect(status).Equals(test.status)
+			ExpectHandler(&cmd.UpdateRolePermissions{}).CalledTimes(0)
+		})
+	}
 }

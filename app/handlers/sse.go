@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/sse"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
@@ -60,7 +62,6 @@ func sseHandler(channel sse.Channel) web.HandlerFunc {
 
 		for {
 			var message []byte
-			var err error
 			select {
 			case msg, ok := <-client.Send():
 				if !ok {
@@ -69,6 +70,19 @@ func sseHandler(channel sse.Channel) web.HandlerFunc {
 				message = msg
 			case <-ticker.C:
 			case <-ctx.Done():
+				return nil
+			}
+
+			checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			access, err := checkRealtimeAccess(checkCtx, query.RealtimeViewer{
+				TenantID: c.Tenant().ID,
+				UserID:   c.User().ID,
+			})
+			cancel()
+			if err != nil {
+				return err
+			}
+			if (channel == sse.ChannelQueue && !access.Queue) || (channel == sse.ChannelReports && !access.Reports) {
 				return nil
 			}
 

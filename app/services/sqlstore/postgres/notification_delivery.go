@@ -2,12 +2,12 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"net/url"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
@@ -16,27 +16,17 @@ import (
 	"github.com/lib/pq"
 )
 
+type notificationIntent struct {
+	MentionIDs []int64
+	Edited     bool
+}
+
 func scheduleNotification(ctx context.Context, c *cmd.ScheduleNotification) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		event := entity.NotificationDelivery{Post: c.Post, Comment: c.Comment}
-		encoded, err := json.Marshal(event)
-		if err != nil {
-			return err
-		}
-
-		var postID, commentID *int
-		if c.Post != nil {
-			postID = &c.Post.ID
-		}
-
-		if c.Comment != nil {
-			commentID = &c.Comment.CommentID
-		}
-
-		_, err = trx.Execute(`
-            INSERT INTO notification_deliveries (post_id, comment_id, tenant_id, user_id, payload, base_url, locale)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-        `, postID, commentID, tenant.ID, user.ID, string(encoded), c.BaseURL, tenant.Locale)
+		_, err := trx.Execute(`
+            INSERT INTO notification_deliveries (post_id, comment_id, tenant_id, user_id, mention_ids, edited, base_url, locale)
+            VALUES (NULLIF($1, 0), NULLIF($2, 0), $3, $4, COALESCE($5::integer[], '{}'), $6, $7, $8)
+        `, c.PostID, c.CommentID, tenant.ID, user.ID, pq.Array(c.MentionIDs), c.Edited, c.BaseURL, tenant.Locale)
 		return err
 	})
 }
@@ -47,19 +37,23 @@ func processNotification(ctx context.Context, c *cmd.ProcessNotification) error 
 
 	err := dbx.InTransaction(ctx, func(ctx context.Context, trx *dbx.Trx) error {
 		var delivery struct {
-			ID               int64  `db:"id"`
-			TenantID         int    `db:"tenant_id"`
-			UserID           int    `db:"user_id"`
-			Payload          string `db:"payload"`
-			BaseURL          string `db:"base_url"`
-			Locale           string `db:"locale"`
-			Channel          string `db:"channel"`
-			RecipientID      int    `db:"recipient_id"`
-			SendIndividually bool   `db:"send_individually"`
+			ID               int64   `db:"id"`
+			PostID           int     `db:"post_id"`
+			CommentID        int     `db:"comment_id"`
+			TenantID         int     `db:"tenant_id"`
+			UserID           int     `db:"user_id"`
+			MentionIDs       []int64 `db:"mention_ids"`
+			Edited           bool    `db:"edited"`
+			BaseURL          string  `db:"base_url"`
+			Locale           string  `db:"locale"`
+			Channel          string  `db:"channel"`
+			RecipientID      int     `db:"recipient_id"`
+			SendIndividually bool    `db:"send_individually"`
 		}
 
 		err := trx.Get(&delivery, `
-            SELECT id, tenant_id, user_id, payload::text, base_url, locale,
+            SELECT id, COALESCE(post_id, 0) AS post_id, COALESCE(comment_id, 0) AS comment_id,
+                   tenant_id, user_id, mention_ids, edited, base_url, locale,
                    '' AS channel, 0 AS recipient_id, FALSE AS send_individually
             FROM notification_deliveries
             WHERE NOT prepared AND available_at <= NOW()
@@ -67,12 +61,14 @@ func processNotification(ctx context.Context, c *cmd.ProcessNotification) error 
         `)
 		if errors.Cause(err) == app.ErrNotFound {
 			err = trx.Get(&delivery, `
-                SELECT delivery.id, delivery.tenant_id, delivery.user_id, delivery.payload::text,
+                SELECT delivery.id, COALESCE(delivery.post_id, 0) AS post_id,
+                       COALESCE(delivery.comment_id, 0) AS comment_id,
+                       delivery.tenant_id, delivery.user_id, delivery.mention_ids, delivery.edited,
                        delivery.base_url, delivery.locale, recipient.channel,
                        recipient.recipient_id, recipient.send_individually
                 FROM notification_recipients recipient
                 JOIN notification_deliveries delivery ON delivery.id = recipient.delivery_id
-                WHERE recipient.available_at <= NOW()
+                WHERE recipient.available_at <= NOW() AND delivery.available_at <= NOW()
                 ORDER BY recipient.available_at, recipient.delivery_id, recipient.channel, recipient.recipient_id
                 LIMIT 1 FOR UPDATE OF recipient SKIP LOCKED
             `)
@@ -96,7 +92,7 @@ func processNotification(ctx context.Context, c *cmd.ProcessNotification) error 
                 WHERE delivery_id = $1 AND channel = 'email' AND recipient_id <> $2
                   AND NOT send_individually AND available_at <= NOW()
                 ORDER BY recipient_id LIMIT $3 FOR UPDATE SKIP LOCKED
-            `, delivery.ID, delivery.RecipientID, c.EmailBatchSize - 1)
+            `, delivery.ID, delivery.RecipientID, c.EmailBatchSize-1)
 			if err != nil {
 				return err
 			}
@@ -128,24 +124,21 @@ func processNotification(ctx context.Context, c *cmd.ProcessNotification) error 
 				}
 			}()
 
-			var event entity.NotificationDelivery
-			if err := json.Unmarshal([]byte(delivery.Payload), &event); err != nil {
+			intent := notificationIntent{MentionIDs: delivery.MentionIDs, Edited: delivery.Edited}
+			event, state, err := currentNotification(trx, delivery.TenantID, delivery.PostID, delivery.CommentID, intent)
+			if err != nil {
 				return err
 			}
 
-			var removed bool
-			if event.Post != nil {
-				if err := trx.Scalar(&removed, "SELECT status = 6 FROM posts WHERE id = $1", event.Post.ID); err != nil {
-					return err
-				}
-			} else {
-				if err := trx.Scalar(&removed, "SELECT deleted_at IS NOT NULL FROM comments WHERE id = $1", event.Comment.CommentID); err != nil {
-					return err
-				}
-			}
-
-			if removed {
+			switch state {
+			case notificationRemoved:
 				return completeNotification(trx, delivery.ID, delivery.Channel, ids)
+			case notificationHidden:
+				_, err := trx.Execute(`
+                    UPDATE notification_deliveries SET available_at = NOW() + INTERVAL '1 minute'
+                    WHERE id = $1
+                `, delivery.ID)
+				return err
 			}
 
 			baseURL, err := url.Parse(delivery.BaseURL)
@@ -235,6 +228,114 @@ func processNotification(ctx context.Context, c *cmd.ProcessNotification) error 
 	}
 
 	return deliveryErr
+}
+
+type notificationState int
+
+const (
+	notificationReady notificationState = iota
+	notificationHidden
+	notificationRemoved
+)
+
+func currentNotification(trx *dbx.Trx, tenantID, postID, commentID int, intent notificationIntent) (entity.NotificationDelivery, notificationState, error) {
+	event := entity.NotificationDelivery{}
+	if postID != 0 {
+		var post dbPost
+		if err := trx.Get(&post, `
+            SELECT id, number, title, slug, description, created_at, status, moderation_pending
+            FROM posts WHERE tenant_id = $1 AND id = $2
+        `, tenantID, postID); err != nil {
+			return event, notificationRemoved, err
+		}
+
+		if enum.PostStatus(post.Status) == enum.PostDeleted {
+			return event, notificationRemoved, nil
+		}
+		if post.ModerationPending {
+			return event, notificationHidden, nil
+		}
+
+		event.Post = &entity.Post{
+			ID:          post.ID,
+			Number:      post.Number,
+			Title:       post.Title,
+			Slug:        post.Slug,
+			Description: post.Description,
+			CreatedAt:   post.CreatedAt,
+			Status:      enum.PostStatus(post.Status),
+		}
+		return event, notificationReady, nil
+	}
+
+	var comment struct {
+		Content        string `db:"content"`
+		PostID         int    `db:"post_id"`
+		PageID         int    `db:"page_id"`
+		Number         int    `db:"number"`
+		Title          string `db:"title"`
+		Slug           string `db:"slug"`
+		ParentAuthorID int    `db:"parent_author_id"`
+		Hidden         bool   `db:"hidden"`
+		Removed        bool   `db:"removed"`
+	}
+	if err := trx.Get(&comment, `
+        SELECT comment.content, COALESCE(comment.post_id, 0) AS post_id,
+               COALESCE(comment.page_id, 0) AS page_id, COALESCE(post.number, 0) AS number,
+               COALESCE(post.title, page.title) AS title, COALESCE(post.slug, page.slug) AS slug,
+               COALESCE(parent.user_id, 0) AS parent_author_id,
+               comment.moderation_pending OR COALESCE(post.moderation_pending, FALSE) AS hidden,
+               comment.deleted_at IS NOT NULL OR COALESCE(post.status = $3, FALSE) AS removed
+        FROM comments comment
+        LEFT JOIN comments parent ON parent.id = comment.parent_id AND parent.tenant_id = comment.tenant_id
+        LEFT JOIN posts post ON post.id = comment.post_id AND post.tenant_id = comment.tenant_id
+        LEFT JOIN pages page ON page.id = comment.page_id AND page.tenant_id = comment.tenant_id
+        WHERE comment.tenant_id = $1 AND comment.id = $2
+    `, tenantID, commentID, enum.PostDeleted); err != nil {
+		return event, notificationRemoved, err
+	}
+
+	if comment.Removed {
+		return event, notificationRemoved, nil
+	}
+	if comment.Hidden {
+		return event, notificationHidden, nil
+	}
+
+	owner := entity.PageDiscussion(&entity.Page{
+		ID:    comment.PageID,
+		Title: comment.Title,
+		Slug:  comment.Slug,
+	}).Owner
+	if comment.PostID != 0 {
+		owner = entity.PostDiscussion(&entity.Post{
+			ID:     comment.PostID,
+			Number: comment.Number,
+			Title:  comment.Title,
+			Slug:   comment.Slug,
+		}).Owner
+	}
+
+	currentMentions := make(map[int]bool)
+	for _, mention := range entity.CommentString(comment.Content).ParseMentions() {
+		currentMentions[mention.ID] = true
+	}
+
+	mentions := make([]int, 0, len(intent.MentionIDs))
+	for _, id := range intent.MentionIDs {
+		if currentMentions[int(id)] {
+			mentions = append(mentions, int(id))
+		}
+	}
+	event.Comment = &entity.CommentNotification{
+		CommentID:      commentID,
+		Owner:          owner,
+		Content:        comment.Content,
+		MentionIDs:     mentions,
+		ParentAuthorID: comment.ParentAuthorID,
+		Edited:         intent.Edited,
+	}
+	return event, notificationReady, nil
 }
 
 func completeNotification(trx *dbx.Trx, deliveryID int64, channel string, recipientIDs []int64) error {

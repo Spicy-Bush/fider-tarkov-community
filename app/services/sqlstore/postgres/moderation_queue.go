@@ -2,11 +2,11 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
@@ -50,7 +50,10 @@ func scheduleModeration(ctx context.Context, c *cmd.ScheduleModeration) error {
              (SELECT COALESCE(jsonb_agg(DISTINCT attachment_bkey), '[]')
               FROM attachments WHERE tenant_id = $1 AND `+attachmentFilter+`)
          FROM content`+replaceModerationCheck, tenant.ID, c.ContentID, c.ContentType)
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
@@ -59,18 +62,27 @@ func saveModerationCheck(trx *dbx.Trx, tenantID int, kind string, id int, text, 
      INSERT INTO moderation_checks (tenant_id, content_type, content_id, state, text_content, blob_keys)
      VALUES ($1, $2, $3, 'pending', $4, $5::jsonb)`+replaceModerationCheck,
 		tenantID, kind, id, text, keysJSON)
-	return err
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func claimModeration(ctx context.Context, c *cmd.ClaimModeration) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		return claimModerationInTransaction(trx, c)
+	})
+}
+
+func claimModerationInTransaction(trx *dbx.Trx, c *cmd.ClaimModeration) error {
 	check := &cmd.ModerationCheck{}
 	var keys []byte
 	var coolingDown bool
 
-	err := dbx.Connection().QueryRowContext(ctx, `
+	err := trx.Scalar(&coolingDown, `
         SELECT available_at > NOW()
         FROM moderation_provider
-        WHERE id = 1`).Scan(&coolingDown)
+        WHERE id = 1`)
 
 	if err != nil {
 		return err
@@ -84,7 +96,7 @@ func claimModeration(ctx context.Context, c *cmd.ClaimModeration) error {
 	}
 
 	// An edit can replace the check while its request is still using a provider slot.
-	err = dbx.Connection().QueryRowContext(ctx, `
+	rows, err := trx.Query(`
  WITH candidate AS (
      SELECT tenant_id, content_type, content_id
      FROM moderation_checks
@@ -113,14 +125,20 @@ func claimModeration(ctx context.Context, c *cmd.ClaimModeration) error {
  SELECT claimed.*, reserved.id, reserved.claim,
         (SELECT available_at FROM moderation_provider WHERE id = 1)
  FROM claimed CROSS JOIN reserved`,
-		env.Config.OpenAI.Concurrency).Scan(&check.TenantID, &check.ContentType, &check.ContentID,
-		&check.Revision, &check.Claim, &check.Text, &keys, &check.Attempts, &check.Slot, &check.SlotClaim, &check.ProviderAvailableAt)
-
-	if err == sql.ErrNoRows {
-		return nil
-	}
-
+		env.Config.OpenAI.Concurrency)
 	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return rows.Err()
+	}
+	if err := rows.Scan(&check.TenantID, &check.ContentType, &check.ContentID,
+		&check.Revision, &check.Claim, &check.Text, &keys, &check.Attempts, &check.Slot, &check.SlotClaim, &check.ProviderAvailableAt); err != nil {
+		return err
+	}
+	if err := rows.Close(); err != nil {
 		return err
 	}
 
@@ -145,13 +163,14 @@ func finishModeration(ctx context.Context, c *cmd.FinishModeration) error {
 		return fmt.Errorf("invalid moderation outcome %d", c.Outcome)
 	}
 
-	tx, err := dbx.Connection().BeginTx(ctx, nil)
+	tx, err := dbx.BeginTx(ctx)
 
 	if err != nil {
 		return err
 	}
 
 	defer tx.Rollback()
+	tx.BeforeCommit = flushMediaReferences
 	check := c.Check
 	table, active := "posts", "status <> 6"
 
@@ -165,18 +184,18 @@ func finishModeration(ctx context.Context, c *cmd.FinishModeration) error {
 
 	// Match the writers' lock order to avoid deadlocking with an edit or file rename.
 	var id int
-	err = tx.QueryRowContext(ctx, `
+	err = tx.Scalar(&id, `
         SELECT id
         FROM `+table+`
         WHERE tenant_id = $1 AND id = $2 AND `+active+`
-        FOR UPDATE`, check.TenantID, check.ContentID).Scan(&id)
+        FOR UPDATE`, check.TenantID, check.ContentID)
 	profile := check.ContentType == "name" || check.ContentType == "avatar"
 
 	if profile && state == "complete" && len(c.Findings) > 0 {
 		state = "rejected"
 	}
 
-	if err == sql.ErrNoRows {
+	if err == app.ErrNotFound {
 		state = "canceled"
 	} else if err != nil {
 		return err
@@ -189,7 +208,7 @@ func finishModeration(ctx context.Context, c *cmd.FinishModeration) error {
 	}
 
 	var fallback []byte
-	err = tx.QueryRowContext(ctx, `
+	err = tx.Scalar(&fallback, `
         UPDATE moderation_checks
         SET state = $1, next_attempt_at = NOW() + $2 * INTERVAL '1 second',
             last_error = $3, result = $4::jsonb, updated_at = NOW(),
@@ -211,15 +230,15 @@ func finishModeration(ctx context.Context, c *cmd.FinishModeration) error {
         WHERE tenant_id = $5 AND content_type = $6 AND content_id = $7
           AND revision = $8 AND claim = $9 AND state = 'running'
         RETURNING fallback_profile`,
-		state, c.RetryAfterSeconds, c.Error, result, check.TenantID, check.ContentType, check.ContentID, check.Revision, check.Claim).Scan(&fallback)
-	applied := err != sql.ErrNoRows
+		state, c.RetryAfterSeconds, c.Error, result, check.TenantID, check.ContentType, check.ContentID, check.Revision, check.Claim)
+	applied := err != app.ErrNotFound
 
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && err != app.ErrNotFound {
 		return err
 	}
 
 	// A stale completion still owns its slot unless another attempt has reclaimed it.
-	released, err := tx.ExecContext(ctx, `
+	releasedCount, err := tx.Execute(`
      UPDATE moderation_provider_slots SET lease_until = NOW()
      WHERE id = $1 AND claim = $2`, check.Slot, check.SlotClaim)
 
@@ -227,14 +246,8 @@ func finishModeration(ctx context.Context, c *cmd.FinishModeration) error {
 		return err
 	}
 
-	releasedCount, err := released.RowsAffected()
-
-	if err != nil {
-		return err
-	}
-
 	if releasedCount > 0 && c.CooldownSeconds > 0 {
-		if _, err = tx.ExecContext(ctx, `
+		if _, err = tx.Execute(`
          UPDATE moderation_provider
          SET available_at = GREATEST(available_at, NOW() + $1 * INTERVAL '1 second')
          WHERE id = 1`, c.CooldownSeconds); err != nil {
@@ -250,13 +263,13 @@ func finishModeration(ctx context.Context, c *cmd.FinishModeration) error {
 		if state == "rejected" {
 			if fallback != nil {
 				if check.ContentType == "name" {
-					err = tx.QueryRowContext(ctx, `
+					err = tx.Scalar(&c.PublishedName, `
                         UPDATE users
                         SET name = $1::jsonb->>'name'
                         WHERE tenant_id = $2 AND id = $3
-                        RETURNING name`, string(fallback), check.TenantID, check.ContentID).Scan(&c.PublishedName)
+                        RETURNING name`, string(fallback), check.TenantID, check.ContentID)
 				} else {
-					_, err = tx.ExecContext(ctx, `
+					_, err = tx.Execute(`
                         UPDATE users
                         SET avatar_type = ($1::jsonb->>'avatar_type')::integer,
                             avatar_bkey = $1::jsonb->>'avatar_bkey'
@@ -264,13 +277,13 @@ func finishModeration(ctx context.Context, c *cmd.FinishModeration) error {
 				}
 			}
 		} else if check.ContentType == "name" {
-			err = tx.QueryRowContext(ctx, `
+			err = tx.Scalar(&c.PublishedName, `
                 UPDATE users
                 SET name = $1
                 WHERE tenant_id = $2 AND id = $3
-                RETURNING name`, check.Text, check.TenantID, check.ContentID).Scan(&c.PublishedName)
+                RETURNING name`, check.Text, check.TenantID, check.ContentID)
 		} else {
-			_, err = tx.ExecContext(ctx, `
+			_, err = tx.Execute(`
                 UPDATE users
                 SET avatar_type = $1, avatar_bkey = $2
                 WHERE tenant_id = $3 AND id = $4`, enum.AvatarTypeCustom, check.BlobKeys[0], check.TenantID, check.ContentID)
@@ -281,7 +294,7 @@ func finishModeration(ctx context.Context, c *cmd.FinishModeration) error {
 		}
 
 		if state == "complete" || state == "rejected" {
-			if _, err = tx.ExecContext(ctx, `
+			if _, err = tx.Execute(`
                 UPDATE moderation_checks
                 SET fallback_profile = NULL
                 WHERE tenant_id = $1 AND content_type = $2 AND content_id = $3`,
@@ -292,7 +305,7 @@ func finishModeration(ctx context.Context, c *cmd.FinishModeration) error {
 	}
 
 	if state == "complete" && !profile {
-		if _, err = tx.ExecContext(ctx, `
+		if _, err = tx.Execute(`
             UPDATE `+table+`
             SET moderation_pending = $1, moderation_data = $2::jsonb
             WHERE tenant_id = $3 AND id = $4
@@ -311,14 +324,13 @@ func finishModeration(ctx context.Context, c *cmd.FinishModeration) error {
 
 		// Completing the claimed revision and inserting its report must commit together.
 
-		if _, err = tx.ExecContext(ctx, `
+		if _, err = tx.Execute(`
             INSERT INTO reports (tenant_id, reporter_id, reported_type, reported_id, reason, details, status, created_at)
             VALUES ($1, NULL, $2, $3, 'Auto-flagged by AI moderation', $4, 'pending', NOW())`,
 			check.TenantID, check.ContentType, check.ContentID, "Flagged categories: "+strings.Join(categories, ", ")); err != nil {
 			return err
 		}
 	}
-
 	if err = tx.Commit(); err != nil {
 		return err
 	}
@@ -335,21 +347,21 @@ func listModerationFailures(ctx context.Context, c *cmd.ListModerationFailures) 
 			Failed int `db:"failed"`
 		}
 
-		if err := trx.Get(&counts, visibleCommentOwners + `
+		if err := trx.Get(&counts, visibleCommentOwners+`
             SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE state = 'failed') AS failed
             FROM moderation_checks
             WHERE tenant_id = $1 AND state IN ('failed', 'pending', 'running')
-              AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))`, tenant.ID, viewerRole(user), viewerID(user)); err != nil {
+              AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))`, commentOwnerParams(tenant, user)...); err != nil {
 			return err
 		}
 
 		c.Total, c.Failed = counts.Total, counts.Failed
-		rows, err := trx.Query(visibleCommentOwners + `
+		rows, err := trx.Query(visibleCommentOwners+`
             SELECT content_type, content_id, revision, attempts, state, last_error
             FROM moderation_checks
             WHERE tenant_id = $1 AND state IN ('failed', 'pending', 'running')
               AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))
-            ORDER BY (state = 'failed') DESC, updated_at LIMIT 100`, tenant.ID, viewerRole(user), viewerID(user))
+            ORDER BY (state = 'failed') DESC, updated_at LIMIT 100`, commentOwnerParams(tenant, user)...)
 
 		if err != nil {
 			return err
@@ -374,32 +386,31 @@ func listModerationFailures(ctx context.Context, c *cmd.ListModerationFailures) 
 func retryModerationFailures(ctx context.Context, c *cmd.RetryModerationFailures) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var err error
-		c.Count, err = trx.Execute(visibleCommentOwners + `
+		c.Count, err = trx.Execute(visibleCommentOwners+`
             UPDATE moderation_checks
             SET state = 'pending', attempts = 0, next_attempt_at = NOW(), last_error = '', updated_at = NOW()
             WHERE tenant_id = $1 AND state = 'failed'
-              AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))`, tenant.ID, viewerRole(user), viewerID(user))
+              AND (content_type <> 'comment' OR content_id IN (SELECT id FROM visible_comment_owners))`, commentOwnerParams(tenant, user)...)
 		return err
 	})
 }
 
 func saveProfileName(ctx context.Context, c *cmd.SaveProfileName) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		var current struct {
-			Name string    `db:"name"`
-			Role enum.Role `db:"role"`
-		}
-
-		if err := trx.Get(&current, `
-            SELECT name, role
-            FROM users
-            WHERE id = $1 AND tenant_id = $2 AND status <> $3
-            FOR UPDATE`, c.UserID, tenant.ID, enum.UserDeleted); err != nil {
+		_, permissions, err := userPermissionsForUpdate(ctx, trx, tenant, user, c.UserID)
+		if err != nil {
 			return err
 		}
-		target := &entity.User{ID: c.UserID, Role: current.Role}
-		if !target.AllowedActions(user, tenant).EditName {
+		if !permissions.EditName {
 			return validate.Unauthorized()
+		}
+
+		var current struct {
+			Name string `db:"name"`
+		}
+
+		if err := trx.Get(&current, `SELECT name FROM users WHERE id=$1 AND tenant_id=$2`, c.UserID, tenant.ID); err != nil {
+			return err
 		}
 
 		c.Pending = c.Review && c.Name != current.Name
@@ -431,22 +442,23 @@ func saveProfileName(ctx context.Context, c *cmd.SaveProfileName) error {
 
 func saveProfileAvatar(ctx context.Context, c *cmd.SaveProfileAvatar) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		_, permissions, err := userPermissionsForUpdate(ctx, trx, tenant, user, c.UserID)
+		if err != nil {
+			return err
+		}
+		if !permissions.EditAvatar {
+			return validate.Unauthorized()
+		}
+
 		var current struct {
 			Key  string          `db:"avatar_bkey"`
 			Type enum.AvatarType `db:"avatar_type"`
-			Role enum.Role       `db:"role"`
 		}
 
 		if err := trx.Get(&current, `
-            SELECT avatar_bkey, avatar_type, role
-            FROM users
-            WHERE id = $1 AND tenant_id = $2 AND status <> $3
-            FOR UPDATE`, c.UserID, tenant.ID, enum.UserDeleted); err != nil {
+            SELECT avatar_bkey, avatar_type FROM users WHERE id=$1 AND tenant_id=$2
+        `, c.UserID, tenant.ID); err != nil {
 			return err
-		}
-		target := &entity.User{ID: c.UserID, Role: current.Role}
-		if !target.AllowedActions(user, tenant).EditAvatar {
-			return validate.Unauthorized()
 		}
 
 		if c.AvatarType != enum.AvatarTypeCustom {
@@ -491,12 +503,15 @@ func saveProfileAvatar(ctx context.Context, c *cmd.SaveProfileAvatar) error {
 }
 
 func cancelModerationCheck(trx *dbx.Trx, tenantID, contentID int, kind string) error {
-	_, err := trx.Execute(`
+	changed, err := trx.Execute(`
      UPDATE moderation_checks
      SET revision = revision + 1, state = 'canceled', text_content = '',
          blob_keys = '[]', result = NULL, fallback_profile=NULL, updated_at = NOW()
      WHERE tenant_id = $1 AND content_type = $2 AND content_id = $3`, tenantID, kind, contentID)
-	return err
+	if err != nil || changed == 0 {
+		return err
+	}
+	return nil
 }
 
 func getProfileModeration(ctx context.Context, c *cmd.GetProfileModeration) error {

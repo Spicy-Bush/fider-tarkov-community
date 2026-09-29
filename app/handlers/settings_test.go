@@ -117,6 +117,9 @@ func TestChangeRoleHandler_Valid(t *testing.T) {
 	var changeRole *cmd.ChangeUserRole
 	bus.AddHandler(func(ctx context.Context, c *cmd.ChangeUserRole) error {
 		changeRole = c
+		updated := *mock.AryaStark
+		updated.Role = c.Role
+		c.Result = &updated
 		return nil
 	})
 

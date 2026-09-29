@@ -16,23 +16,14 @@ import (
 	"github.com/lib/pq"
 )
 
-const visibleNotifications = visibleCommentOwners + `,
+const visibleNotifications = visibleComments + `,
     visible_notifications AS (
         SELECT n.* FROM notifications n
-        LEFT JOIN comments comment ON comment.id = n.comment_id AND comment.tenant_id = n.tenant_id
-        LEFT JOIN users author ON author.id = comment.user_id AND author.tenant_id = n.tenant_id
-        LEFT JOIN visible_posts_for($1, $2, $3) post ON post.id = n.post_id
+        LEFT JOIN visible_posts_for($1, $5::boolean, $3) post ON post.id = n.post_id
         WHERE n.tenant_id = $1 AND n.user_id = $3
           AND (n.page_id IS NULL OR n.page_id IN (SELECT id FROM visible_pages))
           AND (n.post_id IS NULL OR post.id IS NOT NULL)
-          AND (n.comment_id IS NULL OR (
-            comment.id IN (SELECT id FROM visible_comment_owners) AND comment.deleted_at IS NULL
-            AND (
-                NOT comment.moderation_pending OR comment.user_id = $3
-                OR $2 IN ('administrator', 'collaborator')
-                OR ($2 = 'moderator' AND author.role IN (1, 5))
-            )
-          ))
+          AND (n.comment_id IS NULL OR n.comment_id IN (SELECT id FROM visible_comments))
     )
 `
 
@@ -68,8 +59,8 @@ func countUnreadNotifications(ctx context.Context, q *query.CountUnreadNotificat
 		q.Result = 0
 
 		if user != nil {
-			err := trx.Scalar(&q.Result, visibleNotifications + "SELECT COUNT(*) FROM visible_notifications WHERE read = false",
-				tenant.ID, user.Role.String(), user.ID)
+			err := trx.Scalar(&q.Result, visibleNotifications+"SELECT COUNT(*) FROM visible_notifications WHERE read = false",
+				commentVisibilityParams(tenant, user)...)
 			if err != nil {
 				return errors.Wrap(err, "failed count total unread notifications")
 			}
@@ -100,10 +91,10 @@ func getNotificationByID(ctx context.Context, q *query.GetNotificationByID) erro
 		q.Result = nil
 		notification := &entity.Notification{}
 
-		err := trx.Get(notification, visibleNotifications + `
+		err := trx.Get(notification, visibleNotifications+`
 			SELECT id, title, link, read, created_at 
-			FROM visible_notifications WHERE id = $4
-		`, tenant.ID, user.Role.String(), user.ID, q.ID)
+			FROM visible_notifications WHERE id = $7
+		`, append(commentVisibilityParams(tenant, user), q.ID)...)
 		if err != nil {
 			return errors.Wrap(err, "failed to get notifications with id '%d'", q.ID)
 		}
@@ -138,7 +129,7 @@ func getActiveNotifications(ctx context.Context, q *query.GetActiveNotifications
 			Read   int    `db:"read"`
 			Items  []byte `db:"items"`
 		}
-		args := []any{tenant.ID, user.Role.String(), user.ID, q.PerPage, offset}
+		args := append(commentVisibilityParams(tenant, user), q.PerPage, offset)
 		err := trx.Get(&snapshot, visibleNotifications+fmt.Sprintf(`
 			, active_notifications AS (
 				SELECT * FROM visible_notifications
@@ -154,7 +145,7 @@ func getActiveNotifications(ctx context.Context, q *query.GetActiveNotifications
 				LEFT JOIN users u ON u.id = n.author_id
 				WHERE %s
 				ORDER BY n.updated_at DESC, n.id DESC
-				LIMIT $4 OFFSET $5
+				LIMIT $7 OFFSET $8
 			)
 			SELECT totals.unread, totals.read,
 				COALESCE((SELECT json_agg(selected) FROM selected), '[]') AS items

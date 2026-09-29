@@ -109,7 +109,11 @@ func TestUserTargetProfileAndMutations(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			f.user.Role = test.viewer
-			if _, err := dbx.Connection().Exec(`UPDATE users SET role = $1, name = 'Original name',
+			if _, err := mediaFixtureSQL("UPDATE users SET role=$1 WHERE id=$2", test.viewer, f.user.ID); err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := mediaFixtureSQL(`UPDATE users SET role = $1, name = 'Original name',
 				status = 1, avatar_type = 2, visual_role = 0 WHERE id = 2`, test.target); err != nil {
 				t.Fatal(err)
 			}
@@ -235,6 +239,10 @@ func TestUserTargetProfileAndMutations(t *testing.T) {
 func TestUserTargetCommandsRejectBypassingHandlers(t *testing.T) {
 	f := newPostWorkflow(t)
 	f.user.Role = enum.RoleVisitor
+	if _, err := mediaFixtureSQL("UPDATE users SET role=$1 WHERE id=$2", f.user.Role, f.user.ID); err != nil {
+		t.Fatal(err)
+	}
+
 	for _, command := range []any{
 		&cmd.BlockUser{UserID: 2},
 		&cmd.UnblockUser{UserID: 2},
@@ -268,10 +276,18 @@ func TestUserTargetCommandsRejectBypassingHandlers(t *testing.T) {
 
 func TestUserTargetSelfAndRefreshedStanding(t *testing.T) {
 	f := newPostWorkflow(t)
+	if _, err := mediaFixtureSQL(`INSERT INTO user_mutes (tenant_id, user_id, reason, created_by)
+		VALUES ($1, $2, 'Muted profile fixture', $2)`, f.tenant.ID, f.user.ID); err != nil {
+		t.Fatal(err)
+	}
+
 	for _, role := range []enum.Role{enum.RoleVisitor, enum.RoleHelper, enum.RoleModerator, enum.RoleCollaborator, enum.RoleAdministrator} {
 		t.Run(role.String(), func(t *testing.T) {
 			f.user.Role = role
 			f.user.Muted = true
+			if _, err := mediaFixtureSQL("UPDATE users SET role=$1 WHERE id=$2", role, f.user.ID); err != nil {
+				t.Fatal(err)
+			}
 
 			for _, handler := range []web.HandlerFunc{handlers.BlockUser(), handlers.UnblockUser(), handlers.ExpireWarning(), handlers.ExpireMute()} {
 				response, err := f.requestWithParams(handler, http.MethodPost, "http://localhost:3000/api/users/1", "",
@@ -303,12 +319,19 @@ func TestUserTargetSelfAndRefreshedStanding(t *testing.T) {
 			}
 
 			f.user.Status = enum.UserBlocked
+			if _, err := mediaFixtureSQL("UPDATE users SET status=$1 WHERE id=$2", f.user.Status, f.user.ID); err != nil {
+				t.Fatal(err)
+			}
+
 			response, err = f.requestWithParams(handlers.UpdateUserName(), http.MethodPost,
 				"http://localhost:3000/api/user/name", `{"name":"Blocked update"}`, nil)
 			if err != nil || response.Code != http.StatusForbidden {
 				t.Fatalf("blocked profile edit returned %d, %v", response.Code, err)
 			}
 			f.user.Status = enum.UserActive
+			if _, err := mediaFixtureSQL("UPDATE users SET status=$1 WHERE id=$2", f.user.Status, f.user.ID); err != nil {
+				t.Fatal(err)
+			}
 		})
 	}
 

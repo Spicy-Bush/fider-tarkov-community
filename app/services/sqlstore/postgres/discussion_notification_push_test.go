@@ -112,12 +112,27 @@ func TestDiscussionNotificationPushRecovery(t *testing.T) {
 				t.Fatalf("retry: found=%v err=%v", found, err)
 			}
 
-			wantRequests := int32(2)
 			if hideBeforeRetry {
-				wantRequests = 1
+				if requests.Load() != 1 || workflowCount(t, "SELECT COUNT(*) FROM notification_deliveries") != 1 {
+					t.Fatalf("hidden content was sent or discarded: requests=%d", requests.Load())
+				}
+
+				if err := bus.Dispatch(f.ctx, &cmd.SetModerationPending{
+					ContentType: "comment",
+					ContentID:   comment.Result.ID,
+					Pending:     false,
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := dbx.Connection().Exec("UPDATE notification_deliveries SET available_at = NOW()"); err != nil {
+					t.Fatal(err)
+				}
+				if found, err := tasks.DeliverPendingNotification(f.ctx); !found || err != nil {
+					t.Fatalf("approved retry: found=%v err=%v", found, err)
+				}
 			}
-			if requests.Load() != wantRequests || workflowCount(t, "SELECT COUNT(*) FROM notification_deliveries") != 0 {
-				t.Fatalf("retry delivered hidden content or retained work: requests=%d", requests.Load())
+			if requests.Load() != 2 || workflowCount(t, "SELECT COUNT(*) FROM notification_deliveries") != 0 {
+				t.Fatalf("retry did not deliver approved content: requests=%d", requests.Load())
 			}
 		})
 	}

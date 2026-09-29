@@ -1,12 +1,18 @@
-import React, { useState, useRef, useCallback } from "react"
-import { usePageAutosave } from "@fider/hooks"
-import { Button, ImageUploader, Input, Modal, TextArea, Icon } from "@fider/components"
+import React, { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react"
+import { useFider } from "@fider/hooks/use-fider"
+import { usePageCollaboration } from "@fider/hooks/usePageCollaboration"
+import { DraftPicker } from "@fider/components/common/DraftPicker"
+import { Button, DisplayError, ImagePicker, Input, Modal, TextArea, Icon } from "@fider/components"
 import { Page, PageTopic, PageTag, PageDraft, User } from "@fider/models"
-import { Failure, http, markdown } from "@fider/services"
+import { Failure, http, markdown, uploadedImageURL } from "@fider/services"
+import { newSubmissionID } from "@fider/services/postSubmission"
+import { requestOutcome } from "@fider/services/http"
 import { PageConfig } from "@fider/components/layouts"
 import { PageContentDocsPanel } from "../components/page/PageContentDocsPanel"
 import { HStack } from "@fider/components/layout"
 import { heroiconsArrowUpDown as IconSync } from "@fider/icons.generated"
+
+const CollaborativePageContent = lazy(() => import("../components/page/CollaborativePageContent"))
 
 export const pageConfig: PageConfig = {
   title: "Edit Page",
@@ -25,31 +31,41 @@ interface EditPagePageProps {
 }
 
 const EditPagePage = (props: EditPagePageProps) => {
+  const fider = useFider()
+  const account = `${fider.session.tenant.id}:${fider.session.isAuthenticated ? fider.session.user.id : "anonymous"}`
+  return <EditPageEditor key={`${account}:${props.page?.id || "new"}`} {...props} />
+}
+
+const EditPageEditor = (props: EditPagePageProps) => {
   const isNew = !props.page
-  const editorRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<HTMLElement | null>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const isSyncing = useRef(false)
   
-  const [title, setTitle] = useState(props.page?.title || props.draft?.title || "")
+  const draft = usePageCollaboration(props.page)
+  const {
+    title, slug, content, excerpt, bannerImage, status, visibility, allowedRoles,
+    allowComments, allowCommentImages, allowReactions, scheduledFor,
+    showToc: showTOC, topics: selectedTopics, tags: selectedTags, authors: selectedAuthors,
+  } = draft.value
+  const bannerFile = bannerImage?.kind === "local" ? bannerImage.file : undefined
+  const [bannerFileURL, setBannerFileURL] = useState<string>()
+  useEffect(() => {
+    if (!bannerFile) {
+      setBannerFileURL(undefined)
+      return
+    }
+    const url = URL.createObjectURL(bannerFile)
+    setBannerFileURL(url)
+    return () => URL.revokeObjectURL(url)
+  }, [bannerFile])
+
+  const bannerPreview = bannerImage?.kind === "stored" ? uploadedImageURL(bannerImage.bkey) : bannerFileURL
   const [syncScroll, setSyncScroll] = useState(true)
   const [showExcerpt, setShowExcerpt] = useState(!!props.page?.excerpt || !!props.draft?.excerpt)
-  const [slug, setSlug] = useState(props.page?.slug || props.draft?.slug || "")
-  const [content, setContent] = useState(props.page?.content || props.draft?.content || "")
-  const [excerpt, setExcerpt] = useState(props.page?.excerpt || props.draft?.excerpt || "")
-  const [bannerImage, setBannerImage] = useState<any>(props.page?.bannerImageBKey ? { bkey: props.page.bannerImageBKey } : null)
-  const [status, setStatus] = useState<string>(props.page?.status || "draft")
-  const [visibility, setVisibility] = useState<string>(props.page?.visibility || "public")
-  const [allowedRoles, setAllowedRoles] = useState<string[]>(props.page?.allowedRoles || [])
-  const [allowComments, setAllowComments] = useState(props.page?.allowComments ?? false)
-  const [allowCommentImages, setAllowCommentImages] = useState(props.page?.allowCommentImages ?? false)
-  const [allowReactions, setAllowReactions] = useState(props.page?.allowReactions ?? true)
-  const [showTOC, setShowTOC] = useState(props.page?.showToc ?? false)
-  const [selectedTopics, setSelectedTopics] = useState<number[]>(props.page?.topics?.map(t => t.id) || [])
-  const [selectedTags, setSelectedTags] = useState<number[]>(props.page?.tags?.map(t => t.id) || [])
-  const [selectedAuthors, setSelectedAuthors] = useState<number[]>(props.page?.authors?.map(a => a.id) || [])
-  const [scheduledFor, setScheduledFor] = useState<string>(props.page?.scheduledFor ? new Date(props.page.scheduledFor).toISOString().slice(0, 16) : "")
   const [error, setError] = useState<Failure>()
   const [isSaving, setIsSaving] = useState(false)
+  const [publication, setPublication] = useState<{ submissionId: string; status: string; uncertain: boolean }>()
   const [showSettings, setShowSettings] = useState(false)
   const [showDocs, setShowDocs] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
@@ -61,50 +77,35 @@ const EditPagePage = (props: EditPagePageProps) => {
   const [isCreatingTopic, setIsCreatingTopic] = useState(false)
   const [isCreatingTag, setIsCreatingTag] = useState(false)
 
-  usePageAutosave(
-    props.page?.id || 0,
-    { title, slug, content, excerpt, showToc: showTOC }
-  )
-
   const handleSave = async (newStatus?: string) => {
     setIsSaving(true)
     setError(undefined)
 
-    const payload = {
-      title,
-      slug: slug || undefined,
-      content,
-      excerpt,
-      bannerImage,
-      status: newStatus || status,
-      visibility,
-      allowedRoles: visibility === "private" ? allowedRoles : undefined,
-      allowComments,
-      allowCommentImages,
-      allowReactions,
-      showToc: showTOC,
-      topics: selectedTopics,
-      tags: selectedTags,
-      authors: selectedAuthors,
-      scheduledFor: status === "scheduled" && scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
-    }
-
+    let requested = false
     try {
-      const result = isNew
-        ? await http.post<{ id: number }>("/api/pages", payload)
-        : await http.put(`/api/pages/${props.page!.id}`, payload)
-
+      await draft.flush()
+      const request = publication || { submissionId: newSubmissionID(), status: newStatus || status, uncertain: false }
+      setPublication(request)
+      requested = true
+      const result = await http.post<Page>(`/api/pages/${draft.session!.pageId}/draft/publish`, {
+        submissionId: request.submissionId,
+        status: request.status,
+      })
       if (result.ok) {
-        if (isNew && result.data) {
-          window.location.href = `/admin/pages/edit/${result.data.id}`
-        } else {
-          window.location.reload()
-        }
+        window.location.href = `/admin/pages/edit/${result.data.id}`
       } else {
+        if (requestOutcome(result) === "rejected" && !request.uncertain) {
+          setPublication(undefined)
+        } else {
+          setPublication({ ...request, uncertain: true })
+        }
         setError(result.error)
       }
-    } catch (err) {
-      setError({ errors: [{ message: "Failed to save page" }] })
+    } catch (cause) {
+      if (requested) {
+        setPublication(current => current && { ...current, uncertain: true })
+        setError({ errors: [{ message: "Could not confirm publication. Retry publishing to check the result." }], cause })
+      }
     } finally {
       setIsSaving(false)
     }
@@ -136,27 +137,19 @@ const EditPagePage = (props: EditPagePageProps) => {
   }, [syncScroll])
 
   const toggleTopic = (id: number) => {
-    setSelectedTopics(prev =>
-      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
-    )
+    draft.change(value => ({ ...value, topics: value.topics.includes(id) ? value.topics.filter(topic => topic !== id) : [...value.topics, id] }))
   }
 
   const toggleTag = (id: number) => {
-    setSelectedTags(prev =>
-      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
-    )
+    draft.change(value => ({ ...value, tags: value.tags.includes(id) ? value.tags.filter(tag => tag !== id) : [...value.tags, id] }))
   }
 
   const toggleRole = (role: string) => {
-    setAllowedRoles(prev =>
-      prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
-    )
+    draft.change(value => ({ ...value, allowedRoles: value.allowedRoles.includes(role) ? value.allowedRoles.filter(item => item !== role) : [...value.allowedRoles, role] }))
   }
 
   const toggleAuthor = (id: number) => {
-    setSelectedAuthors(prev =>
-      prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
-    )
+    draft.change(value => ({ ...value, authors: value.authors.includes(id) ? value.authors.filter(author => author !== id) : [...value.authors, id] }))
   }
 
   const createTopic = async () => {
@@ -166,7 +159,7 @@ const EditPagePage = (props: EditPagePageProps) => {
       const result = await http.post<PageTopic>("/api/page-topics", { name: newTopicName.trim() })
       if (result.ok && result.data) {
         setAvailableTopics(prev => [...prev, result.data!])
-        setSelectedTopics(prev => [...prev, result.data!.id])
+        draft.change(value => ({ ...value, topics: [...value.topics, result.data.id] }))
         setNewTopicName("")
       }
     } finally {
@@ -181,7 +174,7 @@ const EditPagePage = (props: EditPagePageProps) => {
       const result = await http.post<PageTag>("/api/page-tags", { name: newTagName.trim() })
       if (result.ok && result.data) {
         setAvailableTags(prev => [...prev, result.data!])
-        setSelectedTags(prev => [...prev, result.data!.id])
+        draft.change(value => ({ ...value, tags: [...value.tags, result.data.id] }))
         setNewTagName("")
       }
     } finally {
@@ -189,8 +182,20 @@ const EditPagePage = (props: EditPagePageProps) => {
     }
   }
 
+  const errors = [
+    ...(error?.errors || []),
+    ...(draft.error?.errors || []),
+    ...(draft.recoveryError ? [{ message: draft.recoveryError }] : []),
+    ...(bannerImage?.kind === "missing" ? [{ message: `Select ${bannerImage.fileName} again or remove it.` }] : []),
+  ]
+
   return (
     <>
+      {draft.alternatives.length > 0 && (
+        <div className="mb-4">
+          <DraftPicker drafts={draft.alternatives} label="Previous Page drafts" action="Restore draft" disabled={!draft.session} onSelect={draft.restore} />
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-border">
         <div className="flex items-center gap-4">
           {!isNew && (
@@ -208,7 +213,7 @@ const EditPagePage = (props: EditPagePageProps) => {
           <Button variant="tertiary" size="small" onClick={() => setShowDocs(true)}>
             Docs
           </Button>
-          <Button variant="tertiary" size="small" onClick={() => setShowSettings(true)}>
+          <Button variant="tertiary" size="small" disabled={!draft.session} onClick={() => setShowSettings(true)}>
             Settings
           </Button>
           <Button 
@@ -219,17 +224,18 @@ const EditPagePage = (props: EditPagePageProps) => {
           >
             {showPreview ? "Edit" : "Preview"}
           </Button>
-          {status !== "published" && (
-            <Button variant="secondary" size="small" onClick={() => handleSave("draft")} disabled={isSaving}>
-              Save Draft
-            </Button>
-          )}
-          <Button variant="primary" size="small" onClick={() => handleSave("published")} disabled={isSaving}>
-            {status === "published" ? "Update" : "Publish"}
+          {(draft.error || draft.recoveryError) && <Button variant="secondary" size="small" onClick={draft.retry}>Retry</Button>}
+          <Button variant="primary" size="small" onClick={() => handleSave(status === "scheduled" || status === "unpublished" ? status : "published")} disabled={isSaving || !draft.session}>
+            {publication ? "Retry publishing" : status === "scheduled" ? "Schedule" : status === "unpublished" ? "Unpublish" : status === "published" ? "Update" : "Publish"}
           </Button>
         </div>
       </div>
 
+      <div className="mb-3">
+        <DisplayError error={{ errors }} fields={[...new Set(errors.map(item => item.field || ""))]} />
+      </div>
+
+      <fieldset disabled={!draft.session} className="contents">
       <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-220px)] sm:h-[calc(100vh-200px)] min-h-[400px]">
         <div className={`flex-1 flex flex-col border border-border rounded-card bg-surface overflow-hidden ${showPreview ? "hidden lg:flex" : "flex"}`}>
           <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 shrink-0">
@@ -239,7 +245,7 @@ const EditPagePage = (props: EditPagePageProps) => {
                   field="title"
                   placeholder="Page Title"
                   value={title}
-                  onChange={setTitle}
+                  onChange={title => draft.change({ title })}
                   noMargin
                 />
               </div>
@@ -248,7 +254,7 @@ const EditPagePage = (props: EditPagePageProps) => {
                   field="slug"
                   placeholder="url-slug"
                   value={slug}
-                  onChange={setSlug}
+                  onChange={slug => draft.change({ slug })}
                   noMargin
                 />
               </div>
@@ -256,24 +262,41 @@ const EditPagePage = (props: EditPagePageProps) => {
 
             <div>
               <label className="text-sm font-medium mb-2 block">Banner Image</label>
-              <ImageUploader
+              {bannerImage?.kind === "missing" && (
+                <Button onClick={() => draft.change({ bannerImage: null })}>Remove image</Button>
+              )}
+              <ImagePicker
                 field="bannerImage"
-                bkey={bannerImage?.bkey}
-                onChange={(img) => setBannerImage(img)}
+                image={bannerPreview}
+                onSelect={file => {
+                  const id = newSubmissionID()
+                  draft.change({ bannerImage: { kind: "local", fileId: id, file } })
+                }}
+                onRemove={() => draft.change({ bannerImage: bannerImage?.kind === "stored" ? { kind: "removed", bkey: bannerImage.bkey } : null })}
               />
             </div>
           </div>
 
           <div className="flex-1 flex flex-col min-h-0 px-3 sm:px-4">
             <label className="text-sm font-medium mb-2 block shrink-0">Content</label>
-            <textarea
-              ref={editorRef}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              onScroll={handleEditorScroll}
-              placeholder="Write your page content in Markdown..."
-              className="flex-1 w-full p-3 rounded-card border border-border bg-surface text-foreground resize-none font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[200px]"
-            />
+            {draft.session ? (
+              <Suspense fallback={<div className="min-h-[200px] flex-1" />}>
+                <CollaborativePageContent
+                document={draft.session.document}
+                awareness={draft.session.awareness}
+                scrollElement={editorRef}
+                onScroll={handleEditorScroll}
+                />
+              </Suspense>
+            ) : (
+              <textarea
+                value={content}
+                readOnly
+                aria-label="Page content"
+                placeholder="Write your page content in Markdown..."
+                className="flex-1 w-full min-h-[200px] rounded-card border border-border bg-surface p-3 font-mono text-sm"
+              />
+            )}
           </div>
 
           <div className="px-3 sm:px-4 pb-3 sm:pb-4 shrink-0">
@@ -291,7 +314,7 @@ const EditPagePage = (props: EditPagePageProps) => {
                 field="excerpt"
                 placeholder="Brief description for listings"
                 value={excerpt}
-                onChange={setExcerpt}
+                onChange={excerpt => draft.change({ excerpt })}
                 minRows={2}
               />
             )}
@@ -317,9 +340,9 @@ const EditPagePage = (props: EditPagePageProps) => {
           </div>
           <div ref={previewRef} onScroll={handlePreviewScroll} className="flex-1 overflow-y-auto p-4 sm:p-6">
             <div className="relative mb-4">
-              {bannerImage?.bkey && (
+              {bannerPreview && (
                 <img
-                  src={`/static/images/${bannerImage.bkey}`}
+                  src={bannerPreview}
                   alt={title}
                   className="w-full h-16 object-cover"
                   style={{ maskImage: "linear-gradient(to bottom, black 0%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 0%, transparent 100%)" }}
@@ -327,7 +350,7 @@ const EditPagePage = (props: EditPagePageProps) => {
               )}
               <h1 
                 className="text-large"
-                style={{ marginTop: bannerImage?.bkey ? "-0.8rem" : "0" }}
+                style={{ marginTop: bannerPreview ? "-0.8rem" : "0" }}
               >
                 {title || "Untitled Page"}
               </h1>
@@ -340,6 +363,8 @@ const EditPagePage = (props: EditPagePageProps) => {
         </div>
       </div>
 
+      </fieldset>
+
       <Modal.Window isOpen={showSettings} onClose={() => setShowSettings(false)} size="large">
         <Modal.Header>
           <h2>Page Settings</h2>
@@ -350,7 +375,7 @@ const EditPagePage = (props: EditPagePageProps) => {
               <label className="text-sm font-medium mb-2 block">Status</label>
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={(e) => draft.change({ status: e.target.value })}
                 className="w-full p-2 rounded-card border border-border bg-surface text-foreground"
               >
                 <option value="draft">Draft</option>
@@ -371,7 +396,7 @@ const EditPagePage = (props: EditPagePageProps) => {
                       value={scheduledFor ? scheduledFor.split("T")[0] : ""}
                       onChange={(e) => {
                         const time = scheduledFor ? scheduledFor.split("T")[1] || "12:00" : "12:00"
-                        setScheduledFor(e.target.value ? `${e.target.value}T${time}` : "")
+                        draft.change({ scheduledFor: e.target.value ? `${e.target.value}T${time}` : "" })
                       }}
                       className="w-full p-2 rounded-card border border-border bg-surface text-foreground"
                     />
@@ -383,7 +408,7 @@ const EditPagePage = (props: EditPagePageProps) => {
                       value={scheduledFor ? scheduledFor.split("T")[1]?.slice(0, 5) || "12:00" : ""}
                       onChange={(e) => {
                         const date = scheduledFor ? scheduledFor.split("T")[0] : new Date().toISOString().split("T")[0]
-                        setScheduledFor(e.target.value ? `${date}T${e.target.value}` : "")
+                        draft.change({ scheduledFor: e.target.value ? `${date}T${e.target.value}` : "" })
                       }}
                       className="w-full p-2 rounded-card border border-border bg-surface text-foreground"
                     />
@@ -396,7 +421,7 @@ const EditPagePage = (props: EditPagePageProps) => {
               <label className="text-sm font-medium mb-2 block">Visibility</label>
               <select
                 value={visibility}
-                onChange={(e) => setVisibility(e.target.value)}
+                onChange={(e) => draft.change({ visibility: e.target.value })}
                 className="w-full p-2 rounded-card border border-border bg-surface text-foreground"
               >
                 <option value="public">Public</option>
@@ -539,7 +564,7 @@ const EditPagePage = (props: EditPagePageProps) => {
                 <input
                   type="checkbox"
                   checked={allowComments}
-                  onChange={(e) => setAllowComments(e.target.checked)}
+                  onChange={(e) => draft.change({ allowComments: e.target.checked })}
                   className="rounded"
                 />
                 <span className="text-sm">Allow Comments</span>
@@ -549,7 +574,7 @@ const EditPagePage = (props: EditPagePageProps) => {
                 <input
                   type="checkbox"
                   checked={allowCommentImages}
-                  onChange={(event) => setAllowCommentImages(event.target.checked)}
+                  onChange={(event) => draft.change({ allowCommentImages: event.target.checked })}
                   className="rounded"
                 />
                 <span className="text-sm">Allow Images in Comments</span>
@@ -559,7 +584,7 @@ const EditPagePage = (props: EditPagePageProps) => {
                 <input
                   type="checkbox"
                   checked={allowReactions}
-                  onChange={(e) => setAllowReactions(e.target.checked)}
+                  onChange={(e) => draft.change({ allowReactions: e.target.checked })}
                   className="rounded"
                 />
                 <span className="text-sm">Allow Reactions</span>
@@ -569,7 +594,7 @@ const EditPagePage = (props: EditPagePageProps) => {
                 <input
                   type="checkbox"
                   checked={showTOC}
-                  onChange={(e) => setShowTOC(e.target.checked)}
+                  onChange={(e) => draft.change({ showToc: e.target.checked })}
                   className="rounded"
                 />
                 <span className="text-sm">Show Table of Contents</span>
@@ -578,13 +603,6 @@ const EditPagePage = (props: EditPagePageProps) => {
 
           </div>
 
-          {error && (
-            <div className="mt-4 p-3 bg-danger/10 border border-danger rounded-card text-danger text-sm">
-              {error.errors?.map((e, i) => (
-                <div key={i}>{e.message}</div>
-              ))}
-            </div>
-          )}
         </Modal.Content>
         <Modal.Footer align="right">
           <Button variant="tertiary" onClick={() => setShowSettings(false)}>

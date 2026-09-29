@@ -567,7 +567,7 @@ func TestGetPosts_Different_Statuses(t *testing.T) {
 	plannedPostResponse := &cmd.SetPostResponse{Post: plannedPost.Result, Text: "This is planned", Status: enum.PostPlanned}
 	duplicatePostResponse := &cmd.SetPostResponse{Post: duplicatePost.Result, Text: "This is a dupe", Status: enum.PostDeclined}
 
-	err = bus.Dispatch(aryaStarkCtx, startedPostResponse, completedPostResponse, duplicatePostResponse, declinedPostResponse, plannedPostResponse)
+	err = bus.Dispatch(jonSnowCtx, startedPostResponse, completedPostResponse, duplicatePostResponse, declinedPostResponse, plannedPostResponse)
 	Expect(err).IsNil()
 
 	testCases := []struct {

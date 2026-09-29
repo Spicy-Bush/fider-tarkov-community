@@ -121,7 +121,7 @@ func TestDiscussionAttachmentEditReceiptAndVisibility(t *testing.T) {
 				t.Fatalf("%s status=%d, want=%d", variant.path, response.Code, want)
 			}
 
-			if response.Header().Get("Cache-Control") != "private, no-store" && want == http.StatusOK {
+			if response.Header().Get("Cache-Control") != "private, no-cache" && want == http.StatusOK {
 				t.Fatalf("attachment cache policy: %v", response.Header())
 			}
 
@@ -166,5 +166,7 @@ func TestDiscussionAttachmentEditReceiptAndVisibility(t *testing.T) {
 	if err := bus.Dispatch(f.ctx, &cmd.DeleteComment{CommentID: create.Result.ID}); err != nil {
 		t.Fatal(err)
 	}
-	checkImage(f.user, http.StatusNotFound)
+	checkImage(nil, http.StatusNotFound)
+	checkImage(&moderator, http.StatusNotFound)
+	checkImage(f.user, http.StatusOK)
 }

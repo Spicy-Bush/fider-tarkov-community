@@ -1,5 +1,5 @@
 import { http, Result, querystring } from "@fider/services"
-import { Page, PageDraft, PageTag, PageTopic } from "@fider/models"
+import { Page, PageTag, PageTopic } from "@fider/models"
 
 export interface SearchPagesParams {
   q?: string
@@ -27,50 +27,9 @@ export const searchPages = async (params: SearchPagesParams): Promise<Result<Sea
   return http.get<SearchPagesResult>(`/api/pages${qs}`)
 }
 
-export interface CreatePageInput {
-  title: string
-  slug?: string
-  content: string
-  excerpt?: string
-  bannerImage?: any
-  status: string
-  visibility: string
-  allowedRoles?: string[]
-  parentPageId?: number
-  allowComments?: boolean
-  allowCommentImages?: boolean
-  allowReactions?: boolean
-  showToc?: boolean
-  scheduledFor?: string
-  authors?: number[]
-  topics?: number[]
-  tags?: number[]
-  metaDescription?: string
-  canonicalUrl?: string
-}
-
-export interface UpdatePageInput extends CreatePageInput {
-  id: number
-}
-
-export const createPage = async (input: CreatePageInput): Promise<Result<Page>> => {
-  return http.post<Page>("/api/pages", input)
-}
-
-export const updatePage = async (id: number, input: UpdatePageInput): Promise<Result<Page>> => {
-  return http.put<Page>(`/api/pages/${id}`, input)
-}
 
 export const deletePage = async (id: number): Promise<Result> => {
   return http.delete(`/api/pages/${id}`)
-}
-
-export const savePageDraft = async (id: number, draft: Partial<PageDraft>): Promise<Result> => {
-  return http.post(`/api/pages/${id}/draft`, draft)
-}
-
-export const getPageDraft = async (id: number): Promise<Result<PageDraft>> => {
-  return http.get<PageDraft>(`/api/pages/${id}/draft`)
 }
 
 export const togglePageReaction = async (id: number, emoji: string): Promise<Result<{ added: boolean }>> => {

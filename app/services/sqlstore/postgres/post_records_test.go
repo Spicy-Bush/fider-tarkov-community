@@ -19,7 +19,13 @@ import (
 
 func TestPostRecordSelection(t *testing.T) {
 	f := newPostWorkflow(t)
-	rows, err := dbx.Connection().Query(`
+	transaction, err := mediaFixtureTransaction(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer transaction.Rollback()
+
+	rows, err := transaction.Query(`
 		INSERT INTO posts (tenant_id, user_id, title, slug, description, status, created_at)
 		SELECT $1, $2, 'Selected ' || status, 'selected-' || status, 'Body', status, NOW()
 		FROM generate_series(0, 7) status
@@ -42,6 +48,9 @@ func TestPostRecordSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := transaction.Commit(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -90,10 +99,10 @@ func TestPostRecordSelection(t *testing.T) {
 		}
 	}
 
-	if _, err := dbx.Connection().Exec("UPDATE posts SET moderation_pending = TRUE WHERE id = $1", ids[0]); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE posts SET moderation_pending = TRUE WHERE id = $1", ids[0]); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbx.Connection().Exec(`
+	if _, err := mediaFixtureSQL(`
 		UPDATE posts SET original_id = $1, response = 'Duplicate', response_date = NOW(), response_user_id = 1
 		WHERE id = $2
 	`, ids[0], ids[5]); err != nil {
@@ -140,7 +149,7 @@ func TestPostRecordSelection(t *testing.T) {
 func TestPostRecordSelectionUsesSearchCriteria(t *testing.T) {
 	f := newPostWorkflow(t)
 	var ids []int64
-	err := dbx.Connection().QueryRow(`
+	err := mediaFixtureScalar(pq.Array(&ids), `
 		WITH added AS (
 			INSERT INTO posts (tenant_id, user_id, title, slug, description, status, created_at)
 			SELECT $1, $2, CASE WHEN n <= 25 OR n > 50 THEN 'Needle' ELSE 'Other' END,
@@ -149,7 +158,7 @@ func TestPostRecordSelectionUsesSearchCriteria(t *testing.T) {
 			RETURNING id
 		)
 		SELECT array_agg(id ORDER BY id) FROM added
-	`, f.tenant.ID, f.user.ID).Scan(pq.Array(&ids))
+	`, f.tenant.ID, f.user.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,10 +179,10 @@ func TestPostRecordSelectionUsesSearchCriteria(t *testing.T) {
 	`, f.tenant.ID, pq.Array(ids[:2])); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbx.Connection().Exec("UPDATE posts SET status = 1 WHERE id = $1", ids[0]); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE posts SET status = 1 WHERE id = $1", ids[0]); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbx.Connection().Exec("UPDATE posts SET created_at = NOW() - INTERVAL '30 days' WHERE id = ANY($1)", pq.Array(ids[:2])); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE posts SET created_at = NOW() - INTERVAL '30 days' WHERE id = ANY($1)", pq.Array(ids[:2])); err != nil {
 		t.Fatal(err)
 	}
 
@@ -232,7 +241,7 @@ func TestPostRecordSelectionUsesSearchCriteria(t *testing.T) {
 
 func BenchmarkPostRecordSelection(b *testing.B) {
 	f := newPostWorkflow(b)
-	if _, err := dbx.Connection().Exec(`
+	if _, err := mediaFixtureSQL(`
 		INSERT INTO posts (tenant_id, user_id, title, slug, description, status, created_at)
 		SELECT $1, $2, 'Post ' || n, 'post-' || n, repeat('Post body. ', 30), 0, NOW()
 		FROM generate_series(1, 5000) n

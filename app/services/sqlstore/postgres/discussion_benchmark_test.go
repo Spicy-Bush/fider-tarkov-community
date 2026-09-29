@@ -22,7 +22,7 @@ func BenchmarkDiscussionReadHTTP(b *testing.B) {
 	}
 
 	for first := 1; first <= 5000; first += 50 {
-		_, err := dbx.Connection().Exec(`
+		_, err := mediaFixtureSQL(`
             WITH roots AS (
                 INSERT INTO comments (tenant_id, post_id, user_id, content, created_at)
                 SELECT $1, $2, $3, 'Root comment ' || n, NOW() - n * INTERVAL '1 second'
@@ -136,7 +136,7 @@ func BenchmarkDiscussionDeepChainHTTP(b *testing.B) {
 	var parentID *int
 	for batch := 0; batch < 50; batch++ {
 		var lastID int
-		err := dbx.Connection().QueryRow(`
+		err := mediaFixtureScalar(&lastID, `
             WITH nodes AS MATERIALIZED (
                 SELECT nextval(pg_get_serial_sequence('comments', 'id'))::integer AS id, n
                 FROM generate_series(1, 100) n
@@ -147,7 +147,7 @@ func BenchmarkDiscussionDeepChainHTTP(b *testing.B) {
                 RETURNING id
             )
             SELECT MAX(id) FROM inserted
-        `, f.tenant.ID, post.Result.ID, f.user.ID, parentID).Scan(&lastID)
+        `, f.tenant.ID, post.Result.ID, f.user.ID, parentID)
 		if err != nil {
 			b.Fatal(err)
 		}

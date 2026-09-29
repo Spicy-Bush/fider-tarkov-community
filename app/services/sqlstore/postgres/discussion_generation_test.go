@@ -108,7 +108,7 @@ func TestDiscussionTreeGenerationRollbackAndInvalidation(t *testing.T) {
 
 	rank(f.ctx, roots[1], 0)
 
-	if _, err := dbx.Connection().Exec("UPDATE comments SET deleted_at = NULL WHERE id = $1", committed.Result.ID); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE comments SET deleted_at = NULL WHERE id = $1", committed.Result.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -120,7 +120,7 @@ func TestDiscussionTreeGenerationRollbackAndInvalidation(t *testing.T) {
 
 	rank(f.ctx, roots[1], 0)
 
-	if _, err := dbx.Connection().Exec("UPDATE comments SET created_at = NOW() WHERE id = $1", roots[0]); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE comments SET created_at = NOW() WHERE id = $1", roots[0]); err != nil {
 		t.Fatal(err)
 	}
 
@@ -130,7 +130,7 @@ func TestDiscussionTreeGenerationRollbackAndInvalidation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := dbx.Connection().Exec("UPDATE comments SET content = 'Unversioned current body' WHERE id = $1", roots[0]); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE comments SET content = 'Unversioned current body' WHERE id = $1", roots[0]); err != nil {
 		t.Fatal(err)
 	}
 

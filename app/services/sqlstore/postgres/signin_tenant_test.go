@@ -13,7 +13,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
@@ -42,7 +41,7 @@ func TestSignInVerificationBelongsToTenant(t *testing.T) {
 
 	for _, role := range []enum.Role{enum.RoleVisitor, enum.RoleHelper, enum.RoleModerator, enum.RoleCollaborator, enum.RoleAdministrator} {
 		t.Run(role.String(), func(t *testing.T) {
-			if _, err := dbx.Connection().Exec("UPDATE users SET role = $1 WHERE tenant_id = $2 AND id = $3", role, f.tenant.ID, 1); err != nil {
+			if _, err := mediaFixtureSQL("UPDATE users SET role = $1 WHERE tenant_id = $2 AND id = $3", role, f.tenant.ID, 1); err != nil {
 				t.Fatal(err)
 			}
 
@@ -77,7 +76,7 @@ func TestPrivateTenantProfileCompletionRequiresInvitation(t *testing.T) {
 	f := newPostWorkflow(t)
 	f.user = nil
 	f.tenant.IsPrivate = true
-	if _, err := dbx.Connection().Exec("UPDATE tenants SET is_private = TRUE WHERE id = $1", f.tenant.ID); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE tenants SET is_private = TRUE WHERE id = $1", f.tenant.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -100,7 +99,7 @@ func TestPrivateTenantProfileCompletionRequiresInvitation(t *testing.T) {
 	}
 
 	f.tenant.IsPrivate = false
-	if _, err := dbx.Connection().Exec("UPDATE tenants SET is_private = FALSE WHERE id = $1", f.tenant.ID); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE tenants SET is_private = FALSE WHERE id = $1", f.tenant.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -111,7 +110,7 @@ func TestPrivateTenantProfileCompletionRequiresInvitation(t *testing.T) {
 	}
 
 	f.tenant.IsPrivate = true
-	if _, err := dbx.Connection().Exec("UPDATE tenants SET is_private = TRUE WHERE id = $1", f.tenant.ID); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE tenants SET is_private = TRUE WHERE id = $1", f.tenant.ID); err != nil {
 		t.Fatal(err)
 	}
 

@@ -224,10 +224,6 @@ func ChangeUserRole() web.HandlerFunc {
 			if err := bus.Dispatch(c, changeRole); err != nil {
 				return c.Failure(err)
 			}
-			updated := &query.GetUserByID{UserID: action.UserID}
-			if err := bus.Dispatch(c, updated); err != nil {
-				return c.Failure(err)
-			}
 
 			// Handle userlist
 			if env.Config.UserList.Enabled {
@@ -235,11 +231,11 @@ func ChangeUserRole() web.HandlerFunc {
 			}
 
 			return c.Ok(web.Map{
-				"id": updated.Result.ID,
-				"role": updated.Result.Role,
-				"visualRole": updated.Result.GetVisualRole(),
-				"visualRoleOverride": updated.Result.VisualRole,
-				"permissions": updated.Result.AllowedActions(c.User(), c.Tenant()),
+				"id":                 changeRole.Result.ID,
+				"role":               changeRole.Result.Role,
+				"visualRole":         changeRole.Result.GetVisualRole(),
+				"visualRoleOverride": changeRole.Result.VisualRole,
+				"permissions":        changeRole.Result.Permissions,
 			})
 		})
 	}

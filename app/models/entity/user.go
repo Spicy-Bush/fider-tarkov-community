@@ -67,23 +67,9 @@ func (u *User) HasProvider(provider string) bool {
 	return false
 }
 
-// IsCollaborator returns true if user has special permissions
-func (u *User) IsCollaborator() bool {
-	return u.Role == enum.RoleCollaborator || u.Role == enum.RoleAdministrator
-}
-
 // IsAdministrator returns true if user is administrator
 func (u *User) IsAdministrator() bool {
 	return u.Role == enum.RoleAdministrator
-}
-
-// IsModerator returns true if user is moderator
-func (u *User) IsModerator() bool {
-	return u.Role == enum.RoleModerator
-}
-
-func (u *User) IsHelper() bool {
-	return u.Role == enum.RoleHelper
 }
 
 // IsMuted returns true if user is currently muted

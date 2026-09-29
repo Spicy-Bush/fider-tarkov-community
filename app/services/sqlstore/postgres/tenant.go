@@ -2,7 +2,9 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
 type dbTenant struct {
@@ -34,6 +37,8 @@ type dbTenant struct {
 	IsEmailAuthAllowed bool           `db:"is_email_auth_allowed"`
 	GeneralSettings    dbx.NullString `db:"general_settings"`
 	MessageBanner      string         `db:"message_banner"`
+	RolePermissions    string         `db:"role_permissions"`
+	RolePostResponses  string         `db:"role_post_responses"`
 }
 
 func (t *dbTenant) toModel() *entity.Tenant {
@@ -67,6 +72,48 @@ func (t *dbTenant) toModel() *entity.Tenant {
 	}
 
 	return tenant
+}
+
+func parseRolePermissions(stored string) (entity.RolePermissions, error) {
+	var decoded map[enum.Role]map[entity.Permission]bool
+	if err := json.Unmarshal([]byte(stored), &decoded); err != nil {
+		return nil, errors.Wrap(err, "failed to parse role permissions")
+	}
+
+	overrides := make(entity.RolePermissions, len(decoded))
+	for role, permissions := range decoded {
+		if !entity.IsPermissionRole(role) || role == enum.RoleAdministrator {
+			continue
+		}
+		for permission, granted := range permissions {
+			if !entity.IsPermission(permission) {
+				continue
+			}
+			if overrides[role] == nil {
+				overrides[role] = map[entity.Permission]bool{}
+			}
+			overrides[role][permission] = granted
+		}
+	}
+	return overrides, nil
+}
+
+func parseRolePostResponses(stored string) (entity.RolePostResponses, error) {
+	var decoded entity.RolePostResponses
+	if err := json.Unmarshal([]byte(stored), &decoded); err != nil {
+		return nil, errors.Wrap(err, "failed to parse role responses")
+	}
+	for role, responses := range decoded {
+		if !entity.IsPermissionRole(role) || responses == nil {
+			return nil, fmt.Errorf("invalid saved response configuration")
+		}
+		for _, status := range responses {
+			if !entity.IsResponseStatus(status) {
+				return nil, fmt.Errorf("invalid saved response status")
+			}
+		}
+	}
+	return decoded, nil
 }
 
 type dbEmailVerification struct {
@@ -136,6 +183,133 @@ func updateGeneralSettings(ctx context.Context, c *cmd.UpdateContentSettings) er
 		}
 
 		tenant.GeneralSettings = c.Settings
+		return nil
+	})
+}
+
+func getRolePermissionState(ctx context.Context, q *query.GetRolePermissionState) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		var stored struct {
+			Permissions string `db:"role_permissions"`
+			Responses   string `db:"role_post_responses"`
+		}
+		if err := trx.Get(&stored, `SELECT role_permissions, role_post_responses FROM tenants WHERE id = $1`, tenant.ID); err != nil {
+			return err
+		}
+
+		permissions, err := parseRolePermissions(stored.Permissions)
+		if err != nil {
+			return err
+		}
+
+		current := *tenant
+		current.RolePermissions = permissions
+		if current.RolePostResponses, err = parseRolePostResponses(stored.Responses); err != nil {
+			return err
+		}
+		q.Result = current.PermissionState(user)
+		return nil
+	})
+}
+
+func updateRolePermissions(ctx context.Context, c *cmd.UpdateRolePermissions) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if user == nil {
+			return validate.Unauthorized()
+		}
+
+		var stored struct {
+			Status            enum.TenantStatus `db:"status"`
+			RolePermissions   string            `db:"role_permissions"`
+			RolePostResponses string            `db:"role_post_responses"`
+		}
+		if err := trx.Get(&stored, `
+			SELECT role_permissions, role_post_responses, status
+			FROM tenants
+			WHERE id = $1
+			FOR UPDATE
+		`, tenant.ID); err != nil {
+			return errors.Wrap(err, "failed to lock role permissions")
+		}
+
+		lockedActor, err := lockPermissionActor(trx, tenant.ID, user)
+		if err != nil {
+			return err
+		}
+
+		current, err := parseRolePermissions(stored.RolePermissions)
+		if err != nil {
+			return err
+		}
+
+		lockedTenant := &entity.Tenant{
+			ID:              tenant.ID,
+			Status:          stored.Status,
+			RolePermissions: current,
+		}
+		if lockedTenant.RolePostResponses, err = parseRolePostResponses(stored.RolePostResponses); err != nil {
+			return err
+		}
+		if !entity.Can(lockedActor, lockedTenant, entity.ManageRolePermissions) {
+			return validate.Unauthorized()
+		}
+
+		var operation any = c.Changes
+		if len(c.ResponseChanges) > 0 {
+			operation = struct {
+				Changes   []entity.RolePermissionChange
+				Responses []entity.RoleResponseChange
+			}{c.Changes, c.ResponseChanges}
+		}
+		fingerprint, err := json.Marshal(operation)
+		if err != nil {
+			return err
+		}
+
+		receipt := commandReceipt{
+			TenantID: tenant.ID, UserID: user.ID, Kind: "role-permissions",
+			SubmissionID: c.SubmissionID, Fingerprint: fmt.Sprintf("%x", sha256.Sum256(fingerprint)),
+		}
+		replayed, err := receipt.read(trx, nil)
+		if err != nil {
+			return err
+		}
+		if replayed {
+			c.Result = entity.RolePermissionUpdate{RolePermissionState: lockedTenant.PermissionState(lockedActor)}
+			return nil
+		}
+
+		next, nextResponses, blocked := lockedTenant.ApplyRoleConfiguration(lockedActor, c.Changes, c.ResponseChanges)
+		if blocked != "" {
+			c.Result = entity.RolePermissionUpdate{
+				RolePermissionState: lockedTenant.PermissionState(lockedActor),
+				Blocked:             blocked,
+			}
+			return nil
+		}
+
+		if len(next.ChangesFrom(current)) > 0 || !nextResponses.Equal(lockedTenant.RolePostResponses) {
+			encoded, err := json.Marshal(next)
+			if err != nil {
+				return errors.Wrap(err, "failed to marshal role permissions")
+			}
+
+			encodedResponses, err := json.Marshal(nextResponses)
+			if err != nil {
+				return err
+			}
+			if _, err := trx.Execute("UPDATE tenants SET role_permissions = $1, role_post_responses=$3 WHERE id = $2", encoded, tenant.ID, encodedResponses); err != nil {
+				return errors.Wrap(err, "failed to update role permissions")
+			}
+		}
+
+		if err := receipt.save(trx, nil); err != nil {
+			return err
+		}
+
+		tenant.RolePermissions = next
+		tenant.RolePostResponses = nextResponses
+		c.Result = entity.RolePermissionUpdate{RolePermissionState: tenant.PermissionState(lockedActor)}
 		return nil
 	})
 }
@@ -334,7 +508,7 @@ func getFirstTenant(ctx context.Context, q *query.GetFirstTenant) error {
 		tenant := dbTenant{}
 
 		err := trx.Get(&tenant, `
-			SELECT id, name, subdomain, cname, invitation, locale, welcome_message, status, is_private, logo_bkey, custom_css, is_email_auth_allowed, profanity_words, general_settings, message_banner
+			SELECT id, name, subdomain, cname, invitation, locale, welcome_message, status, is_private, logo_bkey, custom_css, is_email_auth_allowed, profanity_words, general_settings, message_banner, role_permissions, role_post_responses
 			FROM tenants
 			ORDER BY id LIMIT 1
 		`)
@@ -343,7 +517,15 @@ func getFirstTenant(ctx context.Context, q *query.GetFirstTenant) error {
 			return errors.Wrap(err, "failed to get first tenant")
 		}
 
-		q.Result = tenant.toModel()
+		result := tenant.toModel()
+		if result.RolePermissions, err = parseRolePermissions(tenant.RolePermissions); err != nil {
+			return err
+		}
+
+		if result.RolePostResponses, err = parseRolePostResponses(tenant.RolePostResponses); err != nil {
+			return err
+		}
+		q.Result = result
 		return nil
 	})
 }
@@ -353,7 +535,7 @@ func getTenantByDomain(ctx context.Context, q *query.GetTenantByDomain) error {
 		tenant := dbTenant{}
 
 		err := trx.Get(&tenant, `
-			SELECT id, name, subdomain, cname, invitation, locale, welcome_message, status, is_private, logo_bkey, custom_css, is_email_auth_allowed, profanity_words, general_settings, message_banner
+			SELECT id, name, subdomain, cname, invitation, locale, welcome_message, status, is_private, logo_bkey, custom_css, is_email_auth_allowed, profanity_words, general_settings, message_banner, role_permissions, role_post_responses
 			FROM tenants t
 			WHERE subdomain = $1 OR subdomain = $2 OR cname = $3 
 			ORDER BY cname DESC
@@ -362,7 +544,15 @@ func getTenantByDomain(ctx context.Context, q *query.GetTenantByDomain) error {
 			return errors.Wrap(err, "failed to get tenant with domain '%s'", q.Domain)
 		}
 
-		q.Result = tenant.toModel()
+		result := tenant.toModel()
+		if result.RolePermissions, err = parseRolePermissions(tenant.RolePermissions); err != nil {
+			return err
+		}
+
+		if result.RolePostResponses, err = parseRolePostResponses(tenant.RolePostResponses); err != nil {
+			return err
+		}
+		q.Result = result
 		return nil
 	})
 }

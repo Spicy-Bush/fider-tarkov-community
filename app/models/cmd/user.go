@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 )
@@ -24,6 +23,7 @@ type DeleteCurrentUser struct {
 type ChangeUserRole struct {
 	UserID int
 	Role   enum.Role
+	Result *entity.User
 }
 
 type ChangeUserEmail struct {
@@ -43,24 +43,6 @@ type RegisterUserProvider struct {
 	UserID       int
 	ProviderName string
 	ProviderUID  string
-}
-
-type UpdateCurrentUser struct {
-	Name       string
-	AvatarType enum.AvatarType
-	Avatar     *dto.ImageUpload
-}
-
-type UpdateUserAvatar struct {
-	UserID     int
-	Name       string
-	AvatarType enum.AvatarType
-	Avatar     *dto.ImageUpload
-}
-
-type UpdateUser struct {
-	UserID int
-	Name   string
 }
 
 type ChangeUserVisualRole struct {

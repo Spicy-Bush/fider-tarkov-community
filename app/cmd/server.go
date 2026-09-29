@@ -43,7 +43,8 @@ func RunServer() int {
 	svcs := bus.Init()
 	bus.Freeze()
 	bus.EnableTypedDispatch() // see ./scripts/generate-bus-dispatch.go for more details
-	ctx := log.WithProperty(context.Background(), log.PropertyKeyTag, "BOOTSTRAP")
+	ctx, cancel := context.WithCancel(log.WithProperty(context.Background(), log.PropertyKeyTag, "BOOTSTRAP"))
+	defer cancel()
 	for _, s := range svcs {
 		log.Debugf(ctx, "Service '@{ServiceCategory}.@{ServiceName}' has been initialized.", dto.Props{
 			"ServiceCategory": s.Category(),
@@ -89,6 +90,10 @@ func startJobs(ctx context.Context) {
 	_ = c.AddJob(jobs.NewJob(ctx, "RefreshCrawlerIPsJob", jobs.RefreshCrawlerIPsJobHandler{}))
 	_ = c.AddJob(jobs.NewJob(ctx, "PublishScheduledPagesJob", jobs.PublishScheduledPagesJobHandler{}))
 	_ = c.AddJob("* * * * * *", &jobs.NotificationDeliveryJob{})
+	_ = c.AddJob("*/30 * * * * *", &jobs.MediaCleanupJob{})
+	inventory := &jobs.MediaInventoryJob{Context: ctx}
+	_ = c.AddJob("@every 5s", inventory)
+	go inventory.Run()
 
 	if env.IsBillingEnabled() {
 		_ = c.AddJob(jobs.NewJob(ctx, "LockExpiredTenantsJob", jobs.LockExpiredTenantsJobHandler{}))

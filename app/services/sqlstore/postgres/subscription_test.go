@@ -64,7 +64,7 @@ func TestSubscription_SelectedRecipients(t *testing.T) {
 	}
 	for _, event := range []enum.NotificationEvent{enum.NotificationEventNewPost, enum.NotificationEventNewComment} {
 		for _, selection := range []struct {
-			ids []int
+			ids  []int
 			want int
 		}{
 			{nil, 1},
@@ -316,7 +316,7 @@ func TestSubscription_DeletedPost(t *testing.T) {
 	err := bus.Dispatch(aryaStarkCtx, newPost)
 	Expect(err).IsNil()
 
-	err = bus.Dispatch(aryaStarkCtx, &cmd.SetPostResponse{Post: newPost.Result, Text: "Invalid Post!", Status: enum.PostDeleted})
+	err = bus.Dispatch(jonSnowCtx, &cmd.SetPostResponse{Post: newPost.Result, Text: "Invalid Post!", Status: enum.PostDeleted})
 	Expect(err).IsNil()
 
 	q := &query.GetActiveSubscribers{Number: newPost.Result.Number, Channel: enum.NotificationChannelWeb, Event: enum.NotificationEventChangeStatus}

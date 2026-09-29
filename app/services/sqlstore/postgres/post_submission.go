@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
@@ -10,67 +9,102 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
 func submitPost(ctx context.Context, c *cmd.SubmitPost) error {
-	if c.SubmissionID == "" || len(c.SubmissionID) > 128 {
+	if !validate.ValidSubmissionID(c.SubmissionID) {
 		return validate.Failed("Invalid submission identity.")
 	}
 
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		lock := fmt.Sprintf("post:%d:%d:%s", tenant.ID, user.ID, c.SubmissionID)
-		if _, err := trx.Execute("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", lock); err != nil {
-			return err
-		}
-
-		var receipt struct {
-			Hash   string `db:"submission_hash"`
-			Result string `db:"submission_result"`
-		}
-
-		err := trx.Get(&receipt, `SELECT submission_hash, submission_result::text
-			FROM posts WHERE tenant_id = $1 AND user_id = $2 AND submission_id = $3`,
-			tenant.ID, user.ID, c.SubmissionID)
-		if err == nil {
-			if receipt.Hash != c.Fingerprint {
-				return app.ErrConflict
+	for {
+		prepare := false
+		var imageIdentity string
+		err := using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+			if user == nil {
+				return validate.Unauthorized()
 			}
 
-			return json.Unmarshal([]byte(receipt.Result), &c.Result)
-		}
+			receipt := commandReceipt{
+				TenantID: tenant.ID, UserID: user.ID, Kind: "post",
+				SubmissionID: c.SubmissionID, Fingerprint: c.Fingerprint,
+			}
+			var savedID int
+			replayed, err := receipt.read(trx, &savedID)
+			if err != nil {
+				return err
+			}
 
-		if errors.Cause(err) != app.ErrNotFound {
-			return err
-		}
+			if !replayed {
+				// Allocating a post number also writes this tenant row.
+				if _, err := trx.Execute("SELECT id FROM tenants WHERE id=$1 FOR NO KEY UPDATE", tenant.ID); err != nil {
+					return err
+				}
+			}
+			ctx, err = lockedContentContext(ctx, trx, tenant, user)
+			if err != nil {
+				return err
+			}
+			tenant = ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+			user = ctx.Value(app.UserCtxKey).(*entity.User)
 
-		post, err := c.Create(ctx)
-		if err != nil || post == nil {
-			return err
-		}
+			if replayed {
+				var saved struct {
+					ID     int    `db:"id"`
+					Number int    `db:"number"`
+					Title  string `db:"title"`
+					Slug   string `db:"slug"`
+				}
+				if err := trx.Get(&saved, `
+					SELECT post.id, post.number, COALESCE(visible.title, '') AS title,
+						COALESCE(visible.slug, '') AS slug
+					FROM posts post
+					LEFT JOIN visible_posts_for($1, $3::boolean, $2) visible ON visible.id=post.id
+					WHERE post.tenant_id=$1 AND post.id=$4
+				`, tenant.ID, user.ID, entity.Can(user, tenant, entity.ModeratePosts), savedID); err != nil {
+					return err
+				}
+				c.Result = &dto.PostSubmissionReceipt{ID: saved.ID, Number: saved.Number, Title: saved.Title, Slug: saved.Slug}
+				return nil
+			}
 
-		c.Result = &dto.PostSubmissionReceipt{
-			ID:     post.ID,
-			Number: post.Number,
-			Title:  post.Title,
-			Slug:   post.Slug,
-		}
+			if err := c.Validate(ctx); err != nil {
+				return err
+			}
+			if imagesNeedPreparation(c.Attachments) {
+				prepare = true
+				imageIdentity = fmt.Sprintf("post:%d:%d:%s:%s", tenant.ID, user.ID, c.SubmissionID, c.Fingerprint)
+				return nil
+			}
 
-		encoded, err := json.Marshal(c.Result)
-		if err != nil {
-			return err
-		}
+			post, err := c.Create(ctx)
+			if err != nil || post == nil {
+				return err
+			}
+			c.Result = &dto.PostSubmissionReceipt{
+				ID:     post.ID,
+				Number: post.Number,
+				Title:  post.Title,
+				Slug:   post.Slug,
+			}
 
-		if _, err := trx.Execute(`UPDATE posts SET submission_id = $1,
-			submission_hash = $2, submission_result = $3 WHERE id = $4 AND tenant_id = $5`,
-			c.SubmissionID, c.Fingerprint, string(encoded), post.ID, tenant.ID); err != nil {
-			return err
-		}
+			if err := receipt.save(trx, post.ID); err != nil {
+				return err
+			}
 
-		return scheduleNotification(ctx, &cmd.ScheduleNotification{
-			Post:    post,
-			BaseURL: c.BaseURL,
+			if err := scheduleNotification(ctx, &cmd.ScheduleNotification{
+				PostID:  post.ID,
+				BaseURL: c.BaseURL,
+			}); err != nil {
+				return err
+			}
+			return nil
 		})
-	})
+		if err != nil || !prepare {
+			return err
+		}
+		if err := prepareSubmissionImages(ctx, c.Attachments, imageIdentity); err != nil {
+			return err
+		}
+	}
 }

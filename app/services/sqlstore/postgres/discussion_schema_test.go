@@ -11,7 +11,7 @@ import (
 func TestDiscussionSchemaConstraints(t *testing.T) {
 	newPostWorkflow(t)
 
-	_, err := dbx.Connection().Exec(`
+	_, err := mediaFixtureSQL(`
         INSERT INTO posts (id, tenant_id, user_id, number, title, slug, status, created_at)
         VALUES (1, 1, 1, 1, 'First post', 'first', 1, NOW()),
                (2, 1, 1, 2, 'Second post', 'second', 1, NOW()),
@@ -22,16 +22,25 @@ func TestDiscussionSchemaConstraints(t *testing.T) {
                (2, 1, 1, 1, 'Second Page', 'second', 'Content'),
                (3, 2, 4, 4, 'Other tenant', 'other', 'Content');
 
-        INSERT INTO comments (id, tenant_id, user_id, post_id, page_id, parent_id, submission_id, content, created_at)
-        VALUES (1, 1, 1, 1, NULL, NULL, 'original', 'Post root', NOW()),
-               (2, 1, 1, 1, NULL, 1, 'reply', 'Post reply', NOW()),
-               (3, 1, 1, NULL, 1, NULL, 'page', 'Page root', NOW()),
-               (4, 1, 1, NULL, 1, 3, 'page-reply', 'Page reply', NOW()),
-               (5, 2, 4, 3, NULL, NULL, 'original', 'Other tenant post', NOW()),
-               (6, 2, 4, NULL, 3, NULL, 'page', 'Other tenant Page', NOW()),
-               (7, 1, 2, 1, NULL, NULL, 'original', 'Other author', NOW()),
-               (8, 1, 1, 1, NULL, NULL, NULL, 'Existing root', NOW()),
-               (9, 1, 1, 1, NULL, NULL, NULL, 'Another existing root', NOW());
+        INSERT INTO comments (id, tenant_id, user_id, post_id, page_id, parent_id, content, created_at)
+        VALUES (1, 1, 1, 1, NULL, NULL, 'Post root', NOW()),
+               (2, 1, 1, 1, NULL, 1, 'Post reply', NOW()),
+               (3, 1, 1, NULL, 1, NULL, 'Page root', NOW()),
+               (4, 1, 1, NULL, 1, 3, 'Page reply', NOW()),
+               (5, 2, 4, 3, NULL, NULL, 'Other tenant post', NOW()),
+               (6, 2, 4, NULL, 3, NULL, 'Other tenant Page', NOW()),
+               (7, 1, 2, 1, NULL, NULL, 'Other author', NOW()),
+               (8, 1, 1, 1, NULL, NULL, 'Existing root', NOW()),
+               (9, 1, 1, 1, NULL, NULL, 'Another existing root', NOW());
+
+        INSERT INTO command_receipts (tenant_id, user_id, kind, submission_id, fingerprint, result)
+        VALUES (1, 1, 'comment', 'original', 'hash', '1'),
+               (1, 1, 'comment', 'reply', 'hash', '2'),
+               (1, 1, 'comment', 'page', 'hash', '3'),
+               (1, 1, 'comment', 'page-reply', 'hash', '4'),
+               (2, 4, 'comment', 'original', 'hash', '5'),
+               (2, 4, 'comment', 'page', 'hash', '6'),
+               (1, 2, 'comment', 'original', 'hash', '7');
 
         INSERT INTO attachments (tenant_id, user_id, post_id, comment_id, attachment_bkey)
         VALUES (1, 1, 1, 2, 'attachments/post-reply.png'),
@@ -86,7 +95,7 @@ func TestDiscussionSchemaConstraints(t *testing.T) {
 		{"change tenant", `UPDATE comments SET tenant_id = 2, user_id = 4, post_id = 3 WHERE id = 1`, "P0001"},
 		{
 			"duplicate submission",
-			`INSERT INTO comments (id, tenant_id, user_id, post_id, submission_id, created_at) VALUES (20, 1, 1, 2, 'original', NOW())`,
+			`INSERT INTO command_receipts (tenant_id, user_id, kind, submission_id, fingerprint, result) VALUES (1, 1, 'comment', 'original', 'hash', '20')`,
 			"23505",
 		},
 		{
@@ -110,7 +119,7 @@ func TestDiscussionSchemaConstraints(t *testing.T) {
 		})
 	}
 
-	if _, err := dbx.Connection().Exec("UPDATE comments SET content = 'Edited', moderation_pending = TRUE WHERE id = 2"); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE comments SET content = 'Edited', moderation_pending = TRUE WHERE id = 2"); err != nil {
 		t.Fatalf("ordinary comment edit rejected: %v", err)
 	}
 

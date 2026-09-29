@@ -4,7 +4,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/metrics"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -51,11 +50,6 @@ func vote(direction int) web.HandlerFunc {
 		if change.State.Applied {
 			if change.State.Direction != 0 {
 				metrics.TotalVotes.Inc()
-			}
-
-			postcache.InvalidateTenantRankings(c.Tenant().ID)
-			if change.Unarchived {
-				postcache.InvalidateCountPerStatus(c.Tenant().ID)
 			}
 		}
 

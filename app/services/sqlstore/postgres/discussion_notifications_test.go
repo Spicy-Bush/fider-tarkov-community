@@ -215,10 +215,10 @@ func TestDiscussionNotificationDeliveryRecoversWithoutRepeatingHealthyRecipients
 	}
 
 	var parentID int
-	if err := dbx.Connection().QueryRow(`
+	if err := mediaFixtureScalar(&parentID, `
 		INSERT INTO comments (tenant_id, page_id, user_id, content, created_at)
 		VALUES ($1, $2, $3, 'Original comment', NOW()) RETURNING id
-	`, f.tenant.ID, page.Result.ID, parent.ID).Scan(&parentID); err != nil {
+	`, f.tenant.ID, page.Result.ID, parent.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -267,6 +267,9 @@ func TestDiscussionNotificationDeliveryRecoversWithoutRepeatingHealthyRecipients
 		if unavailable && recipient.Address == parent.Email {
 			return errors.New("SMTP unavailable")
 		}
+		if !unavailable && (!strings.Contains(fmt.Sprint(mail.Props["content"]), "Current reply") || mail.Props["title"] != "Current discussion") {
+			t.Fatalf("retry rendered stale content: %v", mail.Props)
+		}
 
 		return nil
 	})
@@ -280,6 +283,9 @@ func TestDiscussionNotificationDeliveryRecoversWithoutRepeatingHealthyRecipients
 
 		if unavailable {
 			return errors.New("webhook unavailable")
+		}
+		if !strings.Contains(fmt.Sprint(hook.Props["comment"]), "Current reply") || hook.Props["page_title"] != "Current discussion" {
+			t.Fatalf("webhook rendered stale content: %v", hook.Props)
 		}
 
 		return nil
@@ -308,6 +314,17 @@ func TestDiscussionNotificationDeliveryRecoversWithoutRepeatingHealthyRecipients
 
 	if count := workflowCount(t, "SELECT COUNT(*) FROM notifications"); count != 2 {
 		t.Fatalf("parent/subscriber/mention overlap created %d web notifications", count)
+	}
+
+	create.Content = "Current reply " + create.Content
+	if _, err := mediaFixtureSQL("UPDATE comments SET content = $2 WHERE id = $1", create.Result.ID, create.Content); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mediaFixtureSQL(`
+        UPDATE pages SET title = 'Current discussion', visibility = 'private', allowed_roles = '["visitor"]'
+        WHERE id = $1
+    `, page.Result.ID); err != nil {
+		t.Fatal(err)
 	}
 
 	unavailable = false
@@ -382,7 +399,7 @@ func TestDiscussionNotificationInboxVisibility(t *testing.T) {
 		Title:     "New Page comment",
 		PageID:    page.Result.ID,
 		CommentID: comment.Result.ID,
-		Link: fmt.Sprintf("/pages/%s#comment-%d", page.Result.Slug, comment.Result.ID),
+		Link:      fmt.Sprintf("/pages/%s#comment-%d", page.Result.Slug, comment.Result.ID),
 	}
 	if err := bus.Dispatch(jonSnowCtx, notification); err != nil {
 		t.Fatal(err)
@@ -460,8 +477,8 @@ func TestDiscussionNotificationUsesEventPolicy(t *testing.T) {
 	}
 
 	event := &entity.CommentNotification{
-		CommentID: comment.Result.ID,
-		Owner: entity.PostDiscussion(post.Result).Owner,
+		CommentID:  comment.Result.ID,
+		Owner:      entity.PostDiscussion(post.Result).Owner,
 		MentionIDs: []int{aryaStark.ID},
 	}
 	check := func(channel enum.NotificationChannel, want int) {

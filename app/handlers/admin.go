@@ -281,6 +281,48 @@ func ManageAuthentication() web.HandlerFunc {
 	}
 }
 
+func ManagePermissionsPage() web.HandlerFunc {
+	return func(c *web.Context) error {
+		state := &query.GetRolePermissionState{}
+		if err := bus.Dispatch(c, state); err != nil {
+			return c.Failure(err)
+		}
+
+		return c.Page(http.StatusOK, web.Props{
+			Page:  "Administration/pages/ManagePermissions.page",
+			Title: "Permissions | Site Settings",
+			Data: web.Map{
+				"permissions":      state.Result.Permissions,
+				"defaults":         entity.RolePermissions(nil).GrantedByRole(),
+				"requires":         state.Result.Requires,
+				"baseLocks":        state.Result.BaseLocks,
+				"responses":        state.Result.Responses,
+				"defaultResponses": state.Result.DefaultResponses,
+				"responseOptions":  state.Result.ResponseOptions,
+				"responseLocks":    state.Result.ResponseLocks,
+			},
+		})
+	}
+}
+
+func UpdateRolePermissions() web.HandlerFunc {
+	return func(c *web.Context) error {
+		action := new(actions.UpdateRolePermissions)
+		if result := c.BindTo(action); !result.Ok {
+			return c.HandleValidation(result)
+		}
+
+		return c.WithTransaction(func() error {
+			command := &cmd.UpdateRolePermissions{SubmissionID: action.SubmissionID, Changes: action.Changes, ResponseChanges: action.ResponseChanges}
+			if err := bus.Dispatch(c, command); err != nil {
+				return c.Failure(err)
+			}
+
+			return c.Ok(command.Result)
+		})
+	}
+}
+
 // ManageCannedResponses is the page used by administrators to manage canned responses
 func ManageCannedResponses() web.HandlerFunc {
 	return func(c *web.Context) error {

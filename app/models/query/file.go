@@ -1,37 +1,36 @@
 package query
 
-import "github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
+import (
+	"time"
+
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
+)
 
 type ListImageFiles struct {
-	Page     int
-	PageSize int
-	Search   string
-	SortBy   string
-	SortDir  string
+	dto.FileFilters
 
 	Result     []*dto.FileInfo
 	Total      int
 	TotalPages int
+	TotalBytes int64
+	ListedAt   time.Time
 }
 
-type IsImageFileInUse struct {
+func NewListImageFiles() *ListImageFiles {
+	return &ListImageFiles{FileFilters: dto.DefaultFileFilters()}
+}
+
+type GetFileUsage struct {
+	BlobKey  string
+	Page     int
+	PageSize int
+
+	Result     []*dto.FileReference
+	Total      int
+	TotalPages int
+}
+
+type GetMediaFile struct {
 	BlobKey string
-
-	Result bool
-	UsedIn []string
-}
-
-type GetImageFile struct {
-	BlobKey string
-
-	Result *dto.FileInfo
-}
-
-type GetNameFromBlobKey struct {
-	BlobKey string
-	Result  string
-}
-
-type GetPrunableFiles struct {
-	Result []string
+	Result  *dto.FileInfo
 }

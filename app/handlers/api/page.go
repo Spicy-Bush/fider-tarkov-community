@@ -5,11 +5,9 @@ import (
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/tasks"
 )
 
 func SearchPages() web.HandlerFunc {
@@ -50,97 +48,6 @@ func SearchPages() web.HandlerFunc {
 	}
 }
 
-func CreatePage() web.HandlerFunc {
-	return func(c *web.Context) error {
-		action := new(actions.CreateUpdatePage)
-		if result := c.BindTo(action); !result.Ok {
-			return c.HandleValidation(result)
-		}
-
-		return c.WithTransaction(func() error {
-			createCmd := &cmd.CreatePage{
-				Title:           action.Title,
-				Slug:            action.Slug,
-				Content:         action.Content,
-				Excerpt:         action.Excerpt,
-				BannerImage:     action.BannerImage,
-				Status:          entity.PageStatus(action.Status),
-				Visibility:      entity.PageVisibility(action.Visibility),
-				AllowedRoles:    action.AllowedRoles,
-				ParentPageID:    action.ParentPageID,
-				AllowComments: action.AllowComments,
-				AllowCommentImages: action.AllowCommentImages,
-				AllowReactions:  action.AllowReactions,
-				ShowTOC:         action.ShowTOC,
-				ScheduledFor:    action.ScheduledFor,
-				Authors:         action.Authors,
-				Topics:          action.Topics,
-				Tags:            action.Tags,
-				MetaDescription: action.MetaDescription,
-				CanonicalURL:    action.CanonicalURL,
-			}
-
-			if err := bus.Dispatch(c, createCmd); err != nil {
-				return c.Failure(err)
-			}
-
-			return c.Ok(createCmd.Result)
-		})
-	}
-}
-
-func UpdatePage() web.HandlerFunc {
-	return func(c *web.Context) error {
-		pageID, err := c.ParamAsInt("id")
-		if err != nil {
-			return c.NotFound()
-		}
-
-		action := new(actions.CreateUpdatePage)
-		action.PageID = pageID
-		if result := c.BindTo(action); !result.Ok {
-			return c.HandleValidation(result)
-		}
-
-		return c.WithTransaction(func() error {
-			updateCmd := &cmd.UpdatePage{
-				PageID:          pageID,
-				Title:           action.Title,
-				Slug:            action.Slug,
-				Content:         action.Content,
-				Excerpt:         action.Excerpt,
-				BannerImage:     action.BannerImage,
-				Status:          entity.PageStatus(action.Status),
-				Visibility:      entity.PageVisibility(action.Visibility),
-				AllowedRoles:    action.AllowedRoles,
-				ParentPageID:    action.ParentPageID,
-				AllowComments: action.AllowComments,
-				AllowCommentImages: action.AllowCommentImages,
-				AllowReactions:  action.AllowReactions,
-				ShowTOC:         action.ShowTOC,
-				ScheduledFor:    action.ScheduledFor,
-				Authors:         action.Authors,
-				Topics:          action.Topics,
-				Tags:            action.Tags,
-				MetaDescription: action.MetaDescription,
-				CanonicalURL:    action.CanonicalURL,
-			}
-
-			if err := bus.Dispatch(c, updateCmd); err != nil {
-				return c.Failure(err)
-			}
-
-			getPage := &query.GetPageByID{ID: pageID}
-			if err := bus.Dispatch(c, getPage); err != nil {
-				return c.Failure(err)
-			}
-
-			c.Enqueue(tasks.NotifyPageSubscribers(pageID, c.User().ID))
-
-			return c.Ok(getPage.Result)
-		})
-	}
-}
 
 func DeletePage() web.HandlerFunc {
 	return func(c *web.Context) error {
@@ -160,56 +67,6 @@ func DeletePage() web.HandlerFunc {
 			}
 			return c.Ok(web.Map{})
 		})
-	}
-}
-
-func SavePageDraft() web.HandlerFunc {
-	return func(c *web.Context) error {
-		pageID, err := c.ParamAsInt("id")
-		if err != nil {
-			return c.NotFound()
-		}
-
-		action := &actions.SavePageDraft{PageID: pageID}
-		if result := c.BindTo(action); !result.Ok {
-			return c.HandleValidation(result)
-		}
-
-		return c.WithTransaction(func() error {
-			saveCmd := &cmd.SavePageDraft{
-				PageID:          pageID,
-				Title:           action.Title,
-				Slug:            action.Slug,
-				Content:         action.Content,
-				Excerpt:         action.Excerpt,
-				BannerImageBKey: action.BannerImageBKey,
-				MetaDescription: action.MetaDescription,
-				ShowTOC:         action.ShowTOC,
-				DraftData:       action.DraftData,
-			}
-
-			if err := bus.Dispatch(c, saveCmd); err != nil {
-				return c.Failure(err)
-			}
-
-			return c.Ok(web.Map{})
-		})
-	}
-}
-
-func GetPageDraft() web.HandlerFunc {
-	return func(c *web.Context) error {
-		pageID, err := c.ParamAsInt("id")
-		if err != nil {
-			return c.NotFound()
-		}
-
-		getDraft := &query.GetPageDraft{PageID: pageID, UserID: c.User().ID}
-		if err := bus.Dispatch(c, getDraft); err != nil {
-			return c.Failure(err)
-		}
-
-		return c.Ok(getDraft.Result)
 	}
 }
 

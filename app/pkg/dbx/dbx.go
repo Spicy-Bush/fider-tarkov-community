@@ -95,6 +95,8 @@ func Seed() {
 type Trx struct {
 	tx  *sql.Tx
 	ctx context.Context
+
+	BeforeCommit func(*Trx) error
 }
 
 var formatter = strings.NewReplacer("\t", "", "\n", " ")
@@ -312,6 +314,12 @@ func (trx *Trx) Query(command string, args ...any) (*sql.Rows, error) {
 
 // Commit current transaction
 func (trx *Trx) Commit() error {
+	if trx.BeforeCommit != nil {
+		if err := trx.BeforeCommit(trx); err != nil {
+			return trx.RollbackWithCause(err)
+		}
+	}
+
 	err := trx.tx.Commit()
 	if err != nil {
 		return wrap(err, "failed to commit transaction")

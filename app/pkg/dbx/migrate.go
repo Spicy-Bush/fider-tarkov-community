@@ -17,7 +17,7 @@ import (
 
 var ErrNoChanges = stdErrors.New("nothing to migrate.")
 
-func Migrate(ctx context.Context, path string) error {
+func Migrate(ctx context.Context, path string, migrateData func(context.Context, *Trx, int) error) error {
 	log.Info(ctx, "Running migrations...")
 
 	dirPath := strings.TrimPrefix(path, "/")
@@ -65,7 +65,7 @@ func Migrate(ctx context.Context, path string) error {
 				"Version":  version,
 				"FileName": fileName,
 			})
-			err := runMigration(ctx, version, dirPath, fileName)
+			err := runMigration(ctx, version, dirPath, fileName, migrateData)
 			if err != nil {
 				return errors.Wrap(err, "failed to run migration '%s'", fileName)
 			}
@@ -83,7 +83,7 @@ func Migrate(ctx context.Context, path string) error {
 	return nil
 }
 
-func runMigration(ctx context.Context, version int, path, fileName string) error {
+func runMigration(ctx context.Context, version int, path, fileName string, migrateData func(context.Context, *Trx, int) error) error {
 	filePath := path + "/" + fileName
 	content, err := fs.ReadFile(assets.FS, filePath)
 	if err != nil {
@@ -99,6 +99,12 @@ func runMigration(ctx context.Context, version int, path, fileName string) error
 	_, err = trx.tx.Exec(string(content))
 	if err != nil {
 		return err
+	}
+
+	if migrateData != nil {
+		if err := migrateData(ctx, trx, version); err != nil {
+			return err
+		}
 	}
 
 	_, err = trx.Execute("INSERT INTO migrations_history (version, filename) VALUES ($1, $2)", version, fileName)

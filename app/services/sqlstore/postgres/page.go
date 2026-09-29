@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -10,12 +9,14 @@ import (
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/pagedoc"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/pages"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/lib/pq"
@@ -51,22 +52,22 @@ type dbPage struct {
 
 func (p *dbPage) toModel(ctx context.Context) *entity.Page {
 	page := &entity.Page{
-		ID:             p.ID,
-		Title:          p.Title,
-		Slug:           p.Slug,
-		Content:        p.Content,
-		Status:         entity.PageStatus(p.Status),
-		Visibility:     entity.PageVisibility(p.Visibility),
-		AllowComments:  p.AllowComments,
+		ID:                 p.ID,
+		Title:              p.Title,
+		Slug:               p.Slug,
+		Content:            p.Content,
+		Status:             entity.PageStatus(p.Status),
+		Visibility:         entity.PageVisibility(p.Visibility),
+		AllowComments:      p.AllowComments,
 		AllowCommentImages: p.AllowCommentImages,
-		AllowReactions: p.AllowReactions,
-		ShowTOC:        p.ShowTOC,
-		CreatedAt:      p.CreatedAt,
-		UpdatedAt:      p.UpdatedAt,
-		CreatedBy:      p.CreatedBy.toModel(ctx),
-		UpdatedBy:      p.UpdatedBy.toModel(ctx),
-		CommentsCount:  p.CommentsCount,
-		EmbeddedPosts:  []*entity.Post{},
+		AllowReactions:     p.AllowReactions,
+		ShowTOC:            p.ShowTOC,
+		CreatedAt:          p.CreatedAt,
+		UpdatedAt:          p.UpdatedAt,
+		CreatedBy:          p.CreatedBy.toModel(ctx),
+		UpdatedBy:          p.UpdatedBy.toModel(ctx),
+		CommentsCount:      p.CommentsCount,
+		EmbeddedPosts:      []*entity.Post{},
 	}
 
 	if p.Excerpt.Valid {
@@ -170,12 +171,12 @@ func getPageByID(ctx context.Context, q *query.GetPageByID) error {
 }
 
 func loadPageRelations(ctx context.Context, trx *dbx.Trx, user *entity.User, page *entity.Page, cachedEmbeddedData string) error {
+	tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 	cached, err := pages.UnmarshalCachedData(cachedEmbeddedData)
 	if err != nil {
 		return err
 	}
 	if cached != nil && len(cached.PostIDs) > 0 {
-		tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 		statuses := []enum.PostStatus{
 			enum.PostOpen,
 			enum.PostStarted,
@@ -206,10 +207,10 @@ func loadPageRelations(ctx context.Context, trx *dbx.Trx, user *entity.User, pag
 	err = trx.Select(&dbAuthors, `
 		SELECT u.id, u.name, u.email, u.role, u.status, u.avatar_type, u.avatar_bkey
 		FROM users u
-		INNER JOIN page_authors pa ON pa.user_id = u.id
-		WHERE pa.page_id = $1
+		INNER JOIN page_authors pa ON pa.user_id = u.id AND pa.tenant_id = u.tenant_id
+		WHERE pa.page_id = $1 AND pa.tenant_id = $2
 		ORDER BY pa.display_order
-	`, page.ID)
+	`, page.ID, tenant.ID)
 	if err != nil {
 		return errors.Wrap(err, "failed to get page authors")
 	}
@@ -223,9 +224,9 @@ func loadPageRelations(ctx context.Context, trx *dbx.Trx, user *entity.User, pag
 	err = trx.Select(&topics, `
 		SELECT pt.id, pt.name, pt.slug, pt.description, pt.color
 		FROM page_topics pt
-		INNER JOIN page_topics_map ptm ON ptm.topic_id = pt.id
-		WHERE ptm.page_id = $1
-	`, page.ID)
+		INNER JOIN page_topics_map ptm ON ptm.topic_id = pt.id AND ptm.tenant_id = pt.tenant_id
+		WHERE ptm.page_id = $1 AND ptm.tenant_id = $2
+	`, page.ID, tenant.ID)
 	if err != nil {
 		return errors.Wrap(err, "failed to get page topics")
 	}
@@ -235,9 +236,9 @@ func loadPageRelations(ctx context.Context, trx *dbx.Trx, user *entity.User, pag
 	err = trx.Select(&tags, `
 		SELECT t.id, t.name, t.slug
 		FROM page_tags t
-		INNER JOIN page_tags_map tm ON tm.tag_id = t.id
-		WHERE tm.page_id = $1
-	`, page.ID)
+		INNER JOIN page_tags_map tm ON tm.tag_id = t.id AND tm.tenant_id = t.tenant_id
+		WHERE tm.page_id = $1 AND tm.tenant_id = $2
+	`, page.ID, tenant.ID)
 	if err != nil {
 		return errors.Wrap(err, "failed to get page tags")
 	}
@@ -283,13 +284,22 @@ func loadPageRelations(ctx context.Context, trx *dbx.Trx, user *entity.User, pag
 }
 
 func createPage(ctx context.Context, c *cmd.CreatePage) error {
+	if err := prepareImages(ctx, []*dto.ImageUpload{c.BannerImage}, "pages"); err != nil {
+		return err
+	}
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if err := validatePageParent(trx, tenant.ID, c.ParentPageID); err != nil {
+			return err
+		}
+		if err := claimPageBanner(ctx, c.BannerImage, ""); err != nil {
+			return err
+		}
 		slug, err := pages.GenerateSlug(ctx, c.Title, c.Slug, 0)
 		if err != nil {
 			return errors.Wrap(err, "failed to generate slug")
 		}
 
-		if c.BannerImage != nil && c.BannerImage.Upload != nil {
+		if c.BannerImage != nil && !c.BannerImage.Remove && c.BannerImage.Upload != nil {
 			if err := bus.Dispatch(ctx, &cmd.UploadImage{
 				Image:  c.BannerImage,
 				Folder: "pages",
@@ -299,7 +309,7 @@ func createPage(ctx context.Context, c *cmd.CreatePage) error {
 		}
 
 		var bannerBKey string
-		if c.BannerImage != nil {
+		if c.BannerImage != nil && !c.BannerImage.Remove {
 			bannerBKey = c.BannerImage.BlobKey
 		}
 
@@ -346,13 +356,13 @@ func createPage(ctx context.Context, c *cmd.CreatePage) error {
 		if len(authors) == 0 {
 			authors = []int{user.ID}
 		}
-		if err := setPageAuthors(ctx, trx, id, authors); err != nil {
+		if err := setPageAuthors(trx, tenant.ID, id, authors); err != nil {
 			return err
 		}
-		if err := setPageTopics(ctx, trx, id, c.Topics); err != nil {
+		if err := setPageTopics(trx, tenant.ID, id, c.Topics); err != nil {
 			return err
 		}
-		if err := setPageTags(ctx, trx, id, c.Tags); err != nil {
+		if err := setPageTags(trx, tenant.ID, id, c.Tags); err != nil {
 			return err
 		}
 
@@ -367,13 +377,29 @@ func createPage(ctx context.Context, c *cmd.CreatePage) error {
 }
 
 func updatePage(ctx context.Context, c *cmd.UpdatePage) error {
+	if err := prepareImages(ctx, []*dto.ImageUpload{c.BannerImage}, "pages"); err != nil {
+		return err
+	}
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if err := validatePageParent(trx, tenant.ID, c.ParentPageID); err != nil {
+			return err
+		}
+		var currentBanner string
+		if err := trx.Scalar(&currentBanner, `
+			SELECT COALESCE(banner_image_bkey, '') FROM pages
+			WHERE tenant_id=$1 AND id=$2 FOR UPDATE
+		`, tenant.ID, c.PageID); err != nil {
+			return err
+		}
+		if err := claimPageBanner(ctx, c.BannerImage, currentBanner); err != nil {
+			return err
+		}
 		slug, err := pages.GenerateSlug(ctx, c.Title, c.Slug, c.PageID)
 		if err != nil {
 			return errors.Wrap(err, "failed to generate slug")
 		}
 
-		if c.BannerImage != nil && c.BannerImage.Upload != nil {
+		if c.BannerImage != nil && !c.BannerImage.Remove && c.BannerImage.Upload != nil {
 			if err := bus.Dispatch(ctx, &cmd.UploadImage{
 				Image:  c.BannerImage,
 				Folder: "pages",
@@ -383,7 +409,7 @@ func updatePage(ctx context.Context, c *cmd.UpdatePage) error {
 		}
 
 		var bannerBKey string
-		if c.BannerImage != nil {
+		if c.BannerImage != nil && !c.BannerImage.Remove {
 			bannerBKey = c.BannerImage.BlobKey
 		}
 
@@ -428,18 +454,43 @@ func updatePage(ctx context.Context, c *cmd.UpdatePage) error {
 		if len(authors) == 0 {
 			authors = []int{user.ID}
 		}
-		if err := setPageAuthors(ctx, trx, c.PageID, authors); err != nil {
+		if err := setPageAuthors(trx, tenant.ID, c.PageID, authors); err != nil {
 			return err
 		}
-		if err := setPageTopics(ctx, trx, c.PageID, c.Topics); err != nil {
+		if err := setPageTopics(trx, tenant.ID, c.PageID, c.Topics); err != nil {
 			return err
 		}
-		if err := setPageTags(ctx, trx, c.PageID, c.Tags); err != nil {
+		if err := setPageTags(trx, tenant.ID, c.PageID, c.Tags); err != nil {
 			return err
 		}
 
+		page := &query.GetPageByID{ID: c.PageID}
+		if err := getPageByID(ctx, page); err != nil {
+			return err
+		}
+		if _, err := trx.Execute(`
+			DELETE FROM page_drafts WHERE tenant_id=$1 AND page_id=$2 AND user_id=$3 AND NOT shared
+		`, tenant.ID, c.PageID, user.ID); err != nil {
+			return err
+		}
+		c.Result = page.Result
 		return nil
 	})
+}
+
+func claimPageBanner(ctx context.Context, banner *dto.ImageUpload, currentKey string) error {
+	if banner == nil || banner.Remove || banner.Upload != nil || banner.BlobKey == "" || banner.BlobKey == currentKey {
+		return nil
+	}
+
+	claim := &query.CanUseStoredImage{Key: banner.BlobKey, MaxKilobytes: 5000}
+	if err := canUseStoredImage(ctx, claim); err != nil {
+		return err
+	}
+	if !claim.Result {
+		return validate.Failed("The stored banner is unavailable or belongs to another account.")
+	}
+	return nil
 }
 
 func deletePage(ctx context.Context, c *cmd.DeletePage) error {
@@ -452,58 +503,82 @@ func deletePage(ctx context.Context, c *cmd.DeletePage) error {
 	})
 }
 
-func setPageAuthors(_ context.Context, trx *dbx.Trx, pageID int, authorIDs []int) error {
-	_, err := trx.Execute("DELETE FROM page_authors WHERE page_id = $1", pageID)
+func pageRelationFailure(field string) error {
+	result := validate.Success()
+	result.AddFieldFailure(field, "One or more selected items do not exist")
+	return result
+}
+
+func validatePageParent(trx *dbx.Trx, tenantID int, parentID *int) error {
+	if parentID == nil {
+		return nil
+	}
+
+	var id int
+	err := trx.Scalar(&id, "SELECT id FROM pages WHERE tenant_id = $1 AND id = $2 FOR KEY SHARE", tenantID, *parentID)
+	if errors.Cause(err) == app.ErrNotFound {
+		return pageRelationFailure("parentPageId")
+	}
+	return err
+}
+
+func setPageAuthors(trx *dbx.Trx, tenantID, pageID int, authorIDs []int) error {
+	_, err := trx.Execute("DELETE FROM page_authors WHERE tenant_id = $1 AND page_id = $2", tenantID, pageID)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete page authors")
 	}
 
-	for i, authorID := range authorIDs {
-		_, err = trx.Execute(`
-			INSERT INTO page_authors (page_id, user_id, display_order)
-			VALUES ($1, $2, $3)
-		`, pageID, authorID, i)
-		if err != nil {
-			return errors.Wrap(err, "failed to insert page author")
-		}
+	count, err := trx.Execute(`
+		INSERT INTO page_authors (tenant_id, page_id, user_id, display_order)
+		SELECT $1, $2, author.id, selected.position - 1
+		FROM unnest($3::int[]) WITH ORDINALITY AS selected(id, position)
+		JOIN users author ON author.id = selected.id AND author.tenant_id = $1
+	`, tenantID, pageID, pq.Array(authorIDs))
+	if err != nil {
+		return errors.Wrap(err, "failed to insert page authors")
+	}
+	if count != int64(len(authorIDs)) {
+		return pageRelationFailure("authors")
 	}
 
 	return nil
 }
 
-func setPageTopics(_ context.Context, trx *dbx.Trx, pageID int, topicIDs []int) error {
-	_, err := trx.Execute("DELETE FROM page_topics_map WHERE page_id = $1", pageID)
+func setPageTopics(trx *dbx.Trx, tenantID, pageID int, topicIDs []int) error {
+	_, err := trx.Execute("DELETE FROM page_topics_map WHERE tenant_id = $1 AND page_id = $2", tenantID, pageID)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete page topics")
 	}
 
-	for _, topicID := range topicIDs {
-		_, err = trx.Execute(`
-			INSERT INTO page_topics_map (page_id, topic_id)
-			VALUES ($1, $2)
-		`, pageID, topicID)
-		if err != nil {
-			return errors.Wrap(err, "failed to insert page topic")
-		}
+	count, err := trx.Execute(`
+		INSERT INTO page_topics_map (tenant_id, page_id, topic_id)
+		SELECT $1, $2, id FROM page_topics WHERE tenant_id = $1 AND id = ANY($3)
+	`, tenantID, pageID, pq.Array(topicIDs))
+	if err != nil {
+		return errors.Wrap(err, "failed to insert page topics")
+	}
+	if count != int64(len(topicIDs)) {
+		return pageRelationFailure("topics")
 	}
 
 	return nil
 }
 
-func setPageTags(_ context.Context, trx *dbx.Trx, pageID int, tagIDs []int) error {
-	_, err := trx.Execute("DELETE FROM page_tags_map WHERE page_id = $1", pageID)
+func setPageTags(trx *dbx.Trx, tenantID, pageID int, tagIDs []int) error {
+	_, err := trx.Execute("DELETE FROM page_tags_map WHERE tenant_id = $1 AND page_id = $2", tenantID, pageID)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete page tags")
 	}
 
-	for _, tagID := range tagIDs {
-		_, err = trx.Execute(`
-			INSERT INTO page_tags_map (page_id, tag_id)
-			VALUES ($1, $2)
-		`, pageID, tagID)
-		if err != nil {
-			return errors.Wrap(err, "failed to insert page tag")
-		}
+	count, err := trx.Execute(`
+		INSERT INTO page_tags_map (tenant_id, page_id, tag_id)
+		SELECT $1, $2, id FROM page_tags WHERE tenant_id = $1 AND id = ANY($3)
+	`, tenantID, pageID, pq.Array(tagIDs))
+	if err != nil {
+		return errors.Wrap(err, "failed to insert page tags")
+	}
+	if count != int64(len(tagIDs)) {
+		return pageRelationFailure("tags")
 	}
 
 	return nil
@@ -526,7 +601,7 @@ func listPages(ctx context.Context, q *query.ListPages) error {
 		if q.Query != "" {
 			argCount++
 			conditions = append(conditions, fmt.Sprintf(`(
-				p.title ILIKE $%d OR p.content ILIKE $%d OR 
+				COALESCE(edit.title, p.title) ILIKE $%d OR COALESCE(edit.content, p.content) ILIKE $%d OR
 				EXISTS (
 					SELECT 1 FROM page_topics_map ptm
 					INNER JOIN page_topics pt ON pt.id = ptm.topic_id
@@ -575,7 +650,9 @@ func listPages(ctx context.Context, q *query.ListPages) error {
 
 		whereClause := strings.Join(conditions, " AND ")
 
-		err := trx.Get(&q.TotalCount, "SELECT COUNT(*) FROM pages p WHERE "+whereClause, args...)
+		const pageSource = `pages p LEFT JOIN page_drafts edit
+			ON edit.tenant_id=p.tenant_id AND edit.page_id=p.id AND edit.shared AND p.status='draft'`
+		err := trx.Get(&q.TotalCount, "SELECT COUNT(*) FROM "+pageSource+" WHERE "+whereClause, args...)
 		if err != nil {
 			return errors.Wrap(err, "failed to count pages")
 		}
@@ -585,9 +662,9 @@ func listPages(ctx context.Context, q *query.ListPages) error {
 		case "oldest":
 			orderBy = "p.created_at ASC"
 		case "updated":
-			orderBy = "p.updated_at DESC"
+			orderBy = "COALESCE(edit.updated_at, p.updated_at) DESC"
 		case "alphabetical":
-			orderBy = "p.title ASC"
+			orderBy = "COALESCE(NULLIF(edit.title, ''), p.title) ASC"
 		}
 
 		argCount++
@@ -598,17 +675,19 @@ func listPages(ctx context.Context, q *query.ListPages) error {
 
 		pages := []*dbPage{}
 		err = trx.Select(&pages, fmt.Sprintf(`
-			SELECT p.id, p.title, p.slug, p.excerpt, p.banner_image_bkey,
+			SELECT p.id, COALESCE(NULLIF(edit.title, ''), p.title) AS title, p.slug,
+				COALESCE(edit.excerpt, p.excerpt) AS excerpt,
+				COALESCE(edit.banner_image_bkey, p.banner_image_bkey) AS banner_image_bkey,
 				p.status, p.visibility, p.allowed_roles, p.allow_reactions,
-				p.published_at, p.created_at, p.updated_at,
+				p.published_at, p.created_at, COALESCE(edit.updated_at, p.updated_at) AS updated_at,
 				cb.id AS created_by_id, cb.name AS created_by_name,
 				(SELECT COUNT(*) FROM comments WHERE page_id = p.id AND deleted_at IS NULL) as comments_count
-			FROM pages p
+			FROM %s
 			INNER JOIN users cb ON cb.id = p.created_by_id
 			WHERE %s
 			ORDER BY %s
 			LIMIT $%d OFFSET $%d
-		`, whereClause, orderBy, limitArg, offsetArg), args...)
+		`, pageSource, whereClause, orderBy, limitArg, offsetArg), args...)
 
 		if err != nil {
 			return errors.Wrap(err, "failed to list pages")
@@ -752,111 +831,96 @@ func getPageSubscribers(ctx context.Context, q *query.GetPageSubscribers) error 
 	})
 }
 
-func savePageDraft(ctx context.Context, c *cmd.SavePageDraft) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		draftDataJSON, _ := json.Marshal(c.DraftData)
-
-		_, err := trx.Execute(`
-			INSERT INTO page_drafts (
-				page_id, tenant_id, user_id, title, slug, content, excerpt,
-				banner_image_bkey, meta_description, show_toc, draft_data, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-			ON CONFLICT (page_id, user_id) DO UPDATE SET
-				title = EXCLUDED.title,
-				slug = EXCLUDED.slug,
-				content = EXCLUDED.content,
-				excerpt = EXCLUDED.excerpt,
-				banner_image_bkey = EXCLUDED.banner_image_bkey,
-				meta_description = EXCLUDED.meta_description,
-				show_toc = EXCLUDED.show_toc,
-				draft_data = EXCLUDED.draft_data,
-				updated_at = EXCLUDED.updated_at
-		`, c.PageID, tenant.ID, user.ID, c.Title, c.Slug, c.Content, c.Excerpt,
-			c.BannerImageBKey, c.MetaDescription, c.ShowTOC, draftDataJSON, time.Now())
-
-		return errors.Wrap(err, "failed to save page draft")
-	})
-}
-
 func getPageDraft(ctx context.Context, q *query.GetPageDraft) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		draft := struct {
-			ID              int            `db:"id"`
-			PageID          int            `db:"page_id"`
-			UserID          int            `db:"user_id"`
-			Title           string         `db:"title"`
-			Slug            string         `db:"slug"`
-			Content         string         `db:"content"`
-			Excerpt         dbx.NullString `db:"excerpt"`
-			BannerImageBKey dbx.NullString `db:"banner_image_bkey"`
-			MetaDescription dbx.NullString `db:"meta_description"`
-			ShowTOC         bool           `db:"show_toc"`
-			DraftData       dbx.NullString `db:"draft_data"`
-			UpdatedAt       time.Time      `db:"updated_at"`
-		}{}
-
-		err := trx.Get(&draft, `
-			SELECT id, page_id, user_id, title, slug, content, excerpt,
-				banner_image_bkey, meta_description, show_toc, draft_data, updated_at
+		if user == nil || q.UserID != user.ID || !entity.Can(user, tenant, entity.ManagePages) {
+			return validate.Unauthorized()
+		}
+		var saved struct {
+			ID              int       `db:"id"`
+			Title           string    `db:"title"`
+			Slug            string    `db:"slug"`
+			Content         string    `db:"content"`
+			Excerpt         string    `db:"excerpt"`
+			BannerImageBKey string    `db:"banner_image_bkey"`
+			MetaDescription string    `db:"meta_description"`
+			ShowTOC         bool      `db:"show_toc"`
+			UpdatedAt       time.Time `db:"updated_at"`
+		}
+		err := trx.Get(&saved, `
+			SELECT id, title, slug, content, COALESCE(excerpt, '') AS excerpt,
+			       COALESCE(banner_image_bkey, '') AS banner_image_bkey,
+			       COALESCE(meta_description, '') AS meta_description, show_toc, updated_at
 			FROM page_drafts
-			WHERE page_id = $1 AND user_id = $2
-		`, q.PageID, q.UserID)
-
-		if err == sql.ErrNoRows {
+			WHERE tenant_id = $1 AND page_id = $2 AND user_id = $3 AND NOT shared
+		`, tenant.ID, q.PageID, user.ID)
+		if errors.Cause(err) == app.ErrNotFound {
 			q.Result = nil
 			return nil
 		}
 		if err != nil {
-			return errors.Wrap(err, "failed to get page draft")
+			return err
 		}
 
 		q.Result = &entity.PageDraft{
-			ID:        draft.ID,
-			PageID:    draft.PageID,
-			UserID:    draft.UserID,
-			Title:     draft.Title,
-			Slug:      draft.Slug,
-			Content:   draft.Content,
-			ShowTOC:   draft.ShowTOC,
-			UpdatedAt: draft.UpdatedAt,
+			ID:              saved.ID,
+			PageID:          q.PageID,
+			UserID:          user.ID,
+			Title:           saved.Title,
+			Slug:            saved.Slug,
+			Content:         saved.Content,
+			Excerpt:         saved.Excerpt,
+			BannerImageBKey: saved.BannerImageBKey,
+			MetaDescription: saved.MetaDescription,
+			ShowTOC:         saved.ShowTOC,
+			UpdatedAt:       saved.UpdatedAt,
 		}
-
-		if draft.Excerpt.Valid {
-			q.Result.Excerpt = draft.Excerpt.String
-		}
-		if draft.BannerImageBKey.Valid {
-			q.Result.BannerImageBKey = draft.BannerImageBKey.String
-		}
-		if draft.MetaDescription.Valid {
-			q.Result.MetaDescription = draft.MetaDescription.String
-		}
-		if draft.DraftData.Valid {
-			q.Result.DraftData = draft.DraftData.String
-		}
-
 		return nil
 	})
 }
 
 func publishScheduledPages(ctx context.Context, c *cmd.PublishScheduledPages) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		var count int
-		err := trx.Get(&count, `
-			WITH updated AS (
-				UPDATE pages
-				SET status = 'published', published_at = NOW()
-				WHERE status = 'scheduled'
-				AND scheduled_for <= NOW()
-				RETURNING id
-			)
-			SELECT COUNT(*) FROM updated
+		var published []*struct {
+			ID           int       `db:"id"`
+			TenantID     int       `db:"tenant_id"`
+			ScheduledFor time.Time `db:"scheduled_for"`
+		}
+		err := trx.Select(&published, `
+			UPDATE pages SET status='published', published_at=NOW()
+			WHERE status='scheduled' AND scheduled_for<=NOW()
+			RETURNING id, tenant_id, scheduled_for
 		`)
-
 		if err != nil {
 			return errors.Wrap(err, "failed to publish scheduled pages")
 		}
 
-		c.Result = count
+		for _, publishedPage := range published {
+			saved, err := readPageEdit(trx, publishedPage.TenantID, publishedPage.ID)
+			if errors.Cause(err) == app.ErrNotFound {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			page, err := pagedoc.Read(saved.State)
+			if err != nil {
+				return err
+			}
+			if page.Status != entity.PageStatusScheduled || page.ScheduledFor == nil || !page.ScheduledFor.Equal(publishedPage.ScheduledFor) {
+				continue
+			}
+
+			state, err := pagedoc.SetStatus(saved.State, entity.PageStatusPublished)
+			if err != nil {
+				return err
+			}
+			page.Status = entity.PageStatusPublished
+			if _, err := savePageEdit(trx, publishedPage.TenantID, publishedPage.ID, state, page); err != nil {
+				return err
+			}
+		}
+		c.Result = len(published)
 		return nil
 	})
 }

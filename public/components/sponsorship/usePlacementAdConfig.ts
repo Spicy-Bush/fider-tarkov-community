@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
-import { PlacementAdConfig, SPONSORSHIP_SLOT_SPECS } from "@fider/models"
-import { actions } from "@fider/services"
+import { PlacementAdConfig } from "@fider/models"
+import { SPONSORSHIP_SLOT_SPECS } from "@fider/models/sponsorship"
+import * as sponsorshipActions from "@fider/services/actions/sponsorship"
 
 let cache: Record<string, PlacementAdConfig> | null = null
 let inflight: Promise<Record<string, PlacementAdConfig>> | null = null
@@ -9,7 +10,7 @@ async function loadPlacementAdConfig(): Promise<Record<string, PlacementAdConfig
   if (cache) return cache
   if (inflight) return inflight
   inflight = (async () => {
-    const result = await actions.getAdPlacementConfig()
+    const result = await sponsorshipActions.getAdPlacementConfig()
     const map: Record<string, PlacementAdConfig> = {}
     if (result.ok && result.data) {
       for (const [id, cfg] of Object.entries(result.data)) {

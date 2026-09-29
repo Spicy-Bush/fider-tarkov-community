@@ -146,6 +146,9 @@ func TestDiscussionStoragePrivatePageAndModeration(t *testing.T) {
 
 	moderator := *sansaStark
 	moderator.Role = enum.RoleModerator
+	if _, err := trx.Execute("UPDATE users SET role=$1 WHERE id=$2", moderator.Role, moderator.ID); err != nil {
+		t.Fatal(err)
+	}
 	moderatorCtx := context.WithValue(sansaStarkCtx, app.UserCtxKey, &moderator)
 	operations := []any{
 		&query.GetDiscussion{CommentID: comment.Result.ID},

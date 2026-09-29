@@ -2,43 +2,34 @@ package handlers
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"image/color"
 	"image/png"
-	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/assets"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/readlimit"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/crypto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/imagic"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/log"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/services/blob"
 	"github.com/goenning/letteravatar"
 )
 
 func isValidBlobKey(key string) bool {
-	// Reject empty keys
-	if key == "" {
-		return false
-	}
-	// Reject invalid UTF-8
-	if !utf8.ValidString(key) {
-		return false
-	}
-	// Reject null bytes
-	if strings.ContainsRune(key, 0) {
-		return false
-	}
-	return true
+	return blob.ValidateKey(key) == nil
 }
 
 func LetterAvatar() web.HandlerFunc {
@@ -112,7 +103,7 @@ func Gravatar() web.HandlerFunc {
 					if err == nil {
 						defer resp.Body.Close()
 						if resp.StatusCode == http.StatusOK {
-							bytes, err := io.ReadAll(resp.Body)
+							bytes, err := readlimit.ReadAll(resp.Body, imagic.MaxImageBytes)
 							if err == nil {
 								c.Engine().Cache().Set(cacheKey, bytes, 24*time.Hour)
 								return c.Image(http.DetectContentType(bytes), bytes)
@@ -130,21 +121,59 @@ func Gravatar() web.HandlerFunc {
 var faviconSizeBuckets = []int{64, 100, 200, 512}
 
 func authorizeImage(c *web.Context, key string) error {
-	if !strings.HasPrefix(key, "attachments/") {
-		return nil
+	ownerImage := strings.HasPrefix(key, "attachments/") || strings.HasPrefix(key, "pages/")
+	if strings.HasPrefix(key, "files/") {
+		c.Response.Header().Set("Cache-Control", "private, no-store")
 	}
 
-	c.Response.Header().Set("Cache-Control", "private, no-store")
+	if !ownerImage {
+		return nil
+	}
+	c.Response.Header().Set("Cache-Control", "private, no-cache")
+
 	access := &query.CanReadAttachment{Key: key}
 	if err := bus.Dispatch(c, access); err != nil {
 		return err
 	}
 
-	if !access.Result {
-		return app.ErrNotFound
+	if access.Result {
+		if access.Version != "" {
+			identity := fmt.Sprintf("%d:%s:%s", c.Tenant().ID, access.Version, c.Request.URL.RequestURI())
+			etag := sha256.Sum256([]byte(identity))
+			c.Response.Header().Set("ETag", fmt.Sprintf(`W/"%x"`, etag))
+		}
+		return nil
 	}
 
-	return nil
+	if entity.Can(c.User(), c.Tenant(), entity.ManageFiles) {
+		file := &query.GetMediaFile{BlobKey: key}
+		if err := bus.Dispatch(c, file); err != nil {
+			return err
+		}
+
+		if file.Result.State != "ready" {
+			return app.ErrNotFound
+		}
+
+		return nil
+	}
+
+	return app.ErrNotFound
+}
+
+func imageNotModified(c *web.Context) bool {
+	etag := c.Response.Header().Get("ETag")
+	if etag == "" {
+		return false
+	}
+
+	for _, candidate := range strings.Split(c.Request.GetHeader("If-None-Match"), ",") {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "*" || strings.TrimPrefix(candidate, "W/") == strings.TrimPrefix(etag, "W/") {
+			return true
+		}
+	}
+	return false
 }
 
 func Favicon() web.HandlerFunc {
@@ -153,6 +182,9 @@ func Favicon() web.HandlerFunc {
 	return func(c *web.Context) error {
 		bkey := c.Param("bkey")
 		bg := c.QueryParam("bg")
+		if bkey != "" && !isValidBlobKey(bkey) {
+			return c.NotFound()
+		}
 
 		if err := authorizeImage(c, bkey); err != nil {
 			return c.Failure(err)
@@ -169,27 +201,24 @@ func Favicon() web.HandlerFunc {
 		}
 
 		if requestedSize != canonicalSize {
-			redirectURL := "/static/favicon"
+			redirectURL := url.URL{Path: "/static/favicon"}
 			if bkey != "" {
-				if !isValidBlobKey(bkey) {
-					return c.NotFound()
-				}
-				redirectURL = fmt.Sprintf("/static/favicon/%s", bkey)
+				redirectURL.Path += "/" + bkey
 			}
-			redirectURL = fmt.Sprintf("%s?size=%d", redirectURL, canonicalSize)
+			redirectURL.RawQuery = fmt.Sprintf("size=%d", canonicalSize)
 			if bg != "" {
-				redirectURL += "&bg=white"
+				redirectURL.RawQuery += "&bg=white"
 			}
-			return c.PermanentRedirect(redirectURL)
+			return c.PermanentRedirect(redirectURL.String())
+		}
+		if imageNotModified(c) {
+			return c.NoContent(http.StatusNotModified)
 		}
 
 		var faviconBytes []byte
 
 		if bkey != "" {
-			if !isValidBlobKey(bkey) {
-				return c.NotFound()
-			}
-			q := &query.GetBlobByKey{Key: bkey}
+			q := &query.GetBlobByKey{Key: bkey, MaxBytes: imagic.MaxImageBytes}
 			err := bus.Dispatch(c, q)
 			if err != nil {
 				return c.Failure(err)
@@ -236,13 +265,25 @@ func ViewUploadedImage() web.HandlerFunc {
 
 		canonicalSize := snapToSize(requestedSize, imageSizeBuckets)
 		if requestedSize != canonicalSize {
-			if canonicalSize == 0 {
-				return c.PermanentRedirect(fmt.Sprintf("/static/images/%s", bkey))
+			redirectURL := url.URL{Path: "/static/images/" + bkey}
+			if canonicalSize > 0 {
+				redirectURL.RawQuery = fmt.Sprintf("size=%d", canonicalSize)
 			}
-			return c.PermanentRedirect(fmt.Sprintf("/static/images/%s?size=%d", bkey, canonicalSize))
+			return c.PermanentRedirect(redirectURL.String())
+		}
+		if imageNotModified(c) {
+			return c.NoContent(http.StatusNotModified)
 		}
 
-		q := &query.GetBlobByKey{Key: bkey}
+		if canonicalSize == 200 || canonicalSize == 512 {
+			thumbnail := &query.GetMediaThumbnail{Key: bkey, Size: canonicalSize}
+			if err := bus.Dispatch(c, thumbnail); err != nil {
+				return c.Failure(err)
+			}
+			return c.Image(thumbnail.Result.ContentType, thumbnail.Result.Content)
+		}
+
+		q := &query.GetBlobByKey{Key: bkey, MaxBytes: imagic.MaxImageBytes}
 		err = bus.Dispatch(c, q)
 		if err != nil {
 			return c.Failure(err)
@@ -266,5 +307,28 @@ func ViewUploadedImage() web.HandlerFunc {
 		}
 
 		return c.Image(q.Result.ContentType, imgBytes)
+	}
+}
+
+func AdminMediaThumbnail() web.HandlerFunc {
+	return func(c *web.Context) error {
+		c.Response.Header().Set("Cache-Control", "private, no-store")
+		if !entity.Can(c.User(), c.Tenant(), entity.ManageFiles) {
+			return c.NotFound()
+		}
+		key := c.QueryParam("key")
+		size, err := c.QueryParamAsInt("size")
+		if err != nil || (size != 200 && size != 512) || !isValidBlobKey(key) {
+			return c.BadRequest(web.Map{})
+		}
+		thumbnail := &query.GetMediaThumbnail{
+			Key:                    key,
+			Size:                   size,
+			AllowUnpublishedAvatar: true,
+		}
+		if err := bus.Dispatch(c, thumbnail); err != nil {
+			return c.Failure(err)
+		}
+		return c.Image(thumbnail.Result.ContentType, thumbnail.Result.Content)
 	}
 }

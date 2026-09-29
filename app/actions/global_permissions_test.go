@@ -24,11 +24,6 @@ func TestGlobalActionPermissions(t *testing.T) {
 			roles:      []enum.Role{enum.RoleCollaborator, enum.RoleAdministrator},
 		},
 		{
-			name:       "page draft",
-			authorized: (&actions.SavePageDraft{}).IsAuthorized,
-			roles:      []enum.Role{enum.RoleCollaborator, enum.RoleAdministrator},
-		},
-		{
 			name:       "page topic",
 			authorized: (&actions.CreatePageTopic{}).IsAuthorized,
 			roles:      []enum.Role{enum.RoleAdministrator},
@@ -66,6 +61,11 @@ func TestGlobalActionPermissions(t *testing.T) {
 		{
 			name:       "navigation",
 			authorized: (&actions.SaveNavigationLinks{}).IsAuthorized,
+			roles:      []enum.Role{enum.RoleAdministrator},
+		},
+		{
+			name:       "role permissions",
+			authorized: (&actions.UpdateRolePermissions{}).IsAuthorized,
 			roles:      []enum.Role{enum.RoleAdministrator},
 		},
 		{

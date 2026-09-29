@@ -9,18 +9,14 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/api"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
 	"github.com/lib/pq"
 )
 
 func TestPostRankingRespectsVisibility(t *testing.T) {
 	f := newPostWorkflow(t)
-	postcache.InvalidateTenantRankings(f.tenant.ID)
-	t.Cleanup(func() { postcache.InvalidateTenantRankings(f.tenant.ID) })
 
 	var ids []int64
-	err := dbx.Connection().QueryRow(`
+	err := mediaFixtureScalar(pq.Array(&ids), `
 		WITH added AS (
 			INSERT INTO posts (tenant_id, user_id, title, slug, description, status, created_at, moderation_pending)
 			SELECT $1, 1, 'Needle ' || n, 'needle-' || n, 'Body', 0, NOW(), n > 10
@@ -28,7 +24,7 @@ func TestPostRankingRespectsVisibility(t *testing.T) {
 			RETURNING id
 		)
 		SELECT array_agg(id ORDER BY id) FROM added
-	`, f.tenant.ID).Scan(pq.Array(&ids))
+	`, f.tenant.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +75,7 @@ func TestPostRankingRespectsVisibility(t *testing.T) {
 		})
 	}
 
-	_, err = dbx.Connection().Exec("UPDATE posts SET moderation_pending = TRUE WHERE id = ANY($1)", pq.Array(public))
+	_, err = mediaFixtureSQL("UPDATE posts SET moderation_pending = TRUE WHERE id = ANY($1)", pq.Array(public))
 	if err != nil {
 		t.Fatal(err)
 	}

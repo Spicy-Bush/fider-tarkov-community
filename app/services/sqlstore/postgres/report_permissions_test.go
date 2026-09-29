@@ -57,7 +57,7 @@ func TestReportUsersProjectCurrentTargetPermissions(t *testing.T) {
 	viewers := []enum.Role{enum.RoleModerator, enum.RoleCollaborator, enum.RoleAdministrator}
 	for _, role := range roles {
 		for _, status := range statuses {
-			if _, err := dbx.Connection().Exec("UPDATE users SET role = $1, status = $2 WHERE id = 2", role, status); err != nil {
+			if _, err := mediaFixtureSQL("UPDATE users SET role = $1, status = $2 WHERE id = 2", role, status); err != nil {
 				t.Fatal(err)
 			}
 			for _, viewerRole := range viewers {
@@ -84,12 +84,12 @@ func TestReportUsersProjectCurrentTargetPermissions(t *testing.T) {
 	}
 
 	var otherTenantUserID int
-	err = dbx.Connection().QueryRow(`
+	err = mediaFixtureScalar(&otherTenantUserID, `
 		INSERT INTO users (tenant_id, name, email, role, status, avatar_type, avatar_bkey, created_at)
 		SELECT id, 'Other tenant reporter', '', $2, $3, 1, '', NOW()
 		FROM tenants WHERE id <> $1 LIMIT 1
 		RETURNING id
-	`, f.tenant.ID, enum.RoleVisitor, enum.UserActive).Scan(&otherTenantUserID)
+	`, f.tenant.ID, enum.RoleVisitor, enum.UserActive)
 	if err != nil {
 		t.Fatal(err)
 	}

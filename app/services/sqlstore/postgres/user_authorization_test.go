@@ -103,7 +103,7 @@ func TestAuthenticatedVotePolicy(t *testing.T) {
 	}
 
 	for _, role := range []enum.Role{enum.RoleVisitor, enum.RoleHelper, enum.RoleModerator, enum.RoleCollaborator, enum.RoleAdministrator} {
-		if _, err := dbx.Connection().Exec("UPDATE users SET role = $1 WHERE id = 2", role); err != nil {
+		if _, err := mediaFixtureSQL("UPDATE users SET role = $1 WHERE id = 2", role); err != nil {
 			t.Fatal(err)
 		}
 
@@ -117,7 +117,7 @@ func TestAuthenticatedVotePolicy(t *testing.T) {
 				if state == "blocked" {
 					userStatus = enum.UserBlocked
 				}
-				if _, err := dbx.Connection().Exec("UPDATE users SET status = $1 WHERE id = 2", userStatus); err != nil {
+				if _, err := mediaFixtureSQL("UPDATE users SET status = $1 WHERE id = 2", userStatus); err != nil {
 					t.Fatal(err)
 				}
 
@@ -128,7 +128,7 @@ func TestAuthenticatedVotePolicy(t *testing.T) {
 					status = enum.PostDeleted
 				}
 
-				_, err := dbx.Connection().Exec(`UPDATE posts SET status = $1,
+				_, err := mediaFixtureSQL(`UPDATE posts SET status = $1,
                     locked_settings = jsonb_build_object('locked', $2::boolean), moderation_pending = $3
                     WHERE id = $4`, status, state == "locked", state == "hidden", post.Result.ID)
 				if err != nil {

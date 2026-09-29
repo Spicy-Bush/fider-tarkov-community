@@ -8,7 +8,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -124,9 +123,6 @@ func ArchivePost() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		postcache.InvalidateTenantRankings(c.Tenant().ID)
-		postcache.InvalidateCountPerStatus(c.Tenant().ID)
-
 		return c.Ok(web.Map{})
 	}
 }
@@ -156,9 +152,6 @@ func UnarchivePost() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		postcache.InvalidateTenantRankings(c.Tenant().ID)
-		postcache.InvalidateCountPerStatus(c.Tenant().ID)
-
 		return c.Ok(web.Map{})
 	}
 }
@@ -183,10 +176,6 @@ func BulkArchive() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		postcache.InvalidateTenantRankings(c.Tenant().ID)
-		postcache.InvalidateCountPerStatus(c.Tenant().ID)
-
 		return c.Ok(web.Map{"archived": len(input.PostIDs)})
 	}
 }
-

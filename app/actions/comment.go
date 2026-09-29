@@ -99,8 +99,8 @@ func (input *CommentInput) Validate(ctx context.Context, user *entity.User) *val
 			}
 		}
 
-		if !owned {
-			result.AddFieldFailure("attachments", "The attachment does not belong to this comment.")
+		if !owned && (attachment.Remove || !permissions.Images) {
+			result.AddFieldFailure("attachments", "The attachment is unavailable or cannot be added to this comment.")
 		}
 	}
 

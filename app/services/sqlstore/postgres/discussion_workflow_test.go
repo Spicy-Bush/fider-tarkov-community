@@ -65,7 +65,7 @@ func TestDiscussionSortingAndPagination(t *testing.T) {
 				hasReplies bool
 			}
 			var comments []comment
-			transaction, err := dbx.Connection().Begin()
+			transaction, err := mediaFixtureTransaction(f.ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -84,15 +84,15 @@ func TestDiscussionSortingAndPagination(t *testing.T) {
 					dislikes:  dislikes,
 					createdAt: time.Date(2026, 9, 26, 12, 0, len(comments)%3, 0, time.UTC),
 				}
-				err := transaction.QueryRow(`
+				err := transaction.Scalar(&created.id, `
                     INSERT INTO comments (tenant_id, post_id, page_id, parent_id, user_id, content, created_at)
                     VALUES ($1, $2, $3, $4, $5, 'Sorted comment', $6) RETURNING id
-                `, f.tenant.ID, postID, pageID, parentID, f.user.ID, created.createdAt).Scan(&created.id)
+				`, f.tenant.ID, postID, pageID, parentID, f.user.ID, created.createdAt)
 				if err != nil {
 					t.Fatal(err)
 				}
 
-				_, err = transaction.Exec(`
+				_, err = transaction.Execute(`
                     INSERT INTO reactions (comment_id, user_id, emoji, created_on)
                     SELECT $1::integer, n, '👍', NOW() FROM generate_series(1, $2) n
                     UNION ALL
@@ -127,7 +127,7 @@ func TestDiscussionSortingAndPagination(t *testing.T) {
 			}
 			for _, index := range []int{1, 4, 5, 60, 61, 62, 121} {
 				comments[index].deleted = true
-				if _, err := transaction.Exec("UPDATE comments SET deleted_at = NOW() WHERE id = $1", comments[index].id); err != nil {
+				if _, err := transaction.Execute("UPDATE comments SET deleted_at = NOW() WHERE id = $1", comments[index].id); err != nil {
 					t.Fatal(err)
 				}
 				for ancestor := comments[index].parent; ancestor >= 0; ancestor = comments[ancestor].parent {
@@ -240,12 +240,12 @@ func TestDiscussionSortingAndPagination(t *testing.T) {
 
 							anchor := expected[len(received)-1]
 							if deletedAnchor == 0 && !anchor.deleted {
-								if _, err := dbx.Connection().Exec("UPDATE comments SET deleted_at = NOW() WHERE id = $1", anchor.id); err != nil {
+								if _, err := mediaFixtureSQL("UPDATE comments SET deleted_at = NOW() WHERE id = $1", anchor.id); err != nil {
 									t.Fatal(err)
 								}
 								deletedAnchor = anchor.id
 								t.Cleanup(func() {
-									if _, err := dbx.Connection().Exec("UPDATE comments SET deleted_at = NULL WHERE id = $1", anchor.id); err != nil {
+									if _, err := mediaFixtureSQL("UPDATE comments SET deleted_at = NULL WHERE id = $1", anchor.id); err != nil {
 										t.Error(err)
 									}
 								})
@@ -290,11 +290,11 @@ func TestDiscussionReportCapabilities(t *testing.T) {
 				create.PostNumber = post.Result.Number
 			} else {
 				page := &cmd.CreatePage{
-					Title:      "Reporting Page",
-					Slug:       "reporting-page",
-					Content:    "Page comments",
-					Status:     entity.PageStatusPublished,
-					Visibility: entity.PageVisibilityPublic,
+					Title:         "Reporting Page",
+					Slug:          "reporting-page",
+					Content:       "Page comments",
+					Status:        entity.PageStatusPublished,
+					Visibility:    entity.PageVisibilityPublic,
 					AllowComments: true,
 				}
 				if err := bus.Dispatch(f.ctx, page); err != nil {
@@ -382,10 +382,10 @@ func TestDiscussionChainPrefetch(t *testing.T) {
 			parentID = &ids[index-1]
 		}
 
-		err := dbx.Connection().QueryRow(`
+		err := mediaFixtureScalar(&ids[index], `
             INSERT INTO comments (tenant_id, post_id, parent_id, user_id, content, created_at)
             VALUES ($1, $2, $3, $4, 'Chain comment', NOW()) RETURNING id
-        `, f.tenant.ID, post.Result.ID, parentID, f.user.ID).Scan(&ids[index])
+        `, f.tenant.ID, post.Result.ID, parentID, f.user.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -418,7 +418,7 @@ func TestDiscussionChainPrefetch(t *testing.T) {
 		t.Fatal("next ten levels did not continue the chain")
 	}
 
-	_, err := dbx.Connection().Exec(`
+	_, err := mediaFixtureSQL(`
         INSERT INTO comments (tenant_id, post_id, parent_id, user_id, content, created_at)
         VALUES ($1, $2, $3, $4, 'Another child', NOW())
     `, f.tenant.ID, post.Result.ID, ids[5], f.user.ID)
@@ -440,10 +440,10 @@ func TestDiscussionChainPrefetch(t *testing.T) {
 		parentID := ids[20]
 		for depth := 0; depth < 10; depth++ {
 			var id int
-			err := dbx.Connection().QueryRow(`
+			err := mediaFixtureScalar(&id, `
                 INSERT INTO comments (tenant_id, post_id, parent_id, user_id, content, created_at)
                 VALUES ($1, $2, $3, $4, 'Wide chain', NOW()) RETURNING id
-            `, f.tenant.ID, post.Result.ID, parentID, f.user.ID).Scan(&id)
+            `, f.tenant.ID, post.Result.ID, parentID, f.user.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -528,7 +528,7 @@ func TestDiscussionMutationResponsesAndReportPreview(t *testing.T) {
 
 			for _, operation := range []struct {
 				handler web.HandlerFunc
-				hidden bool
+				hidden  bool
 			}{{handlers.HideCommentModeration(), true}, {handlers.ApproveCommentModeration(), false}} {
 				response, err := f.requestWithParams(operation.handler, http.MethodPut,
 					"/api/comments/"+params["id"], "", params)

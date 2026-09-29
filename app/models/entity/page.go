@@ -104,6 +104,5 @@ type PageDraft struct {
 	BannerImageBKey string    `json:"bannerImageBKey,omitempty"`
 	MetaDescription string    `json:"metaDescription,omitempty"`
 	ShowTOC         bool      `json:"showToc"`
-	DraftData       string    `json:"draftData"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }

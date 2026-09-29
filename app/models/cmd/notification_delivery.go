@@ -7,9 +7,11 @@ import (
 )
 
 type ScheduleNotification struct {
-	Post    *entity.Post
-	Comment *entity.CommentNotification
-	BaseURL string
+	PostID     int
+	CommentID  int
+	MentionIDs []int
+	Edited     bool
+	BaseURL    string
 }
 
 type NotificationRecipient struct {

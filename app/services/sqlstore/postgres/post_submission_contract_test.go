@@ -26,6 +26,7 @@ func TestPostSubmissionIdentityRequired(t *testing.T) {
 		{"omitted", nil, http.StatusBadRequest},
 		{"null", nil, http.StatusBadRequest},
 		{"empty", "", http.StatusBadRequest},
+		{"NUL", "a\x00b", http.StatusBadRequest},
 		{"boolean", true, http.StatusBadRequest},
 		{"number", 1, http.StatusBadRequest},
 		{"array", []string{"id"}, http.StatusBadRequest},
@@ -61,8 +62,8 @@ func TestPostSubmissionIdentityRequired(t *testing.T) {
 					t.Fatalf("replay changed receipt: %v %d %s", err, replay.Code, replay.Body)
 				}
 
-				count := workflowCount(t, `SELECT COUNT(*) FROM posts
-					WHERE submission_id = $1 AND submission_hash IS NOT NULL AND submission_result IS NOT NULL`, test.value)
+				count := workflowCount(t, `SELECT COUNT(*) FROM command_receipts
+					WHERE kind='post' AND submission_id = $1 AND fingerprint IS NOT NULL AND result IS NOT NULL`, test.value)
 				if count != 1 {
 					t.Fatalf("expected one persisted receipt, got %d", count)
 				}

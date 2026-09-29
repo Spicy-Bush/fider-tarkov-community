@@ -8,6 +8,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/imagic"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -173,7 +174,7 @@ func PreviewProfileAvatar() web.HandlerFunc {
 		for _, check := range checks.Result {
 			if check.ContentType == "avatar" && (check.State == "pending" || check.State == "running" || check.State == "failed") &&
 				fmt.Sprint(check.Revision) == c.QueryParam("revision") {
-				image := &query.GetBlobByKey{Key: check.BlobKeys[0], AllowUnpublishedAvatar: true}
+				image := &query.GetBlobByKey{Key: check.BlobKeys[0], AllowUnpublishedAvatar: true, MaxBytes: imagic.MaxImageBytes}
 				if err := bus.Dispatch(c, image); err != nil {
 					return c.Failure(err)
 				}

@@ -293,7 +293,8 @@ func deleteReport(ctx context.Context, c *cmd.DeleteReport) error {
 }
 
 func authorizeReportChange(ctx context.Context, user *entity.User, reportID int) error {
-	if user == nil || (!user.IsCollaborator() && !user.IsModerator()) {
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	if !entity.Can(user, tenant, entity.ManageReports) {
 		return validate.Unauthorized()
 	}
 
@@ -312,7 +313,7 @@ func authorizeReportChange(ctx context.Context, user *entity.User, reportID int)
 func getReportByID(ctx context.Context, q *query.GetReportByID) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		report := dbReport{}
-		err := trx.Get(&report, visibleCommentOwners + `
+		err := trx.Get(&report, visibleCommentOwners+`
 			SELECT 
 				r.id, r.reported_type, r.reported_id, r.reason, r.details, r.status, r.created_at,
 				ru.id as reporter_id, ru.name as reporter_name,
@@ -335,9 +336,9 @@ func getReportByID(ctx context.Context, q *query.GetReportByID) error {
 			LEFT JOIN comments c ON r.reported_type = 'comment' AND c.id = r.reported_id
 			LEFT JOIN posts cp ON c.post_id = cp.id
 			LEFT JOIN pages pg ON c.page_id = pg.id AND pg.tenant_id = r.tenant_id
-			WHERE r.tenant_id = $1 AND r.id = $4
+			WHERE r.tenant_id = $1 AND r.id = $6
 			AND (r.reported_type <> 'comment' OR r.reported_id IN (SELECT id FROM visible_comment_owners))
-		`, tenant.ID, viewerRole(user), viewerID(user), q.ReportID)
+		`, append(commentOwnerParams(tenant, user), q.ReportID)...)
 		if err != nil {
 			return errors.Wrap(err, "failed to get report by ID")
 		}
@@ -357,8 +358,8 @@ func listReports(ctx context.Context, q *query.ListReports) error {
 		offset := (q.Page - 1) * q.PerPage
 
 		conditions := "r.tenant_id = $1 AND (r.reported_type <> 'comment' OR r.reported_id IN (SELECT id FROM visible_comment_owners))"
-		args := []interface{}{tenant.ID, viewerRole(user), viewerID(user)}
-		argIdx := 4
+		args := commentOwnerParams(tenant, user)
+		argIdx := len(args) + 1
 
 		if len(q.Status) > 0 {
 			statusStrings := make([]string, len(q.Status))
@@ -382,13 +383,13 @@ func listReports(ctx context.Context, q *query.ListReports) error {
 			argIdx++
 		}
 
-		err := trx.Scalar(&q.Total, visibleCommentOwners + "SELECT COUNT(*) FROM reports r WHERE "+conditions, args...)
+		err := trx.Scalar(&q.Total, visibleCommentOwners+"SELECT COUNT(*) FROM reports r WHERE "+conditions, args...)
 		if err != nil {
 			return errors.Wrap(err, "failed to count reports")
 		}
 
 		var reports []*dbReport
-		err = trx.Select(&reports, visibleCommentOwners + `
+		err = trx.Select(&reports, visibleCommentOwners+`
 			SELECT 
 				r.id, r.reported_type, r.reported_id, r.reason, r.details, r.status, r.created_at,
 				ru.id as reporter_id, ru.name as reporter_name,
@@ -429,11 +430,11 @@ func listReports(ctx context.Context, q *query.ListReports) error {
 
 func countPendingReports(ctx context.Context, q *query.CountPendingReports) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		err := trx.Scalar(&q.Result, visibleCommentOwners + `
+		err := trx.Scalar(&q.Result, visibleCommentOwners+`
 			SELECT COUNT(*) FROM reports r
 			WHERE r.tenant_id = $1 AND r.status IN ('pending', 'in_review')
 			AND (r.reported_type <> 'comment' OR r.reported_id IN (SELECT id FROM visible_comment_owners))
-		`, tenant.ID, viewerRole(user), viewerID(user))
+		`, commentOwnerParams(tenant, user)...)
 		if err != nil {
 			return errors.Wrap(err, "failed to count pending reports")
 		}

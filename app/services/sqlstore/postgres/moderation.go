@@ -49,8 +49,7 @@ func setModerationPending(ctx context.Context, c *cmd.SetModerationPending) erro
 			return errors.Wrap(err, "failed to set moderation_pending for %s %d", c.ContentType, c.ContentID)
 		}
 
-		_, err = trx.Execute(`UPDATE moderation_checks SET revision=revision+1,state='canceled',text_content='',blob_keys='[]',result=NULL,updated_at=NOW()
-            WHERE tenant_id=$1 AND content_type=$2 AND content_id=$3`, tenant.ID, c.ContentType, c.ContentID)
+		err = cancelModerationCheck(trx, tenant.ID, c.ContentID, c.ContentType)
 		if err == nil && c.Comment != nil {
 			c.Comment.ModerationPending = c.Pending
 			c.Comment.ModerationData = ""

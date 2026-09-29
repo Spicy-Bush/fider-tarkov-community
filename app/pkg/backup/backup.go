@@ -5,16 +5,26 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
+	"github.com/lib/pq"
 )
 
 func Create(ctx context.Context) (*bytes.Buffer, error) {
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	user, _ := ctx.Value(app.UserCtxKey).(*entity.User)
+	if !entity.Can(user, tenant, entity.ExportBackup) {
+		return nil, validate.Unauthorized()
+	}
+
 	trx, err := dbx.BeginTxWithOptions(ctx, &sql.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  true,
@@ -29,37 +39,30 @@ func Create(ctx context.Context) (*bytes.Buffer, error) {
 	buffer := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buffer)
 
-	for _, tableName := range []string{
-		"attachments",
-		"comments",
-		"comment_edit_receipts",
-		"email_verifications",
-		"notifications",
-		"oauth_providers",
-		"pages",
-		"page_authors",
-		"page_drafts",
-		"page_reactions",
-		"page_subscriptions",
-		"page_topics",
-		"page_topics_map",
-		"page_tags",
-		"page_tags_map",
-		"posts",
-		"post_subscribers",
-		"post_tags",
-		"post_votes",
-		"post_vote_revisions",
-		"reactions",
-		"notification_deliveries",
-		"notification_recipients",
-		"tags",
-		"tenants",
-		"user_providers",
-		"users",
-		"user_settings",
-	} {
-		err := addTableDataToZipFile(ctx, zipWriter, tableName)
+	excluded := []string{
+		"blobs", "media_thumbnails", "media_inventory", "media_inventory_candidates",
+		"media_reference_changes",
+	}
+	indirect := []string{"tenants", "reactions", "page_reactions", "page_subscriptions"}
+	var tables []*struct {
+		Name string `db:"table_name"`
+	}
+	if err := trx.Select(&tables, `
+		SELECT columns.table_name::text
+		FROM information_schema.columns
+		JOIN information_schema.tables USING (table_schema, table_name)
+		WHERE columns.table_schema = current_schema()
+		  AND tables.table_type = 'BASE TABLE'
+		  AND columns.column_name = 'tenant_id'
+		  AND columns.table_name <> ALL($1)
+		UNION SELECT unnest($2::text[])
+		ORDER BY 1
+	`, pq.Array(excluded), pq.Array(indirect)); err != nil {
+		return nil, err
+	}
+
+	for _, table := range tables {
+		err := addTableDataToZipFile(ctx, zipWriter, table.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -73,6 +76,18 @@ func Create(ctx context.Context) (*bytes.Buffer, error) {
 	for _, bkey := range listBlobs.Result {
 		err := addBlobToZipFile(ctx, zipWriter, bkey)
 		if err != nil {
+			return nil, err
+		}
+	}
+	if listBlobs.Skipped > 0 {
+		warning, err := zipWriter.Create("warnings.json")
+		if err != nil {
+			return nil, err
+		}
+		if err := json.NewEncoder(warning).Encode(map[string]any{
+			"skippedBlobs": listBlobs.Skipped,
+			"reason":       "Stored files with invalid names could not be exported.",
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -90,7 +105,7 @@ func Create(ctx context.Context) (*bytes.Buffer, error) {
 }
 
 func addBlobToZipFile(ctx context.Context, zipWriter *zip.Writer, bkey string) error {
-	getBlob := &query.GetBlobByKey{Key: bkey}
+	getBlob := &query.GetBlobByKey{Key: bkey, ForBackup: true}
 	if err := bus.Dispatch(ctx, getBlob); err != nil {
 		return errors.Wrap(err, "failed to get blob with key %s", bkey)
 	}

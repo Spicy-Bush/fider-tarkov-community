@@ -19,12 +19,12 @@ func TestDiscussionPrivatePageReportOperations(t *testing.T) {
 	defer TeardownDatabaseTest()
 
 	page := &cmd.CreatePage{
-		Title: "Restricted report",
-		Slug: "restricted-report",
-		Content: "Private Page",
-		Status: entity.PageStatusPublished,
-		Visibility: entity.PageVisibilityPrivate,
-		AllowedRoles: []string{"visitor"},
+		Title:         "Restricted report",
+		Slug:          "restricted-report",
+		Content:       "Private Page",
+		Status:        entity.PageStatusPublished,
+		Visibility:    entity.PageVisibilityPrivate,
+		AllowedRoles:  []string{"visitor"},
 		AllowComments: true,
 	}
 	if err := bus.Dispatch(jonSnowCtx, page, &cmd.CreateReportReason{Title: "spam"}); err != nil {
@@ -76,7 +76,7 @@ func TestDiscussionPrivatePageReportOperations(t *testing.T) {
 	read(false)
 
 	operations := []struct {
-		name string
+		name    string
 		command any
 	}{
 		{name: "assign", command: &cmd.AssignReport{ReportID: report.Result, AssignToID: moderator.ID}},
@@ -146,11 +146,11 @@ func TestDiscussionReportVisibilityMatchesPagePolicy(t *testing.T) {
 	defer TeardownDatabaseTest()
 
 	page := &cmd.CreatePage{
-		Title: "Visibility matrix",
-		Slug: "visibility-matrix",
-		Content: "Page content",
-		Status: entity.PageStatusPublished,
-		Visibility: entity.PageVisibilityPublic,
+		Title:         "Visibility matrix",
+		Slug:          "visibility-matrix",
+		Content:       "Page content",
+		Status:        entity.PageStatusPublished,
+		Visibility:    entity.PageVisibilityPublic,
 		AllowComments: true,
 	}
 	if err := bus.Dispatch(jonSnowCtx, page, &cmd.CreateReportReason{Title: "spam"}); err != nil {
@@ -171,7 +171,21 @@ func TestDiscussionReportVisibilityMatchesPagePolicy(t *testing.T) {
 
 	statuses := []entity.PageStatus{entity.PageStatusDraft, entity.PageStatusPublished, entity.PageStatusUnpublished, entity.PageStatusScheduled}
 	visibilities := []entity.PageVisibility{entity.PageVisibilityPublic, entity.PageVisibilityUnlisted, entity.PageVisibilityPrivate}
-	roles := []enum.Role{0, enum.RoleVisitor, enum.RoleHelper, enum.RoleModerator, enum.RoleCollaborator, enum.RoleAdministrator}
+	viewers := []struct {
+		role      enum.Role
+		canManage bool
+		override  bool
+	}{
+		{role: 0},
+		{role: enum.RoleVisitor},
+		{role: enum.RoleHelper},
+		{role: enum.RoleModerator},
+		{role: enum.RoleCollaborator, canManage: true},
+		{role: enum.RoleAdministrator, canManage: true},
+		{role: enum.RoleHelper, canManage: true, override: true},
+		{role: enum.RoleModerator, canManage: true, override: true},
+		{role: enum.RoleCollaborator, canManage: false, override: true},
+	}
 	for _, status := range statuses {
 		for _, visibility := range visibilities {
 			for _, allowed := range []bool{false, true} {
@@ -186,8 +200,14 @@ func TestDiscussionReportVisibilityMatchesPagePolicy(t *testing.T) {
 				if _, err := trx.Execute("UPDATE pages SET status = $1, visibility = $2, allowed_roles = $3 WHERE id = $4", status, visibility, allowedJSON, page.Result.ID); err != nil {
 					t.Fatal(err)
 				}
-				for _, role := range roles {
-					t.Run(fmt.Sprintf("%s/%s/allowed=%v/role=%d", status, visibility, allowed, role), func(t *testing.T) {
+				for _, candidate := range viewers {
+					role := candidate.role
+					t.Run(fmt.Sprintf("%s/%s/allowed=%v/role=%d/override=%v", status, visibility, allowed, role, candidate.override), func(t *testing.T) {
+						tenant := *demoTenant
+						if candidate.override {
+							tenant.RolePermissions = entity.RolePermissions{role: {entity.ManagePages: candidate.canManage}}
+						}
+
 						var viewer *entity.User
 						if role != 0 {
 							copy := *sansaStark
@@ -195,11 +215,20 @@ func TestDiscussionReportVisibilityMatchesPagePolicy(t *testing.T) {
 							viewer = &copy
 						}
 						ctx := context.WithValue(sansaStarkCtx, app.UserCtxKey, viewer)
-						want := role == enum.RoleAdministrator || role == enum.RoleCollaborator ||
-							(status == entity.PageStatusPublished && (visibility != entity.PageVisibilityPrivate || (role != 0 && allowed)))
-						if page.Result.CanView(viewer, ctx.Value(app.TenantCtxKey).(*entity.Tenant)) != want {
+						ctx = context.WithValue(ctx, app.TenantCtxKey, &tenant)
+						allowedRole := role == enum.RoleVisitor || role == enum.RoleHelper || role == enum.RoleModerator
+						want := candidate.canManage ||
+							(status == entity.PageStatusPublished && (visibility != entity.PageVisibilityPrivate || (allowedRole && allowed)))
+						if page.Result.CanView(viewer, &tenant) != want {
 							t.Fatal("entity visibility disagrees with the expected role/status policy")
 						}
+
+						discussion := &query.GetDiscussion{PageID: page.Result.ID}
+						discussionErr := bus.Dispatch(ctx, discussion)
+						if (discussionErr == nil) != want {
+							t.Fatalf("discussion visibility = %v, want visible=%v", discussionErr, want)
+						}
+
 						get := &query.GetReportByID{ReportID: report.Result}
 						err := bus.Dispatch(ctx, get)
 						if want && err != nil {

@@ -12,7 +12,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -51,7 +50,13 @@ func TestDiscussionRecordSelection(t *testing.T) {
 				path = "/api/pages/comments"
 			}
 
-			rows, err := dbx.Connection().Query(`
+			transaction, err := mediaFixtureTransaction(f.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer transaction.Rollback()
+
+			rows, err := transaction.Query(`
                 INSERT INTO comments (tenant_id, post_id, page_id, user_id, content, created_at)
                 SELECT $1, $2, $3, 2, 'Record ' || n, NOW() FROM generate_series(1, 50) n
                 RETURNING id
@@ -74,6 +79,10 @@ func TestDiscussionRecordSelection(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := rows.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := transaction.Commit(); err != nil {
 				t.Fatal(err)
 			}
 
@@ -103,10 +112,10 @@ func TestDiscussionRecordSelection(t *testing.T) {
 			}
 
 			var otherID int
-			if err := dbx.Connection().QueryRow(`
+			if err := mediaFixtureScalar(&otherID, `
                 INSERT INTO comments (tenant_id, post_id, user_id, content, created_at)
                 VALUES ($1, $2, 2, 'Another discussion', NOW()) RETURNING id
-            `, f.tenant.ID, other.Result.ID).Scan(&otherID); err != nil {
+            `, f.tenant.ID, other.Result.ID); err != nil {
 				t.Fatal(err)
 			}
 
@@ -121,7 +130,7 @@ func TestDiscussionRecordSelection(t *testing.T) {
 				t.Fatalf("mixed owner selection exposed another discussion: %s", response.Body)
 			}
 
-			if _, err := dbx.Connection().Exec("UPDATE comments SET moderation_pending = TRUE WHERE id = $1", ids[0]); err != nil {
+			if _, err := mediaFixtureSQL("UPDATE comments SET moderation_pending = TRUE WHERE id = $1", ids[0]); err != nil {
 				t.Fatal(err)
 			}
 
@@ -146,7 +155,7 @@ func TestDiscussionRecordSelection(t *testing.T) {
 				}
 			}
 
-			if _, err := dbx.Connection().Exec("UPDATE comments SET deleted_at = NOW() WHERE id = $1", ids[0]); err != nil {
+			if _, err := mediaFixtureSQL("UPDATE comments SET deleted_at = NOW() WHERE id = $1", ids[0]); err != nil {
 				t.Fatal(err)
 			}
 
@@ -162,7 +171,7 @@ func TestDiscussionRecordSelection(t *testing.T) {
 			}
 
 			if pageID != nil {
-				if _, err := dbx.Connection().Exec(`UPDATE pages SET visibility = 'private', allowed_roles = '["visitor"]' WHERE id = $1`, *pageID); err != nil {
+				if _, err := mediaFixtureSQL(`UPDATE pages SET visibility = 'private', allowed_roles = '["visitor"]' WHERE id = $1`, *pageID); err != nil {
 					t.Fatal(err)
 				}
 

@@ -13,7 +13,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -263,10 +262,6 @@ func CreateDiscussionComment() web.HandlerFunc {
 
 		if create.Created {
 			metrics.TotalComments.Inc()
-			if create.Discussion.Owner.Kind == "post" {
-				postcache.InvalidateTenantRankings(c.Tenant().ID)
-				postcache.InvalidateCountPerStatus(c.Tenant().ID)
-			}
 		}
 
 		return CommentResponse(c, create.Discussion, create.Result)

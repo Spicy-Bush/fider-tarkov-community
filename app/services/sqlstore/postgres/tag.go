@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
@@ -69,18 +68,12 @@ func getAllTags(ctx context.Context, q *query.GetAllTags) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]*entity.Tag, 0)
 
-		condition := `AND t.is_public = true`
-		if user != nil && (user.IsCollaborator() || user.IsModerator()) {
-			condition = ``
-		}
-
-		query := fmt.Sprintf(`
+		tags, err := queryTags(trx, tenant, user, `
 			SELECT t.id, t.name, t.slug, t.color, t.is_public 
 			FROM tags t
-			WHERE t.tenant_id = $1 %s
+			WHERE t.tenant_id = $1 AND (t.is_public OR $2)
 			ORDER BY t.name
-		`, condition)
-		tags, err := queryTags(trx, tenant, user, query, tenant.ID)
+		`, tenant.ID, entity.Can(user, tenant, entity.ViewPrivateTags))
 		if err != nil {
 			return errors.Wrap(err, "failed get all tags")
 		}

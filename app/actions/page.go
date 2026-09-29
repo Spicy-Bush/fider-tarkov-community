@@ -319,24 +319,3 @@ func (action *TogglePageSubscription) IsAuthorized(ctx context.Context, user *en
 func (action *TogglePageSubscription) Validate(ctx context.Context, user *entity.User) *validate.Result {
 	return validate.Success()
 }
-
-type SavePageDraft struct {
-	PageID          int
-	Title           string
-	Slug            string
-	Content         string
-	Excerpt         string
-	BannerImageBKey string
-	MetaDescription string
-	ShowTOC         bool
-	DraftData       map[string]interface{}
-}
-
-func (action *SavePageDraft) IsAuthorized(ctx context.Context, user *entity.User) bool {
-	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
-	return entity.Can(user, tenant, entity.ManagePages)
-}
-
-func (action *SavePageDraft) Validate(ctx context.Context, user *entity.User) *validate.Result {
-	return validate.Success()
-}

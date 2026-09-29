@@ -111,7 +111,7 @@ func TestDiscussionConcurrentArchivedCreation(t *testing.T) {
 			if err := bus.Dispatch(f.ctx, post); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := dbx.Connection().Exec("UPDATE posts SET status = $1, archived_from_status = $2 WHERE id = $3", enum.PostArchived, enum.PostOpen, post.Result.ID); err != nil {
+			if _, err := mediaFixtureSQL("UPDATE posts SET status = $1, archived_from_status = $2 WHERE id = $3", enum.PostArchived, enum.PostOpen, post.Result.ID); err != nil {
 				t.Fatal(err)
 			}
 

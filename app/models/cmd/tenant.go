@@ -20,6 +20,14 @@ type UpdateContentSettings struct {
 	Settings *entity.GeneralSettings
 }
 
+type UpdateRolePermissions struct {
+	SubmissionID    string
+	Changes         []entity.RolePermissionChange
+	ResponseChanges []entity.RoleResponseChange
+
+	Result entity.RolePermissionUpdate
+}
+
 type UpdateTenantPrivacySettings struct {
 	IsPrivate bool
 }

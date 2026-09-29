@@ -111,115 +111,117 @@ func setCommentReaction(ctx context.Context, c *cmd.SetCommentReaction) error {
 }
 
 func updateComment(ctx context.Context, c *cmd.UpdateComment) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		if user == nil {
-			return validate.Unauthorized()
-		}
+	for {
+		prepare := false
+		var imageIdentity string
+		err := using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+			ctx, err := lockedContentContext(ctx, trx, tenant, user)
+			if err != nil {
+				return err
+			}
+			tenant = ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+			user = ctx.Value(app.UserCtxKey).(*entity.User)
 
-		if c.SubmissionID == "" || len(c.SubmissionID) > 128 {
-			return validate.Failed("Invalid submission identity.")
-		}
+			if !validate.ValidSubmissionID(c.SubmissionID) {
+				return validate.Failed("Invalid submission identity.")
+			}
 
-		owner := &query.GetDiscussion{CommentID: c.CommentID, LockOwner: true}
-		if err := getDiscussion(ctx, owner); err != nil {
-			return err
-		}
-		c.Discussion = owner.Result
+			owner := &query.GetDiscussion{CommentID: c.CommentID, LockOwner: true}
+			if err := getDiscussion(ctx, owner); err != nil {
+				return err
+			}
+			c.Discussion = owner.Result
 
-		if _, err := trx.Execute("SELECT id FROM comments WHERE tenant_id = $1 AND id = $2 FOR UPDATE", tenant.ID, c.CommentID); err != nil {
-			return err
-		}
+			if _, err := trx.Execute("SELECT id FROM comments WHERE tenant_id = $1 AND id = $2 FOR UPDATE", tenant.ID, c.CommentID); err != nil {
+				return err
+			}
 
-		comment := &query.GetCommentByID{CommentID: c.CommentID, IncludeDeleted: true}
-		if err := getCommentByID(ctx, comment); err != nil {
-			return err
-		}
+			comment := &query.GetCommentByID{CommentID: c.CommentID, IncludeDeleted: true}
+			if err := getCommentByID(ctx, comment); err != nil {
+				return err
+			}
 
-		fingerprint, err := commentFingerprint(owner.Result.Owner, c.CommentID, comment.Result.ParentID, c.Content, c.Attachments)
-		if err != nil {
-			return err
-		}
+			fingerprint, err := commentFingerprint(owner.Result.Owner, c.CommentID, comment.Result.ParentID, c.Content, c.Attachments)
+			if err != nil {
+				return err
+			}
 
-		identity := fmt.Sprintf("comment-edit:%d:%d:%s", tenant.ID, user.ID, c.SubmissionID)
-		if _, err := trx.Execute("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", identity); err != nil {
-			return err
-		}
+			identity := fmt.Sprintf("comment-edit:%d:%d:%s", tenant.ID, user.ID, c.SubmissionID)
+			receipt := commandReceipt{
+				TenantID: tenant.ID, UserID: user.ID, Kind: "comment-edit",
+				SubmissionID: c.SubmissionID, Fingerprint: fingerprint,
+			}
+			replayed, err := receipt.read(trx, nil)
+			if err != nil {
+				return err
+			}
+			if replayed {
+				c.Result = comment.Result
+				return nil
+			}
 
-		var savedHash string
-		err = trx.Scalar(&savedHash, `
-            SELECT submission_hash FROM comment_edit_receipts
-            WHERE tenant_id = $1 AND user_id = $2 AND submission_id = $3
-        `, tenant.ID, user.ID, c.SubmissionID)
-		if err == nil {
-			if savedHash != fingerprint {
-				return app.ErrConflict
+			input := actions.CommentInput{
+				Discussion:  owner.Result,
+				Comment:     comment.Result,
+				Content:     c.Content,
+				Attachments: c.Attachments,
+			}
+			if validation := input.Validate(ctx, user); !validation.Ok {
+				return validation
+			}
+
+			if imagesNeedPreparation(c.Attachments) {
+				prepare = true
+				imageIdentity = identity + ":" + fingerprint
+				return nil
+			}
+
+			previousContent := comment.Result.Content
+			content := storedCommentContent(c.Content)
+			_, err = trx.Execute(`
+				UPDATE comments SET content = $1, edited_by_id = $2,
+					edited_at = GREATEST(CURRENT_TIMESTAMP,
+						COALESCE(edited_at, created_at) + INTERVAL '1 microsecond')
+				WHERE id = $3 AND tenant_id = $4`, content, user.ID, c.CommentID, tenant.ID)
+			if err != nil {
+				return errors.Wrap(err, "failed update comment")
+			}
+
+			if err := setCommentAttachments(ctx, comment.Result.PostID, c.CommentID, c.Attachments); err != nil {
+				return err
+			}
+
+			if err := scheduleModeration(ctx, &cmd.ScheduleModeration{ContentType: "comment", ContentID: c.CommentID}); err != nil {
+				return err
+			}
+
+			if err := getCommentByID(ctx, comment); err != nil {
+				return err
 			}
 
 			c.Result = comment.Result
-			return nil
-		}
 
-		if errors.Cause(err) != app.ErrNotFound {
-			return err
-		}
-
-		input := actions.CommentInput{
-			Discussion:  owner.Result,
-			Comment:     comment.Result,
-			Content:     c.Content,
-			Attachments: c.Attachments,
-		}
-		if validation := input.Validate(ctx, user); !validation.Ok {
-			return validation
-		}
-
-		previousContent := comment.Result.Content
-		content := storedCommentContent(c.Content)
-		_, err = trx.Execute(`
-			UPDATE comments SET content = $1, edited_by_id = $2,
-                edited_at = GREATEST(CURRENT_TIMESTAMP,
-                    COALESCE(edited_at, created_at) + INTERVAL '1 microsecond')
-			WHERE id = $3 AND tenant_id = $4`, content, user.ID, c.CommentID, tenant.ID)
-		if err != nil {
-			return errors.Wrap(err, "failed update comment")
-		}
-
-		if err := setCommentAttachments(ctx, comment.Result.PostID, c.CommentID, c.Attachments); err != nil {
-			return err
-		}
-
-		if err := scheduleModeration(ctx, &cmd.ScheduleModeration{ContentType: "comment", ContentID: c.CommentID}); err != nil {
-			return err
-		}
-
-		if err := getCommentByID(ctx, comment); err != nil {
-			return err
-		}
-
-		c.Result = comment.Result
-
-		mentions := newCommentMentions(content, previousContent)
-		if len(mentions) > 0 {
-			if err := scheduleNotification(ctx, &cmd.ScheduleNotification{
-				BaseURL: c.BaseURL,
-				Comment: &entity.CommentNotification{
+			mentions := newCommentMentions(content, previousContent)
+			if len(mentions) > 0 {
+				if err := scheduleNotification(ctx, &cmd.ScheduleNotification{
+					BaseURL:    c.BaseURL,
 					CommentID:  c.CommentID,
-					Owner:      owner.Result.Owner,
-					Content:    content,
 					MentionIDs: mentions,
 					Edited:     true,
-				},
-			}); err != nil {
-				return err
+				}); err != nil {
+					return err
+				}
 			}
-		}
 
-		_, err = trx.Execute(`
-            INSERT INTO comment_edit_receipts (tenant_id, user_id, submission_id, comment_id, submission_hash)
-            VALUES ($1, $2, $3, $4, $5)
-        `, tenant.ID, user.ID, c.SubmissionID, c.CommentID, fingerprint)
-		return err
-	})
+			return receipt.save(trx, nil)
+		})
+		if err != nil || !prepare {
+			return err
+		}
+		if err := prepareSubmissionImages(ctx, c.Attachments, imageIdentity); err != nil {
+			return err
+		}
+	}
 }
 
 func deleteComment(ctx context.Context, c *cmd.DeleteComment) error {

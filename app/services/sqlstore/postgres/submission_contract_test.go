@@ -76,9 +76,9 @@ func TestCommentSubmissionIdentityRequired(t *testing.T) {
 			{"empty", ""},
 			{"too long", strings.Repeat("x", 129)},
 		} {
-				t.Run(operation.name+"/"+identity.name, func(t *testing.T) {
-					input := map[string]any{
-						"content": "Changed comment",
+			t.Run(operation.name+"/"+identity.name, func(t *testing.T) {
+				input := map[string]any{
+					"content": "Changed comment",
 				}
 				if identity.name != "omitted" {
 					input["submissionId"] = identity.value
@@ -99,7 +99,7 @@ func TestCommentSubmissionIdentityRequired(t *testing.T) {
 
 	if workflowCount(t, "SELECT COUNT(*) FROM posts") != 1 ||
 		workflowCount(t, "SELECT COUNT(*) FROM comments") != 1 ||
-		workflowCount(t, "SELECT COUNT(*) FROM comment_edit_receipts") != 0 ||
+		workflowCount(t, "SELECT COUNT(*) FROM command_receipts WHERE kind='comment-edit'") != 0 ||
 		workflowCount(t, "SELECT COUNT(*) FROM comments WHERE content = 'Original comment'") != 1 {
 		t.Fatal("rejected submissions changed stored content or receipts")
 	}

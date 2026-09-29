@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
@@ -12,6 +13,44 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 )
+
+func TestPageVisibilitySQLMatchesPolicy(t *testing.T) {
+	for _, role := range []enum.Role{0, enum.RoleVisitor, enum.RoleHelper, enum.RoleModerator, enum.RoleCollaborator, enum.RoleAdministrator} {
+		for _, granted := range []bool{false, true} {
+			tenant := &entity.Tenant{
+				ID: 1, Status: enum.TenantActive,
+				RolePermissions: entity.RolePermissions{role: {entity.ManagePages: granted}},
+			}
+			var user *entity.User
+			roleName := ""
+			if role != 0 {
+				user = &entity.User{ID: 1, Role: role, Status: enum.UserActive, Tenant: tenant}
+				roleName = role.String()
+			}
+
+			for _, status := range []entity.PageStatus{entity.PageStatusDraft, entity.PageStatusPublished, entity.PageStatusUnpublished, entity.PageStatusScheduled} {
+				for _, visibility := range []entity.PageVisibility{entity.PageVisibilityPublic, entity.PageVisibilityPrivate, entity.PageVisibilityUnlisted} {
+					for _, allowedRoles := range [][]string{nil, {}, {""}, {"helper"}, {"visitor", "moderator"}} {
+						page := &entity.Page{Status: status, Visibility: visibility, AllowedRoles: allowedRoles}
+						encodedRoles, err := json.Marshal(allowedRoles)
+						if err != nil {
+							t.Fatal(err)
+						}
+
+						var visible bool
+						err = dbx.Connection().QueryRow(`
+							SELECT page_is_visible($1, $2, $3, $4, $5)
+						`, status, visibility, string(encodedRoles), roleName, entity.Can(user, tenant, entity.ManagePages)).Scan(&visible)
+						if err != nil || visible != page.CanView(user, tenant) {
+							t.Fatalf("role=%s manage=%t status=%s visibility=%s allowed=%v: SQL=%t Go=%t error=%v",
+								roleName, granted, status, visibility, allowedRoles, visible, page.CanView(user, tenant), err)
+						}
+					}
+				}
+			}
+		}
+	}
+}
 
 func TestPagePermissionsProjectionAndMutations(t *testing.T) {
 	f := newPostWorkflow(t)

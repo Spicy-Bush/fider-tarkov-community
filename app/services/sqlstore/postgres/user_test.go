@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -219,15 +218,20 @@ func TestUserStorage_RegisterProvider(t *testing.T) {
 	Expect(getUser.Result.Providers[1].Name).Equals("google")
 }
 
-func TestUserStorage_UpdateSettings(t *testing.T) {
+func TestUserStorage_SaveProfile(t *testing.T) {
 	SetupDatabaseTest(t)
 	defer TeardownDatabaseTest()
 
-	err := bus.Dispatch(jonSnowCtx, &cmd.UpdateCurrentUser{
-		Name: "Jon Stark",
-		Avatar: &dto.ImageUpload{
-			BlobKey: "jon.png",
-		},
+	err := bus.Dispatch(jonSnowCtx, &cmd.SaveProfileName{
+		UserID: jonSnow.ID,
+		Name:   "Jon Stark",
+	})
+	Expect(err).IsNil()
+
+	err = bus.Dispatch(jonSnowCtx, &cmd.SaveProfileAvatar{
+		UserID:     jonSnow.ID,
+		AvatarType: enum.AvatarTypeCustom,
+		BlobKey:    "jon.png",
 	})
 	Expect(err).IsNil()
 

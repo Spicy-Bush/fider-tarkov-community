@@ -11,14 +11,14 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/lib/pq"
 )
 
 func seedAttachmentKeys(t testing.TB, f postWorkflow, postID int, keys []string) {
 	t.Helper()
-	_, err := dbx.Connection().Exec(`
+	_, err := mediaFixtureSQL(`
         INSERT INTO attachments (tenant_id, post_id, user_id, attachment_bkey)
         SELECT $1, $2, $3, key FROM unnest($4::text[]) AS key
     `, f.tenant.ID, postID, f.user.ID, pq.Array(keys))
@@ -43,6 +43,7 @@ func TestAttachmentChanges(t *testing.T) {
 			name:    "unknown references cannot attach a file",
 			changes: []*dto.ImageUpload{{BlobKey: "foreign"}},
 			want:    []string{"a", "b"},
+			invalid: true,
 		},
 		{
 			name:    "removing twice is harmless",
@@ -83,6 +84,11 @@ func TestAttachmentChanges(t *testing.T) {
 			})
 			if (err != nil) != test.invalid {
 				t.Fatalf("error = %v, invalid = %v", err, test.invalid)
+			}
+			if test.invalid {
+				if _, ok := err.(*validate.Result); !ok {
+					t.Fatalf("invalid attachment should return validation failure: %T %v", err, err)
+				}
 			}
 
 			stored := &query.GetPostAttachments{PostID: post.Result.ID}

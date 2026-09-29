@@ -10,12 +10,18 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 )
 
 func TestPostImageStorageDoesNotHoldWriteLocks(t *testing.T) {
 	for _, operation := range []string{"create", "edit"} {
 		t.Run(operation, func(t *testing.T) {
 			f := newPostWorkflow(t)
+			previous := env.Config.BlobStorage
+			t.Cleanup(func() { env.Config.BlobStorage = previous })
+			env.Config.BlobStorage.Type = "fs"
+			env.Config.BlobStorage.FS.Path = t.TempDir()
+
 			handler, method, number := api.CreatePost(), http.MethodPost, 0
 			lockQuery := "SELECT id FROM tenants WHERE id = $1 FOR UPDATE NOWAIT"
 			lockID := f.tenant.ID
@@ -31,15 +37,13 @@ func TestPostImageStorageDoesNotHoldWriteLocks(t *testing.T) {
 				lockID = post.Result.ID
 			}
 
-			gate, err := dbx.Connection().BeginTx(context.Background(), nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer gate.Rollback()
-
-			if _, err := gate.Exec("LOCK TABLE blobs IN SHARE MODE"); err != nil {
-				t.Fatal(err)
-			}
+			storing := make(chan struct{})
+			resume := make(chan struct{})
+			bus.AddHandler(func(ctx context.Context, c *cmd.StoreBlob) error {
+				close(storing)
+				<-resume
+				return nil
+			})
 
 			type response struct {
 				status int
@@ -52,29 +56,16 @@ func TestPostImageStorageDoesNotHoldWriteLocks(t *testing.T) {
 				completed <- response{status: recorder.Code, err: err}
 			}()
 
-			deadline := time.Now().Add(5 * time.Second)
-			for {
-				waiting := workflowCount(t, `
-                    SELECT COUNT(*) FROM pg_stat_activity
-                    WHERE datname = current_database() AND state = 'active'
-                      AND wait_event_type = 'Lock' AND query LIKE '%INSERT INTO blobs%'
-                      AND pid <> pg_backend_pid()
-                `)
-				if waiting == 1 {
-					break
-				}
-
-				if time.Now().After(deadline) {
-					t.Fatal("image request did not reach blob storage")
-				}
-				time.Sleep(5 * time.Millisecond)
+			select {
+			case <-storing:
+			case <-time.After(5 * time.Second):
+				close(resume)
+				t.Fatal("image request did not reach external blob storage")
 			}
 
-			// Image storage must finish before locks that serialize other post writes.
+			inUse := dbx.Connection().Stats().InUse
 			_, lockErr := dbx.Connection().Exec(lockQuery, lockID)
-			if err := gate.Commit(); err != nil {
-				t.Fatal(err)
-			}
+			close(resume)
 
 			select {
 			case result := <-completed:
@@ -88,11 +79,14 @@ func TestPostImageStorageDoesNotHoldWriteLocks(t *testing.T) {
 			if lockErr != nil {
 				t.Errorf("image storage held the %s write lock: %v", operation, lockErr)
 			}
+			if inUse != 0 {
+				t.Errorf("external image storage retained %d SQL connections", inUse)
+			}
 
 			for _, query := range []string{
 				"SELECT COUNT(*) FROM posts",
 				"SELECT COUNT(*) FROM attachments",
-				"SELECT COUNT(*) FROM blobs WHERE key LIKE 'attachments/%'",
+				"SELECT COUNT(*) FROM media_assets WHERE key LIKE 'attachments/%'",
 			} {
 				if count := workflowCount(t, query); count != 1 {
 					t.Errorf("%s: want one committed effect, got %d", query, count)

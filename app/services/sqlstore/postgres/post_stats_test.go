@@ -20,7 +20,7 @@ func TestPostStatsExpireWithoutNewActivity(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if _, err := dbx.Connection().Exec(`
+		if _, err := mediaFixtureSQL(`
 			INSERT INTO comments (tenant_id, post_id, user_id, content, created_at)
 			VALUES ($1, $2, $3, 'Earlier comment', CURRENT_DATE - make_interval(days => $4))
 		`, f.tenant.ID, post.Result.ID, f.user.ID, days); err != nil {

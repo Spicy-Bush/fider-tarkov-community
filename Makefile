@@ -22,6 +22,9 @@ build-server: generate ## Build server (embeds all assets)
 generate: ## Generate typed bus dispatch code
 	go run scripts/generate-bus-dispatch.go
 
+media-schema: ## Print media-reference definitions for a new SQL migration
+	@go run scripts/generate-media-schema.go
+
 build-ui: ## Build all UI assets
 	npm run build
 

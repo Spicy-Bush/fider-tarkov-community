@@ -57,11 +57,27 @@ func dispatchModeration(t *testing.T, ctx context.Context, message any) {
 	}
 }
 
+func retainModerationImage(t *testing.T, ctx context.Context, key string) {
+	t.Helper()
+	dispatchModeration(t, ctx, &cmd.StoreBlob{Key: key, Content: []byte("image fixture"), ContentType: "image/png"})
+	if _, err := dbx.Connection().Exec(`
+		INSERT INTO media_assets (tenant_id,key,name,content_type,size)
+		VALUES (1,$1::text,$1::text,'image/png',13)
+	`, key); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		dbx.Connection().Exec("DELETE FROM media_assets WHERE tenant_id=1 AND key=$1", key)
+		dbx.Connection().Exec("DELETE FROM blobs WHERE tenant_id=1 AND key=$1", key)
+	})
+}
+
 func createModerationPost(t *testing.T, ctx context.Context) int {
 	t.Helper()
 	var id int
-	err := dbx.Connection().QueryRow(`INSERT INTO posts(title,description,slug,number,tenant_id,user_id,created_at,status)
-      VALUES('Title to check','Description to check','moderation-test-' || (SELECT COALESCE(MAX(number),0)+1 FROM posts WHERE tenant_id=1),(SELECT COALESCE(MAX(number),0)+1 FROM posts WHERE tenant_id=1),1,1,NOW(),0) RETURNING id`).Scan(&id)
+	err := mediaFixtureScalar(&id, `INSERT INTO posts(title,description,slug,number,tenant_id,user_id,created_at,status)
+      VALUES('Title to check','Description to check','moderation-test-' || (SELECT COALESCE(MAX(number),0)+1 FROM posts WHERE tenant_id=1),(SELECT COALESCE(MAX(number),0)+1 FROM posts WHERE tenant_id=1),1,1,NOW(),0) RETURNING id`)
 
 	if err != nil {
 		t.Fatal(err)
@@ -195,7 +211,7 @@ func TestModerationProfileSaveOutageAndLatestEdit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Cleanup(func() { dbx.Connection().Exec(`UPDATE users SET name=$1 WHERE id=1`, original) })
+	t.Cleanup(func() { mediaFixtureSQL(`UPDATE users SET name=$1 WHERE id=1`, original) })
 	start := time.Now()
 	change := &cmd.SaveProfileName{UserID: 1, Name: "First proposed name", Review: true}
 	dispatchModeration(t, ctx, change)
@@ -368,7 +384,7 @@ func TestModerationWorkerRecoversSavedAvatar(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dbx.Connection().Exec(`UPDATE users SET avatar_bkey=$1,avatar_type=$2 WHERE id=1`, originalKey, originalType)
+		mediaFixtureSQL(`UPDATE users SET avatar_bkey=$1,avatar_type=$2 WHERE id=1`, originalKey, originalType)
 	})
 
 	available := false
@@ -500,7 +516,7 @@ func TestModerationProfileHTTPWorkflow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Cleanup(func() { dbx.Connection().Exec(`UPDATE users SET name=$1 WHERE id=1`, original) })
+	t.Cleanup(func() { mediaFixtureSQL(`UPDATE users SET name=$1 WHERE id=1`, original) })
 	server := mock.NewServer().OnTenant(mock.DemoTenant).AsUser(mock.JonSnow)
 	code, response := server.ExecutePost(handlers.UpdateUserName(), `{"name":"Saved through HTTP"}`)
 
@@ -539,30 +555,38 @@ func TestModerationProfileHTTPWorkflow(t *testing.T) {
 func TestModerationPendingAvatarFileLifecycle(t *testing.T) {
 	ctx := moderationDatabase(t)
 	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Status: enum.UserActive})
+	bus.Init(blobsql.Service{})
+	retainModerationImage(t, ctx, "avatars/before")
 	dispatchModeration(t, ctx, &cmd.SaveProfileAvatar{UserID: 1, AvatarType: enum.AvatarTypeCustom, BlobKey: "avatars/before", Review: true})
 	first := takeModeration(t)
-	usage := &query.IsImageFileInUse{BlobKey: "avatars/before"}
+	usage := &query.GetFileUsage{BlobKey: "avatars/before", Page: 1}
 	dispatchModeration(t, ctx, usage)
 
-	if !usage.Result {
+	if usage.Total == 0 {
 		t.Fatal("pending avatar considered unused")
 	}
 
-	dispatchModeration(t, ctx, &cmd.UpdateImageFileReferences{OldBlobKey: "avatars/before", NewBlobKey: "avatars/after"})
+	dispatchModeration(t, ctx, &cmd.RenameImageFile{BlobKey: "avatars/before", Name: "Renamed avatar"})
 	stale := &cmd.FinishModeration{Check: first, Outcome: cmd.ModerationReviewed}
 	dispatchModeration(t, ctx, stale)
 
-	if stale.Applied {
-		t.Fatal("renamed image applied stale key")
+	if !stale.Applied {
+		t.Fatal("display-name change invalidated the image review")
 	}
 
+	retainModerationImage(t, ctx, "avatars/delete-pending")
+	dispatchModeration(t, ctx, &cmd.SaveProfileAvatar{UserID: 1, AvatarType: enum.AvatarTypeCustom, BlobKey: "avatars/delete-pending", Review: true})
 	second := takeModeration(t)
 
-	if len(second.BlobKeys) != 1 || second.BlobKeys[0] != "avatars/after" {
+	if len(second.BlobKeys) != 1 || second.BlobKeys[0] != "avatars/delete-pending" {
 		t.Fatalf("renamed proposal lost: %+v", second)
 	}
 
-	dispatchModeration(t, ctx, &cmd.DeleteImageFileReferences{BlobKey: "avatars/after"})
+	deletion := &cmd.DeleteFiles{BlobKeys: []string{"avatars/delete-pending"}, Force: true}
+	dispatchModeration(t, ctx, deletion)
+	if len(deletion.Result.Deleted) != 1 {
+		t.Fatalf("avatar deletion failed: %+v", deletion.Result)
+	}
 	stale = &cmd.FinishModeration{Check: second, Outcome: cmd.ModerationReviewed}
 	dispatchModeration(t, ctx, stale)
 
@@ -588,8 +612,8 @@ func BenchmarkModerationWorkflow(b *testing.B) {
 	}
 
 	var id int
-	err = dbx.Connection().QueryRow(`INSERT INTO posts(title,description,slug,number,tenant_id,user_id,created_at,status)
- VALUES('Benchmark title','Benchmark description','moderation-bench',(SELECT COALESCE(MAX(number),0)+1 FROM posts WHERE tenant_id=1),1,1,NOW(),0) RETURNING id`).Scan(&id)
+	err = mediaFixtureScalar(&id, `INSERT INTO posts(title,description,slug,number,tenant_id,user_id,created_at,status)
+ VALUES('Benchmark title','Benchmark description','moderation-bench',(SELECT COALESCE(MAX(number),0)+1 FROM posts WHERE tenant_id=1),1,1,NOW(),0) RETURNING id`)
 
 	if err != nil {
 		b.Fatal(err)
@@ -647,7 +671,7 @@ func TestModerationAvatarPublication(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dbx.Connection().Exec(`UPDATE users SET avatar_bkey=$1,avatar_type=$2 WHERE id=1`, oldKey, oldType)
+		mediaFixtureSQL(`UPDATE users SET avatar_bkey=$1,avatar_type=$2 WHERE id=1`, oldKey, oldType)
 		dbx.Connection().Exec(`DELETE FROM blobs WHERE tenant_id=1 AND key IN ('avatars/publication-test','avatars/rejected-test')`)
 	})
 
@@ -699,7 +723,7 @@ func TestModerationAvatarPublication(t *testing.T) {
 
 func TestModerationFailuresBeyondFirstPage(t *testing.T) {
 	ctx := moderationDatabase(t)
-	_, err := dbx.Connection().Exec(`INSERT INTO moderation_checks(tenant_id,content_type,content_id,state,text_content,updated_at)
+	_, err := mediaFixtureSQL(`INSERT INTO moderation_checks(tenant_id,content_type,content_id,state,text_content,updated_at)
  SELECT 1,'post',n,CASE WHEN n>100 THEN 'failed' ELSE 'pending' END,'fixture',NOW()+n*INTERVAL '1 second' FROM generate_series(1,201) n`)
 
 	if err != nil {
@@ -737,20 +761,23 @@ func TestModerationPruningProtectsSavedWork(t *testing.T) {
 	})
 
 	for _, key := range keys {
-		dispatchModeration(t, ctx, &cmd.StoreBlob{Key: key, Content: []byte("fixture"), ContentType: "image/png"})
+		retainModerationImage(t, ctx, key)
 	}
 
 	dispatchModeration(t, ctx, &cmd.SaveProfileAvatar{UserID: 1, AvatarType: enum.AvatarTypeCustom, BlobKey: keys[0], Review: true})
-	prunable := &query.GetPrunableFiles{}
+	prunable := query.NewListImageFiles()
+	prunable.PageSize = 100
+	prunable.Usage = "unused"
+	prunable.Search = "avatars/prune-"
 	dispatchModeration(t, ctx, prunable)
 	found := false
 
-	for _, key := range prunable.Result {
-		if key == keys[0] {
+	for _, file := range prunable.Result {
+		if file.BlobKey == keys[0] {
 			t.Fatal("saved avatar selected for pruning")
 		}
 
-		if key == keys[1] {
+		if file.BlobKey == keys[1] {
 			found = true
 		}
 	}
@@ -822,7 +849,7 @@ func TestModerationProfileModel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Cleanup(func() { dbx.Connection().Exec(`UPDATE users SET name=$1 WHERE id=1`, original) })
+	t.Cleanup(func() { mediaFixtureSQL(`UPDATE users SET name=$1 WHERE id=1`, original) })
 	random := rand.New(rand.NewSource(20260926))
 	expectedPublic := original
 	generation := 0
@@ -921,7 +948,7 @@ func TestModerationAvatarTypeSwitchCannotPublishUpload(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dbx.Connection().Exec(`UPDATE users SET avatar_bkey=$1,avatar_type=$2 WHERE id=1`, oldKey, oldType)
+		mediaFixtureSQL(`UPDATE users SET avatar_bkey=$1,avatar_type=$2 WHERE id=1`, oldKey, oldType)
 	})
 
 	for _, kind := range []string{"letter", "gravatar"} {
@@ -965,10 +992,10 @@ func TestModerationInactiveAvatarKeyRequiresReview(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dbx.Connection().Exec(`UPDATE users SET avatar_bkey=$1,avatar_type=$2 WHERE id=1`, oldKey, oldType)
+		mediaFixtureSQL(`UPDATE users SET avatar_bkey=$1,avatar_type=$2 WHERE id=1`, oldKey, oldType)
 	})
 
-	if _, err := dbx.Connection().Exec(`UPDATE users SET avatar_type=1,avatar_bkey='avatars/inactive' WHERE id=1`); err != nil {
+	if _, err := mediaFixtureSQL(`UPDATE users SET avatar_type=1,avatar_bkey='avatars/inactive' WHERE id=1`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1027,13 +1054,13 @@ func TestModerationAccountDeletion(t *testing.T) {
 			})
 
 			ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: id, Status: enum.UserActive})
-			dispatchModeration(t, ctx, &cmd.StoreBlob{Key: key, Content: []byte("fixture"), ContentType: "image/png"})
+			retainModerationImage(t, ctx, key)
 			dispatchModeration(t, ctx, &cmd.SaveProfileName{UserID: id, Name: "Private submission", Review: true})
 			nameClaim := takeModeration(t)
 			dispatchModeration(t, ctx, &cmd.SaveProfileAvatar{UserID: id, AvatarType: enum.AvatarTypeCustom, BlobKey: key, Review: true})
 			avatarClaim := takeModeration(t)
 
-			if _, err := dbx.Connection().Exec(`UPDATE moderation_checks SET state=$1 WHERE content_id=$2`, state, id); err != nil {
+			if _, err := mediaFixtureSQL(`UPDATE moderation_checks SET state=$1 WHERE content_id=$2`, state, id); err != nil {
 				t.Fatal(err)
 			}
 
@@ -1058,12 +1085,15 @@ func TestModerationAccountDeletion(t *testing.T) {
 				t.Errorf("deleted account retained %d profile checks in state %s", count, state)
 			}
 
-			prunable := &query.GetPrunableFiles{}
+			prunable := query.NewListImageFiles()
+			prunable.PageSize = 100
+			prunable.Usage = "unused"
+			prunable.Search = key
 			dispatchModeration(t, ctx, prunable)
 			found := false
 
 			for _, candidate := range prunable.Result {
-				found = found || candidate == key
+				found = found || candidate.BlobKey == key
 			}
 
 			if !found {
@@ -1159,8 +1189,8 @@ func TestModerationDeletionTransaction(t *testing.T) {
 	ctx := moderationDatabase(t)
 	var id int
 
-	if err := dbx.Connection().QueryRow(`INSERT INTO users(name,email,created_at,tenant_id,role,status,avatar_type,avatar_bkey)
-        VALUES ('Original','',NOW(),1,1,1,1,'') RETURNING id`).Scan(&id); err != nil {
+	if err := mediaFixtureScalar(&id, `INSERT INTO users(name,email,created_at,tenant_id,role,status,avatar_type,avatar_bkey)
+        VALUES ('Original','',NOW(),1,1,1,1,'') RETURNING id`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1242,7 +1272,7 @@ func TestModerationFailOpenRecoveryAndReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Cleanup(func() { dbx.Connection().Exec(`UPDATE users SET name=$1 WHERE id=1`, original) })
+	t.Cleanup(func() { mediaFixtureSQL(`UPDATE users SET name=$1 WHERE id=1`, original) })
 	status := 200
 	body := `{"results":[{"category_scores":{"sexual":null,"sexual/minors":0,"self-harm":0,"self-harm/intent":0,"self-harm/instructions":0}}]}`
 	calls := 0
@@ -1335,10 +1365,10 @@ func TestModerationCleanRecheckPreservesStaffHide(t *testing.T) {
 					Outcome: cmd.ModerationReviewed,
 				})
 
-				err := dbx.Connection().QueryRow(`
+				err := mediaFixtureScalar(&contentID, `
 					INSERT INTO comments (content, post_id, user_id, created_at, tenant_id)
 					VALUES ('Comment to review', $1, 1, NOW(), 1)
-					RETURNING id`, postID).Scan(&contentID)
+					RETURNING id`, postID)
 
 				if err != nil {
 					t.Fatal(err)
@@ -1415,28 +1445,31 @@ func TestModerationFailOpenAvatarFallbackLifecycle(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dbx.Connection().Exec(`UPDATE users SET avatar_bkey=$1,avatar_type=$2 WHERE id=1`, originalKey, originalType)
+		mediaFixtureSQL(`UPDATE users SET avatar_bkey=$1,avatar_type=$2 WHERE id=1`, originalKey, originalType)
 		dbx.Connection().Exec(`DELETE FROM blobs WHERE tenant_id=1 AND key LIKE 'avatars/failopen-%'`)
 	})
 
-	for _, key := range []string{"avatars/failopen-old", "avatars/failopen-new", "avatars/failopen-renamed"} {
-		dispatchModeration(t, ctx, &cmd.StoreBlob{Key: key, Content: []byte("image"), ContentType: "image/png"})
+	for _, key := range []string{"avatars/failopen-old", "avatars/failopen-new"} {
+		retainModerationImage(t, ctx, key)
 	}
 
 	dispatchModeration(t, ctx, &cmd.SaveProfileAvatar{UserID: 1, AvatarType: enum.AvatarTypeCustom, BlobKey: "avatars/failopen-old"})
 	dispatchModeration(t, ctx, &cmd.SaveProfileAvatar{UserID: 1, AvatarType: enum.AvatarTypeCustom, BlobKey: "avatars/failopen-new", Review: true})
 	first := takeModeration(t)
 	dispatchModeration(t, ctx, &cmd.FinishModeration{Check: first, Outcome: cmd.ModerationRetry})
-	prune := &query.GetPrunableFiles{}
+	prune := query.NewListImageFiles()
+	prune.PageSize = 100
+	prune.Usage = "unused"
+	prune.Search = "avatars/failopen-"
 	dispatchModeration(t, ctx, prune)
 
-	for _, key := range prune.Result {
-		if key == "avatars/failopen-old" || key == "avatars/failopen-new" {
-			t.Fatalf("pruned needed avatar %s", key)
+	for _, file := range prune.Result {
+		if file.BlobKey == "avatars/failopen-old" || file.BlobKey == "avatars/failopen-new" {
+			t.Fatalf("pruned needed avatar %s", file.BlobKey)
 		}
 	}
 
-	dispatchModeration(t, ctx, &cmd.UpdateImageFileReferences{OldBlobKey: "avatars/failopen-old", NewBlobKey: "avatars/failopen-renamed"})
+	dispatchModeration(t, ctx, &cmd.RenameImageFile{BlobKey: "avatars/failopen-old", Name: "Renamed fallback avatar"})
 	second := takeModeration(t)
 	dispatchModeration(t, ctx, &cmd.FinishModeration{Check: second, Outcome: cmd.ModerationReviewed, Findings: []cmd.ModerationFinding{{Category: "sexual", Score: 1}}})
 	var key string
@@ -1445,8 +1478,8 @@ func TestModerationFailOpenAvatarFallbackLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if key != "avatars/failopen-renamed" {
-		t.Fatalf("fallback did not follow rename: %s", key)
+	if key != "avatars/failopen-old" {
+		t.Fatalf("display-name change affected fallback identity: %s", key)
 	}
 
 	dispatchModeration(t, ctx, &cmd.SaveProfileAvatar{
@@ -1461,9 +1494,11 @@ func TestModerationFailOpenAvatarFallbackLifecycle(t *testing.T) {
 		Outcome: cmd.ModerationRetry,
 	})
 
-	dispatchModeration(t, ctx, &cmd.DeleteImageFileReferences{
-		BlobKey: "avatars/failopen-renamed",
-	})
+	deletion := &cmd.DeleteFiles{BlobKeys: []string{"avatars/failopen-old"}, Force: true}
+	dispatchModeration(t, ctx, deletion)
+	if len(deletion.Result.Deleted) != 1 {
+		t.Fatalf("fallback deletion failed: %+v", deletion.Result)
+	}
 
 	dispatchModeration(t, ctx, &cmd.FinishModeration{
 		Check:    takeModeration(t),

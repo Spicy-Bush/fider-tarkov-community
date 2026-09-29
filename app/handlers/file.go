@@ -1,14 +1,21 @@
 package handlers
 
 import (
-	"fmt"
+	"mime"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/imagic"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/services/blob"
 )
 
 func FileManagementPage() web.HandlerFunc {
@@ -16,54 +23,59 @@ func FileManagementPage() web.HandlerFunc {
 		return c.Page(http.StatusOK, web.Props{
 			Page:  "Administration/pages/FileManagement.page",
 			Title: "Files · Site Settings",
-			Data:  web.Map{},
+			Data:  web.Map{"options": dto.MediaLibraryOptions()},
 		})
 	}
 }
 
+func filePage(c *web.Context, name string, defaultValue, maximum int) (int, error) {
+	value := c.QueryParam(name)
+	if value == "" {
+		return defaultValue, nil
+	}
+
+	page, err := strconv.Atoi(value)
+	if err != nil || page < 1 || page > maximum {
+		return 0, validate.Failed("Choose a valid " + name + ".")
+	}
+	return page, nil
+}
+
 func ListFiles() web.HandlerFunc {
 	return func(c *web.Context) error {
-		page, err := c.QueryParamAsInt("page")
+		q, err := actions.ParseFileListQuery(c.Request.URL.Query())
 		if err != nil {
-			page = 1
-		}
-		pageSize, err := c.QueryParamAsInt("pageSize")
-		if err != nil {
-			pageSize = 20
-		}
-		if pageSize > 100 {
-			pageSize = 100
-		}
-
-		search := c.QueryParam("search")
-		sortBy := c.QueryParam("sortBy")
-		sortDir := c.QueryParam("sortDir")
-
-		if sortBy == "" {
-			sortBy = "createdAt"
-		}
-		if sortDir == "" {
-			sortDir = "desc"
-		}
-
-		listFilesQuery := &query.ListImageFiles{
-			Page:     page,
-			PageSize: pageSize,
-			Search:   search,
-			SortBy:   sortBy,
-			SortDir:  sortDir,
-		}
-		if err := bus.Dispatch(c, listFilesQuery); err != nil {
 			return c.Failure(err)
 		}
 
-		return c.Ok(map[string]interface{}{
-			"files":      listFilesQuery.Result,
-			"total":      listFilesQuery.Total,
-			"page":       listFilesQuery.Page,
-			"pageSize":   listFilesQuery.PageSize,
-			"totalPages": listFilesQuery.TotalPages,
+		if err := bus.Dispatch(c, q); err != nil {
+			return c.Failure(err)
+		}
+
+		inventory := &query.GetMediaInventory{}
+		if err := bus.Dispatch(c, inventory); err != nil {
+			return c.Failure(err)
+		}
+
+		return c.Ok(web.Map{
+			"files":      q.Result,
+			"total":      q.Total,
+			"totalBytes": q.TotalBytes,
+			"page":       q.Page,
+			"pageSize":   q.PageSize,
+			"totalPages": q.TotalPages,
+			"inventory":  inventory.Result,
+			"listedAt":   q.ListedAt,
 		})
+	}
+}
+
+func RefreshFileInventory() web.HandlerFunc {
+	return func(c *web.Context) error {
+		if err := bus.Dispatch(c, &cmd.RefreshMediaInventory{}); err != nil {
+			return c.Failure(err)
+		}
+		return c.Ok(web.Map{})
 	}
 }
 
@@ -74,115 +86,56 @@ func UploadFile() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		prefix := "files/"
-		if action.UploadType == "attachment" {
-			prefix = "attachments/"
+		upload := &cmd.UploadImageFile{
+			SubmissionID: action.SubmissionID,
+			Name:         action.Name,
+			Type:         enum.FileUploadType(action.UploadType),
+			Content:      action.File.Upload.Content,
 		}
-
-		return c.WithTransaction(func() error {
-			uploadCmd := &cmd.UploadImageFile{
-				Name:        action.Name,
-				Content:     action.File.Upload.Content,
-				ContentType: action.File.Upload.ContentType,
-				FileName:    action.File.Upload.FileName,
-				Prefix:      prefix,
-			}
-
-			if err := bus.Dispatch(c, uploadCmd); err != nil {
-				return c.Failure(err)
-			}
-
-			return c.Ok(uploadCmd.Result)
-		})
+		if err := bus.Dispatch(c, upload); err != nil {
+			return c.Failure(err)
+		}
+		return c.Ok(upload.Result)
 	}
 }
 
 func RenameFile() web.HandlerFunc {
 	return func(c *web.Context) error {
-		blobKey := c.Param("blobKey")
-		if extraPath := c.Param("path"); extraPath != "" {
-			blobKey = fmt.Sprintf("%s/%s", blobKey, extraPath)
-		}
-
 		action := actions.NewRenameFile()
-		action.BlobKey = blobKey
-
 		if result := c.BindTo(action); !result.Ok {
 			return c.HandleValidation(result)
 		}
 
-		return c.WithTransaction(func() error {
-			renameCmd := &cmd.RenameImageFile{
-				BlobKey: blobKey,
-				Name:    action.Name,
-			}
-
-			if err := bus.Dispatch(c, renameCmd); err != nil {
-				return c.Failure(err)
-			}
-
-			return c.Ok(renameCmd.Result)
-		})
-	}
-}
-
-func DeleteFile() web.HandlerFunc {
-	return func(c *web.Context) error {
-		blobKey := c.Param("blobKey")
-
-		if extraPath := c.Param("path"); extraPath != "" {
-			blobKey = fmt.Sprintf("%s/%s", blobKey, extraPath)
-		}
-
-		usageQuery := &query.IsImageFileInUse{BlobKey: blobKey}
-		if err := bus.Dispatch(c, usageQuery); err != nil {
+		rename := &cmd.RenameImageFile{BlobKey: action.BlobKey, Name: action.Name}
+		if err := bus.Dispatch(c, rename); err != nil {
 			return c.Failure(err)
 		}
-
-		forceDelete := c.QueryParam("force") == "true"
-
-		if usageQuery.Result && !forceDelete {
-			return c.BadRequest(web.Map{
-				"message": "Cannot delete an image that is in use. Use force delete to remove it and all references.",
-			})
-		}
-
-		return c.WithTransaction(func() error {
-			if forceDelete && usageQuery.Result {
-				deleteRefsCmd := &cmd.DeleteImageFileReferences{BlobKey: blobKey}
-				if err := bus.Dispatch(c, deleteRefsCmd); err != nil {
-					return c.Failure(err)
-				}
-			}
-
-			deleteCmd := &cmd.DeleteImageFile{BlobKey: blobKey}
-			if err := bus.Dispatch(c, deleteCmd); err != nil {
-				return c.Failure(err)
-			}
-
-			return c.Ok(web.Map{})
-		})
+		return c.Ok(rename.Result)
 	}
 }
 
 func GetFileUsage() web.HandlerFunc {
 	return func(c *web.Context) error {
-		blobKey := c.Param("blobKey")
-
-		if extraPath := c.Param("path"); extraPath != "" {
-			blobKey = fmt.Sprintf("%s/%s", blobKey, extraPath)
+		key := c.QueryParam("key")
+		if err := blob.ValidateKey(key); err != nil {
+			return c.Failure(validate.Failed("Choose a valid file."))
 		}
-
-		usageQuery := &query.IsImageFileInUse{BlobKey: blobKey}
-		if err := bus.Dispatch(c, usageQuery); err != nil {
+		page, err := filePage(c, "page", 1, 1000000000)
+		if err != nil {
 			return c.Failure(err)
 		}
 
-		if !usageQuery.Result {
-			return c.Ok([]string{})
+		usage := &query.GetFileUsage{BlobKey: key, Page: page}
+		if err := bus.Dispatch(c, usage); err != nil {
+			return c.Failure(err)
 		}
-
-		return c.Ok(usageQuery.UsedIn)
+		return c.Ok(web.Map{
+			"items":      usage.Result,
+			"total":      usage.Total,
+			"page":       usage.Page,
+			"pageSize":   usage.PageSize,
+			"totalPages": usage.TotalPages,
+		})
 	}
 }
 
@@ -193,95 +146,78 @@ func BulkDeleteFiles() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		forceDelete := c.QueryParam("force") == "true"
-
-		return c.WithTransaction(func() error {
-			deleted := 0
-			skipped := 0
-			errors := []string{}
-
-			for _, blobKey := range action.BlobKeys {
-				usageQuery := &query.IsImageFileInUse{BlobKey: blobKey}
-				if err := bus.Dispatch(c, usageQuery); err != nil {
-					errors = append(errors, fmt.Sprintf("%s: %v", blobKey, err))
-					continue
-				}
-
-				if usageQuery.Result && !forceDelete {
-					skipped++
-					continue
-				}
-
-				if forceDelete && usageQuery.Result {
-					deleteRefsCmd := &cmd.DeleteImageFileReferences{BlobKey: blobKey}
-					if err := bus.Dispatch(c, deleteRefsCmd); err != nil {
-						errors = append(errors, fmt.Sprintf("%s: %v", blobKey, err))
-						continue
-					}
-				}
-
-				deleteCmd := &cmd.DeleteImageFile{BlobKey: blobKey}
-				if err := bus.Dispatch(c, deleteCmd); err != nil {
-					errors = append(errors, fmt.Sprintf("%s: %v", blobKey, err))
-					continue
-				}
-
-				deleted++
-			}
-
-			return c.Ok(web.Map{
-				"deleted": deleted,
-				"skipped": skipped,
-				"errors":  errors,
-			})
-		})
+		deletion := &cmd.DeleteFiles{
+			BlobKeys: action.BlobKeys, Force: action.Force,
+			IncludeDeleted: action.IncludeDeleted, IncludeDrafts: action.IncludeDrafts,
+		}
+		if err := bus.Dispatch(c, deletion); err != nil {
+			return c.Failure(err)
+		}
+		return c.Ok(deletion.Result)
 	}
 }
 
 func PruneUnusedFiles() web.HandlerFunc {
 	return func(c *web.Context) error {
-		prunableQuery := &query.GetPrunableFiles{}
-		if err := bus.Dispatch(c, prunableQuery); err != nil {
+		var body struct {
+			Search         string    `json:"search"`
+			Type           string    `json:"type"`
+			Before         time.Time `json:"before"`
+			Cursor         string    `json:"cursor"`
+			IncludeDeleted bool      `json:"includeDeleted"`
+			IncludeDrafts  bool      `json:"includeDrafts"`
+		}
+		if err := c.Bind(&body); err != nil {
+			return c.Failure(validate.Failed("Choose the files to clean up."))
+		}
+		if !actions.ValidFileType(body.Type) || body.Before.IsZero() || body.Before.After(time.Now().Add(time.Minute)) {
+			return c.Failure(validate.Failed("Choose a valid cleanup filter and cutoff."))
+		}
+		if body.Cursor != "" && blob.ValidateKey(body.Cursor) != nil {
+			return c.Failure(validate.Failed("Choose a valid cleanup cursor."))
+		}
+
+		prune := &cmd.PruneFiles{
+			Search:         body.Search,
+			Type:           body.Type,
+			Before:         body.Before,
+			Cursor:         body.Cursor,
+			IncludeDeleted: body.IncludeDeleted,
+			IncludeDrafts:  body.IncludeDrafts,
+		}
+		if err := bus.Dispatch(c, prune); err != nil {
 			return c.Failure(err)
 		}
-
-		if len(prunableQuery.Result) == 0 {
-			return c.Ok(web.Map{
-				"deleted": 0,
-				"message": "No unused files to prune",
-			})
-		}
-
-		return c.WithTransaction(func() error {
-			deleted := 0
-			errors := []string{}
-
-			for _, blobKey := range prunableQuery.Result {
-				deleteCmd := &cmd.DeleteImageFile{BlobKey: blobKey}
-				if err := bus.Dispatch(c, deleteCmd); err != nil {
-					errors = append(errors, fmt.Sprintf("%s: %v", blobKey, err))
-					continue
-				}
-				deleted++
-			}
-
-			return c.Ok(web.Map{
-				"deleted": deleted,
-				"errors":  errors,
-			})
-		})
+		return c.Ok(prune.Result)
 	}
 }
 
-func GetPrunableFilesCount() web.HandlerFunc {
+func DownloadFile() web.HandlerFunc {
 	return func(c *web.Context) error {
-		prunableQuery := &query.GetPrunableFiles{}
-		if err := bus.Dispatch(c, prunableQuery); err != nil {
-			return c.Failure(err)
+		key := c.QueryParam("key")
+		if err := blob.ValidateKey(key); err != nil {
+			return c.Failure(validate.Failed("Choose a valid file."))
 		}
 
-		return c.Ok(web.Map{
-			"count": len(prunableQuery.Result),
-		})
+		file := &query.GetMediaFile{BlobKey: key}
+		if err := bus.Dispatch(c, file); err != nil {
+			return c.Failure(err)
+		}
+		if file.Result.State != "ready" {
+			return c.Failure(blob.ErrNotFound)
+		}
+
+		content := &query.GetBlobByKey{Key: key, AllowUnpublishedAvatar: true, MaxBytes: imagic.MaxImageBytes}
+		if err := bus.Dispatch(c, content); err != nil {
+			return c.Failure(err)
+		}
+		disposition := "attachment"
+		if c.QueryParam("inline") == "true" {
+			disposition = "inline"
+		}
+		c.Response.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": file.Result.Name}))
+		c.Response.Header().Set("Cache-Control", "private, no-store")
+		c.Response.Header().Set("X-Content-Type-Options", "nosniff")
+		return c.Blob(http.StatusOK, content.Result.ContentType, content.Result.Content)
 	}
 }

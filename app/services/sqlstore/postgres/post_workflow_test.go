@@ -51,6 +51,10 @@ func newPostWorkflow(t testing.TB) postWorkflow {
 	t.Helper()
 	dbx.Seed()
 	t.Cleanup(dbx.Seed)
+	previous := env.Config.BlobStorage
+	t.Cleanup(func() { env.Config.BlobStorage = previous })
+	env.Config.BlobStorage.Type = "sql"
+
 	assets.FS = os.DirFS(env.Path("."))
 	bus.Init(postgres.Service{}, blobsql.Service{})
 	baseURL, _ := url.Parse("http://localhost:3000")
@@ -74,7 +78,7 @@ func (f postWorkflow) queuePostNotification(t testing.TB) {
 	if err := bus.Dispatch(f.ctx, post); err != nil {
 		t.Fatal(err)
 	}
-	if err := bus.Dispatch(f.ctx, &cmd.ScheduleNotification{Post: post.Result, BaseURL: "http://localhost:3000"}); err != nil {
+	if err := bus.Dispatch(f.ctx, &cmd.ScheduleNotification{PostID: post.Result.ID, BaseURL: "http://localhost:3000"}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -95,7 +99,9 @@ func (f postWorkflow) requestWithParams(handler web.HandlerFunc, method, path, b
 	}
 
 	c.SetTenant(f.tenant)
-	c.SetUser(f.user)
+	if f.user != nil {
+		c.SetUser(f.user)
+	}
 	err = handler(c)
 	return recorder, err
 }
@@ -159,6 +165,10 @@ func TestPostWorkflowVoteRevisions(t *testing.T) {
 	if err != nil || json.Unmarshal(response.Body.Bytes(), &hydrated) != nil || hydrated.VoteRevision != 4 || hydrated.VoteType != -1 {
 		t.Fatalf("post hydration disagrees with committed vote: %v %s", err, response.Body)
 	}
+	activity, err := time.Parse(time.RFC3339Nano, current["lastActivityAt"].(string))
+	if err != nil || !activity.Equal(hydrated.LastActivityAt) {
+		t.Fatalf("vote response did not return the stored activity time: %v %v %v", activity, hydrated.LastActivityAt, err)
+	}
 	if _, err := dbx.Connection().Exec("DELETE FROM post_votes; DELETE FROM post_subscribers; DELETE FROM posts WHERE number = 1"); err != nil {
 		t.Fatalf("physical deletion failed with revision trigger: %v", err)
 	}
@@ -215,7 +225,7 @@ func TestPostWorkflowVoteModelAndActivity(t *testing.T) {
 	if err := dbx.Connection().QueryRow("SELECT created_at FROM post_votes WHERE post_id = $1 AND user_id = 1", post.Result.ID).Scan(&after); err != nil || !after.Equal(before) {
 		t.Fatalf("replay refreshed vote age: %v %v %v", before, after, err)
 	}
-	if _, err := dbx.Connection().Exec("UPDATE posts SET last_activity_at = '2000-01-01'"); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE posts SET last_activity_at = '2000-01-01'"); err != nil {
 		t.Fatal(err)
 	}
 	vote.VoteType = enum.VoteTypeDown
@@ -273,8 +283,8 @@ func BenchmarkPostWorkflowVoteAPI(b *testing.B) {
 			body := fmt.Sprintf(`{"revision":%d}`, revision)
 			recorder, err := f.request(handler, http.MethodPost, post.Result.Number, body)
 			var after struct {
-				Direction int  `json:"direction"`
-				Applied   bool `json:"applied"`
+				Direction int   `json:"direction"`
+				Applied   bool  `json:"applied"`
 				Revision  int64 `json:"revision"`
 			}
 			decodeErr := json.Unmarshal(recorder.Body.Bytes(), &after)
@@ -350,7 +360,7 @@ func TestPostWorkflowArchiveVoteRevival(t *testing.T) {
 	if err := bus.Dispatch(f.ctx, &cmd.ArchivePost{Post: post.Result}); err != nil {
 		t.Fatal(err)
 	}
-	_, err := dbx.Connection().Exec(`INSERT INTO users
+	_, err := mediaFixtureSQL(`INSERT INTO users
 		(name, email, created_at, tenant_id, role, status, avatar_type, avatar_bkey)
 		SELECT 'Voter ' || n, 'voter' || n || '@example.com', NOW(), $1, 0, 1, 1, ''
 		FROM generate_series(1, 10) n`, f.tenant.ID)
@@ -380,7 +390,7 @@ func TestPostWorkflowVoteVisibilityAndPermissions(t *testing.T) {
 	}
 	visitor := f
 	visitor.user = &entity.User{ID: 2, Role: enum.RoleVisitor, Status: enum.UserActive}
-	if _, err := dbx.Connection().Exec("UPDATE posts SET moderation_pending = TRUE"); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE posts SET moderation_pending = TRUE"); err != nil {
 		t.Fatal(err)
 	}
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
@@ -393,14 +403,14 @@ func TestPostWorkflowVoteVisibilityAndPermissions(t *testing.T) {
 			t.Fatalf("hidden post visible through %s vote: %v %d", method, err, recorder.Code)
 		}
 	}
-	if _, err := dbx.Connection().Exec(`UPDATE posts SET moderation_pending = FALSE, locked_settings = '{"locked":true}'`); err != nil {
+	if _, err := mediaFixtureSQL(`UPDATE posts SET moderation_pending = FALSE, locked_settings = '{"locked":true}'`); err != nil {
 		t.Fatal(err)
 	}
 	recorder, err := visitor.request(api.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
 	if err != nil || recorder.Code != http.StatusForbidden {
 		t.Fatalf("visitor voted on locked post: %v %d", err, recorder.Code)
 	}
-	if _, err := dbx.Connection().Exec("UPDATE posts SET locked_settings = NULL, status = 2"); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE posts SET locked_settings = NULL, status = 2"); err != nil {
 		t.Fatal(err)
 	}
 	recorder, err = f.request(api.AddVote(), http.MethodPost, post.Result.Number, `{"revision":0}`)
@@ -426,7 +436,7 @@ func TestPostWorkflowDeletedOriginalAndImportedNumbers(t *testing.T) {
 	if err := bus.Dispatch(f.ctx, post); err != nil || post.Result.Response == nil || post.Result.Response.Original != nil {
 		t.Fatalf("duplicate exposed its deleted original: %v %+v", err, post.Result)
 	}
-	_, err := dbx.Connection().Exec(`INSERT INTO posts
+	_, err := mediaFixtureSQL(`INSERT INTO posts
 		(number, title, slug, description, tenant_id, user_id, created_at, status)
 		VALUES (100, 'Imported', 'imported', '', $1, $2, NOW(), 6)`, f.tenant.ID, f.user.ID)
 	if err != nil {
@@ -447,9 +457,19 @@ func TestPostWorkflowVoteRequiresRevision(t *testing.T) {
 	if err := bus.Dispatch(f.ctx, post); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := mediaFixtureSQL(`
+		INSERT INTO user_mutes (user_id, tenant_id, reason, created_by)
+		VALUES (2, $1, 'Vote policy fixture', $2)
+	`, f.tenant.ID, f.user.ID); err != nil {
+		t.Fatal(err)
+	}
 
 	for _, role := range []enum.Role{enum.RoleVisitor, enum.RoleHelper, enum.RoleModerator, enum.RoleCollaborator, enum.RoleAdministrator} {
 		t.Run(role.String(), func(t *testing.T) {
+			if _, err := mediaFixtureSQL("UPDATE users SET role = $1 WHERE id = 2", role); err != nil {
+				t.Fatal(err)
+			}
+
 			actor := f
 			actor.user = &entity.User{ID: 2, Role: role, Status: enum.UserActive}
 			actor.user.Muted = true
@@ -588,7 +608,7 @@ func benchmarkPostNotificationQueue(b *testing.B, batchSize int) {
 		if err := bus.Dispatch(f.ctx, post); err != nil {
 			b.Fatal(err)
 		}
-		if err := bus.Dispatch(f.ctx, &cmd.ScheduleNotification{Post: post.Result, BaseURL: "http://localhost:3000"}); err != nil {
+		if err := bus.Dispatch(f.ctx, &cmd.ScheduleNotification{PostID: post.Result.ID, BaseURL: "http://localhost:3000"}); err != nil {
 			b.Fatal(err)
 		}
 		for {
@@ -917,13 +937,24 @@ func TestPostWorkflowConcurrentReplayAndDeletedReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f.user.Muted = true
+	if _, err := dbx.Connection().Exec(`INSERT INTO user_mutes (tenant_id,user_id,reason,created_by)
+		VALUES ($1,$2,'Receipt recovery',$2)`, f.tenant.ID, f.user.ID); err != nil {
+		t.Fatal(err)
+	}
 	replay, err := f.request(api.CreatePost(), http.MethodPost, 0, body)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if replay.Code != http.StatusOK || replay.Body.String() != original {
+	var accepted, deletedReceipt dto.PostSubmissionReceipt
+	if err := json.Unmarshal([]byte(original), &accepted); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(replay.Body.Bytes(), &deletedReceipt); err != nil {
+		t.Fatal(err)
+	}
+	if replay.Code != http.StatusOK || deletedReceipt.ID != accepted.ID || deletedReceipt.Number != accepted.Number ||
+		deletedReceipt.Title != "" || deletedReceipt.Slug != "" {
 		t.Fatalf("deleted receipt was not recovered: status=%d body=%s", replay.Code, replay.Body)
 	}
 
@@ -1047,31 +1078,35 @@ func TestPostWorkflowBackupSnapshot(t *testing.T) {
 	f := newPostWorkflow(t)
 	body := submissionBody(t, "backup", false)
 
-	_, err := dbx.Connection().Exec(`
+	_, err := mediaFixtureSQL(`
+        INSERT INTO ad_placement_settings (tenant_id, placement_id, adsense_slot_id)
+        VALUES (1, 'sidebar_top', 'exported-slot'), (2, 'sidebar_top', 'other-slot');
+
         INSERT INTO pages (tenant_id, created_by_id, updated_by_id, title, slug, content)
         VALUES (1, 1, 1, 'Exported Page', 'exported', 'Exported content'),
                (2, 4, 4, 'Other tenant', 'private', 'Other content');
 
-        INSERT INTO page_drafts (page_id, tenant_id, user_id, content)
-        VALUES (1, 1, 1, 'Unpublished changes'), (2, 2, 4, 'Other draft');
+        INSERT INTO page_drafts (page_id, tenant_id, user_id, title, slug, content)
+        VALUES (1, 1, 1, 'Exported Page', 'exported', 'Unpublished changes'),
+               (2, 2, 4, 'Other tenant', 'private', 'Other draft');
 
-        INSERT INTO page_authors (page_id, user_id) VALUES (1, 1), (2, 4);
+        INSERT INTO page_authors (tenant_id, page_id, user_id) VALUES (1, 1, 1), (2, 2, 4);
         INSERT INTO page_subscriptions (page_id, user_id) VALUES (1, 2), (2, 5);
         INSERT INTO page_reactions (page_id, user_id, emoji) VALUES (1, 2, '👍'), (2, 5, '👍');
 
         INSERT INTO page_topics (tenant_id, name, slug)
         VALUES (1, 'Exported topic', 'exported'), (2, 'Other topic', 'private');
-        INSERT INTO page_topics_map (page_id, topic_id) VALUES (1, 1), (2, 2);
+        INSERT INTO page_topics_map (tenant_id, page_id, topic_id) VALUES (1, 1, 1), (2, 2, 2);
 
         INSERT INTO page_tags (tenant_id, name, slug)
         VALUES (1, 'Exported tag', 'exported'), (2, 'Other tag', 'private');
-        INSERT INTO page_tags_map (page_id, tag_id) VALUES (1, 1), (2, 2);
+        INSERT INTO page_tags_map (tenant_id, page_id, tag_id) VALUES (1, 1, 1), (2, 2, 2);
 
-        INSERT INTO comments (tenant_id, page_id, user_id, content, submission_id, submission_hash, created_at)
-        VALUES (1, 1, 2, 'Exported comment', 'exported', 'hash', NOW()),
-               (2, 2, 5, 'Other comment', 'private', 'hash', NOW());
-        INSERT INTO comment_edit_receipts (tenant_id, user_id, submission_id, comment_id, submission_hash)
-        VALUES (1, 2, 'edit', 1, 'hash'), (2, 5, 'edit', 2, 'hash');
+        INSERT INTO comments (tenant_id, page_id, user_id, content, created_at)
+        VALUES (1, 1, 2, 'Exported comment', NOW()), (2, 2, 5, 'Other comment', NOW());
+        INSERT INTO command_receipts (tenant_id, user_id, kind, submission_id, fingerprint, result)
+        VALUES (1, 2, 'comment', 'exported', 'hash', '1'), (2, 5, 'comment', 'private', 'hash', '2'),
+               (1, 2, 'comment-edit', 'edit', 'hash', 'null'), (2, 5, 'comment-edit', 'edit', 'hash', 'null');
         INSERT INTO reactions (comment_id, user_id, emoji, created_on)
         VALUES (1, 2, '👍', NOW()), (2, 5, '👍', NOW());
     `)
@@ -1135,7 +1170,7 @@ func TestPostWorkflowBackupSnapshot(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	_, err = dbx.Connection().Exec(`WITH inserted AS (
+	_, err = mediaFixtureSQL(`WITH inserted AS (
 		INSERT INTO posts (tenant_id, user_id, title, slug, description, created_at, status)
 		VALUES ($1, $2, $3, $3, $4, NOW(), $5) RETURNING id
 	) INSERT INTO post_votes (tenant_id, user_id, post_id, created_at, vote_type)
@@ -1160,6 +1195,7 @@ func TestPostWorkflowBackupSnapshot(t *testing.T) {
 	}
 
 	expectedFiles := map[string]int{
+		"ad_placement_settings.json":   1,
 		"pages.json":                   1,
 		"page_drafts.json":             1,
 		"page_authors.json":            1,
@@ -1170,7 +1206,7 @@ func TestPostWorkflowBackupSnapshot(t *testing.T) {
 		"page_tags.json":               1,
 		"page_tags_map.json":           1,
 		"comments.json":                1,
-		"comment_edit_receipts.json":   1,
+		"command_receipts.json":        3,
 		"reactions.json":               1,
 		"posts.json":                   1,
 		"post_votes.json":              1,
@@ -1217,8 +1253,16 @@ func TestPostWorkflowBackupSnapshot(t *testing.T) {
 			t.Fatalf("%s contains another tenant's data: %v", file.Name, rows[0])
 		}
 
-		if file.Name == "posts.json" && rows[0]["submission_id"] != "backup" {
-			t.Fatal("backup omitted submission identity")
+		if file.Name == "command_receipts.json" {
+			found := false
+			for _, row := range rows {
+				if row["kind"] == "post" && row["submission_id"] == "backup" && row["result"] == float64(1) {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatal("backup omitted the accepted post submission")
+			}
 		}
 
 		delete(expectedFiles, file.Name)

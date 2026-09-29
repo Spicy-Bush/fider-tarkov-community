@@ -9,6 +9,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/log"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/rand"
 	_ "github.com/Spicy-Bush/fider-tarkov-community/app/services/log/console"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/services/sqlstore/postgres"
 )
 
 // RunMigrate run all pending migrations on current DATABASE_URL
@@ -21,7 +22,7 @@ func RunMigrate() int {
 		log.PropertyKeyContextID: rand.String(32),
 	})
 
-	err := dbx.Migrate(ctx, "/migrations")
+	err := dbx.Migrate(ctx, "/migrations", postgres.BackfillMediaReferences)
 	if err != nil {
 		log.Error(ctx, err)
 		return 1

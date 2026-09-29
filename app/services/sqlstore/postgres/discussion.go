@@ -18,23 +18,40 @@ import (
 const visibleCommentOwners = `
     WITH visible_pages AS (
         SELECT id FROM pages p
-        WHERE p.tenant_id = $1 AND (
-            $2 IN ('administrator', 'collaborator') OR (
-                p.status = 'published' AND (
-                    p.visibility IN ('public', 'unlisted') OR
-                    (p.visibility = 'private' AND $2 <> '' AND COALESCE(p.allowed_roles ? $2, FALSE))
-                )
-            )
-        )
+        WHERE p.tenant_id = $1 AND page_is_visible(p.status, p.visibility, p.allowed_roles, $2, $4)
     ), visible_comment_owners AS (
         SELECT c.id FROM comments c
-        LEFT JOIN visible_posts_for($1, $2, $3) post ON post.id = c.post_id
+        LEFT JOIN visible_posts_for($1, $5::boolean, $3) post ON post.id = c.post_id
         WHERE c.tenant_id = $1 AND (
             post.id IS NOT NULL
             OR c.page_id IN (SELECT id FROM visible_pages)
         )
     )
 `
+
+const visibleComments = visibleCommentOwners + `,
+    visible_comments AS (
+        SELECT c.* FROM comments c
+        LEFT JOIN users author ON author.id = c.user_id AND author.tenant_id = c.tenant_id
+        WHERE c.id IN (SELECT id FROM visible_comment_owners) AND c.deleted_at IS NULL
+          AND (
+            NOT c.moderation_pending OR c.user_id = $3
+            OR COALESCE(author.role, 0) = ANY($6::integer[])
+          )
+    )
+`
+
+func commentOwnerParams(tenant *entity.Tenant, user *entity.User) []any {
+	return []any{
+		tenant.ID, viewerRole(user), viewerID(user),
+		entity.Can(user, tenant, entity.ManagePages),
+		entity.Can(user, tenant, entity.ModeratePosts),
+	}
+}
+
+func commentVisibilityParams(tenant *entity.Tenant, user *entity.User) []any {
+	return append(commentOwnerParams(tenant, user), pq.Array(entity.ModeratedContentRoles(user, tenant)))
+}
 
 func viewerRole(user *entity.User) string {
 	if user == nil {

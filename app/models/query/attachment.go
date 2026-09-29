@@ -6,6 +6,7 @@ type GetPostAttachments struct {
 }
 
 type CanReadAttachment struct {
-	Key    string
-	Result bool
+	Key     string
+	Result  bool
+	Version string
 }

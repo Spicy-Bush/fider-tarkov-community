@@ -25,7 +25,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
-func pngAttachment(t *testing.T, size int) *dto.ImageUpload {
+func pngAttachment(t testing.TB, size int) *dto.ImageUpload {
 	t.Helper()
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, size, size))); err != nil {
@@ -68,14 +68,16 @@ func TestFileUploadPreservesImageSizingAndFormat(t *testing.T) {
 		}
 
 		body, err := json.Marshal(map[string]any{
-			"name": "File upload",
-			"file": upload,
+			"submissionId": "file-sizing-" + strconv.Itoa(size),
+			"uploadType":   "file",
+			"name":         "File upload",
+			"file":         upload,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		response, err := f.requestWithParams(handlers.UploadFile(), http.MethodPost, "/api/files", string(body), nil)
+		response, err := f.requestWithParams(handlers.UploadFile(), http.MethodPost, "/api/admin/files", string(body), nil)
 		if err != nil || response.Code != http.StatusOK {
 			t.Fatalf("file upload status=%d error=%v body=%s", response.Code, err, response.Body)
 		}
@@ -101,7 +103,9 @@ func TestFileUploadPreservesImageSizingAndFormat(t *testing.T) {
 	}
 
 	body, err := json.Marshal(map[string]any{
-		"name": "Unsupported SVG",
+		"submissionId": "unsupported-svg",
+		"uploadType":   "file",
+		"name":         "Unsupported SVG",
 		"file": &dto.ImageUpload{Upload: &dto.ImageUploadData{
 			FileName:    "image.svg",
 			ContentType: "image/svg+xml",
@@ -112,7 +116,7 @@ func TestFileUploadPreservesImageSizingAndFormat(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	response, err := f.requestWithParams(handlers.UploadFile(), http.MethodPost, "/api/files", string(body), web.StringMap{})
+	response, err := f.requestWithParams(handlers.UploadFile(), http.MethodPost, "/api/admin/files", string(body), web.StringMap{})
 	if err != nil || response.Code != http.StatusBadRequest {
 		t.Fatalf("unsupported file status=%d error=%v body=%s", response.Code, err, response.Body)
 	}
@@ -127,11 +131,19 @@ func TestFileUploadRejectsUnsafeImages(t *testing.T) {
 	binary.BigEndian.PutUint32(bomb[29:33], crc32.ChecksumIEEE(bomb[12:29]))
 	before := workflowCount(t, "SELECT COUNT(*) FROM blobs")
 
-	for _, content := range [][]byte{bomb, original[:40]} {
+	for index, test := range []struct {
+		content []byte
+		message string
+	}{
+		{bomb, "Image must be at most 8192 pixels per side and 25 megapixels"},
+		{original[:40], "File not supported"},
+	} {
 		body, err := json.Marshal(map[string]any{
-			"name": "Invalid image",
+			"submissionId": "unsafe-image-" + strconv.Itoa(index),
+			"uploadType":   "file",
+			"name":         "Invalid image",
 			"file": &dto.ImageUpload{Upload: &dto.ImageUploadData{
-				Content:     content,
+				Content:     test.content,
 				ContentType: "image/png",
 			}},
 		})
@@ -139,9 +151,13 @@ func TestFileUploadRejectsUnsafeImages(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		response, err := f.requestWithParams(handlers.UploadFile(), http.MethodPost, "/api/files", string(body), nil)
+		response, err := f.requestWithParams(handlers.UploadFile(), http.MethodPost, "/api/admin/files", string(body), nil)
 		if err != nil || response.Code != http.StatusBadRequest {
 			t.Fatalf("unsafe image: status=%d error=%v body=%s", response.Code, err, response.Body)
+		}
+
+		if !strings.Contains(response.Body.String(), test.message) {
+			t.Fatalf("image rejection did not identify the unsafe input: %s", response.Body)
 		}
 
 		if workflowCount(t, "SELECT COUNT(*) FROM blobs") != before {

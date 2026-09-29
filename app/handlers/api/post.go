@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/metrics"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
@@ -16,7 +17,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/sse"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
@@ -126,50 +126,6 @@ func SearchPosts() web.HandlerFunc {
 			clientOffset = 0
 		}
 
-		isCacheable := postcache.IsCacheable(
-			viewQueryParams,
-			myVotesOnly,
-			myPostsOnly,
-			notMyVotes,
-			filteredTags,
-			searchQuery,
-			untagged,
-		) && !c.IsAuthenticated() && clientOffset == 0 && len(statuses) == 0 && dateFilter == "" && len(ids) == 0
-
-		tenantID := c.Tenant().ID
-
-		if isCacheable {
-			cacheKey := postcache.GetCacheKey(viewQueryParams)
-			if cachedIDs, ok := postcache.GetRanking(tenantID, cacheKey); ok && len(cachedIDs) > 0 {
-				endIdx := effectiveLimit
-				if endIdx > len(cachedIDs) {
-					endIdx = len(cachedIDs)
-				}
-				postIDs := cachedIDs[:endIdx]
-
-				getPostsByIDs := &query.GetPostsByIDs{PostIDs: postIDs}
-				if err := bus.Dispatch(c, getPostsByIDs); err != nil {
-					return c.Failure(err)
-				}
-
-				idToPost := make(map[int]*entity.Post)
-				for _, post := range getPostsByIDs.Result {
-					idToPost[post.ID] = post
-				}
-
-				result := make([]*entity.Post, 0, len(postIDs))
-				for _, id := range postIDs {
-					if post, ok := idToPost[id]; ok {
-						result = append(result, post)
-					}
-				}
-
-				if len(result) == effectiveLimit {
-					return c.Ok(result)
-				}
-			}
-		}
-
 		searchPosts := &query.SearchPosts{
 			IDs:         ids,
 			Query:       searchQuery,
@@ -189,15 +145,6 @@ func SearchPosts() web.HandlerFunc {
 
 		if err := bus.Dispatch(c, searchPosts); err != nil {
 			return c.Failure(err)
-		}
-
-		if isCacheable && len(searchPosts.Result) > 0 {
-			postIDs := make([]int, len(searchPosts.Result))
-			for i, post := range searchPosts.Result {
-				postIDs[i] = post.ID
-			}
-			cacheKey := postcache.GetCacheKey(viewQueryParams)
-			postcache.SetRanking(tenantID, cacheKey, postIDs)
 		}
 
 		if includeCount && untagged {
@@ -234,7 +181,6 @@ func CreatePost() web.HandlerFunc {
 		}
 
 		fingerprint := fmt.Sprintf("%x", sha256.Sum256(original))
-		var validation *validate.Result
 		var created *entity.Post
 		var tagsAssigned int
 
@@ -242,28 +188,32 @@ func CreatePost() web.HandlerFunc {
 			SubmissionID: action.SubmissionID,
 			Fingerprint:  fingerprint,
 			BaseURL:      web.BaseURL(c),
+			Attachments:  action.Attachments,
 		}
 
-		submission.Create = func(ctx context.Context) (*entity.Post, error) {
-			if c.User().IsMuted() {
-				validation = validate.Failed("You are currently muted and cannot create new posts.")
-				return nil, nil
+		submission.Validate = func(ctx context.Context) error {
+			user := ctx.Value(app.UserCtxKey).(*entity.User)
+			if user.IsMuted() {
+				return validate.Failed("You are currently muted and cannot create new posts.")
 			}
 
 			if err := action.OnPreExecute(ctx); err != nil {
-				return nil, err
+				return err
 			}
 
-			if !action.IsAuthorized(ctx, c.User()) {
-				validation = validate.Unauthorized()
-				return nil, nil
+			if !action.IsAuthorized(ctx, user) {
+				return validate.Unauthorized()
 			}
 
-			validation = action.Validate(ctx, c.User())
+			validation := action.Validate(ctx, user)
 			if !validation.Ok {
-				return nil, validation.Err
+				return validation
 			}
+			return nil
+		}
 
+		submission.Create = func(ctx context.Context) (*entity.Post, error) {
+			user := ctx.Value(app.UserCtxKey).(*entity.User)
 			newPost := &cmd.AddNewPost{
 				Title:       action.Title,
 				Description: action.Description,
@@ -277,7 +227,7 @@ func CreatePost() web.HandlerFunc {
 			created = newPost.Result
 			addVote := &cmd.AddVote{
 				Post:     created,
-				User:     c.User(),
+				User:     user,
 				VoteType: enum.VoteTypeUp,
 			}
 
@@ -315,10 +265,6 @@ func CreatePost() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		if validation != nil && !validation.Ok {
-			return c.HandleValidation(validation)
-		}
-
 		if created != nil {
 			if tagsAssigned == 0 {
 				sse.GetHub().BroadcastToTenant(c.Tenant().ID, sse.MsgQueuePostNew, sse.QueueEventPayload{
@@ -326,8 +272,6 @@ func CreatePost() web.HandlerFunc {
 				})
 			}
 
-			postcache.InvalidateTenantRankings(c.Tenant().ID)
-			postcache.InvalidateCountPerStatus(c.Tenant().ID)
 			metrics.TotalPosts.Inc()
 		}
 
@@ -360,25 +304,16 @@ func UpdatePost() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		return c.WithTransaction(func() error {
-			err := bus.Dispatch(c,
-				&cmd.UpdatePost{
-					Post:        action.Post,
-					Title:       action.Title,
-					Description: action.Description,
-					Attachments: action.Attachments,
-				},
-			)
-			if err != nil {
-				return c.Failure(err)
-			}
-
-			if err := bus.Dispatch(c, &cmd.ScheduleModeration{ContentType: "post", ContentID: action.Post.ID}); err != nil {
-				return c.Failure(err)
-			}
-
-			return c.Ok(web.Map{})
+		err := bus.Dispatch(c, &cmd.UpdatePost{
+			Post:        action.Post,
+			Title:       action.Title,
+			Description: action.Description,
+			Attachments: action.Attachments,
 		})
+		if err != nil {
+			return c.Failure(err)
+		}
+		return c.Ok(web.Map{})
 	}
 }
 
@@ -415,8 +350,6 @@ func SetResponse() web.HandlerFunc {
 
 			c.Enqueue(tasks.NotifyAboutStatusChange(getPost.Result, prevStatus))
 
-			postcache.InvalidateTenantRankings(c.Tenant().ID)
-			postcache.InvalidateCountPerStatus(c.Tenant().ID)
 
 			return c.Ok(web.Map{})
 		})
@@ -443,8 +376,6 @@ func DeletePost() web.HandlerFunc {
 
 			c.Enqueue(tasks.TriggerDeleteWebhook(action.Post))
 
-			postcache.InvalidateTenantRankings(c.Tenant().ID)
-			postcache.InvalidateCountPerStatus(c.Tenant().ID)
 
 			return c.Ok(web.Map{})
 		})
@@ -536,7 +467,6 @@ func addOrRemove(c *web.Context, getCommand func(post *entity.Post, user *entity
 			return c.Failure(err)
 		}
 
-		postcache.InvalidateTenantRankings(c.Tenant().ID)
 
 		return c.Ok(web.Map{})
 	})

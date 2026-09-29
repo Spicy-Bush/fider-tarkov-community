@@ -61,6 +61,8 @@ type SubmitPost struct {
 	SubmissionID string
 	Fingerprint  string
 	BaseURL      string
+	Attachments  []*dto.ImageUpload
+	Validate     func(context.Context) error
 	Create       func(context.Context) (*entity.Post, error)
 	Result       *dto.PostSubmissionReceipt
 }

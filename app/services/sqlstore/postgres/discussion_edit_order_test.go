@@ -66,7 +66,7 @@ func TestDiscussionEditTimesRemainOrderedAcrossTransactions(t *testing.T) {
 	}
 
 	future := time.Date(2030, 1, 1, 0, 0, 0, 123456000, time.UTC)
-	if _, err := dbx.Connection().Exec("UPDATE comments SET edited_at = $1 WHERE id = $2", future, create.Result.ID); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE comments SET edited_at = $1 WHERE id = $2", future, create.Result.ID); err != nil {
 		t.Fatal(err)
 	}
 

@@ -35,7 +35,13 @@ func reportFixture(t testing.TB, count int) (postWorkflow, []int, []*entity.User
 		t.Fatal(err)
 	}
 
-	rows, err := dbx.Connection().Query(`
+	transaction, err := mediaFixtureTransaction(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer transaction.Rollback()
+
+	rows, err := transaction.Query(`
         INSERT INTO comments (tenant_id, post_id, user_id, content, created_at)
         SELECT $1, CASE WHEN n % 2 = 1 THEN $2::integer ELSE $5::integer END, $3, 'Reported comment ' || n, NOW()
         FROM generate_series(1, $4) n RETURNING id
@@ -54,6 +60,13 @@ func reportFixture(t testing.TB, count int) (postWorkflow, []int, []*entity.User
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := transaction.Commit(); err != nil {
 		t.Fatal(err)
 	}
 

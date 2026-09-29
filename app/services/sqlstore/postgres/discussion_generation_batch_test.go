@@ -34,7 +34,7 @@ func TestDiscussionTreeBatchInvalidation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	transaction, err := dbx.BeginTx(f.ctx)
+	transaction, err := mediaFixtureTransaction(f.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestDiscussionTreeBatchInvalidation(t *testing.T) {
 	}
 
 	before := versions()
-	if _, err := dbx.Connection().Exec("UPDATE comments SET content = content || ' edited', moderation_pending = TRUE"); err != nil {
+	if _, err := mediaFixtureSQL("UPDATE comments SET content = content || ' edited', moderation_pending = TRUE"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -185,7 +185,7 @@ func TestDiscussionTreeConcurrentVersions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(f.ctx, 10*time.Second)
 	defer cancel()
 
-	first, err := dbx.BeginTx(ctx)
+	first, err := mediaFixtureTransaction(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestDiscussionTreeConcurrentVersions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	second, err := dbx.BeginTx(ctx)
+	second, err := mediaFixtureTransaction(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

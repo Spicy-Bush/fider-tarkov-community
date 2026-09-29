@@ -12,7 +12,7 @@ import (
 
 func deleteWarning(ctx context.Context, c *cmd.DeleteWarning) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		_, permissions, err := userPermissionsForUpdate(ctx, trx, tenant, user, c.UserID)
 		if err != nil {
 			return err
 		}
@@ -32,7 +32,7 @@ func deleteWarning(ctx context.Context, c *cmd.DeleteWarning) error {
 
 func deleteMute(ctx context.Context, c *cmd.DeleteMute) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		_, permissions, err := userPermissionsForUpdate(ctx, trx, tenant, user, c.UserID)
 		if err != nil {
 			return err
 		}
@@ -52,7 +52,7 @@ func deleteMute(ctx context.Context, c *cmd.DeleteMute) error {
 
 func expireWarning(ctx context.Context, c *cmd.ExpireWarning) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		_, permissions, err := userPermissionsForUpdate(ctx, trx, tenant, user, c.UserID)
 		if err != nil {
 			return err
 		}
@@ -73,7 +73,7 @@ func expireWarning(ctx context.Context, c *cmd.ExpireWarning) error {
 
 func expireMute(ctx context.Context, c *cmd.ExpireMute) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		_, permissions, err := userPermissionsForUpdate(ctx, trx, tenant, user, c.UserID)
 		if err != nil {
 			return err
 		}

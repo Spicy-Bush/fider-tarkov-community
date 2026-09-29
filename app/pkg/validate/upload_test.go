@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/png"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
@@ -13,6 +14,38 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
+
+func TestImageUploadMetadataBounds(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		fileName    string
+		contentType string
+		valid       bool
+	}{
+		{"unspecified", "", "", true},
+		{"filename boundary", strings.Repeat("a", 255), "image/png", true},
+		{"filename too long", strings.Repeat("a", 256), "image/png", false},
+		{"filename byte limit", strings.Repeat("é", 128), "image/png", false},
+		{"ordinary MIME parameters", "image.png", "image/png; charset=binary", true},
+		{"generic content type", "image.png", "application/octet-stream", true},
+		{"content type too long", "image.png", "image/png; name=" + strings.Repeat("a", 256), false},
+		{"malformed content type", "image.png", "image/png\r\nInjected: yes", false},
+		{"incomplete content type", "image.png", "png", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			image := &dto.ImageUploadData{FileName: test.fileName, ContentType: test.contentType}
+			err := validate.ImageUploadMetadata(image)
+			if (err == nil) != test.valid {
+				t.Fatalf("metadata valid=%t, want %t: %v", err == nil, test.valid, err)
+			}
+
+			messages, err := validate.ImageUpload(context.Background(), &dto.ImageUpload{Upload: image}, validate.ImageUploadOpts{})
+			if err != nil || (len(messages) == 0) != test.valid {
+				t.Fatalf("image validation disagrees with metadata boundary: messages=%v error=%v", messages, err)
+			}
+		})
+	}
+}
 
 func TestImageValidationPreservesRequest(t *testing.T) {
 	var encoded bytes.Buffer
@@ -257,5 +290,18 @@ func TestValidateMultiImageUploadDuplicateRemovalCapacity(t *testing.T) {
 	}
 	if len(messages) != 0 {
 		t.Fatalf("valid replacement did not recover: %v", messages)
+	}
+}
+
+func TestValidateMultiImageUploadRemovalDominatesRetainedKeys(t *testing.T) {
+	key := "attachments/removed.png"
+	for _, changes := range [][]*dto.ImageUpload{
+		{{BlobKey: key, Remove: true}, {BlobKey: key}},
+		{{BlobKey: key}, {BlobKey: key, Remove: true}},
+	} {
+		messages, err := validate.MultiImageUpload(context.Background(), []string{key}, changes, validate.MultiImageUploadOpts{MaxUploads: 0})
+		if err != nil || len(messages) != 0 {
+			t.Fatalf("retained key reversed removal during validation: %v %v", messages, err)
+		}
 	}
 }

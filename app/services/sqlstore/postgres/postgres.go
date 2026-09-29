@@ -114,17 +114,20 @@ func (s Service) Init() {
 
 	bus.AddHandler(getPostAttachments)
 	bus.AddHandler(uploadImage)
+	bus.AddHandler(canUseStoredImage)
 
-	bus.AddHandler(getNameFromBlobKey)
-	bus.AddHandler(isImageFileInUse)
-	bus.AddHandler(getImageFile)
 	bus.AddHandler(uploadImageFile)
 	bus.AddHandler(renameImageFile)
-	bus.AddHandler(deleteImageFile)
-	bus.AddHandler(deleteImageFileReferences)
-	bus.AddHandler(updateImageFileReferences)
-	bus.AddHandler(listImageFiles)
-	bus.AddHandler(getPrunableFiles)
+	bus.AddHandler(listMediaFiles)
+	bus.AddHandler(getMediaFile)
+	bus.AddHandler(getFileUsage)
+	bus.AddHandler(getMediaThumbnail)
+	bus.AddHandler(deleteFiles)
+	bus.AddHandler(pruneFiles)
+	bus.AddHandler(retryMediaDeletions)
+	bus.AddHandler(getMediaInventory)
+	bus.AddHandler(refreshMediaInventory)
+	bus.AddHandler(importMediaInventory)
 
 	bus.AddHandler(createComment)
 	bus.AddHandler(updateComment)
@@ -152,11 +155,10 @@ func (s Service) Init() {
 	bus.AddHandler(getCurrentUserSettings)
 	bus.AddHandler(registerUser)
 	bus.AddHandler(registerUserProvider)
-	bus.AddHandler(updateCurrentUser)
-	bus.AddHandler(updateUserAvatar)
 	bus.AddHandler(getUserByAPIKey)
 	bus.AddHandler(getUserByEmail)
 	bus.AddHandler(getUserByID)
+	bus.AddHandler(getRealtimeAccess)
 	bus.AddHandler(isAvatarPublished)
 	bus.AddHandler(getUserByProvider)
 	bus.AddHandler(getAllUserProviders)
@@ -179,6 +181,8 @@ func (s Service) Init() {
 	bus.AddHandler(updateTenantEmailAuthAllowedSettings)
 	bus.AddHandler(updateTenantAdvancedSettings)
 	bus.AddHandler(updateGeneralSettings)
+	bus.AddHandler(updateRolePermissions)
+	bus.AddHandler(getRolePermissionState)
 	bus.AddHandler(UpdateMessageBanner)
 
 	bus.AddHandler(getVerificationByKey)
@@ -214,7 +218,6 @@ func (s Service) Init() {
 	bus.AddHandler(expireMute)
 	bus.AddHandler(getUsersToNotify)
 
-	bus.AddHandler(updateUser)
 
 	bus.AddHandler(createReport)
 	bus.AddHandler(assignReport)
@@ -259,7 +262,11 @@ func (s Service) Init() {
 	bus.AddHandler(updatePage)
 	bus.AddHandler(deletePage)
 	bus.AddHandler(getPageDraft)
-	bus.AddHandler(savePageDraft)
+	bus.AddHandler(openPageEdit)
+	bus.AddHandler(getPageEdit)
+	bus.AddHandler(syncPageEdit)
+	bus.AddHandler(publishPageEdit)
+	bus.AddHandler(uploadPageEditBanner)
 	bus.AddHandler(togglePageReaction)
 	bus.AddHandler(togglePageSubscription)
 	bus.AddHandler(userSubscribedToPage)
@@ -281,12 +288,14 @@ func (s Service) Init() {
 
 	bus.AddHandler(getNavigationLinks)
 	bus.AddHandler(saveNavigationLinks)
+
 }
 
 type SqlHandler func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error
 
 func using(ctx context.Context, handler SqlHandler) error {
 	return dbx.InTransaction(ctx, func(ctx context.Context, trx *dbx.Trx) error {
+		trx.BeforeCommit = flushMediaReferences
 		tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 		user, _ := ctx.Value(app.UserCtxKey).(*entity.User)
 		return handler(ctx, trx, tenant, user)

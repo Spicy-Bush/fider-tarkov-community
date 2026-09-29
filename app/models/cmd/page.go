@@ -51,22 +51,11 @@ type UpdatePage struct {
 	Tags               []int
 	MetaDescription    string
 	CanonicalURL       string
+	Result             *entity.Page
 }
 
 type DeletePage struct {
 	PageID int
-}
-
-type SavePageDraft struct {
-	PageID          int
-	Title           string
-	Slug            string
-	Content         string
-	Excerpt         string
-	BannerImageBKey string
-	MetaDescription string
-	ShowTOC         bool
-	DraftData       map[string]interface{}
 }
 
 type TogglePageReaction struct {

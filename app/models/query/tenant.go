@@ -52,3 +52,7 @@ type GetTrialingTenantContacts struct {
 type GetTenantProfanityWords struct {
 	Result string
 }
+
+type GetRolePermissionState struct {
+	Result entity.RolePermissionState
+}

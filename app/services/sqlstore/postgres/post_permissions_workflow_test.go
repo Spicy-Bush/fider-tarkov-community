@@ -60,10 +60,10 @@ func TestPostPermissionsWorkflowEditOwnership(t *testing.T) {
 			if test.own {
 				authorID = 1
 			}
-			if _, err := dbx.Connection().Exec(`UPDATE users SET role = $1 WHERE id = $2`, test.authorRole, authorID); err != nil {
+			if _, err := mediaFixtureSQL(`UPDATE users SET role = $1 WHERE id = $2`, test.authorRole, authorID); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := dbx.Connection().Exec(`UPDATE posts
+			if _, err := mediaFixtureSQL(`UPDATE posts
 				SET user_id = $1, created_at = $2, title = 'Authorization target',
 					description = 'Original content', moderation_pending = FALSE
 				WHERE id = $3`, authorID, time.Now().Add(-test.age), post.Result.ID); err != nil {
@@ -123,10 +123,10 @@ func TestPostPermissionsWorkflowVisibilityAndLocks(t *testing.T) {
 	if err := bus.Dispatch(f.ctx, post); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbx.Connection().Exec(`UPDATE users SET role = $1 WHERE id = 1`, enum.RoleVisitor); err != nil {
+	if _, err := mediaFixtureSQL(`UPDATE users SET role = $1 WHERE id = 1`, enum.RoleVisitor); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbx.Connection().Exec(`UPDATE posts SET moderation_pending = TRUE WHERE id = $1`, post.Result.ID); err != nil {
+	if _, err := mediaFixtureSQL(`UPDATE posts SET moderation_pending = TRUE WHERE id = $1`, post.Result.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -180,13 +180,17 @@ func TestPostPermissionsWorkflowVisibilityAndLocks(t *testing.T) {
 		})
 	}
 
-	if _, err := dbx.Connection().Exec(`UPDATE posts
+	if _, err := mediaFixtureSQL(`UPDATE posts
 		SET moderation_pending = FALSE, locked_settings = '{"locked":true}'
 		WHERE id = $1`, post.Result.ID); err != nil {
 		t.Fatal(err)
 	}
 	for _, role := range []enum.Role{enum.RoleVisitor, enum.RoleHelper, enum.RoleModerator, enum.RoleCollaborator, enum.RoleAdministrator} {
 		t.Run("locked/"+role.String(), func(t *testing.T) {
+			if _, err := mediaFixtureSQL("UPDATE users SET role = $1 WHERE id = 1", role); err != nil {
+				t.Fatal(err)
+			}
+
 			viewer := f
 			viewer.user = &entity.User{ID: 1, Role: role, Status: enum.UserActive}
 			response, err := viewer.request(api.GetPost(), http.MethodGet, post.Result.Number, "")
@@ -214,7 +218,7 @@ func TestPostPermissionsWorkflowVisibilityAndLocks(t *testing.T) {
 		})
 	}
 
-	if _, err := dbx.Connection().Exec(`UPDATE posts SET status = $1 WHERE id = $2`, enum.PostDeleted, post.Result.ID); err != nil {
+	if _, err := mediaFixtureSQL(`UPDATE posts SET status = $1 WHERE id = $2`, enum.PostDeleted, post.Result.ID); err != nil {
 		t.Fatal(err)
 	}
 	for _, role := range []enum.Role{enum.RoleVisitor, enum.RoleHelper, enum.RoleModerator, enum.RoleCollaborator, enum.RoleAdministrator} {
@@ -261,7 +265,7 @@ func TestPostPermissionsWorkflowResponseStatuses(t *testing.T) {
 			}
 
 			for _, status := range []enum.PostStatus{enum.PostCompleted, enum.PostDuplicate, enum.PostDeleted, enum.PostArchived} {
-				if _, err := dbx.Connection().Exec(`UPDATE posts
+				if _, err := mediaFixtureSQL(`UPDATE posts
 					SET status = $1, original_id = NULL, response = NULL WHERE id = $2`, enum.PostOpen, post.Result.ID); err != nil {
 					t.Fatal(err)
 				}
@@ -322,7 +326,7 @@ func TestPostPermissionsWorkflowHelperTagDeadlines(t *testing.T) {
 			if _, err := dbx.Connection().Exec(`DELETE FROM post_tags WHERE post_id = $1`, post.Result.ID); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := dbx.Connection().Exec(`UPDATE posts SET created_at = $1 WHERE id = $2`, time.Now().Add(-test.age), post.Result.ID); err != nil {
+			if _, err := mediaFixtureSQL(`UPDATE posts SET created_at = $1 WHERE id = $2`, time.Now().Add(-test.age), post.Result.ID); err != nil {
 				t.Fatal(err)
 			}
 			if test.firstAge != 0 {
@@ -375,7 +379,7 @@ func TestPostPermissionsWorkflowRejectsMalformedResponse(t *testing.T) {
 	if err := bus.Dispatch(f.ctx, post); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbx.Connection().Exec(`UPDATE posts SET status = $1 WHERE id = $2`, enum.PostStarted, post.Result.ID); err != nil {
+	if _, err := mediaFixtureSQL(`UPDATE posts SET status = $1 WHERE id = $2`, enum.PostStarted, post.Result.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -462,13 +466,13 @@ func TestPostPermissionsWorkflowEmbeddedPostsUseCurrentViewer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbx.Connection().Exec(`UPDATE pages SET cached_embedded_data = $1::jsonb WHERE id = $2`, string(legacyCache), page.Result.ID); err != nil {
+	if _, err := mediaFixtureSQL(`UPDATE pages SET cached_embedded_data = $1::jsonb WHERE id = $2`, string(legacyCache), page.Result.ID); err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run("cache predates permission projection", assertViewerPermissions)
 
-	if _, err := dbx.Connection().Exec(`UPDATE posts SET moderation_pending = TRUE WHERE id = $1`, post.Result.ID); err != nil {
+	if _, err := mediaFixtureSQL(`UPDATE posts SET moderation_pending = TRUE WHERE id = $1`, post.Result.ID); err != nil {
 		t.Fatal(err)
 	}
 	getPage := &query.GetPageByID{ID: page.Result.ID}
@@ -519,15 +523,15 @@ func TestPostPermissionsWorkflowEmbeddedSelectionRemainsStable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbx.Connection().Exec(`UPDATE pages
+	if _, err := mediaFixtureSQL(`UPDATE pages
 		SET cached_embedded_data = jsonb_set(cached_embedded_data, '{postIds}', $1::jsonb)
 		WHERE id = $2`, string(selectedIDs), page.Result.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbx.Connection().Exec(`UPDATE posts SET status = $1 WHERE id = $2`, enum.PostArchived, first.Result.ID); err != nil {
+	if _, err := mediaFixtureSQL(`UPDATE posts SET status = $1 WHERE id = $2`, enum.PostArchived, first.Result.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbx.Connection().Exec(`UPDATE posts SET status = $1 WHERE id = $2`, enum.PostDuplicate, second.Result.ID); err != nil {
+	if _, err := mediaFixtureSQL(`UPDATE posts SET status = $1 WHERE id = $2`, enum.PostDuplicate, second.Result.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -568,7 +572,7 @@ func TestPostPermissionsWorkflowLockingUserProjection(t *testing.T) {
 	if err := json.Unmarshal(encoded, &original); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbx.Connection().Exec(`UPDATE users
+	if _, err := mediaFixtureSQL(`UPDATE users
 		SET name = $1, avatar_type = $2, avatar_bkey = $3 WHERE id = $4`,
 		"Current staff name", enum.AvatarTypeCustom, "current-avatar", f.user.ID); err != nil {
 		t.Fatal(err)
@@ -613,7 +617,7 @@ func TestPostPermissionsWorkflowLockingUserProjection(t *testing.T) {
 		})
 	}
 
-	if _, err := dbx.Connection().Exec(`UPDATE users SET status = $1 WHERE id = $2`, enum.UserDeleted, 3); err != nil {
+	if _, err := mediaFixtureSQL(`UPDATE users SET status = $1 WHERE id = $2`, enum.UserDeleted, 3); err != nil {
 		t.Fatal(err)
 	}
 	for _, missingIdentity := range []struct {
@@ -625,7 +629,7 @@ func TestPostPermissionsWorkflowLockingUserProjection(t *testing.T) {
 		{"missing user", 999999},
 	} {
 		t.Run(missingIdentity.name, func(t *testing.T) {
-			if _, err := dbx.Connection().Exec(`UPDATE posts
+			if _, err := mediaFixtureSQL(`UPDATE posts
 				SET locked_settings = jsonb_set(locked_settings, '{lockedBy,id}', to_jsonb($1::integer))
 				WHERE id = $2`, missingIdentity.id, post.Result.ID); err != nil {
 				t.Fatal(err)
@@ -644,7 +648,13 @@ func TestPostPermissionsWorkflowLockingUserProjection(t *testing.T) {
 
 func BenchmarkPageEmbeddedPostProjection(b *testing.B) {
 	f := newPostWorkflow(b)
-	rows, err := dbx.Connection().Query(`INSERT INTO posts
+	transaction, err := mediaFixtureTransaction(f.ctx)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer transaction.Rollback()
+
+	rows, err := transaction.Query(`INSERT INTO posts
 		(tenant_id, user_id, title, slug, description, status, created_at)
 		SELECT $1, $2, 'Embedded benchmark ' || n, 'embedded-benchmark-' || n,
 			repeat('Page preview content. ', 10), 0, NOW()
@@ -666,6 +676,9 @@ func BenchmarkPageEmbeddedPostProjection(b *testing.B) {
 		b.Fatal(err)
 	}
 	if err := rows.Err(); err != nil {
+		b.Fatal(err)
+	}
+	if err := transaction.Commit(); err != nil {
 		b.Fatal(err)
 	}
 
@@ -705,7 +718,7 @@ func BenchmarkPageEmbeddedPostProjection(b *testing.B) {
 				}
 				lockedSettings = string(encoded)
 			}
-			if _, err := dbx.Connection().Exec(`UPDATE posts SET locked_settings = $1::jsonb
+			if _, err := mediaFixtureSQL(`UPDATE posts SET locked_settings = $1::jsonb
 				WHERE tenant_id = $2 AND slug LIKE 'embedded-benchmark-%'`, lockedSettings, f.tenant.ID); err != nil {
 				b.Fatal(err)
 			}
@@ -714,7 +727,7 @@ func BenchmarkPageEmbeddedPostProjection(b *testing.B) {
 			if err != nil {
 				b.Fatal(err)
 			}
-			if _, err := dbx.Connection().Exec(`UPDATE pages SET cached_embedded_data = $1::jsonb WHERE id = $2`, string(cache), page.Result.ID); err != nil {
+			if _, err := mediaFixtureSQL(`UPDATE pages SET cached_embedded_data = $1::jsonb WHERE id = $2`, string(cache), page.Result.ID); err != nil {
 				b.Fatal(err)
 			}
 

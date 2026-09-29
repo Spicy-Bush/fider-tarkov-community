@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
@@ -314,4 +315,58 @@ func (action *UpdateContentSettings) Validate(ctx context.Context, user *entity.
 	}
 
 	return result
+}
+
+type UpdateRolePermissions struct {
+	SubmissionID    string                        `json:"submissionId"`
+	Changes         []entity.RolePermissionChange `json:"changes"`
+	ResponseChanges []entity.RoleResponseChange   `json:"responseChanges"`
+}
+
+func (action *UpdateRolePermissions) IsAuthorized(ctx context.Context, user *entity.User) bool {
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	return entity.Can(user, tenant, entity.ManageRolePermissions)
+}
+
+func (action *UpdateRolePermissions) Validate(ctx context.Context, user *entity.User) *validate.Result {
+	result := validate.Success()
+	if !validate.ValidSubmissionID(action.SubmissionID) {
+		result.AddFieldFailure("submissionId", "A valid submission identity is required.")
+	}
+
+	if len(action.Changes) == 0 && len(action.ResponseChanges) == 0 {
+		result.AddFieldFailure("changes", "Choose at least one change.")
+		return result
+	}
+
+	validatePermissionChanges(result, action.Changes)
+	if len(action.ResponseChanges) > entity.MaxRoleResponseChanges {
+		result.AddFieldFailure("responseChanges", "Too many response changes.")
+	}
+	for _, change := range action.ResponseChanges {
+		if !entity.IsPermissionRole(change.Role) || !entity.IsResponseStatus(change.Status) {
+			result.AddFieldFailure("responseChanges", "Unknown role or response.")
+			break
+		}
+	}
+	return result
+}
+
+func validatePermissionChanges(result *validate.Result, changes []entity.RolePermissionChange) {
+	if len(changes) > entity.MaxRolePermissionChanges {
+		result.AddFieldFailure("changes", fmt.Sprintf("Send no more than %d changes.", entity.MaxRolePermissionChanges))
+		return
+	}
+
+	for _, change := range changes {
+		if !entity.IsPermissionRole(change.Role) {
+			result.AddFieldFailure("changes", "Unknown role.")
+			return
+		}
+
+		if !entity.IsPermission(change.Permission) {
+			result.AddFieldFailure("changes", fmt.Sprintf("Unknown permission '%s'.", change.Permission))
+			return
+		}
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
@@ -16,22 +17,31 @@ import (
 
 func applyPostVote(ctx context.Context, c *cmd.ApplyPostVote) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		if user == nil || user.Status == enum.UserBlocked {
+		if user == nil {
 			return validate.Unauthorized()
 		}
 
-		isStaff := user.IsCollaborator() || user.IsModerator()
+		ctx, err := lockedContentContext(ctx, trx, tenant, user)
+		if err != nil {
+			return err
+		}
+		tenant = ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+		user = ctx.Value(app.UserCtxKey).(*entity.User)
+
+		canViewHidden := entity.Can(user, tenant, entity.ModeratePosts)
 		var eligibility struct {
 			ID         int             `db:"id"`
 			Status     enum.PostStatus `db:"status"`
 			Locked     bool            `db:"locked"`
 			ArchivedAt sql.NullTime    `db:"archived_at"`
 		}
-		if err := trx.Get(&eligibility, `SELECT id, status, archived_at,
-			COALESCE((locked_settings->>'locked')::boolean, false) AS locked
-			FROM visible_posts WHERE number = $1 AND tenant_id = $2
-			AND (moderation_pending = FALSE OR user_id = $3 OR $4)
-			FOR NO KEY UPDATE`, c.Number, tenant.ID, user.ID, isStaff); err != nil {
+		if err := trx.Get(&eligibility, `
+			SELECT post.id, post.status, post.archived_at,
+				COALESCE((post.locked_settings->>'locked')::boolean, false) AS locked
+			FROM posts post
+			WHERE post.number = $1 AND post.tenant_id = $2
+			FOR NO KEY UPDATE OF post
+		`, c.Number, tenant.ID); err != nil {
 			return err
 		}
 
@@ -40,22 +50,21 @@ func applyPostVote(ctx context.Context, c *cmd.ApplyPostVote) error {
 			post.LockedSettings = &entity.PostLockedSettings{Locked: true}
 		}
 
-		if !post.AllowedActions(user, tenant, time.Now()).Vote {
-			return validate.Unauthorized()
-		}
-
 		read := func() error {
 			return trx.Get(&c.State, `SELECT COALESCE(v.vote_type, 0) AS direction,
 				COALESCE(r.revision, 0) AS revision, p.upvotes, p.downvotes, p.last_activity_at
-				FROM visible_posts p
+				FROM visible_posts_for($3, $4::boolean, $2) p
 				LEFT JOIN post_votes v ON v.post_id = p.id AND v.user_id = $2
 				LEFT JOIN post_vote_revisions r ON r.post_id = p.id AND r.user_id = $2
-				WHERE p.number = $1 AND p.tenant_id = $3
-				AND (p.moderation_pending = FALSE OR p.user_id = $2 OR $4)`, c.Number, user.ID, tenant.ID, isStaff)
+				WHERE p.number = $1`, c.Number, user.ID, tenant.ID, canViewHidden)
 		}
 
 		if err := read(); err != nil {
 			return err
+		}
+
+		if !post.AllowedActions(user, tenant, time.Now()).Vote {
+			return validate.Unauthorized()
 		}
 
 		if c.State.Revision != c.Revision {

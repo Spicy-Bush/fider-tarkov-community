@@ -17,7 +17,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/postcache"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -33,6 +32,55 @@ func postVisibilityViewers() []*entity.User {
 	}
 }
 
+func TestPostSQLAndEntityVisibilityAgree(t *testing.T) {
+	f := newPostWorkflow(t)
+	created := &cmd.AddNewPost{Title: "Visibility matrix", Description: "Shared read policy"}
+	if err := bus.Dispatch(f.ctx, created); err != nil {
+		t.Fatal(err)
+	}
+
+	statuses := []enum.PostStatus{
+		enum.PostOpen, enum.PostPlanned, enum.PostStarted, enum.PostCompleted,
+		enum.PostDeclined, enum.PostDuplicate, enum.PostDeleted, enum.PostArchived,
+	}
+	for _, status := range statuses {
+		for _, hidden := range []bool{false, true} {
+			post := *created.Result
+			post.Status = status
+			post.ModerationPending = hidden
+			if _, err := mediaFixtureSQL("UPDATE posts SET status = $1, moderation_pending = $2 WHERE id = $3", status, hidden, post.ID); err != nil {
+				t.Fatal(err)
+			}
+
+			for _, viewer := range postVisibilityViewers() {
+				for _, granted := range []bool{false, true} {
+					tenant := *f.tenant
+					userID := 0
+					if viewer != nil {
+						userID = viewer.ID
+						tenant.RolePermissions = entity.RolePermissions{viewer.Role: {entity.ModeratePosts: granted}}
+					}
+
+					var visible bool
+					err := dbx.Connection().QueryRow(`
+						SELECT EXISTS (
+							SELECT 1 FROM visible_posts_for($1, $2::boolean, $3) WHERE id = $4
+						)
+					`, tenant.ID, entity.Can(viewer, &tenant, entity.ModeratePosts), userID, post.ID).Scan(&visible)
+					if err != nil {
+						t.Fatal(err)
+					}
+
+					want := entity.PostDiscussion(&post).CanView(viewer, &tenant)
+					if visible != want {
+						t.Fatalf("status=%s hidden=%t viewer=%+v granted=%t: SQL=%t Go=%t", status.Name(), hidden, viewer, granted, visible, want)
+					}
+				}
+			}
+		}
+	}
+}
+
 func TestHiddenPostDiscussionVisibility(t *testing.T) {
 	f := newPostWorkflow(t)
 	post := &cmd.AddNewPost{Title: "Private original title", Description: "Owner visibility"}
@@ -41,10 +89,10 @@ func TestHiddenPostDiscussionVisibility(t *testing.T) {
 	}
 
 	var commentID int
-	if err := dbx.Connection().QueryRow(`
+	if err := mediaFixtureScalar(&commentID, `
 		INSERT INTO comments (tenant_id, post_id, user_id, content, created_at)
 		VALUES ($1, $2, 2, 'Private discussion content', NOW()) RETURNING id
-	`, f.tenant.ID, post.Result.ID).Scan(&commentID); err != nil {
+	`, f.tenant.ID, post.Result.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -68,7 +116,7 @@ func TestHiddenPostDiscussionVisibility(t *testing.T) {
 
 	for _, status := range []enum.PostStatus{enum.PostOpen, enum.PostArchived, enum.PostDeleted} {
 		for _, hidden := range []bool{false, true} {
-			if _, err := dbx.Connection().Exec("UPDATE posts SET status = $1, moderation_pending = $2 WHERE id = $3", status, hidden, post.Result.ID); err != nil {
+			if _, err := mediaFixtureSQL("UPDATE posts SET status = $1, moderation_pending = $2 WHERE id = $3", status, hidden, post.Result.ID); err != nil {
 				t.Fatal(err)
 			}
 
@@ -112,7 +160,7 @@ func TestHiddenPostDiscussionVisibility(t *testing.T) {
 					t.Errorf("status %v hidden %v viewer %d notifications: count %d, rows %d", status, hidden, index, count.Result, len(list.Result))
 				}
 
-				if _, err := dbx.Connection().Exec("UPDATE users SET role = $1 WHERE id = $2", viewer.Role, viewer.ID); err != nil {
+				if _, err := mediaFixtureSQL("UPDATE users SET role = $1 WHERE id = $2", viewer.Role, viewer.ID); err != nil {
 					t.Fatal(err)
 				}
 				for _, channel := range []enum.NotificationChannel{enum.NotificationChannelWeb, enum.NotificationChannelEmail, enum.NotificationChannelPush} {
@@ -140,7 +188,7 @@ func TestHiddenPostDiscussionVisibility(t *testing.T) {
 
 func TestPostVisibilityPrecedesPagination(t *testing.T) {
 	f := newPostWorkflow(t)
-	if _, err := dbx.Connection().Exec(`
+	if _, err := mediaFixtureSQL(`
 		INSERT INTO posts (tenant_id, user_id, title, slug, description, status, moderation_pending, created_at)
 		SELECT $1, 1, 'Needle', 'needle-' || n, 'Identical searchable content', 0,
 		       n > 32 OR n % 4 = 0, NOW() + n * INTERVAL '1 second'
@@ -149,11 +197,9 @@ func TestPostVisibilityPrecedesPagination(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer postcache.InvalidateTenantRankings(f.tenant.ID)
 	for _, search := range []string{"", "&query=needle"} {
 		for index, viewer := range postVisibilityViewers() {
 			f.user = viewer
-			postcache.InvalidateTenantRankings(f.tenant.ID)
 			var expected []int
 			for id := 48; id >= 1; id-- {
 				if index >= 3 || (id <= 32 && id%4 != 0) {

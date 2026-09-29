@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -13,12 +14,14 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/gosimple/slug"
 	"github.com/lib/pq"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 )
 
 type dbPost struct {
@@ -126,8 +129,7 @@ func (i *dbPost) toModel(ctx context.Context) *entity.Post {
 	post.DiscussionPermissions = entity.PostDiscussion(post).Permissions(user, tenant)
 	post.Permissions = post.AllowedActions(user, tenant, time.Now())
 
-	isStaff := user != nil && (user.IsCollaborator() || user.IsModerator() || user.IsAdministrator())
-	if isStaff {
+	if entity.Can(user, tenant, entity.ModeratePosts) {
 		if i.ModerationData.Valid {
 			post.ModerationData = i.ModerationData.String
 		}
@@ -237,7 +239,13 @@ func getDateInterval(date string) string {
 	}
 }
 
-func buildCTE(q query.SearchPosts, tenantID int, user *entity.User) cteResult {
+const withoutVisibleTags = `NOT EXISTS (
+	SELECT 1 FROM post_tags pt
+	INNER JOIN tags t ON t.id = pt.tag_id AND t.tenant_id = pt.tenant_id
+	WHERE pt.tenant_id = $1 AND pt.post_id = p.id AND (t.is_public OR $4)
+)`
+
+func buildCTE(q query.SearchPosts, tenant *entity.Tenant, user *entity.User) cteResult {
 	statuses := getStatusFilters(q.View, q.Statuses)
 	sort, sortDir := getSortExpression(q.View)
 	userID := viewerID(user)
@@ -249,11 +257,11 @@ func buildCTE(q query.SearchPosts, tenantID int, user *entity.User) cteResult {
 		}
 	}
 
-	conditions := []string{"p.status = ANY($4)"}
-	params := []interface{}{tenantID, viewerRole(user), userID, pq.Array(statuses)}
-	paramIdx := 5
+	conditions := []string{"p.status = ANY($5)"}
+	params := []interface{}{tenant.ID, entity.Can(user, tenant, entity.ModeratePosts), userID, entity.Can(user, tenant, entity.ViewPrivateTags), pq.Array(statuses)}
+	paramIdx := 6
 	if q.View == "recently-updated" && q.Query == "" {
-		sort = "CASE WHEN p.status = $5 THEN -999999999 ELSE extract(epoch from COALESCE(p.response_date, p.created_at)) END"
+		sort = "CASE WHEN p.status = $6 THEN -999999999 ELSE extract(epoch from COALESCE(p.response_date, p.created_at)) END"
 		params = append(params, enum.PostOpen)
 		paramIdx++
 	}
@@ -271,7 +279,7 @@ func buildCTE(q query.SearchPosts, tenantID int, user *entity.User) cteResult {
 	}
 
 	if q.Untagged {
-		conditions = append(conditions, "NOT EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id)")
+		conditions = append(conditions, withoutVisibleTags)
 	}
 
 	if q.MyPostsOnly && userID > 0 {
@@ -294,6 +302,7 @@ func buildCTE(q query.SearchPosts, tenantID int, user *entity.User) cteResult {
 			FROM post_tags pt
 			INNER JOIN tags t ON t.id = pt.tag_id AND t.tenant_id = pt.tenant_id
 			WHERE pt.tenant_id = $1 AND t.slug = ANY($%d)
+			  AND (t.is_public OR $4)
 			GROUP BY pt.post_id
 		`, paramIdx)
 
@@ -320,7 +329,7 @@ func buildCTE(q query.SearchPosts, tenantID int, user *entity.User) cteResult {
 
 	cteSQL := fmt.Sprintf(`
 		SELECT p.id, (%s) AS ranking_score
-		FROM visible_posts_for($1, $2, $3) p
+		FROM visible_posts_for($1, $2::boolean, $3) p
 		%s
 		WHERE %s
 		ORDER BY ranking_score %s, p.id DESC
@@ -387,12 +396,12 @@ const postDetails = `
 			END AS vote_revision,
 			p.moderation_pending,
 			p.moderation_data
-		FROM visible_posts_for($1, $2, $3) p
+		FROM visible_posts_for($1, $2::boolean, $3) p
 		INNER JOIN users u ON u.id = p.user_id AND u.tenant_id = $1
 		LEFT JOIN users r ON r.id = p.response_user_id AND r.tenant_id = $1
 		LEFT JOIN users l ON l.id = (p.locked_settings->'lockedBy'->>'id')::integer
 			AND l.tenant_id = $1 AND l.status <> 2
-		LEFT JOIN visible_posts_for($1, $2, $3) d ON d.id = p.original_id
+		LEFT JOIN visible_posts_for($1, $2::boolean, $3) d ON d.id = p.original_id
 		LEFT JOIN LATERAL (
 			SELECT 
 				ARRAY_REMOVE(ARRAY_AGG(t.slug), NULL) AS tags,
@@ -400,7 +409,7 @@ const postDetails = `
 			FROM post_tags pt
 			INNER JOIN tags t ON t.id = pt.tag_id AND t.tenant_id = pt.tenant_id
 			WHERE pt.post_id = p.id AND pt.tenant_id = $1
-			  AND (t.is_public OR $2 IN ('administrator', 'collaborator', 'moderator'))
+			  AND (t.is_public OR $4::boolean)
 			GROUP BY pt.post_id
 		) agg_t ON true
 	`
@@ -411,7 +420,7 @@ func buildSearchQuery(q query.SearchPosts, tenant *entity.Tenant, user *entity.U
 		sortDir = "DESC"
 	}
 
-	cte := buildCTE(q, tenant.ID, user)
+	cte := buildCTE(q, tenant, user)
 	cteWithLimit := cte.SQL
 	if q.Limit != "" && q.Limit != "all" {
 		cteWithLimit += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(cte.Params)+1, len(cte.Params)+2)
@@ -426,8 +435,8 @@ func buildSearchQuery(q query.SearchPosts, tenant *entity.Tenant, user *entity.U
 
 func buildPostsByIDsQuery(tenant *entity.Tenant, user *entity.User, statuses []enum.PostStatus, postIDs []int) cteResult {
 	return cteResult{
-		SQL:    postDetails + " WHERE p.status = ANY($4) AND p.id = ANY($5)",
-		Params: []interface{}{tenant.ID, viewerRole(user), viewerID(user), pq.Array(statuses), pq.Array(postIDs)},
+		SQL:    postDetails + " WHERE p.status = ANY($5) AND p.id = ANY($6)",
+		Params: []interface{}{tenant.ID, entity.Can(user, tenant, entity.ModeratePosts), viewerID(user), entity.Can(user, tenant, entity.ViewPrivateTags), pq.Array(statuses), pq.Array(postIDs)},
 	}
 }
 
@@ -451,8 +460,54 @@ func postIsReferenced(ctx context.Context, q *query.PostIsReferenced) error {
 	})
 }
 
+func lockPostResponse(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User, status enum.PostStatus, posts ...*entity.Post) error {
+	permission := entity.RespondToPosts
+	if status == enum.PostDeleted {
+		permission = entity.DeletePosts
+	}
+	ctx, err := permissionContext(ctx, trx, tenant, user, permission)
+	if err != nil {
+		return err
+	}
+	currentTenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	currentUser := ctx.Value(app.UserCtxKey).(*entity.User)
+	if status != enum.PostDeleted && !slices.Contains(entity.AllowedPostResponses(currentUser, currentTenant), status) {
+		return validate.Unauthorized()
+	}
+	ids := make([]int, len(posts))
+	for index, post := range posts {
+		ids[index] = post.ID
+	}
+	if _, err := trx.Execute(`SELECT id FROM posts WHERE tenant_id=$1 AND id=ANY($2::int[])
+		ORDER BY id FOR NO KEY UPDATE`, tenant.ID, pq.Array(ids)); err != nil {
+		return err
+	}
+	var visible int
+	if err := trx.Scalar(&visible, `
+		SELECT COUNT(*) FROM visible_posts_for($1,$3::boolean,$4) WHERE id=ANY($2::int[])
+	`, tenant.ID, pq.Array(ids), entity.Can(currentUser, currentTenant, entity.ModeratePosts), currentUser.ID); err != nil {
+		return err
+	}
+	if visible != len(ids) {
+		return app.ErrNotFound
+	}
+	if status == enum.PostDeleted {
+		current := &query.GetPostByID{PostID: posts[0].ID}
+		if err := getPostByID(ctx, current); err != nil {
+			return err
+		}
+		if !current.Result.AllowedActions(currentUser, currentTenant, time.Now()).Delete {
+			return validate.Unauthorized()
+		}
+	}
+	return nil
+}
+
 func setPostResponse(ctx context.Context, c *cmd.SetPostResponse) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if err := lockPostResponse(ctx, trx, tenant, user, c.Status, c.Post); err != nil {
+			return err
+		}
 		if c.Status == enum.PostDuplicate {
 			return errors.New("Use MarkAsDuplicate to change an post status to Duplicate")
 		}
@@ -483,8 +538,7 @@ func setPostResponse(ctx context.Context, c *cmd.SetPostResponse) error {
 
 func markPostAsDuplicate(ctx context.Context, c *cmd.MarkPostAsDuplicate) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		if _, err := trx.Execute(`SELECT id FROM posts WHERE tenant_id = $1 AND id IN ($2, $3)
-			ORDER BY id FOR NO KEY UPDATE`, tenant.ID, c.Post.ID, c.Original.ID); err != nil {
+		if err := lockPostResponse(ctx, trx, tenant, user, enum.PostDuplicate, c.Post, c.Original); err != nil {
 			return err
 		}
 		respondedAt := time.Now()
@@ -538,7 +592,11 @@ func countPostPerStatus(ctx context.Context, q *query.CountPostPerStatus) error 
 
 		q.Result = make(map[enum.PostStatus]int)
 		stats := []*dbStatusCount{}
-		err := trx.Select(&stats, "SELECT status, COUNT(*) AS count FROM posts WHERE tenant_id = $1 GROUP BY status", tenant.ID)
+		err := trx.Select(&stats, `
+			SELECT status, COUNT(*) AS count
+			FROM visible_posts_for($1, $2::boolean, $3)
+			GROUP BY status
+		`, tenant.ID, entity.Can(user, tenant, entity.ModeratePosts), viewerID(user))
 		if err != nil {
 			return errors.Wrap(err, "failed to count posts per status")
 		}
@@ -551,6 +609,9 @@ func countPostPerStatus(ctx context.Context, q *query.CountPostPerStatus) error 
 }
 
 func addNewPost(ctx context.Context, c *cmd.AddNewPost) error {
+	if err := prepareImages(ctx, c.Attachments, "attachments"); err != nil {
+		return err
+	}
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		attachments, err := uploadAttachments(ctx, c.Attachments)
 		if err != nil {
@@ -596,7 +657,21 @@ func addNewPost(ctx context.Context, c *cmd.AddNewPost) error {
 }
 
 func updatePost(ctx context.Context, c *cmd.UpdatePost) error {
+	if err := prepareImages(ctx, c.Attachments, "attachments"); err != nil {
+		return err
+	}
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		var postID int
+		if err := trx.Scalar(&postID, "SELECT id FROM posts WHERE tenant_id=$1 AND id=$2 FOR UPDATE", tenant.ID, c.Post.ID); err != nil {
+			return err
+		}
+		current := &query.GetPostByID{PostID: postID}
+		if err := getPostByID(ctx, current); err != nil {
+			return err
+		}
+		if !current.Result.AllowedActions(user, tenant, time.Now()).Edit {
+			return validate.Unauthorized()
+		}
 		attachments, err := uploadAttachments(ctx, c.Attachments)
 		if err != nil {
 			return err
@@ -613,6 +688,9 @@ func updatePost(ctx context.Context, c *cmd.UpdatePost) error {
 		if err := attachments.apply(ctx, c.Post.ID, 0); err != nil {
 			return err
 		}
+		if err := bus.Dispatch(ctx, &cmd.ScheduleModeration{ContentType: "post", ContentID: c.Post.ID}); err != nil {
+			return err
+		}
 
 		q := &query.GetPostByID{PostID: c.Post.ID}
 		if err := getPostByID(ctx, q); err != nil {
@@ -626,8 +704,8 @@ func updatePost(ctx context.Context, c *cmd.UpdatePost) error {
 func getPostByID(ctx context.Context, q *query.GetPostByID) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var post dbPost
-		err := trx.Get(&post, postDetails + ` WHERE p.id = $4 LIMIT 1`,
-			tenant.ID, viewerRole(user), viewerID(user), q.PostID)
+		err := trx.Get(&post, postDetails+` WHERE p.id = $5 LIMIT 1`,
+			tenant.ID, entity.Can(user, tenant, entity.ModeratePosts), viewerID(user), entity.Can(user, tenant, entity.ViewPrivateTags), q.PostID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get post with id '%d'", q.PostID)
 		}
@@ -639,8 +717,8 @@ func getPostByID(ctx context.Context, q *query.GetPostByID) error {
 func getPostBySlug(ctx context.Context, q *query.GetPostBySlug) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var post dbPost
-		err := trx.Get(&post, postDetails + ` WHERE p.slug = $4 LIMIT 1`,
-			tenant.ID, viewerRole(user), viewerID(user), q.Slug)
+		err := trx.Get(&post, postDetails+` WHERE p.slug = $5 LIMIT 1`,
+			tenant.ID, entity.Can(user, tenant, entity.ModeratePosts), viewerID(user), entity.Can(user, tenant, entity.ViewPrivateTags), q.Slug)
 		if err != nil {
 			return errors.Wrap(err, "failed to get post with slug '%s'", q.Slug)
 		}
@@ -652,8 +730,8 @@ func getPostBySlug(ctx context.Context, q *query.GetPostBySlug) error {
 func getPostByNumber(ctx context.Context, q *query.GetPostByNumber) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		var post dbPost
-		err := trx.Get(&post, postDetails + ` WHERE p.number = $4 LIMIT 1`,
-			tenant.ID, viewerRole(user), viewerID(user), q.Number)
+		err := trx.Get(&post, postDetails+` WHERE p.number = $5 LIMIT 1`,
+			tenant.ID, entity.Can(user, tenant, entity.ModeratePosts), viewerID(user), entity.Can(user, tenant, entity.ViewPrivateTags), q.Number)
 		if err != nil {
 			return errors.Wrap(err, "failed to get post with number '%d'", q.Number)
 		}
@@ -723,13 +801,10 @@ func countUntaggedPosts(ctx context.Context, q *query.CountUntaggedPosts) error 
 		var count int
 		sqlQuery := `
 			SELECT COUNT(*)
-			FROM posts p
-			WHERE p.tenant_id = $1
-			  AND p.status = ANY($2)
-			  AND NOT EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id)
-		`
+			FROM visible_posts_for($1, $2::boolean, $3) p
+			WHERE p.status = ANY($5) AND ` + withoutVisibleTags
 
-		args := []any{tenant.ID, pq.Array(q.Statuses)}
+		args := []any{tenant.ID, entity.Can(user, tenant, entity.ModeratePosts), viewerID(user), entity.Can(user, tenant, entity.ViewPrivateTags), pq.Array(q.Statuses)}
 
 		if q.Date != "" {
 			var days int
@@ -744,7 +819,7 @@ func countUntaggedPosts(ctx context.Context, q *query.CountUntaggedPosts) error 
 				days = 365
 			}
 			if days > 0 {
-				sqlQuery += " AND p.created_at >= NOW() - $3 * INTERVAL '1 day'"
+				sqlQuery += " AND p.created_at >= NOW() - $6 * INTERVAL '1 day'"
 				args = append(args, days)
 			}
 		}
@@ -758,7 +833,7 @@ func countUntaggedPosts(ctx context.Context, q *query.CountUntaggedPosts) error 
 	})
 }
 
-func searchPosts(ctx context.Context, q *query.SearchPosts) error {
+func loadSearchPosts(ctx context.Context, q *query.SearchPosts) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if q.Untagged && q.Date == "" {
 			q.Date = entity.DefaultQueueDate(user, tenant)
@@ -996,9 +1071,9 @@ func bulkArchivePosts(ctx context.Context, c *cmd.BulkArchivePosts) error {
 
 func getArchivablePosts(ctx context.Context, q *query.GetArchivablePosts) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		conditions := []string{"p.status <> $4"}
-		args := []interface{}{tenant.ID, viewerRole(user), viewerID(user), int(enum.PostArchived)}
-		argNum := 5
+		conditions := []string{"p.status <> $5"}
+		args := []interface{}{tenant.ID, entity.Can(user, tenant, entity.ModeratePosts), viewerID(user), entity.Can(user, tenant, entity.ViewPrivateTags), int(enum.PostArchived)}
+		argNum := 6
 
 		if q.CreatedBefore != nil {
 			conditions = append(conditions, fmt.Sprintf("p.created_at < $%d", argNum))
@@ -1040,6 +1115,7 @@ func getArchivablePosts(ctx context.Context, q *query.GetArchivablePosts) error 
 					SELECT 1 FROM post_tags pt 
 					INNER JOIN tags t ON t.id = pt.tag_id AND t.tenant_id = pt.tenant_id
 					WHERE pt.post_id = p.id AND t.slug = ANY($%d)
+					  AND (t.is_public OR $4)
 				)
 			`, argNum))
 			args = append(args, pq.Array(q.Tags))
@@ -1048,7 +1124,14 @@ func getArchivablePosts(ctx context.Context, q *query.GetArchivablePosts) error 
 
 		whereClause := strings.Join(conditions, " AND ")
 
-		countQuery := `SELECT COUNT(*) FROM visible_posts_for($1, $2, $3) p WHERE ` + whereClause
+		countQuery := `
+			WITH viewer AS (
+				SELECT $1::integer AS tenant_id, $2::boolean AS can_moderate, $3::integer AS user_id,
+				       $4::boolean AS view_private_tags
+			)
+			SELECT COUNT(*) FROM viewer
+			CROSS JOIN LATERAL visible_posts_for(viewer.tenant_id, viewer.can_moderate, viewer.user_id) p
+			WHERE ` + whereClause
 		err := trx.Get(&q.Total, countQuery, args...)
 		if err != nil {
 			return errors.Wrap(err, "failed to count archivable posts")
@@ -1076,7 +1159,7 @@ func getArchivablePosts(ctx context.Context, q *query.GetArchivablePosts) error 
 
 		cte := fmt.Sprintf(`
 			SELECT p.id, p.last_activity_at AS ranking_score
-			FROM visible_posts_for($1, $2, $3) p
+			FROM visible_posts_for($1, $2::boolean, $3) p
 			WHERE %s
 			ORDER BY p.last_activity_at ASC
 			LIMIT $%d OFFSET $%d

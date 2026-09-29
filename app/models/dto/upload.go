@@ -9,7 +9,17 @@ type ImageUpload struct {
 
 //ImageUploadData is the input model used to upload a new logo
 type ImageUploadData struct {
-	FileName    string `json:"fileName"`
-	ContentType string `json:"contentType"`
-	Content     []byte `json:"content"`
+	FileName    string         `json:"fileName"`
+	ContentType string         `json:"contentType"`
+	Content     []byte         `json:"content"`
+	Prepared    *PreparedImage `json:"-"`
+}
+
+type PreparedImage struct {
+	Key         string
+	ContentType string
+	Content     []byte
+	Width       int
+	Height      int
+	Thumbnails  map[int][]byte
 }

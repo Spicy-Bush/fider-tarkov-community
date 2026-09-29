@@ -135,7 +135,7 @@ func countUsers(ctx context.Context, q *query.CountUsers) error {
 
 func blockUser(ctx context.Context, c *cmd.BlockUser) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		_, permissions, err := userPermissionsForUpdate(ctx, trx, tenant, user, c.UserID)
 		if err != nil {
 			return err
 		}
@@ -154,7 +154,7 @@ func blockUser(ctx context.Context, c *cmd.BlockUser) error {
 
 func unblockUser(ctx context.Context, c *cmd.UnblockUser) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		_, permissions, err := userPermissionsForUpdate(ctx, trx, tenant, user, c.UserID)
 		if err != nil {
 			return err
 		}
@@ -280,25 +280,30 @@ func userSubscribedTo(ctx context.Context, q *query.UserSubscribedTo) error {
 
 func changeUserRole(ctx context.Context, c *cmd.ChangeUserRole) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		ctx, permissions, err := userPermissionsForUpdate(ctx, trx, tenant, user, c.UserID)
 		if err != nil {
 			return err
 		}
-		if !permissions.ChangeRole {
+
+		user = ctx.Value(app.UserCtxKey).(*entity.User)
+		if !permissions.ChangeRole || !entity.CanAssignRole(user, c.Role) {
 			return validate.Unauthorized()
 		}
+
 		cmd := "UPDATE users SET role = $3 WHERE id = $1 AND tenant_id = $2"
 		_, err = trx.Execute(cmd, c.UserID, tenant.ID, c.Role)
 		if err != nil {
 			return errors.Wrap(err, "failed to change user's role")
 		}
-		return nil
+
+		c.Result, err = queryUser(ctx, trx, "id = $1 AND tenant_id = $2", c.UserID, tenant.ID)
+		return err
 	})
 }
 
 func changeUserVisualRole(ctx context.Context, c *cmd.ChangeUserVisualRole) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		_, permissions, err := userPermissionsForUpdate(ctx, trx, tenant, user, c.UserID)
 		if err != nil {
 			return err
 		}
@@ -434,35 +439,6 @@ func registerUserProvider(ctx context.Context, c *cmd.RegisterUserProvider) erro
 		_, err := trx.Execute(cmd, tenant.ID, c.UserID, c.ProviderName, c.ProviderUID, time.Now())
 		if err != nil {
 			return errors.Wrap(err, "failed to add provider '%s:%s' to user with id '%d'", c.ProviderName, c.ProviderUID, c.UserID)
-		}
-		return nil
-	})
-}
-
-func updateCurrentUser(ctx context.Context, c *cmd.UpdateCurrentUser) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		blobKey := ""
-		if c.Avatar != nil {
-			if c.Avatar.Remove {
-				blobKey = ""
-			} else {
-				blobKey = c.Avatar.BlobKey
-			}
-		}
-
-		if c.Name == "" {
-			cmd := "UPDATE users SET avatar_type = $3, avatar_bkey = $4 WHERE id = $1 AND tenant_id = $2"
-			_, err := trx.Execute(cmd, user.ID, tenant.ID, c.AvatarType, blobKey)
-			if err != nil {
-				return errors.Wrap(err, "failed to update user avatar")
-			}
-			return nil
-		}
-
-		cmd := "UPDATE users SET name = $3, avatar_type = $4, avatar_bkey = $5 WHERE id = $1 AND tenant_id = $2"
-		_, err := trx.Execute(cmd, user.ID, tenant.ID, c.Name, c.AvatarType, blobKey)
-		if err != nil {
-			return errors.Wrap(err, "failed to update user")
 		}
 		return nil
 	})
@@ -771,19 +747,16 @@ func searchUserContent(ctx context.Context, q *query.SearchUserContent) error {
 		q.Result.Comments = []query.UserCommentResult{}
 
 		if q.ContentType == "all" || q.ContentType == "posts" || q.ContentType == "" {
-			// Search posts
 			var posts []*dbUserPost
 			postQuery := `
 				SELECT number as id, title, created_at 
-				FROM posts 
-				WHERE user_id = $1 
-				AND tenant_id = $2
-				AND status != $3
+				FROM visible_posts_for($1, $2::boolean, $3)
+				WHERE user_id = $4
 			`
-			args := []any{q.UserID, tenant.ID, enum.PostDeleted}
+			args := []any{tenant.ID, entity.Can(user, tenant, entity.ModeratePosts), viewerID(user), q.UserID}
 
 			if q.Query != "" {
-				postQuery += " AND title ILIKE $4"
+				postQuery += " AND title ILIKE $5"
 				args = append(args, "%"+q.Query+"%")
 			}
 
@@ -807,21 +780,18 @@ func searchUserContent(ctx context.Context, q *query.SearchUserContent) error {
 		}
 
 		if q.ContentType == "all" || q.ContentType == "comments" || q.ContentType == "" {
-			// Search comments
 			var comments []*dbUserComment
-			commentQuery := `
+			commentQuery := visibleComments + `
 				SELECT c.id, c.content, c.post_id, p.number as post_number, p.title as post_title, c.created_at 
-				FROM comments c
-				JOIN posts p ON p.id = c.post_id AND p.status != $4
-				WHERE c.user_id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL
+				FROM visible_comments c
+				JOIN posts p ON p.id = c.post_id AND p.tenant_id = c.tenant_id
+				WHERE c.user_id = $7
 			`
-			args := []any{q.UserID, tenant.ID, "%" + q.Query + "%", enum.PostDeleted}
+			args := append(commentVisibilityParams(tenant, user), q.UserID)
 
 			if q.Query != "" {
-				commentQuery += " AND c.content ILIKE $3"
-			} else {
-				commentQuery = strings.Replace(commentQuery, "AND p.status != $4", "AND p.status != $3", 1)
-				args = []any{q.UserID, tenant.ID, enum.PostDeleted}
+				commentQuery += " AND c.content ILIKE $8"
+				args = append(args, "%"+q.Query+"%")
 			}
 
 			commentSortField := "c.created_at"
@@ -854,16 +824,14 @@ func searchUserContent(ctx context.Context, q *query.SearchUserContent) error {
 			var votedPosts []*dbUserPost
 			votedQuery := `
 				SELECT p.number as id, p.title, p.created_at 
-				FROM posts p
-				JOIN post_votes pv ON p.id = pv.post_id
-				WHERE pv.user_id = $1 
-				AND p.tenant_id = $2 
-				AND p.status != $3
+				FROM visible_posts_for($1, $2::boolean, $3) p
+				JOIN post_votes pv ON p.id = pv.post_id AND p.tenant_id = pv.tenant_id
+				WHERE pv.user_id = $4
 			`
-			args := []any{q.UserID, tenant.ID, enum.PostDeleted}
+			args := []any{tenant.ID, entity.Can(user, tenant, entity.ModeratePosts), viewerID(user), q.UserID}
 
 			if q.VoteType != 0 {
-				votedQuery += " AND pv.vote_type = $4"
+				votedQuery += " AND pv.vote_type = $5"
 				args = append(args, q.VoteType)
 			}
 
@@ -898,7 +866,7 @@ func searchUserContent(ctx context.Context, q *query.SearchUserContent) error {
 
 func muteUser(ctx context.Context, c *cmd.MuteUser) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		_, permissions, err := userPermissionsForUpdate(ctx, trx, tenant, user, c.UserID)
 		if err != nil {
 			return err
 		}
@@ -931,7 +899,7 @@ func muteUser(ctx context.Context, c *cmd.MuteUser) error {
 
 func warnUser(ctx context.Context, c *cmd.WarnUser) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
+		_, permissions, err := userPermissionsForUpdate(ctx, trx, tenant, user, c.UserID)
 		if err != nil {
 			return err
 		}
@@ -954,50 +922,6 @@ func warnUser(ctx context.Context, c *cmd.WarnUser) error {
 			VALUES ($1, $2, $3, NOW(), $4, $5)
 		`, c.UserID, tenant.ID, c.Reason, expiresAt, user.ID)
 		return err
-	})
-}
-
-func updateUserAvatar(ctx context.Context, c *cmd.UpdateUserAvatar) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
-		if err != nil {
-			return err
-		}
-		if !permissions.EditAvatar {
-			return validate.Unauthorized()
-		}
-		blobKey := ""
-		if c.Avatar != nil {
-			if c.Avatar.Remove {
-				blobKey = ""
-			} else {
-				blobKey = c.Avatar.BlobKey
-			}
-		}
-		cmd := "UPDATE users SET avatar_type = $3, avatar_bkey = $4 WHERE id = $1 AND tenant_id = $2"
-		_, err = trx.Execute(cmd, c.UserID, tenant.ID, c.AvatarType, blobKey)
-		if err != nil {
-			return errors.Wrap(err, "failed to update user avatar")
-		}
-		return nil
-	})
-}
-
-func updateUser(ctx context.Context, c *cmd.UpdateUser) error {
-	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		permissions, err := userPermissionsForUpdate(trx, tenant, user, c.UserID)
-		if err != nil {
-			return err
-		}
-		if !permissions.EditName {
-			return validate.Unauthorized()
-		}
-		cmd := "UPDATE users SET name = $3 WHERE id = $1 AND tenant_id = $2"
-		_, err = trx.Execute(cmd, c.UserID, tenant.ID, c.Name)
-		if err != nil {
-			return errors.Wrap(err, "failed to update user")
-		}
-		return nil
 	})
 }
 
