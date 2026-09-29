@@ -2,6 +2,8 @@ package middlewares
 
 import (
 	"fmt"
+	"mime"
+	"net/http"
 	"strings"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
@@ -30,14 +32,20 @@ func Secure() web.MiddlewareFunc {
 	}
 }
 
-// Secure middleware is responsible for blocking CSRF attacks
 func CSRF() web.MiddlewareFunc {
 	return func(next web.HandlerFunc) web.HandlerFunc {
 		return func(c *web.Context) error {
-			var isWriteRequest = c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "DELETE"
-			if isWriteRequest && !c.IsAjax() {
+			switch c.Request.Method {
+			case http.MethodGet, http.MethodHead, http.MethodOptions:
+				return next(c)
+			}
+
+			// Cross-origin browsers must preflight this content type, including empty writes.
+			contentType, _, err := mime.ParseMediaType(c.Request.GetHeader("Content-Type"))
+			if err != nil || contentType != web.JSONContentType {
 				return c.Forbidden()
 			}
+
 			return next(c)
 		}
 	}
