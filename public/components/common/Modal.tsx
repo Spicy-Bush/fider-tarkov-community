@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react"
 import ReactDOM from "react-dom"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 import { useBodyScrollLock } from "@fider/hooks/useBodyScrollLock"
 
 interface ModalWindowProps {
@@ -11,6 +11,7 @@ interface ModalWindowProps {
   canClose?: boolean
   center?: boolean
   manageHistory?: boolean
+  labelledBy?: string
   onClose: () => void
 }
 
@@ -21,6 +22,8 @@ interface ModalFooterProps {
 
 const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small", canClose = true, center = true, manageHistory = true, ...props }) => {
   const root = useRef<HTMLElement>(document.getElementById("root-modal"))
+  const dialog = useRef<HTMLDivElement>(null)
+  const returnFocus = useRef<HTMLElement | null>(null)
   const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
   const pushedHistory = useRef(false);
@@ -30,6 +33,54 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
   canCloseRef.current = canClose;
 
   useBodyScrollLock(props.isOpen)
+
+  useEffect(() => {
+    const modal = dialog.current
+    if (!props.isOpen || !modal) return
+
+    if (!returnFocus.current && !modal.contains(document.activeElement)) {
+      returnFocus.current = document.activeElement as HTMLElement | null
+    }
+
+    const focusable = () => Array.from(modal.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(element => {
+      const style = getComputedStyle(element)
+      return !element.closest('[hidden], [inert]') && style.display !== "none" && style.visibility !== "hidden"
+    })
+
+    if (!modal.contains(document.activeElement)) {
+      const initialFocus = focusable()[0] || modal
+      initialFocus.focus()
+    }
+
+    const trapFocus = (event: KeyboardEvent) => {
+      const windows = document.querySelectorAll('[data-modal-window]')
+      if (event.key !== "Tab" || windows[windows.length - 1] !== modal) return
+
+      const elements = focusable()
+      const first = elements[0]
+      const last = elements[elements.length - 1]
+      if (!first) {
+        event.preventDefault()
+        modal.focus()
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === modal || !modal.contains(document.activeElement))) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener("keydown", trapFocus)
+    return () => {
+      document.removeEventListener("keydown", trapFocus)
+      const previousFocus = returnFocus.current
+      returnFocus.current = null
+      if (previousFocus?.isConnected && !modal.contains(previousFocus)) previousFocus.focus()
+    }
+  }, [props.isOpen])
 
   useEffect(() => {
     if (props.isOpen) {
@@ -92,7 +143,8 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
   };
 
   const keyDown = (event: KeyboardEvent) => {
-    if (event.keyCode === 27) {
+    const windows = document.querySelectorAll('[data-modal-window]')
+    if (event.key === "Escape" && windows[windows.length - 1] === dialog.current) {
       close()
     }
   }
@@ -135,8 +187,16 @@ const ModalWindow: React.FunctionComponent<ModalWindowProps> = ({ size = "small"
           className={className} 
           data-testid="modal"
           data-modal-window
+          ref={dialog}
+          tabIndex={-1}
           role="dialog"
           aria-modal="true"
+          aria-labelledby={props.labelledBy}
+          onFocusCapture={event => {
+            if (!returnFocus.current && event.relatedTarget instanceof HTMLElement && !event.currentTarget.contains(event.relatedTarget)) {
+              returnFocus.current = event.relatedTarget
+            }
+          }}
         >
           {props.children}
         </div>
