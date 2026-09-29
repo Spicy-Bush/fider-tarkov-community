@@ -79,6 +79,30 @@ func TestSecureWithCDN_SingleHost(t *testing.T) {
 	Expect(response.Header().Get("Referrer-Policy")).Equals("no-referrer-when-downgrade")
 }
 
+func TestSecureAllowsViteReconnectOnlyInDevelopment(t *testing.T) {
+	previous := env.Config
+	t.Cleanup(func() { env.Config = previous })
+
+	for _, environment := range []string{"development", "production"} {
+		for _, devUI := range []bool{false, true} {
+			server := mock.NewServer()
+			server.Use(middlewares.Secure())
+			env.Config.Environment = environment
+			env.Config.DevUI = devUI
+
+			_, response := server.Execute(func(c *web.Context) error {
+				return c.NoContent(http.StatusOK)
+			})
+
+			policy := response.Header().Get("Content-Security-Policy")
+			allowsWorker := strings.Contains(policy, "worker-src 'self' blob:")
+			if allowsWorker != (environment == "development" && devUI) {
+				t.Fatalf("environment %s, dev UI %t: unexpected worker policy %q", environment, devUI, policy)
+			}
+		}
+	}
+}
+
 func expectedCSP(nonce, cdnHost string) string {
 	return strings.Join([]string{
 		"base-uri 'self'",

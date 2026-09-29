@@ -21,6 +21,10 @@ func Secure() web.MiddlewareFunc {
 				cdnHost = "*." + cdnHost
 			}
 			csp := fmt.Sprintf(web.CspPolicyTemplate, c.ContextID(), cdnHost)
+			if env.IsDevelopment() && env.Config.DevUI {
+				// Vite uses a worker to reconnect after a server restart.
+				csp += "; worker-src 'self' blob:"
+			}
 
 			c.Response.Header().Set("Content-Security-Policy", strings.TrimSpace(csp))
 			c.Response.Header().Set("X-XSS-Protection", "1; mode=block")
