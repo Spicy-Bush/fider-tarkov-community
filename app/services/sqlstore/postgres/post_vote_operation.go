@@ -46,7 +46,7 @@ func applyPostVote(ctx context.Context, c *cmd.ApplyPostVote) error {
 
 		read := func() error {
 			return trx.Get(&c.State, `SELECT COALESCE(v.vote_type, 0) AS direction,
-				COALESCE(r.revision, 0) AS revision, p.upvotes, p.downvotes
+				COALESCE(r.revision, 0) AS revision, p.upvotes, p.downvotes, p.last_activity_at
 				FROM visible_posts p
 				LEFT JOIN post_votes v ON v.post_id = p.id AND v.user_id = $2
 				LEFT JOIN post_vote_revisions r ON r.post_id = p.id AND r.user_id = $2

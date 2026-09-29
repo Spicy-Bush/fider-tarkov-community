@@ -1,7 +1,9 @@
 import type { PendingPostSubmission } from "@fider/services/postSubmission"
-import { http, Result, querystring } from "@fider/services"
+import { http } from "@fider/services/http"
+import * as querystring from "@fider/services/querystring"
+import { Result } from "@fider/services"
 import { Post, Vote, ImageUpload, UserNames, DiscussionComment } from "@fider/models"
-import { RequestError } from "@fider/services/http"
+import { retryRequest, RetryResult } from "@fider/services/retryRequest"
 
 export const getAllPosts = async (): Promise<Result<Post[]>> => {
   return await http.get<Post[]>("/api/posts")
@@ -76,20 +78,15 @@ export interface VoteState {
   upvotes: number
   downvotes: number
   applied: boolean
+  lastActivityAt: string
 }
 
-export const setVote = async (postNumber: number, direction: number, revision: number): Promise<Result<VoteState>> => {
+export const setVote = async (postNumber: number, direction: number, revision: number): Promise<RetryResult<VoteState>> => {
   const input = { revision }
-  const send = () => direction === 0
+  return retryRequest(() => direction === 0
     ? http.delete<VoteState>(`/api/posts/${postNumber}/votes`, input)
-    : http.post<VoteState>(`/api/posts/${postNumber}/${direction === 1 ? "up" : "down"}`, input)
-  try {
-    const result = await send()
-    if (result.ok || (result.status && result.status < 500)) return result
-  } catch (cause) {
-    if (!(cause instanceof RequestError)) throw cause
-  }
-  return send()
+    : http.post<VoteState>(`/api/posts/${postNumber}/${direction === 1 ? "up" : "down"}`, input),
+  { attempts: 2, delayMs: 0 })
 }
 
 export const subscribe = async (postNumber: number): Promise<Result> => {

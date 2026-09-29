@@ -1,4 +1,5 @@
 import React from "react"
+import { usePostVote } from "@fider/hooks/usePostVote"
 import { Post } from "@fider/models"
 import { classSet } from "@fider/services"
 import { HStack, VStack } from "@fider/components/layout"
@@ -8,8 +9,7 @@ interface VoteSectionCompactProps {
 }
 
 export const VoteSectionCompact = (props: VoteSectionCompactProps) => {
-  const upvotes = props.post.upvotes || 0
-  const downvotes = props.post.downvotes || 0
+  const { upvotes, downvotes } = usePostVote(props.post)
   const totalEngagement = upvotes + downvotes
   const votesDifference = upvotes - downvotes
   const upvotePercentage = totalEngagement > 0 ? (upvotes / totalEngagement) * 100 : 50

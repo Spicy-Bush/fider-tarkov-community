@@ -1,43 +1,47 @@
-import React, { useEffect, useCallback, useState } from "react"
+import React, { useEffect, useCallback } from "react"
 
 import { LockStatus } from "./components/LockStatus"
 import { ArchiveStatus } from "./components/ArchiveStatus"
 import { HiddenStatus } from "./components/HiddenStatus"
 import { PostLockingModal } from "./components/PostLockingModal"
-import { Post, Tag, Vote, isPostLocked, isPostArchived, isPostHidden, ReportReason } from "@fider/models"
-import { actions, Fider, notify, formatDate } from "@fider/services"
+import { Post, Tag, Vote, ReportReason } from "@fider/models"
+import { isPostLocked, isPostArchived, isPostHidden } from "@fider/models/post"
+import * as postActions from "@fider/services/actions/post"
+import * as notify from "@fider/services/notify"
+import { Fider } from "@fider/services/fider"
+import { formatDate } from "@fider/services/utils"
 import { heroiconsDotsHorizontal as IconDotsHorizontal, heroiconsChevronUp as IconChevronUp } from "@fider/icons.generated"
 
-import {
-  Button,
-  UserName,
-  Moment,
-  Markdown,
-  Input,
-  Form,
-  TextArea,
-  MultiImageUploader,
-  Icon,
-  Avatar,
-  Dropdown,
-  ImageGallery,
-  ReportModal,
-  ReportButton,
-} from "@fider/components"
+import { Button } from "@fider/components/common/Button"
+import { UserName } from "@fider/components/common/UserName"
+import { Moment } from "@fider/components/common/Moment"
+import { Markdown } from "@fider/components/common/Markdown"
+import { Input } from "@fider/components/common/form/Input"
+import { Form } from "@fider/components/common/form/Form"
+import { TextArea } from "@fider/components/common/form/TextArea"
+import { MultiImageUploader } from "@fider/components/common/form/MultiImageUploader"
+import { Icon } from "@fider/components/common/Icon"
+import { Avatar } from "@fider/components/common/Avatar"
+import { Dropdown } from "@fider/components/common/Dropdown"
+import { ImageGallery } from "@fider/components/common/ImageGallery"
+import { ReportModal } from "@fider/components/moderation/ReportModal"
+import { ReportButton } from "@fider/components/moderation/ReportButton"
 import { ResponseDetails } from "@fider/components/post/ShowPostResponse"
 import { DiscussionPanel } from "./components/DiscussionPanel"
 
 import { heroiconsX as IconX, heroiconsThumbsup as IconThumbsUp } from "@fider/icons.generated"
-import { HStack, VStack } from "@fider/components/layout"
+import { HStack, VStack } from "@fider/components/layout/Stack"
 import { Trans } from "@lingui/react/macro"
 import { i18n } from "@lingui/core"
 import { TagsPanel } from "./components/TagsPanel"
+import { usePostVote } from "@fider/hooks/usePostVote"
 import { VoteSection } from "./components/VoteSection"
 import { DeletePostModal } from "./components/DeletePostModal"
 import { ResponseModal } from "./components/ResponseModal"
 import { VotesPanel } from "./components/VotesPanel"
-import { AdSlot, useAdSelection } from "@fider/components/sponsorship"
-import { useShowPostState } from "./hooks"
+import { AdSlot } from "@fider/components/sponsorship/AdSlot"
+import { useAdSelection } from "@fider/components/sponsorship/useAdSelection"
+import { useShowPostState } from "@fider/pages/ShowPost/hooks/useShowPostState"
 
 interface ReportStatus {
   hasReportedPost: boolean
@@ -60,26 +64,18 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
     initialDescription: props.post.description,
   })
   
-  const [lastActivityAt, setLastActivityAt] = useState(props.post.lastActivityAt)
+  const vote = usePostVote(props.post)
   const { ads: postAds, loaded: postAdLoaded, error: postAdError } = useAdSelection([
     { instanceId: "post-below-title", placementId: "post_below_title" },
   ])
   
-  useEffect(() => {
-    setLastActivityAt(props.post.lastActivityAt)
-  }, [props.post.lastActivityAt])
-  
-  const handleVoteChange = useCallback((_upvotes: number, _downvotes: number) => {
-    setLastActivityAt(new Date().toISOString())
-  }, [])
-
   const handleCommentAdded = useCallback(() => {
-    setLastActivityAt(new Date().toISOString())
+    void vote.refresh()
 
     if (isPostArchived(props.post)) {
       window.location.reload()
     }
-  }, [props.post])
+  }, [props.post, vote.refresh])
 
   const handleCopyEvent = useCallback(() => {
     const selection = window.getSelection()
@@ -110,7 +106,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
   }, [])
 
   const saveChanges = useCallback(async () => {
-    const result = await actions.updatePost(props.post.number, state.newTitle, state.newDescription, state.attachments)
+    const result = await postActions.updatePost(props.post.number, state.newTitle, state.newDescription, state.attachments)
     if (result.ok) {
       location.reload()
     } else {
@@ -138,25 +134,25 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
       } else if (action === "report") {
         state.openModal("report")
       } else if (action === "archive") {
-        const result = await actions.archivePost(props.post.number)
+        const result = await postActions.archivePost(props.post.number)
         if (result.ok) {
           notify.success(<Trans id="showpost.archive.success">Post has been archived</Trans>)
           location.reload()
         }
       } else if (action === "unarchive") {
-        const result = await actions.unarchivePost(props.post.number)
+        const result = await postActions.unarchivePost(props.post.number)
         if (result.ok) {
           notify.success(<Trans id="showpost.unarchive.success">Post has been unarchived</Trans>)
           location.reload()
         }
       } else if (action === "hide") {
-        const result = await actions.hidePost(props.post.id)
+        const result = await postActions.hidePost(props.post.id)
         if (result.ok) {
           notify.success(<Trans id="showpost.hide.success">Post has been hidden</Trans>)
           location.reload()
         }
       } else if (action === "unhide") {
-        const result = await actions.unhidePost(props.post.id)
+        const result = await postActions.unhidePost(props.post.id)
         if (result.ok) {
           notify.success(<Trans id="showpost.unhide.success">Post has been unhidden</Trans>)
           location.reload()
@@ -185,7 +181,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                             data-tooltip={i18n._("showpost.createdat", { message: "Created {date}", date: formatDate(Fider.currentLocale, props.post.createdAt, "full") })}
                           >
                             <Trans id="showpost.lastactivity">Last activity:</Trans>{" "}
-                            <Moment locale={Fider.currentLocale} date={lastActivityAt} showTooltip={false} />
+                            <Moment locale={Fider.currentLocale} date={vote.lastActivityAt} showTooltip={false} />
                           </span>
                         </VStack>
                       </HStack>
@@ -321,7 +317,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                 <VStack spacing={4}>
                   {!state.editMode ? (
                     <div className="w-full">
-                      <VoteSection post={props.post} onVoteChange={handleVoteChange} />
+                      <VoteSection post={props.post} />
                     </div>
                   ) : (
                     <HStack>

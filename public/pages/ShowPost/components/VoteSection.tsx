@@ -1,19 +1,21 @@
 import React from "react"
 import { Post } from "@fider/models"
-import { classSet } from "@fider/services"
+import { classSet } from "@fider/services/utils"
 import { usePostVote } from "@fider/hooks/usePostVote"
-import { AnimatedCount, Button, Icon, SignInModal } from "@fider/components"
+import { AnimatedCount } from "@fider/components/common/AnimatedCount"
+import { Button } from "@fider/components/common/Button"
+import { Icon } from "@fider/components/common/Icon"
+import { SignInModal } from "@fider/components/auth/SignInModal"
 import { heroiconsThumbsup as IconThumbsUp, heroiconsThumbsdown as IconThumbsDown } from "@fider/icons.generated"
 import { Trans } from "@lingui/macro"
-import { HStack, VStack } from "@fider/components/layout"
+import { HStack, VStack } from "@fider/components/layout/Stack"
 
 interface VoteSectionProps {
   post: Post
-  onVoteChange?: (upvotes: number, downvotes: number) => void
 }
 
 export const VoteSection = (props: VoteSectionProps) => {
-  const { voteType, upvotes, downvotes, isDisabled, isSignInModalOpen, closeSignInModal, chooseVote } = usePostVote(props.post, props.onVoteChange)
+  const { voteType, upvotes, downvotes, isDisabled, isSignInModalOpen, closeSignInModal, chooseVote } = usePostVote(props.post)
 
   const totalEngagement = upvotes + downvotes
   const votesDifference = upvotes - downvotes
