@@ -21,7 +21,7 @@ func ViewPage() web.HandlerFunc {
 
 		page := getPage.Result
 
-		if !page.CanView(c.User()) {
+		if !page.CanView(c.User(), c.Tenant()) {
 			if c.User() == nil {
 				return c.Redirect("/signin?redirect=" + c.Request.URL.Path)
 			}

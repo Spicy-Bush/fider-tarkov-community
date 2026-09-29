@@ -743,7 +743,7 @@ func getPageSubscribers(ctx context.Context, q *query.GetPageSubscribers) error 
 		q.Result = make([]*entity.User, 0, len(users))
 		for _, candidate := range users {
 			recipient := candidate.toModel(ctx)
-			if page.Result.CanView(recipient) {
+			if page.Result.CanView(recipient, tenant) {
 				q.Result = append(q.Result, recipient)
 			}
 		}

@@ -144,7 +144,7 @@ func canReadAttachment(ctx context.Context, q *query.CanReadAttachment) error {
 					return err
 				}
 
-				q.Result = comment.ContentState(user, discussion.Result) == "visible"
+				q.Result = comment.ContentState(user, discussion.Result, tenant) == "visible"
 			} else {
 				post := &query.GetPostByID{PostID: owner.PostID}
 				if err := getPostByID(ctx, post); err != nil {

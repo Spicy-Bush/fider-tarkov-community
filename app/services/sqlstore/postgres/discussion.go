@@ -57,7 +57,8 @@ func getDiscussion(ctx context.Context, q *query.GetDiscussion) error {
 		return err
 	}
 	user, _ := ctx.Value(app.UserCtxKey).(*entity.User)
-	if !q.Result.CanView(user) {
+	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	if !q.Result.CanView(user, tenant) {
 		q.Result = nil
 		return app.ErrNotFound
 	}
@@ -212,7 +213,7 @@ func readComments(ctx context.Context, trx *dbx.Trx, selection string, args ...a
 
 func getDiscussionComments(ctx context.Context, q *query.GetDiscussionComments) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		if !q.Discussion.CanView(user) {
+		if !q.Discussion.CanView(user, tenant) {
 			return app.ErrNotFound
 		}
 
@@ -398,7 +399,7 @@ func readCommentsByReplyCount(ctx context.Context, trx *dbx.Trx, q *query.GetDis
 
 func getCommentAncestors(ctx context.Context, q *query.GetCommentAncestors) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		if !q.Discussion.CanView(user) {
+		if !q.Discussion.CanView(user, tenant) {
 			return app.ErrNotFound
 		}
 

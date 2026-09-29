@@ -19,6 +19,8 @@ type Tenant struct {
 	ProfanityWords     string            `json:"profanityWords"`
 	GeneralSettings    *GeneralSettings  `json:"generalSettings"`
 	MessageBanner      string            `json:"messageBanner"`
+	RolePostResponses  RolePostResponses `json:"-"`
+	RolePermissions    RolePermissions   `json:"-"`
 }
 
 func (t *Tenant) IsDisabled() bool {

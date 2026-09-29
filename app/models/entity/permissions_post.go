@@ -22,7 +22,7 @@ type PostPermissions struct {
 
 func (post *Post) AllowedActions(user *User, tenant *Tenant, now time.Time) PostPermissions {
 	permissions := PostPermissions{Respond: []enum.PostStatus{}}
-	if post == nil || !canAct(user, tenant) {
+	if post == nil || !CanAct(user, tenant) {
 		return permissions
 	}
 
@@ -30,7 +30,7 @@ func (post *Post) AllowedActions(user *User, tenant *Tenant, now time.Time) Post
 	if post.User != nil {
 		authorID = post.User.ID
 	}
-	if !canViewPost(post.Status, post.ModerationPending, authorID, user) {
+	if !canViewPost(post.Status, post.ModerationPending, authorID, user, tenant) {
 		return permissions
 	}
 
@@ -45,15 +45,15 @@ func (post *Post) AllowedActions(user *User, tenant *Tenant, now time.Time) Post
 
 	if post.User != nil {
 		own := post.User.ID == user.ID
-		moderatorTarget := post.User.Role == enum.RoleVisitor || post.User.Role == enum.RoleHelper
-		canManage := user.IsCollaborator() || (user.IsModerator() && moderatorTarget)
+		canManage := canManageContentRole(user, post.User.Role)
 
-		permissions.Edit = canManage || (own && !now.After(post.CreatedAt.Add(time.Hour)))
+		editOthers := canManage && (staffRoles.has(user.Role) || Can(user, tenant, ModeratePosts))
+		permissions.Edit = editOthers || (own && !now.After(post.CreatedAt.Add(time.Hour)))
 		permissions.Delete = Can(user, tenant, DeletePosts) && canManage
 		permissions.Report = !own
 	} else {
-		permissions.Edit = user.IsCollaborator()
-		permissions.Delete = Can(user, tenant, DeletePosts) && user.IsCollaborator()
+		permissions.Edit = canManageContentRole(user, 0)
+		permissions.Delete = Can(user, tenant, DeletePosts) && permissions.Edit
 	}
 
 	if post.IsLocked() && !permissions.Lock {
@@ -63,7 +63,7 @@ func (post *Post) AllowedActions(user *User, tenant *Tenant, now time.Time) Post
 
 	if tenant != nil && tenant.GeneralSettings != nil {
 		settings := tenant.GeneralSettings
-		if settings.PostingGloballyDisabled && !user.IsCollaborator() {
+		if settings.PostingGloballyDisabled && !CanBypassContentRestrictions(user, tenant) {
 			permissions.Edit = false
 		}
 
@@ -72,7 +72,7 @@ func (post *Post) AllowedActions(user *User, tenant *Tenant, now time.Time) Post
 		}
 	}
 
-	if user.IsHelper() {
+	if !Can(user, tenant, TagPostsOutsideWindow) {
 		permissions.Tag = permissions.Tag && post.withinTaggingWindow(now)
 	}
 
@@ -80,22 +80,14 @@ func (post *Post) AllowedActions(user *User, tenant *Tenant, now time.Time) Post
 }
 
 func AllowedPostResponses(user *User, tenant *Tenant) []enum.PostStatus {
-	if !Can(user, tenant, RespondToPosts) {
+	if !Can(user, tenant, ReadResponses) {
 		return []enum.PostStatus{}
 	}
-
-	if user.IsModerator() {
-		return []enum.PostStatus{enum.PostDuplicate}
+	var responses RolePostResponses
+	if tenant != nil {
+		responses = tenant.RolePostResponses
 	}
-
-	return []enum.PostStatus{
-		enum.PostOpen,
-		enum.PostStarted,
-		enum.PostCompleted,
-		enum.PostDeclined,
-		enum.PostPlanned,
-		enum.PostDuplicate,
-	}
+	return responses.ForRole(user.Role)
 }
 
 func (post *Post) withinTaggingWindow(now time.Time) bool {
@@ -103,15 +95,15 @@ func (post *Post) withinTaggingWindow(now time.Time) bool {
 		return false
 	}
 
-	return post.FirstTaggedAt == nil || !now.After(post.FirstTaggedAt.Add(24 * time.Hour))
+	return post.FirstTaggedAt == nil || !now.After(post.FirstTaggedAt.Add(24*time.Hour))
 }
 
 type TagPermissions struct {
 	Assign bool `json:"assign"`
 }
 
-func DefaultQueueDate(user *User) string {
-	if user != nil && user.IsHelper() {
+func DefaultQueueDate(user *User, tenant *Tenant) string {
+	if Can(user, tenant, ManageQueue) && !Can(user, tenant, TagPostsOutsideWindow) {
 		return "7d"
 	}
 
@@ -120,6 +112,6 @@ func DefaultQueueDate(user *User) string {
 
 func (tag *Tag) AllowedActions(user *User, tenant *Tenant) TagPermissions {
 	return TagPermissions{
-		Assign: Can(user, tenant, TagPosts) && (tag.IsPublic || !user.IsHelper()),
+		Assign: Can(user, tenant, TagPosts) && (tag.IsPublic || Can(user, tenant, ViewPrivateTags)),
 	}
 }

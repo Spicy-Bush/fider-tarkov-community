@@ -17,7 +17,7 @@ type UserPermissions struct {
 func (target *User) AllowedActions(viewer *User, tenant *Tenant) UserPermissions {
 	permissions := UserPermissions{}
 
-	if target == nil || target.Status == enum.UserDeleted || !canAct(viewer, tenant) {
+	if target == nil || target.Status == enum.UserDeleted || !CanAct(viewer, tenant) {
 		return permissions
 	}
 
@@ -26,33 +26,42 @@ func (target *User) AllowedActions(viewer *User, tenant *Tenant) UserPermissions
 	}
 
 	self := viewer.ID == target.ID
+	outranks := viewer.outranks(target.Role)
+
+	canEditProfile := viewer.IsAdministrator() || (target.Role != enum.RoleAdministrator &&
+		(viewer.Role == enum.RoleCollaborator || roleRank(target.Role) <= roleRank(viewer.Role)))
+
 	permissions.ReadProfile = self || Can(viewer, tenant, ReadProfiles)
-	permissions.EditName = self || Can(viewer, tenant, EditUserProfiles)
-
-	if !self && viewer.Role == enum.RoleModerator && (target.Role == enum.RoleAdministrator || target.Role == enum.RoleCollaborator) {
-		permissions.EditName = false
-	}
-
+	permissions.EditName = self || (canEditProfile && Can(viewer, tenant, EditUserProfiles))
 	permissions.EditAvatar = permissions.EditName
-	permissions.ChangeRole = !self && Can(viewer, tenant, ChangeUserRoles)
-	permissions.ChangeVisualRole = Can(viewer, tenant, ChangeUserVisualRoles) &&
-		(target.Role != enum.RoleAdministrator || viewer.Role == enum.RoleAdministrator)
+	permissions.ChangeRole = !self && outranks && Can(viewer, tenant, ChangeUserRoles)
+	permissions.ChangeVisualRole = canEditProfile && Can(viewer, tenant, ChangeUserVisualRoles)
 
 	if !self && target.Role != enum.RoleAdministrator {
 		permissions.Block = Can(viewer, tenant, BlockUsers) &&
-			(viewer.Role != enum.RoleCollaborator || target.Role == enum.RoleVisitor || target.Role == enum.RoleHelper)
+			(viewer.IsAdministrator() || (outranks && (target.Role == enum.RoleVisitor || target.Role == enum.RoleHelper)))
 
-		canModerateTarget := true
-		if viewer.Role == enum.RoleModerator {
-			canModerateTarget = target.Role == enum.RoleVisitor || target.Role == enum.RoleHelper
-		} else if viewer.Role == enum.RoleCollaborator {
-			canModerateTarget = target.Role != enum.RoleCollaborator
-		}
-
-		permissions.Moderate = canModerateTarget && target.Status != enum.UserBlocked && Can(viewer, tenant, ModerateUsers)
-		permissions.DeleteModeration = canModerateTarget && Can(viewer, tenant, DeleteUserModeration)
-		permissions.ExpireModeration = canModerateTarget && Can(viewer, tenant, ExpireUserModeration)
+		permissions.Moderate = outranks && target.Status != enum.UserBlocked && Can(viewer, tenant, ModerateUsers)
+		permissions.DeleteModeration = outranks && Can(viewer, tenant, DeleteUserModeration)
+		permissions.ExpireModeration = outranks && Can(viewer, tenant, ExpireUserModeration)
 	}
 
 	return permissions
+}
+
+func roleRank(role enum.Role) int {
+	for index, candidate := range PermissionRoles {
+		if candidate == role {
+			return index + 1
+		}
+	}
+	return 0
+}
+
+func (viewer *User) outranks(role enum.Role) bool {
+	return viewer.IsAdministrator() || roleRank(role) < roleRank(viewer.Role)
+}
+
+func CanAssignRole(viewer *User, role enum.Role) bool {
+	return roleRank(role) > 0 && viewer.outranks(role)
 }

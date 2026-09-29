@@ -102,7 +102,7 @@ func TestNotificationVisibilityMatchesCommentProjection(t *testing.T) {
 						}
 						for _, discussion := range discussions {
 							projection := full.Result.ForViewer(viewer, discussion, &entity.Tenant{}, time.Now())
-							if focused.ContentState(viewer, discussion) != projection.State {
+							if focused.ContentState(viewer, discussion, &entity.Tenant{}) != projection.State {
 								t.Fatal("focused visibility and response projection disagree")
 							}
 							if !projection.Permissions.Moderate && (projection.ModerationData != "" || projection.ModerationPending) {

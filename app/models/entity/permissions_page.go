@@ -19,5 +19,5 @@ func (page *Page) AllowedActions(user *User, tenant *Tenant) PagePermissions {
 }
 
 func (discussion *Discussion) CanSubscribeToPage(user *User, tenant *Tenant) bool {
-	return canAct(user, tenant) && discussion.CanView(user)
+	return CanAct(user, tenant) && discussion.CanView(user, tenant)
 }

@@ -49,12 +49,12 @@ type Page struct {
 	Permissions        PagePermissions  `json:"permissions"`
 }
 
-func (page *Page) CanView(user *User) bool {
-	return canViewPage(page.Status, page.Visibility, page.AllowedRoles, user)
+func (page *Page) CanView(user *User, tenant *Tenant) bool {
+	return canViewPage(page.Status, page.Visibility, page.AllowedRoles, user, tenant)
 }
 
-func canViewPage(status PageStatus, visibility PageVisibility, allowedRoles []string, user *User) bool {
-	if Can(user, nil, ManagePages) {
+func canViewPage(status PageStatus, visibility PageVisibility, allowedRoles []string, user *User, tenant *Tenant) bool {
+	if Can(user, tenant, ManagePages) {
 		return true
 	}
 

@@ -84,7 +84,7 @@ func getCommentNotificationUsers(ctx context.Context, q *query.GetCommentNotific
 
 		for _, candidate := range candidates {
 			recipient := candidate.toModel(ctx)
-			if comment.ContentState(recipient, discussion) == "visible" {
+			if comment.ContentState(recipient, discussion, tenant) == "visible" {
 				q.Result = append(q.Result, recipient)
 			}
 		}

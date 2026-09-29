@@ -70,15 +70,15 @@ func PageDiscussion(page *Page) *Discussion {
 	}
 }
 
-func (discussion *Discussion) CanView(user *User) bool {
+func (discussion *Discussion) CanView(user *User, tenant *Tenant) bool {
 	if discussion.Owner.Kind == "page" {
-		return canViewPage(discussion.PageStatus, discussion.Visibility, discussion.AllowedRoles, user)
+		return canViewPage(discussion.PageStatus, discussion.Visibility, discussion.AllowedRoles, user, tenant)
 	}
 
-	return canViewPost(discussion.PostStatus, discussion.postHidden, discussion.postAuthorID, user)
+	return canViewPost(discussion.PostStatus, discussion.postHidden, discussion.postAuthorID, user, tenant)
 }
 
-func canViewPost(status enum.PostStatus, hidden bool, authorID int, user *User) bool {
+func canViewPost(status enum.PostStatus, hidden bool, authorID int, user *User, tenant *Tenant) bool {
 	if status == enum.PostDeleted {
 		return false
 	}
@@ -86,30 +86,36 @@ func canViewPost(status enum.PostStatus, hidden bool, authorID int, user *User) 
 		return true
 	}
 
-	return user != nil && (user.ID == authorID || user.IsCollaborator() || user.IsModerator())
+	return user != nil && (user.ID == authorID || Can(user, tenant, ModeratePosts))
 }
 
 type DiscussionPermissions struct {
-	Comment bool `json:"comment"`
-	React   bool `json:"react"`
-	Images  bool `json:"images"`
+	Comment         bool `json:"comment"`
+	SignInToComment bool `json:"signInToComment"`
+	React           bool `json:"react"`
+	Images          bool `json:"images"`
 }
 
 func (discussion *Discussion) Permissions(user *User, tenant *Tenant) DiscussionPermissions {
 	permissions := DiscussionPermissions{}
-	if !discussion.CanView(user) {
+	if !discussion.CanView(user, tenant) {
 		return permissions
 	}
 
 	permissions.Images = discussion.AllowImages
-	if !canAct(user, tenant) || user.IsMuted() {
+	if user == nil {
+		visitor := &User{Role: enum.RoleVisitor, Status: enum.UserActive}
+		permissions.SignInToComment = discussion.Permissions(visitor, tenant).Comment
+		return permissions
+	}
+	if !CanAct(user, tenant) || user.IsMuted() {
 		return permissions
 	}
 
 	permissions.Comment = discussion.AllowComments
 	permissions.React = discussion.AllowReactions
 
-	if discussion.Locked && !user.IsCollaborator() {
+	if discussion.Locked && !CanBypassContentRestrictions(user, tenant) {
 		permissions.Comment = false
 		permissions.React = false
 	}
@@ -123,7 +129,7 @@ func (discussion *Discussion) Permissions(user *User, tenant *Tenant) Discussion
 		return permissions
 	}
 
-	if settings.CommentingGloballyDisabled && !user.IsCollaborator() {
+	if settings.CommentingGloballyDisabled && !CanBypassContentRestrictions(user, tenant) {
 		permissions.Comment = false
 	}
 
@@ -147,13 +153,13 @@ type CommentPermissions struct {
 
 func (comment *Comment) AllowedActions(user *User, discussion *Discussion, tenant *Tenant, now time.Time) CommentPermissions {
 	permissions := CommentPermissions{}
-	if !canAct(user, tenant) || !discussion.CanView(user) {
+	if !CanAct(user, tenant) || !discussion.CanView(user, tenant) {
 		return permissions
 	}
 
 	author := comment.User
 	own := author != nil && author.ID == user.ID
-	canModerate := comment.canModerate(user)
+	canModerate := comment.canModerate(user, tenant)
 	permissions.Delete = own || canModerate
 	if comment.Deleted {
 		return permissions
@@ -165,11 +171,11 @@ func (comment *Comment) AllowedActions(user *User, discussion *Discussion, tenan
 		settings = tenant.GeneralSettings
 	}
 
-	if settings != nil && settings.CommentingGloballyDisabled && !user.IsCollaborator() {
+	if settings != nil && settings.CommentingGloballyDisabled && !CanBypassContentRestrictions(user, tenant) {
 		canEdit = false
 	}
 
-	if discussion.Locked && !user.IsCollaborator() {
+	if discussion.Locked && !CanBypassContentRestrictions(user, tenant) {
 		canEdit = false
 	}
 
@@ -183,23 +189,25 @@ func (comment *Comment) AllowedActions(user *User, discussion *Discussion, tenan
 	return permissions
 }
 
-func (comment *Comment) canModerate(user *User) bool {
-	if !canAct(user, nil) {
+func (comment *Comment) canModerate(user *User, tenant *Tenant) bool {
+	if !Can(user, tenant, ModeratePosts) {
 		return false
 	}
 
 	author := comment.User
-	moderatorTarget := author != nil && (author.ID == user.ID || author.Role == enum.RoleVisitor || author.Role == enum.RoleHelper)
-	return user.IsCollaborator() || (user.IsModerator() && moderatorTarget)
+	if author == nil {
+		return canManageContentRole(user, 0)
+	}
+	return author.ID == user.ID || canManageContentRole(user, author.Role)
 }
 
-func (comment *Comment) ContentState(user *User, discussion *Discussion) string {
+func (comment *Comment) ContentState(user *User, discussion *Discussion, tenant *Tenant) string {
 	if comment.Deleted {
 		return "deleted"
 	}
 
 	own := user != nil && comment.User != nil && user.ID == comment.User.ID
-	if !discussion.CanView(user) || (comment.ModerationPending && !own && !comment.canModerate(user)) {
+	if !discussion.CanView(user, tenant) || (comment.ModerationPending && !own && !comment.canModerate(user, tenant)) {
 		return "hidden"
 	}
 
@@ -209,7 +217,7 @@ func (comment *Comment) ContentState(user *User, discussion *Discussion) string 
 func (comment *Comment) ForViewer(user *User, discussion *Discussion, tenant *Tenant, now time.Time) *Comment {
 	visible := *comment
 	visible.Permissions = comment.AllowedActions(user, discussion, tenant, now)
-	visible.State = comment.ContentState(user, discussion)
+	visible.State = comment.ContentState(user, discussion, tenant)
 	visible.ModerationPending = false
 	visible.ModerationData = ""
 

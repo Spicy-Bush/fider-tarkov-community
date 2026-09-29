@@ -8,6 +8,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
@@ -365,4 +366,23 @@ func TestSanitizeFileName(t *testing.T) {
 	Expect(blob.SanitizeFileName("Jon Snow.png ")).Equals("jon-snow.png")
 	Expect(blob.SanitizeFileName(" ヒキワリ.png")).Equals("hikiwari.png")
 	Expect(blob.SanitizeFileName("люди рождаются свободными.png")).Equals("liudi-rozhdaiutsia-svobodnymi.png")
+}
+
+func TestAuthorizeReadFilesFollowsManageFiles(t *testing.T) {
+	RegisterT(t)
+
+	tenant := &entity.Tenant{ID: 1, Status: enum.TenantActive, RolePermissions: entity.RolePermissions{
+		enum.RoleCollaborator:  {entity.ManageFiles: true},
+		enum.RoleAdministrator: {entity.ManageFiles: false},
+	}}
+	read := func(role enum.Role) error {
+		ctx := context.WithValue(context.Background(), app.TenantCtxKey, tenant)
+		ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Role: role, Status: enum.UserActive})
+		return blob.AuthorizeRead(ctx, &query.GetBlobByKey{Key: "files/report.pdf"})
+	}
+
+	Expect(read(enum.RoleCollaborator)).IsNil()
+	Expect(read(enum.RoleAdministrator)).IsNil()
+	Expect(read(enum.RoleVisitor)).Equals(blob.ErrNotFound)
+	Expect(blob.AuthorizeRead(context.Background(), &query.GetBlobByKey{Key: "files/report.pdf"})).Equals(blob.ErrNotFound)
 }

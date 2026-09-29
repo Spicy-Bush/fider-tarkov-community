@@ -36,7 +36,7 @@ func TestUserTargetPermissions(t *testing.T) {
 		{
 			viewer:   enum.RoleCollaborator,
 			read:     roles,
-			edit:     roles,
+			edit:     nonAdmins,
 			block:    ordinary,
 			moderate: moderatedByCollaborator,
 			remove:   moderatedByCollaborator,
@@ -151,5 +151,41 @@ func TestUserTargetPermissionsUnavailableViewerOrTarget(t *testing.T) {
 				t.Errorf("unavailable user has actions: %+v", got)
 			}
 		})
+	}
+}
+
+func TestGrantedUserPermissionsOnlyReachLowerRoles(t *testing.T) {
+	everything := map[entity.Permission]bool{
+		entity.ReadProfiles: true, entity.EditUserProfiles: true, entity.BlockUsers: true, entity.ModerateUsers: true,
+		entity.DeleteUserModeration: true, entity.ExpireUserModeration: true, entity.ChangeUserRoles: true,
+		entity.ChangeUserVisualRoles: true, entity.ManageMembers: true,
+	}
+	tenant := &entity.Tenant{ID: 1, Status: enum.TenantActive, RolePermissions: entity.RolePermissions{
+		enum.RoleVisitor: everything, enum.RoleHelper: everything, enum.RoleModerator: everything, enum.RoleCollaborator: everything,
+	}}
+	rank := map[enum.Role]int{enum.RoleVisitor: 1, enum.RoleHelper: 2, enum.RoleModerator: 3, enum.RoleCollaborator: 4, enum.RoleAdministrator: 5}
+
+	for viewerRole := range rank {
+		for targetRole := range rank {
+			viewer := &entity.User{ID: 1, Role: viewerRole, Status: enum.UserActive}
+			target := &entity.User{ID: 2, Role: targetRole, Status: enum.UserActive}
+			got := target.AllowedActions(viewer, tenant)
+			below := viewerRole == enum.RoleAdministrator || rank[targetRole] < rank[viewerRole]
+
+			if viewerRole != enum.RoleAdministrator && targetRole == enum.RoleAdministrator &&
+				(got.EditName || got.ChangeVisualRole || got.Block || got.Moderate || got.ChangeRole) {
+				t.Errorf("%s acted on an administrator: %+v", viewerRole, got)
+			}
+			if !below && (got.Block || got.Moderate || got.DeleteModeration || got.ExpireModeration || got.ChangeRole) {
+				t.Errorf("%s acted on %s: %+v", viewerRole, targetRole, got)
+			}
+			if viewerRole != enum.RoleCollaborator && viewerRole != enum.RoleAdministrator && rank[targetRole] > rank[viewerRole] && (got.EditName || got.ChangeVisualRole) {
+				t.Errorf("%s edited the profile of %s", viewerRole, targetRole)
+			}
+
+			if got := entity.CanAssignRole(viewer, targetRole); got != below {
+				t.Errorf("%s assigning %s: got %v, want %v", viewerRole, targetRole, got, below)
+			}
+		}
 	}
 }

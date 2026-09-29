@@ -708,7 +708,7 @@ func getUserCommentCount(ctx context.Context, q *query.GetUserCommentCount) erro
 func countUntaggedPosts(ctx context.Context, q *query.CountUntaggedPosts) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if q.Date == "" {
-			q.Date = entity.DefaultQueueDate(user)
+			q.Date = entity.DefaultQueueDate(user, tenant)
 		}
 
 		if len(q.Statuses) == 0 {
@@ -761,7 +761,7 @@ func countUntaggedPosts(ctx context.Context, q *query.CountUntaggedPosts) error 
 func searchPosts(ctx context.Context, q *query.SearchPosts) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if q.Untagged && q.Date == "" {
-			q.Date = entity.DefaultQueueDate(user)
+			q.Date = entity.DefaultQueueDate(user, tenant)
 		}
 
 		// Normalize inputs

@@ -10,16 +10,80 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 )
 
+func TestDiscussionSignInAction(t *testing.T) {
+	for _, kind := range []string{"post", "page"} {
+		for _, policy := range []string{"open", "disabled", "visitor disabled", "helper disabled", "tenant locked"} {
+			t.Run(kind+"/"+policy, func(t *testing.T) {
+				discussion := entity.PostDiscussion(&entity.Post{ID: 1, Status: enum.PostOpen})
+				if kind == "page" {
+					discussion = entity.PageDiscussion(&entity.Page{
+						ID:            1,
+						Status:        entity.PageStatusPublished,
+						Visibility:    entity.PageVisibilityPublic,
+						AllowComments: true,
+					})
+				}
+
+				tenant := &entity.Tenant{Status: enum.TenantActive, GeneralSettings: &entity.GeneralSettings{}}
+				wantSignIn := policy == "open" || policy == "helper disabled"
+				switch policy {
+				case "disabled":
+					tenant.GeneralSettings.CommentingGloballyDisabled = true
+				case "visitor disabled":
+					tenant.GeneralSettings.CommentingDisabledFor = []string{"visitor"}
+				case "helper disabled":
+					tenant.GeneralSettings.CommentingDisabledFor = []string{"helper"}
+				case "tenant locked":
+					tenant.Status = enum.TenantLocked
+				}
+
+				anonymous := discussion.Permissions(nil, tenant)
+				if anonymous.Comment || anonymous.SignInToComment != wantSignIn {
+					t.Fatalf("anonymous actions=%+v; want sign-in=%t", anonymous, wantSignIn)
+				}
+
+				for _, role := range entity.PermissionRoles {
+					viewer := &entity.User{ID: 1, Role: role, Status: enum.UserActive}
+					if permissions := discussion.Permissions(viewer, tenant); permissions.SignInToComment {
+						t.Fatalf("signed-in %s was asked to sign in", role)
+					}
+				}
+
+				discussion.AllowComments = false
+				if discussion.Permissions(nil, tenant).SignInToComment {
+					t.Fatal("disabled discussion invited anonymous comments")
+				}
+			})
+		}
+	}
+
+	discussion := entity.PostDiscussion(&entity.Post{ID: 1, Status: enum.PostOpen})
+	discussion.Locked = true
+	if discussion.Permissions(nil, nil).SignInToComment {
+		t.Fatal("locked post invited anonymous comments")
+	}
+
+	private := entity.PageDiscussion(&entity.Page{
+		ID:            1,
+		Status:        entity.PageStatusPublished,
+		Visibility:    entity.PageVisibilityPrivate,
+		AllowComments: true,
+	})
+	if private.Permissions(nil, nil).SignInToComment {
+		t.Fatal("inaccessible Page invited anonymous comments")
+	}
+}
+
 func TestHiddenCommentIsIndistinguishableToItsAuthor(t *testing.T) {
 	now := time.Now()
 	tenant := &entity.Tenant{}
 	discussions := []*entity.Discussion{
 		entity.PostDiscussion(&entity.Post{ID: 1, Status: enum.PostOpen}),
 		entity.PageDiscussion(&entity.Page{
-			ID: 1,
-			Status: entity.PageStatusPublished,
-			Visibility: entity.PageVisibilityPublic,
-			AllowComments: true,
+			ID:             1,
+			Status:         entity.PageStatusPublished,
+			Visibility:     entity.PageVisibilityPublic,
+			AllowComments:  true,
 			AllowReactions: true,
 		}),
 	}
@@ -29,12 +93,12 @@ func TestHiddenCommentIsIndistinguishableToItsAuthor(t *testing.T) {
 			t.Run(discussion.Owner.Kind+"/"+role.String(), func(t *testing.T) {
 				author := &entity.User{ID: 2, Role: role, Status: enum.UserActive}
 				comment := &entity.Comment{
-					ID: 1,
-					User: author,
-					Content: "My comment",
-					CreatedAt: now,
-					Attachments: []string{"image"},
-					HasReplies: true,
+					ID:             1,
+					User:           author,
+					Content:        "My comment",
+					CreatedAt:      now,
+					Attachments:    []string{"image"},
+					HasReplies:     true,
 					ReactionCounts: []entity.ReactionCounts{{Emoji: "👍", Count: 1, IncludesMe: true}},
 				}
 
@@ -147,8 +211,8 @@ func TestDiscussionAuthorEditDeadlineAndMute(t *testing.T) {
 func TestDiscussionLockedPostEditAndRecovery(t *testing.T) {
 	now := time.Now()
 	post := &entity.Post{
-		ID: 1,
-		Status: enum.PostOpen,
+		ID:             1,
+		Status:         enum.PostOpen,
 		LockedSettings: &entity.PostLockedSettings{Locked: true},
 	}
 	discussion := entity.PostDiscussion(post)
@@ -201,13 +265,13 @@ func TestPrivatePageDiscussionVisibility(t *testing.T) {
 		{role: enum.RoleAdministrator, view: true},
 	}
 
-	if discussion.CanView(nil) {
+	if discussion.CanView(nil, tenant) {
 		t.Fatal("anonymous reader could view private Page")
 	}
 
 	for _, candidate := range roles {
 		viewer := &entity.User{ID: 1, Role: candidate.role, Status: enum.UserActive}
-		if discussion.CanView(viewer) != candidate.view {
+		if discussion.CanView(viewer, tenant) != candidate.view {
 			t.Errorf("wrong private Page access for %s", candidate.role)
 		}
 

@@ -197,7 +197,7 @@ func TestDiscussionReportVisibilityMatchesPagePolicy(t *testing.T) {
 						ctx := context.WithValue(sansaStarkCtx, app.UserCtxKey, viewer)
 						want := role == enum.RoleAdministrator || role == enum.RoleCollaborator ||
 							(status == entity.PageStatusPublished && (visibility != entity.PageVisibilityPrivate || (role != 0 && allowed)))
-						if page.Result.CanView(viewer) != want {
+						if page.Result.CanView(viewer, ctx.Value(app.TenantCtxKey).(*entity.Tenant)) != want {
 							t.Fatal("entity visibility disagrees with the expected role/status policy")
 						}
 						get := &query.GetReportByID{ReportID: report.Result}
