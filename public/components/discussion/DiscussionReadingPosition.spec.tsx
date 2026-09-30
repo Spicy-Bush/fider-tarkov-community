@@ -270,14 +270,14 @@ test("a missing parent does not remove its already-loaded visible replies", asyn
   })
   jest.mocked(loadCommentRecords).mockResolvedValue({
     ok: true,
-    data: { ...page, comments: [{ ...comments[1], parentId: 1, content: "Visible reply" }] },
+    data: { ...page, comments: [{ ...comments[1], parentId: null, content: "Visible reply" }] },
   })
 
   render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   await screen.findByText("Visible reply")
 
-  expect(screen.getByText("Comment unavailable.")).toBeVisible()
-  expect(screen.getByRole("button", { name: "Collapse thread for comment 1" })).toBeVisible()
+  expect(screen.queryByText("Comment unavailable.")).toBeNull()
+  expect(document.getElementById("comment-1")).toBeNull()
 })
 
 test("canceling navigation releases its wait and unmount aborts record hydration", async () => {
@@ -379,7 +379,6 @@ test("changing sort cancels hydration without requesting the old selection again
   expect(signal.aborted).toBe(true)
   expect(loadCommentRecords).toHaveBeenCalledTimes(1)
 
-  fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
   await screen.findByText("Previous content 1")
   expect(loadComments).toHaveBeenLastCalledWith(owner, "latest", undefined, undefined, 5, expect.any(AbortSignal))
   expect(loadCommentRecords).toHaveBeenCalledTimes(1)

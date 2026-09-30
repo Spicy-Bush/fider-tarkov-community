@@ -41,6 +41,8 @@ export interface PostViewerProps {
   onDuplicateCancelled: () => void
   onDuplicateReset: () => void
   onPostUpdated: (post: Pick<Post, "id" | "title" | "description">) => void
+  onPostChanged: (postNumber: number) => Promise<void>
+  onPostDeleted: (postID: number) => Promise<void>
   onContentCopied: () => void
   onTagsChanged?: (postNumber: number) => void
   onNextPost?: () => void
@@ -60,6 +62,8 @@ export const PostViewer: React.FC<PostViewerProps> = ({
   onDuplicateCancelled,
   onDuplicateReset,
   onPostUpdated,
+  onPostChanged,
+  onPostDeleted,
   onContentCopied,
   onTagsChanged,
   onNextPost,
@@ -298,6 +302,8 @@ export const PostViewer: React.FC<PostViewerProps> = ({
         onDuplicateCancelled={onDuplicateCancelled}
         onDuplicateReset={onDuplicateReset}
         onEditPost={handleStartEdit}
+        onPostChanged={onPostChanged}
+        onPostDeleted={onPostDeleted}
         isEditMode={editMode}
       />
 

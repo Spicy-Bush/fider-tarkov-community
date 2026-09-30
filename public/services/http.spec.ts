@@ -1,7 +1,7 @@
 import { test, expect, beforeEach } from "@jest/globals"
 import { http, RequestError } from "./http"
 import * as notify from "./notify"
-import { selectAds } from "./actions/sponsorship"
+import { allocateSponsors } from "./actions/sponsorBooking"
 
 jest.mock("./analytics", () => ({ analytics: { event: jest.fn() } }))
 jest.mock("./notify", () => ({ error: jest.fn() }))
@@ -60,16 +60,17 @@ test.each([401, 403, 503])("callers can reconcile HTTP %i before deciding to dis
   expect(notify.error).not.toHaveBeenCalled()
 })
 
-test("ad selection leaves failure presentation to its owner and forwards cancellation", async () => {
-  const controller = new AbortController()
+test("sponsor allocation leaves failure presentation to its owner", async () => {
   fetchMock.mockResolvedValueOnce(response(503, { errors: [{ message: "Unavailable" }] }))
 
-  const result = await selectAds([{ instanceId: "feed-0", placementId: "feed_native" }], "en", controller.signal)
+  const result = await allocateSponsors(
+    { pageType: "home", id: 0, language: "en", device: "desktop" },
+    [{ instanceId: "feed-0", placementId: "feed_desktop" }],
+  )
 
   expect(result).toMatchObject({ ok: false, status: 503 })
-  expect(fetchMock).toHaveBeenCalledWith("/api/ads/select?locale=en", expect.objectContaining({
+  expect(fetchMock).toHaveBeenCalledWith("/api/sponsorship/select", expect.objectContaining({
     method: "POST",
-    signal: controller.signal,
   }))
   expect(notify.error).not.toHaveBeenCalled()
 })

@@ -35,7 +35,7 @@
     </script>
   {{ else if .private.assets }}
     {{range .private.assets.JS}}
-    <script type="module" src="{{ $.public.settings.assetsURL }}{{ . }}" crossorigin="anonymous"></script>
+    <script type="module" nonce="{{ $.public.contextID }}" src="{{ $.public.settings.assetsURL }}{{ . }}" crossorigin="anonymous"></script>
     {{end}}
   {{end}}
 {{end}}

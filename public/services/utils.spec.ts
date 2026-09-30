@@ -86,6 +86,12 @@ const normalize = (str: string) =>
   { input: new Date(2018, 2, 22, 10, 12, 59), expectedEn: "2 months ago", expectedPtBr: "há 2 meses" },
   { input: new Date(2017, 3, 22, 10, 12, 59), expectedEn: "last year", expectedPtBr: "ano passado" },
   { input: new Date(2013, 3, 22, 10, 12, 59), expectedEn: "5 years ago", expectedPtBr: "há 5 anos" },
+  { input: new Date(2018, 4, 27, 19, 51, 40), expectedEn: "in 30 seconds", expectedPtBr: "em 30 segundos" },
+  { input: new Date(2018, 4, 27, 19, 56, 10), expectedEn: "in 5 minutes", expectedPtBr: "em 5 minutos" },
+  { input: new Date(2018, 4, 27, 21, 51, 10), expectedEn: "in 2 hours", expectedPtBr: "em 2 horas" },
+  { input: new Date(2018, 4, 28, 19, 51, 10), expectedEn: "tomorrow", expectedPtBr: "amanhã" },
+  { input: new Date(2018, 5, 27, 19, 51, 10), expectedEn: "next month", expectedPtBr: "próximo mês" },
+  { input: new Date(2019, 4, 27, 19, 51, 10), expectedEn: "next year", expectedPtBr: "próximo ano" },
 ].forEach((x) => {
   test(`[English] timeSince ${x.input} should be ${x.expectedEn}`, () => {
     const now = new Date(2018, 4, 27, 19, 51, 10)

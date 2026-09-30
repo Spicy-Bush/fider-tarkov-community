@@ -2,7 +2,7 @@ import React from "react"
 import { webcrypto } from "crypto"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { DeleteFilesDialog, PruneFilesDialog, UploadFileDialog } from "./FileDialogs"
-import { deleteFiles, FileInfo, pruneFiles, uploadFile } from "@fider/services/actions/file"
+import { deleteFiles, FileInfo, pruneFiles, uploadFile, newFileUploadID } from "@fider/services/actions/file"
 import { RequestError } from "@fider/services/http"
 
 jest.mock("@fider/services/actions/file", () => ({
@@ -10,6 +10,7 @@ jest.mock("@fider/services/actions/file", () => ({
   deleteFiles: jest.fn(),
   pruneFiles: jest.fn(),
   uploadFile: jest.fn(),
+  newFileUploadID: jest.fn(),
 }))
 
 const file = (name: string): FileInfo => ({
@@ -21,6 +22,8 @@ const protectedScope = { includeDeleted: false, includeDrafts: false }
 
 beforeEach(() => {
   jest.clearAllMocks()
+  let uploads = 0
+  jest.mocked(newFileUploadID).mockImplementation(async () => ({ ok: true, data: `server-upload-${++uploads}` }))
   Object.defineProperty(globalThis, "crypto", { configurable: true, value: webcrypto })
   const root = document.createElement("div")
   root.id = "root-modal"
@@ -61,6 +64,33 @@ test("a failed image read remains editable and can recover before any upload is 
   expect(upload.mock.calls[0][0].file.upload?.content).toBe(btoa("image bytes"))
 })
 
+test("failed identity issuance preserves an editable image and recovers without sending an upload", async () => {
+  jest.mocked(newFileUploadID).mockRejectedValueOnce(
+    new RequestError("POST", "/api/uploads/id", "transport", new Error("offline"))
+  )
+  jest.mocked(uploadFile).mockResolvedValue({ ok: true, data: file("Screenshot") })
+  const onUploaded = jest.fn()
+  render(<UploadFileDialog isOpen onClose={jest.fn()} onUploaded={onUploaded} />)
+
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Screenshot" } })
+  fireEvent.change(document.querySelector('input[type="file"]')!, {
+    target: { files: [new File(["image bytes"], "screenshot.png", { type: "image/png" })] },
+  })
+  fireEvent.click(screen.getByRole("button", { name: "Upload image", exact: true }))
+  await screen.findByText("The upload could not be confirmed. Retry to check the same upload.")
+
+  expect(uploadFile).not.toHaveBeenCalled()
+  expect(screen.getByLabelText("Name")).toBeEnabled()
+  expect(screen.getByLabelText("Name")).toHaveValue("Screenshot")
+  expect(document.querySelector('img[src^="data:image/png"]')).not.toBeNull()
+  expect(screen.queryByRole("button", { name: "Retry upload" })).not.toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole("button", { name: "Upload image", exact: true }))
+  await waitFor(() => expect(onUploaded).toHaveBeenCalledTimes(1))
+  expect(newFileUploadID).toHaveBeenCalledTimes(2)
+  expect(uploadFile).toHaveBeenCalledTimes(1)
+})
+
 test("a lost upload response retains the image and retries the same payload and receipt key", async () => {
   const upload = jest.mocked(uploadFile)
   upload.mockRejectedValueOnce(new RequestError("POST", "/api/admin/files", "transport", new Error("response lost")))
@@ -75,7 +105,7 @@ test("a lost upload response retains the image and retries the same payload and 
   await screen.findByRole("button", { name: "Retry upload" })
 
   const original = upload.mock.calls[0][0]
-  expect(original.submissionId).toMatch(/^[a-f0-9]{32}$/)
+  expect(original.submissionId).toBe("server-upload-1")
   expect(original.file.upload?.fileName).toBe("screenshot.png")
   expect(original.file.upload?.content).toBe(btoa("image bytes"))
   expect(screen.getByLabelText("Name")).toBeDisabled()
@@ -84,6 +114,7 @@ test("a lost upload response retains the image and retries the same payload and 
   fireEvent.click(screen.getByRole("button", { name: "Retry upload" }))
   await waitFor(() => expect(onUploaded).toHaveBeenCalledTimes(1))
   expect(upload.mock.calls[1][0]).toEqual(original)
+  expect(newFileUploadID).toHaveBeenCalledTimes(1)
 })
 
 test("an unconfirmed upload can become a new editable operation without losing its image", async () => {

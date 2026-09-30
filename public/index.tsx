@@ -14,6 +14,7 @@ import { activateI18N } from "@fider/services/i18n"
 import { AccountDraftActivity } from "@fider/components/app/AccountDraftActivity"
 import { UserStandingProvider } from "@fider/contexts/UserStandingContext"
 import { LayoutProvider } from "@fider/contexts/LayoutContext"
+import { CookiePreferences } from "@fider/components/app/CookiePreferences"
 
 import { I18n } from "@lingui/core"
 import { I18nProvider } from "@lingui/react"
@@ -71,6 +72,7 @@ const bootstrapApp = (i18n: I18n) => {
                   <WarningBanner />
                   <ReadOnlyNotice />
                   <PageRouter initialPageName={fider.session.page} />
+                  <CookiePreferences />
                 </UserStandingProvider>
               </LayoutProvider>
             </FiderContext.Provider>

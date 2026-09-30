@@ -89,7 +89,6 @@ func routes(r *web.Engine) *web.Engine {
 	r.Get("/terms", handlers.LegalPage("Terms of Service", "terms.md"))
 	r.Get("/privacy", handlers.LegalPage("Privacy Policy", "privacy.md"))
 	r.Get("/advertise", handlers.AdvertisePage())
-	r.Get("/ads/click/:id", handlers.SponsorshipClick())
 
 	r.Post("/api/tenants", handlers.CreateTenant())
 	r.Get("/api/tenants/:subdomain/availability", handlers.CheckAvailability())
@@ -130,6 +129,7 @@ func routes(r *web.Engine) *web.Engine {
 	r.Get("/", handlers.Index())
 	r.Get("/posts/:number", handlers.PostDetails())
 	r.Get("/posts/:number/:slug", handlers.PostDetails())
+	r.Get("/sponsorship/click", handlers.SponsorClick())
 	r.Get("/pages", handlers.ListPagesPage())
 	r.Get("/pages/:slug", handlers.ViewPage())
 
@@ -144,8 +144,7 @@ func routes(r *web.Engine) *web.Engine {
 		publicApi.Get("/api/posts/:number/attachments", api.GetPostAttachments())
 		publicApi.Get("/api/pages", api.SearchPages())
 		publicApi.Get("/api/pages/:id/comments", api.ListDiscussion())
-		publicApi.Post("/api/ads/select", api.SelectAds())
-		publicApi.Get("/api/ads/placement-config", api.PublicAdPlacementConfig())
+		publicApi.Post("/api/sponsorship/select", api.AllocateSponsors())
 	}
 
 	// Available to any authenticated user
@@ -274,12 +273,8 @@ func routes(r *web.Engine) *web.Engine {
 		members.Get("/api/users", api.ListUsers())
 	}
 
-	postVotes := membersApi.Group()
-	{
-		postVotes.Use(middlewares.RequirePermission(entity.ViewPostVotes))
-
-		postVotes.Get("/api/posts/:number/votes", api.ListVotes())
-	}
+	membersApi.Get("/api/posts/:number/votes", api.ListVotes())
+	membersApi.Post("/api/uploads/id", handlers.NewFileUploadID())
 
 	deletePosts := membersApi.Group()
 	{
@@ -410,21 +405,17 @@ func routes(r *web.Engine) *web.Engine {
 		sponsorship.Use(middlewares.SetLocale("en"))
 		sponsorship.Use(middlewares.RequirePermission(entity.ManageSponsorship))
 
-		sponsorship.Get("/admin/sponsorship", handlers.ManageSponsorshipPage())
+		sponsorship.Get("/admin/sponsorship", handlers.SponsorManagementPage())
+		sponsorship.Get("/admin/sponsorship/preview", handlers.SponsorPreview())
+		sponsorship.Post("/api/sponsorship/bookings", api.SaveSponsorCampaign())
+		sponsorship.Post("/api/sponsorship/images", api.UploadSponsorImage())
+		sponsorship.Post("/api/sponsorship/placements", api.SaveSponsorPlacement())
+		sponsorship.Get("/api/sponsorship/bookings/:id/report", api.SponsorReport())
+		sponsorship.Post("/api/sponsorship/exclusions", api.SaveSponsorExclusion())
 		sponsorship.Get("/api/sponsorship/packages", api.ListSponsorshipPackages())
 		sponsorship.Post("/api/sponsorship/packages", api.CreateSponsorshipPackage())
 		sponsorship.Put("/api/sponsorship/packages/:id", api.UpdateSponsorshipPackage())
 		sponsorship.Delete("/api/sponsorship/packages/:id", api.DeleteSponsorshipPackage())
-		sponsorship.Get("/api/sponsorship/campaigns", api.ListSponsorshipCampaigns())
-		sponsorship.Post("/api/sponsorship/campaigns", api.CreateSponsorshipCampaign())
-		sponsorship.Put("/api/sponsorship/campaigns/:id", api.UpdateSponsorshipCampaign())
-		sponsorship.Put("/api/sponsorship/campaigns/:id/graph", api.SaveCampaignGraph())
-		sponsorship.Delete("/api/sponsorship/campaigns/:id", api.DeleteSponsorshipCampaign())
-		sponsorship.Get("/api/ads/placements", api.ListAdPlacements())
-		sponsorship.Put("/api/ads/placements/:id", api.UpdateAdPlacement())
-		sponsorship.Get("/api/sponsorship/campaigns/:id/versions", api.ListCreativeVersions())
-		sponsorship.Post("/api/sponsorship/campaigns/:id/versions", api.CreateCreativeVersion())
-		sponsorship.Get("/api/sponsorship/campaigns/:id/assignments", api.ListCampaignAssignments())
 	}
 
 	webhooks := membersApi.Group()

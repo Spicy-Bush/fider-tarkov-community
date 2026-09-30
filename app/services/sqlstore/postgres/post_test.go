@@ -740,12 +740,19 @@ func TestPostStorage_ListVotesOfPost(t *testing.T) {
 	Expect(listVotes.Result).HasLen(2)
 
 	Expect(listVotes.Result[0].CreatedAt).TemporarilySimilar(time.Now(), 5*time.Second)
-	Expect(listVotes.Result[0].User.Name).Equals("Jon Snow")
-	Expect(listVotes.Result[0].User.Email).Equals("jon.snow@got.com")
+	Expect(listVotes.Result[0].User.Name).Equals("Arya Stark")
+	Expect(listVotes.Result[0].User.Email).Equals("arya.stark@got.com")
 
 	Expect(listVotes.Result[1].CreatedAt).TemporarilySimilar(time.Now(), 5*time.Second)
-	Expect(listVotes.Result[1].User.Name).Equals("Arya Stark")
-	Expect(listVotes.Result[1].User.Email).Equals("arya.stark@got.com")
+	Expect(listVotes.Result[1].User.Name).Equals("Jon Snow")
+	Expect(listVotes.Result[1].User.Email).Equals("jon.snow@got.com")
+
+	listVotes.Preview = true
+	Expect(bus.Dispatch(jonSnowCtx, listVotes)).IsNil()
+	for _, vote := range listVotes.Result {
+		Expect(vote.VoteType).Equals(enum.VoteType(0))
+		Expect(vote.User.Email).Equals("")
+	}
 }
 
 func TestPostStorage_Attachments(t *testing.T) {

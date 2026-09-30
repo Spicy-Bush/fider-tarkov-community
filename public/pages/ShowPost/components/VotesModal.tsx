@@ -13,10 +13,13 @@ import { heroiconsSearch as IconSearch, heroiconsX as IconX } from "@fider/icons
 import { HStack, VStack } from "@fider/components/layout/Stack"
 import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
+import { RequestError } from "@fider/services/http"
+import * as notify from "@fider/services/notify"
 
 interface VotesModalProps {
   isOpen: boolean
   post: Post
+  revision: number
   onClose?: () => void
 }
 
@@ -24,21 +27,41 @@ export const VotesModal: React.FC<VotesModalProps> = (props) => {
   const [isLoading, setIsLoading] = useState(false)
   const [query, setQuery] = useState("")
   const [allVotes, setAllVotes] = useState<Vote[]>([])
-  const [filteredVotes, setFilteredVotes] = useState<Vote[]>([])
+  const filteredVotes = allVotes.filter((vote) => vote.user.name.toLowerCase().includes(query.toLowerCase()))
 
   const fider = useFider()
 
   useEffect(() => {
-    if (props.isOpen) {
-      postActions.listVotes(props.post.number).then((response) => {
-        if (response.ok) {
+    if (!props.isOpen) {
+      return
+    }
+
+    const request = new AbortController()
+    setIsLoading(true)
+
+    const load = async () => {
+      try {
+        const response = await postActions.listVotes(props.post.number, { signal: request.signal })
+
+        if (!request.signal.aborted && response.ok) {
           setAllVotes(response.data)
-          setFilteredVotes(response.data)
+        }
+      } catch (cause) {
+        if (!request.signal.aborted) {
+          if (!(cause instanceof RequestError)) throw cause
+
+          notify.error("Could not load the voters. Please retry.")
+        }
+      } finally {
+        if (!request.signal.aborted) {
           setIsLoading(false)
         }
-      })
+      }
     }
-  }, [props.isOpen])
+
+    void load()
+    return () => request.abort()
+  }, [props.isOpen, props.post.number, props.revision])
 
   const closeModal = async () => {
     if (props.onClose) {
@@ -47,13 +70,7 @@ export const VotesModal: React.FC<VotesModalProps> = (props) => {
   }
 
   const clearSearch = () => {
-    handleSearchFilterChanged("")
-  }
-
-  const handleSearchFilterChanged = (query: string) => {
-    const votes = allVotes.filter((x) => x.user.name.toLowerCase().indexOf(query.toLowerCase()) >= 0)
-    setQuery(query)
-    setFilteredVotes(votes)
+    setQuery("")
   }
 
   return (
@@ -68,7 +85,7 @@ export const VotesModal: React.FC<VotesModalProps> = (props) => {
               onIconClick={query ? clearSearch : undefined}
               placeholder={i18n._("modal.showvotes.query.placeholder", { message: "Search for users by name..." })}
               value={query}
-              onChange={handleSearchFilterChanged}
+              onChange={setQuery}
             />
             <VStack spacing={2} className="h-max-5xl overflow-auto">
               {filteredVotes.map((x) => (

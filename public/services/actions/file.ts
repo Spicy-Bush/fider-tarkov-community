@@ -104,6 +104,8 @@ export const uploadFile = (request: FileUploadRequest) => {
   return retryRequest(() => http.post<FileInfo>("/api/admin/files", request, { notifyOnError: false }), { delayMs: 250 })
 }
 
+export const newFileUploadID = () => http.post<string>("/api/uploads/id", undefined, { notifyOnError: false })
+
 export const renameFile = (blobKey: string, name: string) => {
   return http.put<FileInfo>("/api/admin/files/name", { blobKey, name }, { notifyOnError: false })
 }

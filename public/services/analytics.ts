@@ -1,18 +1,10 @@
+import { trackEvent } from "./google"
+
 export const analytics = {
   event: (eventCategory: string, eventAction: string): void => {
-    if (window.ga) {
-      window.ga("send", "event", {
-        eventCategory,
-        eventAction,
-      })
-    }
+    trackEvent(eventAction, { event_category: eventCategory })
   },
   error: (err?: Error): void => {
-    if (window.ga) {
-      window.ga("send", "exception", {
-        exDescription: err ? err.stack : "<not available>",
-        exFatal: false,
-      })
-    }
+    trackEvent("exception", { description: err?.name || "Error", fatal: false })
   },
 }

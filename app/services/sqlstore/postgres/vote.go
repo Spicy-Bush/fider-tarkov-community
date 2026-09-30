@@ -96,8 +96,9 @@ func listPostVotes(ctx context.Context, q *query.ListPostVotes) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		q.Result = make([]*entity.Vote, 0)
 		var limit *int
-		if q.Limit > 0 {
-			limit = &q.Limit
+		if q.Preview {
+			previewSize := 8
+			limit = &previewSize
 		}
 
 		votes := []*dbVote{}
@@ -118,7 +119,7 @@ func listPostVotes(ctx context.Context, q *query.ListPostVotes) error {
 		AND u.tenant_id = pv.tenant_id 
 		WHERE pv.post_id = $1  
 		AND pv.tenant_id = $2
-		ORDER BY pv.created_at
+		ORDER BY pv.created_at DESC, pv.user_id DESC
 		LIMIT $4`, q.PostID, tenant.ID, q.IncludeEmail, limit)
 		if err != nil {
 			return errors.Wrap(err, "failed to get votes of post")
@@ -127,6 +128,11 @@ func listPostVotes(ctx context.Context, q *query.ListPostVotes) error {
 		q.Result = make([]*entity.Vote, len(votes))
 		for i, vote := range votes {
 			q.Result[i] = vote.toModel(ctx)
+
+			if q.Preview {
+				q.Result[i].VoteType = 0
+				q.Result[i].User.Email = ""
+			}
 		}
 
 		return nil

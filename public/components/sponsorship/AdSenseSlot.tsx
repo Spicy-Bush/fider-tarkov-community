@@ -1,78 +1,78 @@
-import React, { useEffect, useRef } from "react"
-import { resolvePlacementRenderMeta } from "@fider/models/sponsorship"
+import React, { useEffect, useRef, useState } from "react"
+import { useFider } from "@fider/hooks/use-fider"
+import { loadAdSense } from "@fider/services/google"
 
 export interface AdSenseSlotProps {
   client: string
   slotId: string
   format?: string
   placementId: string
-  instanceId?: string
-  className?: string
-  maxWidth?: number
-  maxHeight?: number
 }
 
-/**
- * Presentational Google AdSense unit. Clicks stay with Google (no /ads/click).
- * Script tag is boot-injected from GOOGLE_ADSENSE; this only pushes adsbygoogle once per mount.
- * No TC "Sponsored" disclosure -- Google provides its own labeling; bare Sponsored is #38/#39.
- */
-export const AdSenseSlot: React.FC<AdSenseSlotProps> = ({
-  client,
-  slotId,
-  format = "auto",
-  placementId,
-  instanceId,
-  className,
-  maxWidth,
-  maxHeight,
-}) => {
-  const pushed = useRef(false)
-  const meta = resolvePlacementRenderMeta(placementId, { maxWidth, maxHeight })
-  const frameClassName = meta.frameClassName
-  const sizeStyle =
-    meta.maxWidth || meta.maxHeight
-      ? {
-          ...(meta.maxWidth ? { maxWidth: meta.maxWidth } : {}),
-          ...(meta.maxHeight ? { maxHeight: meta.maxHeight } : {}),
-        }
-      : undefined
+function AdSenseUnit({ client, slotId, format = "auto", placementId }: AdSenseSlotProps) {
+  const element = useRef<HTMLModElement>(null)
+  const requested = useRef(false)
+  const [unavailable, setUnavailable] = useState(false)
 
   useEffect(() => {
-    if (pushed.current) return
-    if (!client || !slotId) return
-    try {
-      const w = window as Window
-      w.adsbygoogle = w.adsbygoogle || []
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(w.adsbygoogle as any[]).push({})
-      pushed.current = true
-    } catch {
-      // Ad blockers / missing script -- leave reserved frame empty.
-    }
-  }, [client, slotId])
+    const unit = element.current!
+    let active = true
+    const observer = new IntersectionObserver(entries => {
+      if (!entries.some(entry => entry.isIntersecting)) return
+      observer.disconnect()
 
-  if (!client || !slotId) {
-    return null
-  }
+      void loadAdSense(client).then(loaded => {
+        if (!active || !unit.isConnected || requested.current) return
+        if (!loaded) {
+          setUnavailable(true)
+          return
+        }
+
+        requested.current = true
+        try {
+          window.adsbygoogle!.push({})
+        } catch {
+          setUnavailable(true)
+        }
+      })
+    }, { rootMargin: "200px" })
+    observer.observe(unit)
+
+    const status = new MutationObserver(() => {
+      if (unit.dataset.adStatus === "unfilled") setUnavailable(true)
+    })
+    status.observe(unit, { attributes: true, attributeFilter: ["data-ad-status"] })
+
+    return () => {
+      active = false
+      observer.disconnect()
+      status.disconnect()
+    }
+  }, [client])
 
   return (
     <div
-      className={className || "block my-3"}
-      data-ad-instance={instanceId}
+      hidden={unavailable}
+      className="my-3 w-full"
       data-ad-placement={placementId}
       data-ad-network="adsense"
     >
-      <div className={frameClassName} style={sizeStyle}>
-        <ins
-          className="adsbygoogle"
-          style={{ display: "block", width: "100%", height: "100%" }}
-          data-ad-client={client}
-          data-ad-slot={slotId}
-          data-ad-format={format || "auto"}
-          data-full-width-responsive="true"
-        />
-      </div>
+      <ins
+        ref={element}
+        className="adsbygoogle"
+        style={{ display: "block", width: "100%" }}
+        data-ad-client={client}
+        data-ad-slot={slotId}
+        data-ad-format={format}
+        data-full-width-responsive="true"
+      />
     </div>
   )
+}
+
+export function AdSenseSlot(props: AdSenseSlotProps) {
+  const fider = useFider()
+  if (fider.session.props.sponsorPreview || !props.client || !props.slotId) return null
+
+  return <AdSenseUnit key={`${props.client}:${props.slotId}`} {...props} />
 }

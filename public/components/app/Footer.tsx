@@ -3,6 +3,7 @@ import { Icon } from "@fider/components/common/Icon"
 import { heroiconsChevronUp, heroiconsChevronDown } from "@fider/icons.generated"
 import { useFider } from "@fider/hooks/use-fider"
 import { NavigationLink } from "@fider/models"
+import { cookieConsent } from "@fider/services/cookieConsent"
 
 type FooterState = "revealing" | "visible" | "freezing" | "hidden" | "unhiding"
 
@@ -147,6 +148,9 @@ const Footer: React.FC = () => {
               </li>
             </>
           )}
+          {(fider.settings.googleAnalytics || fider.settings.googleAdSense) && <li className="mx-2 max-md:mx-0">
+            <button type="button" onClick={cookieConsent.open} className="cursor-pointer border-0 bg-transparent p-0 text-foreground hover:underline max-md:text-sm">Cookie preferences</button>
+          </li>}
         </ul>
       </nav>
       <p className="text-center m-0 px-4 text-sm max-md:hidden">© {currentYear} - This website is proudly made by the Spicy Bush Team.</p>

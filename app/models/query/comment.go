@@ -35,15 +35,16 @@ type GetDiscussionComments struct {
 }
 
 type GetCommentAncestors struct {
-	CommentID int
+	CommentID  int
 	Discussion *entity.Discussion
 
 	Result []*entity.Comment
 }
 
 type GetDiscussionChainReplies struct {
-	ParentIDs []int
-	Depth     int
+	Discussion *entity.Discussion
+	ParentIDs  []int
+	Depth      int
 
 	Result []*entity.Comment
 }

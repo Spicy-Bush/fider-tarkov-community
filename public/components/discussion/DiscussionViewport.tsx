@@ -4,10 +4,11 @@ export type DiscussionRow =
   | { kind: "comment"; id: number; depth: number; end: number; collapsed: boolean }
   | { kind: "load"; parentId: number; depth: number; levels: number }
   | { kind: "continue"; parentId: number; depth: number }
+  | { kind: "sponsor"; parentId: 0; depth: 0 }
 
 interface DiscussionViewportProps {
   rows: DiscussionRow[]
-  target?: number
+  target?: number | "sponsor"
   readingTarget?: number
   measurements?: Map<string, number>
   initialViewport?: { top: number; bottom: number }
@@ -42,7 +43,7 @@ export function DiscussionViewport({ rows, target, readingTarget, measurements, 
   const sizes = useRef(measurements ?? new Map<string, number>())
   const [measurement, setMeasurement] = useState(0)
   const [viewport, setViewport] = useState(initialViewport ?? { top: 0, bottom: 1000 })
-  const lastTarget = useRef<number>()
+  const lastTarget = useRef<number | "sponsor">()
   const [focusedRow, setFocusedRow] = useState<string>()
 
   const offsets = useMemo(() => {
@@ -59,8 +60,8 @@ export function DiscussionViewport({ rows, target, readingTarget, measurements, 
   const first = Math.min(rows.length, rowAtOffset(offsets, Math.max(0, viewport.top - 800)))
   const last = Math.min(rows.length, rowAtOffset(offsets, viewport.bottom + 800) + 1)
   const focusIndex = focusedRow ? rows.findIndex((row) => rowKey(row) === focusedRow) : -1
-  const targetIndex = target && lastTarget.current !== target
-    ? rows.findIndex((row) => row.kind === "comment" && row.id === target)
+  const targetIndex = target && (target === "sponsor" || lastTarget.current !== target)
+    ? rows.findIndex((row) => target === "sponsor" ? row.kind === "sponsor" : row.kind === "comment" && row.id === target)
     : -1
   const readingIndex = readingTarget
     ? rows.findIndex((row) => row.kind === "comment" && row.id === readingTarget)
@@ -159,7 +160,10 @@ export function DiscussionViewport({ rows, target, readingTarget, measurements, 
 
   useLayoutEffect(() => {
     if (targetIndex >= 0) {
-      container.current?.querySelector(`#comment-${target}`)?.scrollIntoView({ block: "center" })
+      if (target !== "sponsor") {
+        container.current?.querySelector(`#comment-${target}`)?.scrollIntoView({ block: "center" })
+      }
+
       lastTarget.current = target
     } else if (!target) {
       lastTarget.current = undefined

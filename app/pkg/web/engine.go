@@ -31,13 +31,13 @@ var (
 	cspBase           = "base-uri 'self'"
 	cspDefault        = "default-src 'self'"
 	cspStyle          = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.paddle.com %[2]s"
-	cspScript         = "script-src 'self' 'unsafe-inline' 'nonce-%[1]s' https://ep1.adtrafficquality.google https://www.google-analytics.com https://*.paddle.com https://*.googletagmanager.com https://pagead2.googlesyndication.com https://static.cloudflareinsights.com https://*.cloudflare.com %[2]s"
+	cspScript         = "script-src 'self' 'unsafe-inline' 'nonce-%[1]s' 'strict-dynamic' https://ep1.adtrafficquality.google https://www.google-analytics.com https://*.paddle.com https://*.googletagmanager.com https://pagead2.googlesyndication.com https://static.cloudflareinsights.com https://*.cloudflare.com %[2]s"
 	cspFont           = "font-src 'self' https://fonts.gstatic.com data: %[2]s"
 	cspImage          = "img-src 'self' https: data: blob: https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net %[2]s"
 	cspObject         = "object-src 'none'"
-	cspFrame          = "frame-src 'self' https://*.paddle.com https://td.doubleclick.net https://www.googletagmanager.com https://www.youtube.com/ https://vk.com/ https://vkvideo.ru/"
+	cspFrame          = "frame-src 'self' https://*.paddle.com https://*.doubleclick.net https://*.googlesyndication.com https://www.google.com https://www.googletagmanager.com https://www.youtube.com/ https://vk.com/ https://vkvideo.ru/"
 	cspMedia          = "media-src 'none'"
-	cspConnect        = "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net https://cloudflareinsights.com https://*.cloudflare.com %[2]s"
+	cspConnect        = "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net https://*.googlesyndication.com https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://www.google.com https://cloudflareinsights.com https://*.cloudflare.com %[2]s"
 	cspFrameAncestors = "frame-ancestors 'none'"
 
 	CspPolicyTemplate = fmt.Sprintf("%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s", cspBase, cspDefault, cspStyle, cspScript, cspImage, cspFont, cspObject, cspMedia, cspConnect, cspFrame, cspFrameAncestors)

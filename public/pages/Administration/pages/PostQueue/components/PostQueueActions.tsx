@@ -15,6 +15,8 @@ interface PostQueueActionsProps {
   onDuplicateCancelled: () => void
   onDuplicateReset: () => void
   onEditPost: () => void
+  onPostChanged: (postNumber: number) => Promise<void>
+  onPostDeleted: (postID: number) => Promise<void>
   isEditMode?: boolean
 }
 
@@ -28,6 +30,8 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
   onDuplicateCancelled,
   onDuplicateReset,
   onEditPost,
+  onPostChanged,
+  onPostDeleted,
   isEditMode,
 }) => {
   const [showStatusModal, setShowStatusModal] = useState(false)
@@ -83,7 +87,9 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
       originalNumber: duplicateOriginalNumber,
     })
     if (result.ok) {
-      location.reload()
+      setShowStatusModal(false)
+      onDuplicateReset()
+      await onPostChanged(post.number)
     } else {
       setError(result.error)
     }
@@ -93,7 +99,8 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
     setError(undefined)
     const result = await actions.deletePost(post.number, deleteText)
     if (result.ok) {
-      location.reload()
+      setShowDeleteModal(false)
+      await onPostDeleted(post.id)
     } else {
       setError(result.error)
     }
@@ -107,7 +114,9 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
       : await actions.lockPost(post.number, lockMessage)
 
     if (result.ok) {
-      location.reload()
+      setShowLockModal(false)
+      setLockMessage("")
+      await onPostChanged(post.number)
     } else {
       setError(result.error)
     }
@@ -340,4 +349,3 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
     </div>
   )
 }
-

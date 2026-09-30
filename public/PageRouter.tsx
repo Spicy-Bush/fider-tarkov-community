@@ -7,6 +7,7 @@ import { ServerData } from "@fider/services/fider"
 import { RequestError } from "@fider/services/http"
 import { captureReadingPosition, finishReadingPosition, prepareReadingPosition, ReadingPosition } from "@fider/services/readingPosition"
 import { pageLoader, PageModule } from "./AsyncPages"
+import { trackPageView } from "@fider/services/google"
 
 // Page interception must not bypass downloads or writes.
 const isPagePath = (path: string): boolean =>
@@ -248,16 +249,16 @@ export const PageRouter: React.FC<PageRouterProps> = ({ initialPageName }) => {
           if (event.navigationType === "traverse" && location.href !== loaded.url.href) {
             history.replaceState(history.state, "", loaded.url.href)
           }
+
+          trackPageView()
         }
 
-        const restoreScroll = async () => {
+        const restoreScroll = () => {
           event.scroll()
 
           if (event.navigationType !== "traverse" && !loaded.url.hash) {
             window.scrollTo(0, 0)
           }
-
-          await finishReadingPosition(event.signal)
         }
 
         const animatePage = () => {
@@ -268,8 +269,8 @@ export const PageRouter: React.FC<PageRouterProps> = ({ initialPageName }) => {
           const content = document.querySelector<HTMLElement>("#root main, #root .page")
           pageAnimation = content?.animate(
             [
-              { opacity: 0, transform: "translateY(6px)" },
-              { opacity: 1, transform: "translateY(0)" },
+              { transform: "translateY(6px)" },
+              { transform: "translateY(0)" },
             ],
             { duration: 150, easing: "cubic-bezier(0.2, 0, 0, 1)" }
           )
@@ -277,7 +278,8 @@ export const PageRouter: React.FC<PageRouterProps> = ({ initialPageName }) => {
 
         if (reducedMotion.matches || !document.startViewTransition) {
           commit()
-          await restoreScroll()
+          restoreScroll()
+          await finishReadingPosition(event.signal)
           return
         }
 
@@ -286,7 +288,8 @@ export const PageRouter: React.FC<PageRouterProps> = ({ initialPageName }) => {
 
         if (!outgoingHero || !isInViewport(outgoingHero)) {
           commit()
-          await restoreScroll()
+          restoreScroll()
+          await finishReadingPosition(event.signal)
           animatePage()
           return
         }
@@ -295,6 +298,7 @@ export const PageRouter: React.FC<PageRouterProps> = ({ initialPageName }) => {
         let incomingHero: HTMLElement | null = null
         transition = document.startViewTransition(() => {
           commit()
+          restoreScroll()
 
           if (heroKey && outgoingHero.style.viewTransitionName) {
             incomingHero = document.querySelector<HTMLElement>(`#root [data-morph="${CSS.escape(heroKey)}"]`)
@@ -315,7 +319,7 @@ export const PageRouter: React.FC<PageRouterProps> = ({ initialPageName }) => {
         void transition.ready.then(animatePage, () => {})
         void transition.finished.then(clearHeroNames, clearHeroNames)
         await transition.updateCallbackDone
-        await restoreScroll()
+        await finishReadingPosition(event.signal)
       }
 
       event.intercept({

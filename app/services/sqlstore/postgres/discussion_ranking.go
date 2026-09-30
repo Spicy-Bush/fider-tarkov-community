@@ -2,10 +2,14 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/lib/pq"
@@ -19,9 +23,10 @@ const (
 )
 
 type discussionTreeKey struct {
-	TenantID int
-	Kind     string
-	OwnerID  int
+	TenantID  int
+	Kind      string
+	OwnerID   int
+	Concealed [32]byte
 }
 
 type discussionReplyRank struct {
@@ -155,6 +160,46 @@ func selectDiscussionReplies(tree discussionTree, q *query.GetDiscussionComments
 
 func prepareDiscussionReplies(ctx context.Context, trx *dbx.Trx, q *query.GetDiscussionComments, ownerColumn string, tenantID int) (discussionReplySelection, error) {
 	key := discussionTreeKey{TenantID: tenantID, Kind: q.Discussion.Owner.Kind, OwnerID: q.Discussion.Owner.ID}
+	user, _ := ctx.Value(app.UserCtxKey).(*entity.User)
+	args := []any{tenantID, viewerID(user), key.OwnerID}
+	source := discussionSource(ctx, ownerColumn, &args)
+	rows, err := trx.Query(source+`
+        SELECT id, COALESCE(parent_id, 0) FROM discussion_comments
+        WHERE (deleted_at IS NOT NULL OR moderation_pending) AND NOT visible
+        ORDER BY id
+    `, args...)
+	if err != nil {
+		return discussionReplySelection{}, err
+	}
+
+	concealed := make(map[int]int)
+	fingerprint := sha256.New()
+	var encodedID [8]byte
+	for rows.Next() {
+		var id, parentID int
+		if err := rows.Scan(&id, &parentID); err != nil {
+			rows.Close()
+			return discussionReplySelection{}, err
+		}
+
+		if ancestor, hidden := concealed[parentID]; hidden {
+			parentID = ancestor
+		}
+		concealed[id] = parentID
+		binary.LittleEndian.PutUint64(encodedID[:], uint64(id))
+		fingerprint.Write(encodedID[:])
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return discussionReplySelection{}, err
+	}
+	if err := rows.Close(); err != nil {
+		return discussionReplySelection{}, err
+	}
+	if len(concealed) > 0 {
+		copy(key.Concealed[:], fingerprint.Sum(nil))
+	}
+
 	versionSQL := `SELECT COALESCE((SELECT generation FROM discussion_tree_versions
         WHERE tenant_id = $1 AND ` + pq.QuoteIdentifier(ownerColumn) + ` = $2), 0)`
 
@@ -163,11 +208,8 @@ func prepareDiscussionReplies(ctx context.Context, trx *dbx.Trx, q *query.GetDis
 		return discussionReplySelection{}, err
 	}
 
-	if generation == 0 {
-		return discussionReplySelection{Uncached: true}, nil
-	}
-
-	if selection, found := discussionTrees.lookup(key, generation, q); found {
+	selection, found := discussionTrees.lookup(key, generation, q)
+	if found && !selection.Uncached {
 		return selection, nil
 	}
 
@@ -178,11 +220,21 @@ func prepareDiscussionReplies(ctx context.Context, trx *dbx.Trx, q *query.GetDis
 		return discussionReplySelection{}, ctx.Err()
 	}
 
-	if selection, found := discussionTrees.lookup(key, generation, q); found {
+	selection, found = discussionTrees.lookup(key, generation, q)
+	if found && !selection.Uncached {
 		return selection, nil
 	}
 
-	tree, err := readDiscussionTree(trx, key, ownerColumn, maxDiscussionTreeComments)
+	if found {
+		parentID := 0
+		if q.ParentID != nil {
+			parentID = *q.ParentID
+		}
+		tree, err := readDiscussionTree(trx, key, ownerColumn, 0, concealed, &parentID)
+		return selectDiscussionReplies(tree, q), err
+	}
+
+	tree, err := readDiscussionTree(trx, key, ownerColumn, maxDiscussionTreeComments, concealed, nil)
 	if err != nil {
 		return discussionReplySelection{}, err
 	}
@@ -193,19 +245,36 @@ func prepareDiscussionReplies(ctx context.Context, trx *dbx.Trx, q *query.GetDis
 		return discussionReplySelection{}, err
 	}
 
-	if currentGeneration == generation {
+	if generation != 0 && currentGeneration == generation {
 		discussionTrees.store(key, tree)
+	}
+
+	if tree.Oversized {
+		parentID := 0
+		if q.ParentID != nil {
+			parentID = *q.ParentID
+		}
+		tree, err = readDiscussionTree(trx, key, ownerColumn, 0, concealed, &parentID)
+		if err != nil {
+			return discussionReplySelection{}, err
+		}
 	}
 
 	return selectDiscussionReplies(tree, q), nil
 }
 
-func readDiscussionTree(trx *dbx.Trx, key discussionTreeKey, ownerColumn string, limit int) (discussionTree, error) {
+func readDiscussionTree(trx *dbx.Trx, key discussionTreeKey, ownerColumn string, limit int, concealed map[int]int, siblingsOf *int) (discussionTree, error) {
+	var rowLimit *int
+	if limit > 0 {
+		maximum := limit + 1
+		rowLimit = &maximum
+	}
+
 	rows, err := trx.Query(`
-        SELECT id, COALESCE(parent_id, 0), deleted_at IS NOT NULL, created_at
+        SELECT id, COALESCE(parent_id, 0), created_at
         FROM comments WHERE tenant_id = $1 AND `+pq.QuoteIdentifier(ownerColumn)+` = $2
         ORDER BY id DESC LIMIT $3
-    `, key.TenantID, key.OwnerID, limit+1)
+    `, key.TenantID, key.OwnerID, rowLimit)
 	if err != nil {
 		return discussionTree{}, err
 	}
@@ -215,28 +284,34 @@ func readDiscussionTree(trx *dbx.Trx, key discussionTreeKey, ownerColumn string,
 	descendants := make(map[int]int64)
 	ranks := make([]discussionReplyRank, 0, 256)
 	var rawID, rawParentID int64
-	var deleted bool
 	var createdAt time.Time
 	counted := 0
 	for rows.Next() {
-		if err := rows.Scan(&rawID, &rawParentID, &deleted, &createdAt); err != nil {
+		if err := rows.Scan(&rawID, &rawParentID, &createdAt); err != nil {
 			return discussionTree{}, err
 		}
 
 		counted++
-		if counted > limit {
+		if limit > 0 && counted > limit {
 			return discussionTree{Oversized: true}, rows.Close()
 		}
 
 		id, parentID := int(rawID), int(rawParentID)
-		count, hasReplies := descendants[id]
+		count := descendants[id]
 		delete(descendants, id)
-		if !deleted || hasReplies {
-			ranks = append(ranks, discussionReplyRank{ID: id, ParentID: parentID, Score: count, CreatedAt: createdAt})
+		_, hidden := concealed[id]
+		if !hidden {
+			visibleParent := parentID
+			if ancestor, hiddenParent := concealed[parentID]; hiddenParent {
+				visibleParent = ancestor
+			}
+			if siblingsOf == nil || visibleParent == *siblingsOf {
+				ranks = append(ranks, discussionReplyRank{ID: id, ParentID: visibleParent, Score: count, CreatedAt: createdAt})
+			}
 		}
 
 		if parentID != 0 {
-			if !deleted {
+			if !hidden {
 				count++
 			}
 

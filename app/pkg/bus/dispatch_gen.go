@@ -18,6 +18,7 @@ var cAddNewPostHandler func(context.Context, *cmd.AddNewPost) error
 var cAddNewTagHandler func(context.Context, *cmd.AddNewTag) error
 var cAddSubscriberHandler func(context.Context, *cmd.AddSubscriber) error
 var cAddVoteHandler func(context.Context, *cmd.AddVote) error
+var cAllocateSponsorsHandler func(context.Context, *cmd.AllocateSponsors) error
 var cApplyPostVoteHandler func(context.Context, *cmd.ApplyPostVote) error
 var cArchivePostHandler func(context.Context, *cmd.ArchivePost) error
 var cAssignReportHandler func(context.Context, *cmd.AssignReport) error
@@ -31,14 +32,12 @@ var cChangeUserVisualRoleHandler func(context.Context, *cmd.ChangeUserVisualRole
 var cClaimModerationHandler func(context.Context, *cmd.ClaimModeration) error
 var cCreateCannedResponseHandler func(context.Context, *cmd.CreateCannedResponse) error
 var cCreateCommentHandler func(context.Context, *cmd.CreateComment) error
-var cCreateCreativeVersionHandler func(context.Context, *cmd.CreateCreativeVersion) error
 var cCreateFeedbackExportPresetHandler func(context.Context, *cmd.CreateFeedbackExportPreset) error
 var cCreatePageHandler func(context.Context, *cmd.CreatePage) error
 var cCreatePageTagHandler func(context.Context, *cmd.CreatePageTag) error
 var cCreatePageTopicHandler func(context.Context, *cmd.CreatePageTopic) error
 var cCreateReportHandler func(context.Context, *cmd.CreateReport) error
 var cCreateReportReasonHandler func(context.Context, *cmd.CreateReportReason) error
-var cCreateSponsorshipCampaignHandler func(context.Context, *cmd.CreateSponsorshipCampaign) error
 var cCreateSponsorshipPackageHandler func(context.Context, *cmd.CreateSponsorshipPackage) error
 var cCreateTenantHandler func(context.Context, *cmd.CreateTenant) error
 var cDeleteAllPushSubscriptionsHandler func(context.Context, *cmd.DeleteAllPushSubscriptions) error
@@ -56,7 +55,6 @@ var cDeletePushSubscriptionHandler func(context.Context, *cmd.DeletePushSubscrip
 var cDeletePushSubscriptionByEndpointHandler func(context.Context, *cmd.DeletePushSubscriptionByEndpoint) error
 var cDeleteReportHandler func(context.Context, *cmd.DeleteReport) error
 var cDeleteReportReasonHandler func(context.Context, *cmd.DeleteReportReason) error
-var cDeleteSponsorshipCampaignHandler func(context.Context, *cmd.DeleteSponsorshipCampaign) error
 var cDeleteSponsorshipPackageHandler func(context.Context, *cmd.DeleteSponsorshipPackage) error
 var cDeleteTagHandler func(context.Context, *cmd.DeleteTag) error
 var cDeleteWarningHandler func(context.Context, *cmd.DeleteWarning) error
@@ -69,7 +67,6 @@ var cGetProfileModerationHandler func(context.Context, *cmd.GetProfileModeration
 var cGetWebhookPropsHandler func(context.Context, *cmd.GetWebhookProps) error
 var cHTTPRequestHandler func(context.Context, *cmd.HTTPRequest) error
 var cImportMediaInventoryHandler func(context.Context, *cmd.ImportMediaInventory) error
-var cIncrementSponsorshipClickHandler func(context.Context, *cmd.IncrementSponsorshipClick) error
 var cListModerationFailuresHandler func(context.Context, *cmd.ListModerationFailures) error
 var cLockExpiredTenantsHandler func(context.Context, *cmd.LockExpiredTenants) error
 var cLockPostHandler func(context.Context, *cmd.LockPost) error
@@ -86,6 +83,7 @@ var cPublishPageEditHandler func(context.Context, *cmd.PublishPageEdit) error
 var cPublishScheduledPagesHandler func(context.Context, *cmd.PublishScheduledPages) error
 var cPurgeExpiredNotificationsHandler func(context.Context, *cmd.PurgeExpiredNotifications) error
 var cPurgeReadNotificationsHandler func(context.Context, *cmd.PurgeReadNotifications) error
+var cRecordSponsorClickHandler func(context.Context, *cmd.RecordSponsorClick) error
 var cRefreshMediaInventoryHandler func(context.Context, *cmd.RefreshMediaInventory) error
 var cRefreshPageEmbeddedDataHandler func(context.Context, *cmd.RefreshPageEmbeddedData) error
 var cRefreshPostStatsHandler func(context.Context, *cmd.RefreshPostStats) error
@@ -104,7 +102,9 @@ var cSaveNavigationLinksHandler func(context.Context, *cmd.SaveNavigationLinks) 
 var cSaveProfileAvatarHandler func(context.Context, *cmd.SaveProfileAvatar) error
 var cSaveProfileNameHandler func(context.Context, *cmd.SaveProfileName) error
 var cSavePushSubscriptionHandler func(context.Context, *cmd.SavePushSubscription) error
-var cSaveSponsorshipCampaignGraphHandler func(context.Context, *cmd.SaveSponsorshipCampaignGraph) error
+var cSaveSponsorCampaignHandler func(context.Context, *cmd.SaveSponsorCampaign) error
+var cSaveSponsorExclusionHandler func(context.Context, *cmd.SaveSponsorExclusion) error
+var cSaveSponsorPlacementHandler func(context.Context, *cmd.SaveSponsorPlacement) error
 var cSaveVerificationKeyHandler func(context.Context, *cmd.SaveVerificationKey) error
 var cScheduleModerationHandler func(context.Context, *cmd.ScheduleModeration) error
 var cScheduleNotificationHandler func(context.Context, *cmd.ScheduleNotification) error
@@ -128,7 +128,6 @@ var cUnassignReportHandler func(context.Context, *cmd.UnassignReport) error
 var cUnassignTagHandler func(context.Context, *cmd.UnassignTag) error
 var cUnblockUserHandler func(context.Context, *cmd.UnblockUser) error
 var cUnlockPostHandler func(context.Context, *cmd.UnlockPost) error
-var cUpdateAdPlacementHandler func(context.Context, *cmd.UpdateAdPlacement) error
 var cUpdateCannedResponseHandler func(context.Context, *cmd.UpdateCannedResponse) error
 var cUpdateCommentHandler func(context.Context, *cmd.UpdateComment) error
 var cUpdateContentSettingsHandler func(context.Context, *cmd.UpdateContentSettings) error
@@ -141,7 +140,6 @@ var cUpdatePageTopicHandler func(context.Context, *cmd.UpdatePageTopic) error
 var cUpdatePostHandler func(context.Context, *cmd.UpdatePost) error
 var cUpdateReportReasonHandler func(context.Context, *cmd.UpdateReportReason) error
 var cUpdateRolePermissionsHandler func(context.Context, *cmd.UpdateRolePermissions) error
-var cUpdateSponsorshipCampaignHandler func(context.Context, *cmd.UpdateSponsorshipCampaign) error
 var cUpdateSponsorshipPackageHandler func(context.Context, *cmd.UpdateSponsorshipPackage) error
 var cUpdateTagHandler func(context.Context, *cmd.UpdateTag) error
 var cUpdateTenantAdvancedSettingsHandler func(context.Context, *cmd.UpdateTenantAdvancedSettings) error
@@ -151,6 +149,7 @@ var cUpdateTenantSettingsHandler func(context.Context, *cmd.UpdateTenantSettings
 var cUploadImageHandler func(context.Context, *cmd.UploadImage) error
 var cUploadImageFileHandler func(context.Context, *cmd.UploadImageFile) error
 var cUploadPageEditBannerHandler func(context.Context, *cmd.UploadPageEditBanner) error
+var cUploadSponsorImageHandler func(context.Context, *cmd.UploadSponsorImage) error
 var cUserListCreateCompanyHandler func(context.Context, *cmd.UserListCreateCompany) error
 var cUserListHandleRoleChangeHandler func(context.Context, *cmd.UserListHandleRoleChange) error
 var cUserListUpdateCompanyHandler func(context.Context, *cmd.UserListUpdateCompany) error
@@ -167,7 +166,6 @@ var qCountVotesSinceArchiveHandler func(context.Context, *query.CountVotesSinceA
 var qCreateEditWebhookHandler func(context.Context, *query.CreateEditWebhook) error
 var qDeleteWebhookHandler func(context.Context, *query.DeleteWebhook) error
 var qFetchRecentSupressionsHandler func(context.Context, *query.FetchRecentSupressions) error
-var qGetActiveAdCandidatesHandler func(context.Context, *query.GetActiveAdCandidates) error
 var qGetActiveNotificationsHandler func(context.Context, *query.GetActiveNotifications) error
 var qGetActiveSubscribersHandler func(context.Context, *query.GetActiveSubscribers) error
 var qGetAllPostsHandler func(context.Context, *query.GetAllPosts) error
@@ -186,7 +184,6 @@ var qGetCannedResponseByIDHandler func(context.Context, *query.GetCannedResponse
 var qGetCommentAncestorsHandler func(context.Context, *query.GetCommentAncestors) error
 var qGetCommentByIDHandler func(context.Context, *query.GetCommentByID) error
 var qGetCommentNotificationUsersHandler func(context.Context, *query.GetCommentNotificationUsers) error
-var qGetCreativeVersionsByIDsHandler func(context.Context, *query.GetCreativeVersionsByIDs) error
 var qGetCurrentUserSettingsHandler func(context.Context, *query.GetCurrentUserSettings) error
 var qGetCustomOAuthConfigByProviderHandler func(context.Context, *query.GetCustomOAuthConfigByProvider) error
 var qGetDiscussionHandler func(context.Context, *query.GetDiscussion) error
@@ -223,8 +220,9 @@ var qGetRealtimeAccessHandler func(context.Context, *query.GetRealtimeAccess) er
 var qGetReportByIDHandler func(context.Context, *query.GetReportByID) error
 var qGetReportReasonsHandler func(context.Context, *query.GetReportReasons) error
 var qGetRolePermissionStateHandler func(context.Context, *query.GetRolePermissionState) error
-var qGetSponsorshipCampaignByIDHandler func(context.Context, *query.GetSponsorshipCampaignByID) error
-var qGetSponsorshipPackageByIDHandler func(context.Context, *query.GetSponsorshipPackageByID) error
+var qGetSponsorManagementHandler func(context.Context, *query.GetSponsorManagement) error
+var qGetSponsorPlacementsHandler func(context.Context, *query.GetSponsorPlacements) error
+var qGetSponsorReportHandler func(context.Context, *query.GetSponsorReport) error
 var qGetSystemSettingsHandler func(context.Context, *query.GetSystemSettings) error
 var qGetTagBySlugHandler func(context.Context, *query.GetTagBySlug) error
 var qGetTenantByDomainHandler func(context.Context, *query.GetTenantByDomain) error
@@ -249,22 +247,18 @@ var qIsCNAMEAvailableHandler func(context.Context, *query.IsCNAMEAvailable) erro
 var qIsSubdomainAvailableHandler func(context.Context, *query.IsSubdomainAvailable) error
 var qListActiveOAuthProvidersHandler func(context.Context, *query.ListActiveOAuthProviders) error
 var qListActiveWebhooksByTypeHandler func(context.Context, *query.ListActiveWebhooksByType) error
-var qListAdPlacementsHandler func(context.Context, *query.ListAdPlacements) error
 var qListAllOAuthProvidersHandler func(context.Context, *query.ListAllOAuthProviders) error
 var qListAllReportReasonsHandler func(context.Context, *query.ListAllReportReasons) error
 var qListAllWebhooksHandler func(context.Context, *query.ListAllWebhooks) error
 var qListAllWebhooksByTypeHandler func(context.Context, *query.ListAllWebhooksByType) error
 var qListBlobsHandler func(context.Context, *query.ListBlobs) error
-var qListCampaignAssignmentsByCampaignHandler func(context.Context, *query.ListCampaignAssignmentsByCampaign) error
 var qListCannedResponsesHandler func(context.Context, *query.ListCannedResponses) error
-var qListCreativeVersionsByCampaignHandler func(context.Context, *query.ListCreativeVersionsByCampaign) error
 var qListCustomOAuthConfigHandler func(context.Context, *query.ListCustomOAuthConfig) error
 var qListFeedbackExportPresetsHandler func(context.Context, *query.ListFeedbackExportPresets) error
 var qListImageFilesHandler func(context.Context, *query.ListImageFiles) error
 var qListPagesHandler func(context.Context, *query.ListPages) error
 var qListPostVotesHandler func(context.Context, *query.ListPostVotes) error
 var qListReportsHandler func(context.Context, *query.ListReports) error
-var qListSponsorshipCampaignsHandler func(context.Context, *query.ListSponsorshipCampaigns) error
 var qListSponsorshipPackagesHandler func(context.Context, *query.ListSponsorshipPackages) error
 var qMarkWebhookAsFailedHandler func(context.Context, *query.MarkWebhookAsFailed) error
 var qPostIsReferencedHandler func(context.Context, *query.PostIsReferenced) error
@@ -296,6 +290,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cAddSubscriberHandler = fn
 	case func(context.Context, *cmd.AddVote) error:
 		cAddVoteHandler = fn
+	case func(context.Context, *cmd.AllocateSponsors) error:
+		cAllocateSponsorsHandler = fn
 	case func(context.Context, *cmd.ApplyPostVote) error:
 		cApplyPostVoteHandler = fn
 	case func(context.Context, *cmd.ArchivePost) error:
@@ -322,8 +318,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		cCreateCannedResponseHandler = fn
 	case func(context.Context, *cmd.CreateComment) error:
 		cCreateCommentHandler = fn
-	case func(context.Context, *cmd.CreateCreativeVersion) error:
-		cCreateCreativeVersionHandler = fn
 	case func(context.Context, *cmd.CreateFeedbackExportPreset) error:
 		cCreateFeedbackExportPresetHandler = fn
 	case func(context.Context, *cmd.CreatePage) error:
@@ -336,8 +330,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		cCreateReportHandler = fn
 	case func(context.Context, *cmd.CreateReportReason) error:
 		cCreateReportReasonHandler = fn
-	case func(context.Context, *cmd.CreateSponsorshipCampaign) error:
-		cCreateSponsorshipCampaignHandler = fn
 	case func(context.Context, *cmd.CreateSponsorshipPackage) error:
 		cCreateSponsorshipPackageHandler = fn
 	case func(context.Context, *cmd.CreateTenant) error:
@@ -372,8 +364,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		cDeleteReportHandler = fn
 	case func(context.Context, *cmd.DeleteReportReason) error:
 		cDeleteReportReasonHandler = fn
-	case func(context.Context, *cmd.DeleteSponsorshipCampaign) error:
-		cDeleteSponsorshipCampaignHandler = fn
 	case func(context.Context, *cmd.DeleteSponsorshipPackage) error:
 		cDeleteSponsorshipPackageHandler = fn
 	case func(context.Context, *cmd.DeleteTag) error:
@@ -398,8 +388,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		cHTTPRequestHandler = fn
 	case func(context.Context, *cmd.ImportMediaInventory) error:
 		cImportMediaInventoryHandler = fn
-	case func(context.Context, *cmd.IncrementSponsorshipClick) error:
-		cIncrementSponsorshipClickHandler = fn
 	case func(context.Context, *cmd.ListModerationFailures) error:
 		cListModerationFailuresHandler = fn
 	case func(context.Context, *cmd.LockExpiredTenants) error:
@@ -432,6 +420,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cPurgeExpiredNotificationsHandler = fn
 	case func(context.Context, *cmd.PurgeReadNotifications) error:
 		cPurgeReadNotificationsHandler = fn
+	case func(context.Context, *cmd.RecordSponsorClick) error:
+		cRecordSponsorClickHandler = fn
 	case func(context.Context, *cmd.RefreshMediaInventory) error:
 		cRefreshMediaInventoryHandler = fn
 	case func(context.Context, *cmd.RefreshPageEmbeddedData) error:
@@ -468,8 +458,12 @@ func registerTypedHandler(handler HandlerFunc) {
 		cSaveProfileNameHandler = fn
 	case func(context.Context, *cmd.SavePushSubscription) error:
 		cSavePushSubscriptionHandler = fn
-	case func(context.Context, *cmd.SaveSponsorshipCampaignGraph) error:
-		cSaveSponsorshipCampaignGraphHandler = fn
+	case func(context.Context, *cmd.SaveSponsorCampaign) error:
+		cSaveSponsorCampaignHandler = fn
+	case func(context.Context, *cmd.SaveSponsorExclusion) error:
+		cSaveSponsorExclusionHandler = fn
+	case func(context.Context, *cmd.SaveSponsorPlacement) error:
+		cSaveSponsorPlacementHandler = fn
 	case func(context.Context, *cmd.SaveVerificationKey) error:
 		cSaveVerificationKeyHandler = fn
 	case func(context.Context, *cmd.ScheduleModeration) error:
@@ -516,8 +510,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		cUnblockUserHandler = fn
 	case func(context.Context, *cmd.UnlockPost) error:
 		cUnlockPostHandler = fn
-	case func(context.Context, *cmd.UpdateAdPlacement) error:
-		cUpdateAdPlacementHandler = fn
 	case func(context.Context, *cmd.UpdateCannedResponse) error:
 		cUpdateCannedResponseHandler = fn
 	case func(context.Context, *cmd.UpdateComment) error:
@@ -542,8 +534,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		cUpdateReportReasonHandler = fn
 	case func(context.Context, *cmd.UpdateRolePermissions) error:
 		cUpdateRolePermissionsHandler = fn
-	case func(context.Context, *cmd.UpdateSponsorshipCampaign) error:
-		cUpdateSponsorshipCampaignHandler = fn
 	case func(context.Context, *cmd.UpdateSponsorshipPackage) error:
 		cUpdateSponsorshipPackageHandler = fn
 	case func(context.Context, *cmd.UpdateTag) error:
@@ -562,6 +552,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cUploadImageFileHandler = fn
 	case func(context.Context, *cmd.UploadPageEditBanner) error:
 		cUploadPageEditBannerHandler = fn
+	case func(context.Context, *cmd.UploadSponsorImage) error:
+		cUploadSponsorImageHandler = fn
 	case func(context.Context, *cmd.UserListCreateCompany) error:
 		cUserListCreateCompanyHandler = fn
 	case func(context.Context, *cmd.UserListHandleRoleChange) error:
@@ -594,8 +586,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		qDeleteWebhookHandler = fn
 	case func(context.Context, *query.FetchRecentSupressions) error:
 		qFetchRecentSupressionsHandler = fn
-	case func(context.Context, *query.GetActiveAdCandidates) error:
-		qGetActiveAdCandidatesHandler = fn
 	case func(context.Context, *query.GetActiveNotifications) error:
 		qGetActiveNotificationsHandler = fn
 	case func(context.Context, *query.GetActiveSubscribers) error:
@@ -632,8 +622,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		qGetCommentByIDHandler = fn
 	case func(context.Context, *query.GetCommentNotificationUsers) error:
 		qGetCommentNotificationUsersHandler = fn
-	case func(context.Context, *query.GetCreativeVersionsByIDs) error:
-		qGetCreativeVersionsByIDsHandler = fn
 	case func(context.Context, *query.GetCurrentUserSettings) error:
 		qGetCurrentUserSettingsHandler = fn
 	case func(context.Context, *query.GetCustomOAuthConfigByProvider) error:
@@ -706,10 +694,12 @@ func registerTypedHandler(handler HandlerFunc) {
 		qGetReportReasonsHandler = fn
 	case func(context.Context, *query.GetRolePermissionState) error:
 		qGetRolePermissionStateHandler = fn
-	case func(context.Context, *query.GetSponsorshipCampaignByID) error:
-		qGetSponsorshipCampaignByIDHandler = fn
-	case func(context.Context, *query.GetSponsorshipPackageByID) error:
-		qGetSponsorshipPackageByIDHandler = fn
+	case func(context.Context, *query.GetSponsorManagement) error:
+		qGetSponsorManagementHandler = fn
+	case func(context.Context, *query.GetSponsorPlacements) error:
+		qGetSponsorPlacementsHandler = fn
+	case func(context.Context, *query.GetSponsorReport) error:
+		qGetSponsorReportHandler = fn
 	case func(context.Context, *query.GetSystemSettings) error:
 		qGetSystemSettingsHandler = fn
 	case func(context.Context, *query.GetTagBySlug) error:
@@ -758,8 +748,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		qListActiveOAuthProvidersHandler = fn
 	case func(context.Context, *query.ListActiveWebhooksByType) error:
 		qListActiveWebhooksByTypeHandler = fn
-	case func(context.Context, *query.ListAdPlacements) error:
-		qListAdPlacementsHandler = fn
 	case func(context.Context, *query.ListAllOAuthProviders) error:
 		qListAllOAuthProvidersHandler = fn
 	case func(context.Context, *query.ListAllReportReasons) error:
@@ -770,12 +758,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		qListAllWebhooksByTypeHandler = fn
 	case func(context.Context, *query.ListBlobs) error:
 		qListBlobsHandler = fn
-	case func(context.Context, *query.ListCampaignAssignmentsByCampaign) error:
-		qListCampaignAssignmentsByCampaignHandler = fn
 	case func(context.Context, *query.ListCannedResponses) error:
 		qListCannedResponsesHandler = fn
-	case func(context.Context, *query.ListCreativeVersionsByCampaign) error:
-		qListCreativeVersionsByCampaignHandler = fn
 	case func(context.Context, *query.ListCustomOAuthConfig) error:
 		qListCustomOAuthConfigHandler = fn
 	case func(context.Context, *query.ListFeedbackExportPresets) error:
@@ -788,8 +772,6 @@ func registerTypedHandler(handler HandlerFunc) {
 		qListPostVotesHandler = fn
 	case func(context.Context, *query.ListReports) error:
 		qListReportsHandler = fn
-	case func(context.Context, *query.ListSponsorshipCampaigns) error:
-		qListSponsorshipCampaignsHandler = fn
 	case func(context.Context, *query.ListSponsorshipPackages) error:
 		qListSponsorshipPackagesHandler = fn
 	case func(context.Context, *query.MarkWebhookAsFailed) error:
@@ -848,6 +830,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.AddVote")
 		}
 		return cAddVoteHandler(ctx, m)
+	case *cmd.AllocateSponsors:
+		if cAllocateSponsorsHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.AllocateSponsors")
+		}
+		return cAllocateSponsorsHandler(ctx, m)
 	case *cmd.ApplyPostVote:
 		if cApplyPostVoteHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.ApplyPostVote")
@@ -913,11 +900,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.CreateComment")
 		}
 		return cCreateCommentHandler(ctx, m)
-	case *cmd.CreateCreativeVersion:
-		if cCreateCreativeVersionHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.CreateCreativeVersion")
-		}
-		return cCreateCreativeVersionHandler(ctx, m)
 	case *cmd.CreateFeedbackExportPreset:
 		if cCreateFeedbackExportPresetHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.CreateFeedbackExportPreset")
@@ -948,11 +930,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.CreateReportReason")
 		}
 		return cCreateReportReasonHandler(ctx, m)
-	case *cmd.CreateSponsorshipCampaign:
-		if cCreateSponsorshipCampaignHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.CreateSponsorshipCampaign")
-		}
-		return cCreateSponsorshipCampaignHandler(ctx, m)
 	case *cmd.CreateSponsorshipPackage:
 		if cCreateSponsorshipPackageHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.CreateSponsorshipPackage")
@@ -1038,11 +1015,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.DeleteReportReason")
 		}
 		return cDeleteReportReasonHandler(ctx, m)
-	case *cmd.DeleteSponsorshipCampaign:
-		if cDeleteSponsorshipCampaignHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.DeleteSponsorshipCampaign")
-		}
-		return cDeleteSponsorshipCampaignHandler(ctx, m)
 	case *cmd.DeleteSponsorshipPackage:
 		if cDeleteSponsorshipPackageHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.DeleteSponsorshipPackage")
@@ -1103,11 +1075,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.ImportMediaInventory")
 		}
 		return cImportMediaInventoryHandler(ctx, m)
-	case *cmd.IncrementSponsorshipClick:
-		if cIncrementSponsorshipClickHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.IncrementSponsorshipClick")
-		}
-		return cIncrementSponsorshipClickHandler(ctx, m)
 	case *cmd.ListModerationFailures:
 		if cListModerationFailuresHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.ListModerationFailures")
@@ -1188,6 +1155,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.PurgeReadNotifications")
 		}
 		return cPurgeReadNotificationsHandler(ctx, m)
+	case *cmd.RecordSponsorClick:
+		if cRecordSponsorClickHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.RecordSponsorClick")
+		}
+		return cRecordSponsorClickHandler(ctx, m)
 	case *cmd.RefreshMediaInventory:
 		if cRefreshMediaInventoryHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.RefreshMediaInventory")
@@ -1278,11 +1250,21 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.SavePushSubscription")
 		}
 		return cSavePushSubscriptionHandler(ctx, m)
-	case *cmd.SaveSponsorshipCampaignGraph:
-		if cSaveSponsorshipCampaignGraphHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.SaveSponsorshipCampaignGraph")
+	case *cmd.SaveSponsorCampaign:
+		if cSaveSponsorCampaignHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.SaveSponsorCampaign")
 		}
-		return cSaveSponsorshipCampaignGraphHandler(ctx, m)
+		return cSaveSponsorCampaignHandler(ctx, m)
+	case *cmd.SaveSponsorExclusion:
+		if cSaveSponsorExclusionHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.SaveSponsorExclusion")
+		}
+		return cSaveSponsorExclusionHandler(ctx, m)
+	case *cmd.SaveSponsorPlacement:
+		if cSaveSponsorPlacementHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.SaveSponsorPlacement")
+		}
+		return cSaveSponsorPlacementHandler(ctx, m)
 	case *cmd.SaveVerificationKey:
 		if cSaveVerificationKeyHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.SaveVerificationKey")
@@ -1398,11 +1380,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.UnlockPost")
 		}
 		return cUnlockPostHandler(ctx, m)
-	case *cmd.UpdateAdPlacement:
-		if cUpdateAdPlacementHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.UpdateAdPlacement")
-		}
-		return cUpdateAdPlacementHandler(ctx, m)
 	case *cmd.UpdateCannedResponse:
 		if cUpdateCannedResponseHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.UpdateCannedResponse")
@@ -1463,11 +1440,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.UpdateRolePermissions")
 		}
 		return cUpdateRolePermissionsHandler(ctx, m)
-	case *cmd.UpdateSponsorshipCampaign:
-		if cUpdateSponsorshipCampaignHandler == nil {
-			return fmt.Errorf("handler not registered: cmd.UpdateSponsorshipCampaign")
-		}
-		return cUpdateSponsorshipCampaignHandler(ctx, m)
 	case *cmd.UpdateSponsorshipPackage:
 		if cUpdateSponsorshipPackageHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.UpdateSponsorshipPackage")
@@ -1513,6 +1485,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.UploadPageEditBanner")
 		}
 		return cUploadPageEditBannerHandler(ctx, m)
+	case *cmd.UploadSponsorImage:
+		if cUploadSponsorImageHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.UploadSponsorImage")
+		}
+		return cUploadSponsorImageHandler(ctx, m)
 	case *cmd.UserListCreateCompany:
 		if cUserListCreateCompanyHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.UserListCreateCompany")
@@ -1593,11 +1570,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.FetchRecentSupressions")
 		}
 		return qFetchRecentSupressionsHandler(ctx, m)
-	case *query.GetActiveAdCandidates:
-		if qGetActiveAdCandidatesHandler == nil {
-			return fmt.Errorf("handler not registered: query.GetActiveAdCandidates")
-		}
-		return qGetActiveAdCandidatesHandler(ctx, m)
 	case *query.GetActiveNotifications:
 		if qGetActiveNotificationsHandler == nil {
 			return fmt.Errorf("handler not registered: query.GetActiveNotifications")
@@ -1688,11 +1660,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.GetCommentNotificationUsers")
 		}
 		return qGetCommentNotificationUsersHandler(ctx, m)
-	case *query.GetCreativeVersionsByIDs:
-		if qGetCreativeVersionsByIDsHandler == nil {
-			return fmt.Errorf("handler not registered: query.GetCreativeVersionsByIDs")
-		}
-		return qGetCreativeVersionsByIDsHandler(ctx, m)
 	case *query.GetCurrentUserSettings:
 		if qGetCurrentUserSettingsHandler == nil {
 			return fmt.Errorf("handler not registered: query.GetCurrentUserSettings")
@@ -1873,16 +1840,21 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.GetRolePermissionState")
 		}
 		return qGetRolePermissionStateHandler(ctx, m)
-	case *query.GetSponsorshipCampaignByID:
-		if qGetSponsorshipCampaignByIDHandler == nil {
-			return fmt.Errorf("handler not registered: query.GetSponsorshipCampaignByID")
+	case *query.GetSponsorManagement:
+		if qGetSponsorManagementHandler == nil {
+			return fmt.Errorf("handler not registered: query.GetSponsorManagement")
 		}
-		return qGetSponsorshipCampaignByIDHandler(ctx, m)
-	case *query.GetSponsorshipPackageByID:
-		if qGetSponsorshipPackageByIDHandler == nil {
-			return fmt.Errorf("handler not registered: query.GetSponsorshipPackageByID")
+		return qGetSponsorManagementHandler(ctx, m)
+	case *query.GetSponsorPlacements:
+		if qGetSponsorPlacementsHandler == nil {
+			return fmt.Errorf("handler not registered: query.GetSponsorPlacements")
 		}
-		return qGetSponsorshipPackageByIDHandler(ctx, m)
+		return qGetSponsorPlacementsHandler(ctx, m)
+	case *query.GetSponsorReport:
+		if qGetSponsorReportHandler == nil {
+			return fmt.Errorf("handler not registered: query.GetSponsorReport")
+		}
+		return qGetSponsorReportHandler(ctx, m)
 	case *query.GetSystemSettings:
 		if qGetSystemSettingsHandler == nil {
 			return fmt.Errorf("handler not registered: query.GetSystemSettings")
@@ -2003,11 +1975,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.ListActiveWebhooksByType")
 		}
 		return qListActiveWebhooksByTypeHandler(ctx, m)
-	case *query.ListAdPlacements:
-		if qListAdPlacementsHandler == nil {
-			return fmt.Errorf("handler not registered: query.ListAdPlacements")
-		}
-		return qListAdPlacementsHandler(ctx, m)
 	case *query.ListAllOAuthProviders:
 		if qListAllOAuthProvidersHandler == nil {
 			return fmt.Errorf("handler not registered: query.ListAllOAuthProviders")
@@ -2033,21 +2000,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.ListBlobs")
 		}
 		return qListBlobsHandler(ctx, m)
-	case *query.ListCampaignAssignmentsByCampaign:
-		if qListCampaignAssignmentsByCampaignHandler == nil {
-			return fmt.Errorf("handler not registered: query.ListCampaignAssignmentsByCampaign")
-		}
-		return qListCampaignAssignmentsByCampaignHandler(ctx, m)
 	case *query.ListCannedResponses:
 		if qListCannedResponsesHandler == nil {
 			return fmt.Errorf("handler not registered: query.ListCannedResponses")
 		}
 		return qListCannedResponsesHandler(ctx, m)
-	case *query.ListCreativeVersionsByCampaign:
-		if qListCreativeVersionsByCampaignHandler == nil {
-			return fmt.Errorf("handler not registered: query.ListCreativeVersionsByCampaign")
-		}
-		return qListCreativeVersionsByCampaignHandler(ctx, m)
 	case *query.ListCustomOAuthConfig:
 		if qListCustomOAuthConfigHandler == nil {
 			return fmt.Errorf("handler not registered: query.ListCustomOAuthConfig")
@@ -2078,11 +2035,6 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: query.ListReports")
 		}
 		return qListReportsHandler(ctx, m)
-	case *query.ListSponsorshipCampaigns:
-		if qListSponsorshipCampaignsHandler == nil {
-			return fmt.Errorf("handler not registered: query.ListSponsorshipCampaigns")
-		}
-		return qListSponsorshipCampaignsHandler(ctx, m)
 	case *query.ListSponsorshipPackages:
 		if qListSponsorshipPackagesHandler == nil {
 			return fmt.Errorf("handler not registered: query.ListSponsorshipPackages")

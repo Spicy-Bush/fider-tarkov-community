@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/api"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
@@ -53,7 +54,15 @@ func BenchmarkSubmissionReceiptsHTTP(b *testing.B) {
 					b.Fatal(err)
 				}
 				template := string(encoded)
+				uploadIdentity := actions.NewFileUploadID(f.tenant.ID, f.user.ID)
 				request := func(id string) {
+					if kind == "file" {
+						if id == "warm-up" {
+							id = uploadIdentity
+						} else {
+							id = actions.NewFileUploadID(f.tenant.ID, f.user.ID)
+						}
+					}
 					payload := strings.ReplaceAll(template, "RECEIPT-ID", id)
 					response, err := f.requestWithParams(handler, http.MethodPost, "/api/submission", payload, params)
 					if err != nil || response.Code != http.StatusOK {

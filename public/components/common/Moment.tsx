@@ -25,7 +25,7 @@ export const Moment = (props: MomentText) => {
   }
 
   const getRefreshInterval = (): number => {
-    const diffInSeconds = getTimeDiff()
+    const diffInSeconds = Math.abs(getTimeDiff())
     
     if (diffInSeconds < 60) {
       return 1000

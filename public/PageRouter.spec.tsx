@@ -207,10 +207,10 @@ test("a cancelled view transition cannot publish or block the next navigation", 
   trigger.getBoundingClientRect = () => ({ top: 20, bottom: 40 }) as DOMRect
 
   const { controller, interception } = startNavigation("/posts/1", { sourceElement: trigger })
-  document.startViewTransition = jest.fn((update: () => void) => {
+  document.startViewTransition = jest.fn((update: () => Promise<void>) => {
     const done = Promise.resolve().then(() => {
       controller.abort()
-      update()
+      return update()
     })
 
     return { updateCallbackDone: done, finished: done, ready: Promise.resolve(), skipTransition: jest.fn() }
@@ -231,6 +231,27 @@ test("a cancelled view transition cannot publish or block the next navigation", 
 
   expect(screen.getByRole("main")).toHaveTextContent("/posts/2")
   expect(Fider.refresh).toHaveBeenCalledTimes(1)
+})
+
+test("restores scroll before the view transition captures the new page", async () => {
+  window.matchMedia = (() => ({ matches: false })) as typeof window.matchMedia
+  render(<PageRouter initialPageName={Fider.session.page} />)
+  respond("/posts/1")
+
+  const trigger = document.createElement("a")
+  trigger.dataset.morph = "post-1"
+  trigger.getBoundingClientRect = () => ({ top: 20, bottom: 40 }) as DOMRect
+  document.startViewTransition = jest.fn((update: () => void) => {
+    const done = Promise.resolve().then(() => {
+      update()
+      expect(window.scrollTo).toHaveBeenCalledWith(0, 0)
+    })
+
+    return { updateCallbackDone: done, finished: done, ready: done, skipTransition: jest.fn() }
+  }) as typeof document.startViewTransition
+
+  await finishNavigation(startNavigation("/posts/1", { sourceElement: trigger }).interception)
+  expect(document.startViewTransition).toHaveBeenCalledTimes(1)
 })
 
 test.each([false, true])("page animation respects reduced motion (%s) without a shared title", async (reduced) => {

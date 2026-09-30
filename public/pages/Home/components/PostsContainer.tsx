@@ -1,11 +1,10 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { Post, Tag, CurrentUser, FEED_AD_EVERY } from "@fider/models"
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import { Post, Tag, CurrentUser } from "@fider/models"
 import { Input, SwipeMode, SwipeModeButton } from "@fider/components"
 import { actions } from "@fider/services"
 import { heroiconsSearch as IconSearch, heroiconsX as IconX } from "@fider/icons.generated"
 import { FilterPanel } from "./FilterPanel"
 import { ListPosts, PostListRow } from "./ListPosts"
-import { useAdSelection } from "@fider/components/sponsorship"
 import { i18n } from "@lingui/core"
 import { PostsSort } from "./PostsSort"
 import { usePostFilters, FilterState, hasSamePostCriteria } from "@fider/hooks/usePostFilters"
@@ -110,27 +109,6 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const request = useRef<AbortController>()
   const { posts, hasMore } = list
-
-  const feedSlots = useMemo(() => {
-    const near = new Set(visible)
-    const indices = new Set<number>()
-
-    posts.forEach((post, index) => {
-      if (near.has(post.id)) {
-        indices.add(Math.floor(index / FEED_AD_EVERY))
-
-        if (index > 0 && index % FEED_AD_EVERY === 0) {
-          indices.add(index / FEED_AD_EVERY - 1)
-        }
-      }
-    })
-
-    return [...indices].filter((index) => (index + 1) * FEED_AD_EVERY <= posts.length).map((index) => ({
-      instanceId: `feed-${index}`,
-      placementId: "feed_native",
-    }))
-  }, [posts, visible])
-  const { ads: feedAds, error: feedAdsError, retry: retryAds } = useAdSelection(feedSlots)
 
   const loadPosts = useCallback(async (mode: PostLoadMode) => {
     if (mode === "append" && (list.filters !== filters || (request.current && !request.current.signal.aborted))) {
@@ -404,14 +382,13 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
         className={loading === "replace" && posts.length > 0 ? "opacity-60 transition-opacity duration-150 delay-100" : "transition-opacity duration-75"}
         aria-busy={loading !== null}
       >
-        {(recordsError || feedAdsError) && (
+        {recordsError && (
           <div role="alert" className="sticky top-4 z-10 mb-4 flex items-center justify-center gap-3 rounded-card bg-elevated p-3 text-sm shadow">
-            <span>{recordsError || "Could not load advertisements. Please try again."}</span>
+            <span>{recordsError}</span>
             <button
               className="cursor-pointer font-medium text-primary hover:underline"
               onClick={() => {
                 setRecordsError(undefined)
-                if (feedAdsError) retryAds()
               }}
             >
               Retry
@@ -423,7 +400,6 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
           tags={props.tags}
           loading={loading === "replace" && posts.length === 0}
           insertFeedAds
-          feedAds={feedAds}
           feedAdHeights={reading.saved?.adHeights}
           emptyText={i18n._("home.postscontainer.label.noresults", { message: "No results matched your search, try something different." })}
         />

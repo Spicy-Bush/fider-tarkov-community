@@ -101,17 +101,13 @@ func TestDiscussionStorageSubmissionAndOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(roots.Result) != 1 || !roots.Result[0].Deleted || !roots.Result[0].HasReplies {
-		t.Fatalf("deleted ancestor became unreachable: %+v", roots.Result)
+	if len(roots.Result) != 1 || roots.Result[0].ID != reply.Result.ID || roots.Result[0].ParentID != nil {
+		t.Fatalf("reply was not promoted past its deleted parent: %+v", roots.Result)
 	}
 
 	children := &query.GetDiscussionComments{Discussion: owner.Result, ParentID: &rootID}
-	if err := bus.Dispatch(aryaStarkCtx, children); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(children.Result) != 1 || children.Result[0].ID != reply.Result.ID {
-		t.Fatal("deleting a parent lost its reply")
+	if err := bus.Dispatch(aryaStarkCtx, children); errors.Cause(err) != app.ErrNotFound {
+		t.Fatalf("deleted parent remained addressable: %v", err)
 	}
 }
 

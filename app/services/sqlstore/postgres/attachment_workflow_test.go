@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/api"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
@@ -68,7 +69,7 @@ func TestFileUploadPreservesImageSizingAndFormat(t *testing.T) {
 		}
 
 		body, err := json.Marshal(map[string]any{
-			"submissionId": "file-sizing-" + strconv.Itoa(size),
+			"submissionId": actions.NewFileUploadID(f.tenant.ID, f.user.ID),
 			"uploadType":   "file",
 			"name":         "File upload",
 			"file":         upload,
@@ -103,7 +104,7 @@ func TestFileUploadPreservesImageSizingAndFormat(t *testing.T) {
 	}
 
 	body, err := json.Marshal(map[string]any{
-		"submissionId": "unsupported-svg",
+		"submissionId": actions.NewFileUploadID(f.tenant.ID, f.user.ID),
 		"uploadType":   "file",
 		"name":         "Unsupported SVG",
 		"file": &dto.ImageUpload{Upload: &dto.ImageUploadData{
@@ -131,7 +132,7 @@ func TestFileUploadRejectsUnsafeImages(t *testing.T) {
 	binary.BigEndian.PutUint32(bomb[29:33], crc32.ChecksumIEEE(bomb[12:29]))
 	before := workflowCount(t, "SELECT COUNT(*) FROM blobs")
 
-	for index, test := range []struct {
+	for _, test := range []struct {
 		content []byte
 		message string
 	}{
@@ -139,7 +140,7 @@ func TestFileUploadRejectsUnsafeImages(t *testing.T) {
 		{original[:40], "File not supported"},
 	} {
 		body, err := json.Marshal(map[string]any{
-			"submissionId": "unsafe-image-" + strconv.Itoa(index),
+			"submissionId": actions.NewFileUploadID(f.tenant.ID, f.user.ID),
 			"uploadType":   "file",
 			"name":         "Invalid image",
 			"file": &dto.ImageUpload{Upload: &dto.ImageUploadData{

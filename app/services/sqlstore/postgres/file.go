@@ -20,6 +20,17 @@ import (
 )
 
 func uploadImageFile(ctx context.Context, c *cmd.UploadImageFile) error {
+	return uploadManagedImage(ctx, c, entity.ManageFiles)
+}
+
+func uploadSponsorImage(ctx context.Context, c *cmd.UploadSponsorImage) error {
+	upload := &cmd.UploadImageFile{Name: c.Name, Content: c.Content, SubmissionID: c.SubmissionID, Type: enum.FileUploadPublic}
+	err := uploadManagedImage(ctx, upload, entity.ManageSponsorship)
+	c.Result = upload.Result
+	return err
+}
+
+func uploadManagedImage(ctx context.Context, c *cmd.UploadImageFile, permission entity.Permission) error {
 	c.Result = nil
 	tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 	user := ctx.Value(app.UserCtxKey).(*entity.User)
@@ -38,7 +49,7 @@ func uploadImageFile(ctx context.Context, c *cmd.UploadImageFile) error {
 	var prepared *dto.PreparedImage
 	for {
 		err := using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-			ctx, err := permissionContext(ctx, trx, tenant, user, entity.ManageFiles)
+			ctx, err := permissionContext(ctx, trx, tenant, user, permission)
 			if err != nil {
 				return err
 			}

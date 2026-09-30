@@ -20,7 +20,7 @@ import (
 	"github.com/reearth/ygo/crdt"
 )
 
-func TestAdPlacementSettingsBelongToTenant(t *testing.T) {
+func TestSponsorPlacementSettingsBelongToTenant(t *testing.T) {
 	f := newPostWorkflow(t)
 	otherTenant := &query.GetTenantByDomain{Domain: "avengers"}
 	if err := bus.Dispatch(f.ctx, otherTenant); err != nil {
@@ -28,20 +28,19 @@ func TestAdPlacementSettingsBelongToTenant(t *testing.T) {
 	}
 
 	otherCtx := withTenant(f.ctx, otherTenant.Result)
-	before := &query.ListAdPlacements{}
+	before := &query.GetSponsorPlacements{}
 	if err := bus.Dispatch(otherCtx, before); err != nil {
 		t.Fatal(err)
 	}
 
-	handler := middlewares.RequirePermission(entity.ManageSponsorship)(api.UpdateAdPlacement())
-	response, err := f.requestWithParams(handler, http.MethodPut, "/api/ads/placements/sidebar_top",
-		`{"adsenseSlotId":"tenant-one-slot","adsenseFormat":"rectangle","emptyPolicy":"reserve"}`,
-		web.StringMap{"id": "sidebar_top"})
+	handler := middlewares.RequirePermission(entity.ManageSponsorship)(api.SaveSponsorPlacement())
+	body := `{"submissionId":"placement-save","placement":{"id":"home_desktop","enabled":true,"position":"sidebar","every":0,"empty":"adsense","adsenseSlotId":"1234567890"}}`
+	response, err := f.requestWithParams(handler, http.MethodPost, "/api/sponsorship/placements", body, nil)
 	if err != nil || response.Code != http.StatusOK {
 		t.Fatalf("placement update: status=%d body=%s err=%v", response.Code, response.Body, err)
 	}
 
-	after := &query.ListAdPlacements{}
+	after := &query.GetSponsorPlacements{}
 	if err := bus.Dispatch(otherCtx, after); err != nil {
 		t.Fatal(err)
 	}
@@ -63,9 +62,7 @@ func TestAdPlacementSettingsBelongToTenant(t *testing.T) {
 					f.tenant.RolePermissions[role] = map[entity.Permission]bool{entity.ManageSponsorship: true}
 				}
 
-				response, err := f.requestWithParams(handler, http.MethodPut, "/api/ads/placements/sidebar_top",
-					`{"adsenseSlotId":"own-slot","adsenseFormat":"fluid","emptyPolicy":"collapse"}`,
-					web.StringMap{"id": "sidebar_top"})
+				response, err := f.requestWithParams(handler, http.MethodPost, "/api/sponsorship/placements", body, nil)
 				want := http.StatusForbidden
 				if delegated || role == enum.RoleAdministrator || role == enum.RoleCollaborator {
 					want = http.StatusOK
@@ -78,7 +75,7 @@ func TestAdPlacementSettingsBelongToTenant(t *testing.T) {
 	}
 
 	f.user = nil
-	response, err = f.requestWithParams(handler, http.MethodPut, "/api/ads/placements/sidebar_top", `{}`, web.StringMap{"id": "sidebar_top"})
+	response, err = f.requestWithParams(handler, http.MethodPost, "/api/sponsorship/placements", body, nil)
 	if err != nil || response.Code != http.StatusUnauthorized {
 		t.Fatalf("anonymous placement update: status=%d err=%v", response.Code, err)
 	}
@@ -89,14 +86,14 @@ func TestAdPlacementSettingsBelongToTenant(t *testing.T) {
 		Status: enum.UserBlocked,
 		Tenant: f.tenant,
 	}
-	response, err = f.requestWithParams(handler, http.MethodPut, "/api/ads/placements/sidebar_top", `{}`, web.StringMap{"id": "sidebar_top"})
+	response, err = f.requestWithParams(handler, http.MethodPost, "/api/sponsorship/placements", body, nil)
 	if err != nil || response.Code != http.StatusForbidden {
 		t.Fatalf("blocked placement update: status=%d err=%v", response.Code, err)
 	}
 
 	f.user.Status = enum.UserActive
-	response, err = f.requestWithParams(handler, http.MethodPut, "/api/ads/placements/unknown", `{}`, web.StringMap{"id": "unknown"})
-	if response.Code != http.StatusNotFound {
+	response, err = f.requestWithParams(handler, http.MethodPost, "/api/sponsorship/placements", `{"placement":{"id":"unknown"}}`, nil)
+	if response.Code != http.StatusBadRequest {
 		t.Fatalf("unknown placement update: status=%d err=%v", response.Code, err)
 	}
 

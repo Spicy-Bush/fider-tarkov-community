@@ -10,7 +10,7 @@ import { PostsContainer } from "./components/PostsContainer"
 import { useFider } from "@fider/hooks"
 import { FilterState } from "@fider/hooks/usePostFilters"
 import { VStack } from "@fider/components/layout"
-import { AdSlot, useAdSelection } from "@fider/components/sponsorship"
+import { SponsorSpot, useSponsorPlacement } from "@fider/components/sponsorship/SponsorProvider"
 import { isContentDismissed, dismissContentByValue, DismissableContentTypes } from "@fider/services/device"
 
 import { i18n } from "@lingui/core"
@@ -51,6 +51,7 @@ const Lonely = () => {
 
 const HomePage = (props: HomePageProps) => {
   const fider = useFider()
+  const feedPlacement = useSponsorPlacement("feed")
   const [title, setTitle] = useState("")
   const [showMessageBanner, setShowMessageBanner] = useState(true)
   
@@ -118,10 +119,6 @@ What can we do better? This is the place for you to vote, discuss and share idea
     return null
   }
 
-  const { ads: sidebarAds, loaded: sidebarLoaded, error: sidebarError } = useAdSelection([
-    { instanceId: "sidebar", placementId: "sidebar_top" },
-  ])
-
   return (
     <div id="p-home" className="page container grid grid-cols-1 gap-y-6 lg:grid-cols-3 lg:gap-x-6 lg:gap-y-0 grow">
       {/* Welcome column - 1 column on lg */}
@@ -140,33 +137,33 @@ What can we do better? This is the place for you to vote, discuss and share idea
               <span className="font-medium text-sm">Support us on Ko-fi</span>
             </a>
           </div>
-          <AdSlot
-            instanceId="sidebar"
-            placementId="sidebar_top"
-            ad={sidebarLoaded && !sidebarError ? (sidebarAds["sidebar"] ?? null) : undefined}
-            selectFailed={sidebarError}
-            className="mt-4"
-          />
+          <SponsorSpot position="sidebar" />
         </VStack>
       </div>
       {/* Posts column - 2 columns on lg */}
-      <div className="p-home__posts-col col-span-1 lg:col-span-2 bg-elevated rounded-panel border border-border p-4 self-start">
-        {isLonely() ? (
-          <Lonely />
-        ) : title ? (
-          <SimilarPosts title={title} tags={props.tags} />
-        ) : (
-          <>
-            {renderMessageBanner()}
-            <PostsContainer
-              posts={props.posts}
-              tags={props.tags}
-              countPerStatus={props.countPerStatus}
-              initialFilters={props.initialFilters}
-              savedFiltersAt={props.savedFiltersAt}
-            />
-          </>
-        )}
+      <div className="col-span-1 min-w-0 self-start lg:col-span-2">
+        <SponsorSpot position="navigation" />
+        <div className="p-home__posts-col rounded-panel border border-border bg-elevated p-4">
+          {isLonely() ? (
+            <Lonely />
+          ) : title ? (
+            <SimilarPosts title={title} tags={props.tags} />
+          ) : (
+            <>
+              {renderMessageBanner()}
+              <PostsContainer
+                posts={props.posts}
+                tags={props.tags}
+                countPerStatus={props.countPerStatus}
+                initialFilters={props.initialFilters}
+                savedFiltersAt={props.savedFiltersAt}
+              />
+            </>
+          )}
+          {fider.session.props.sponsorPreview && feedPlacement && props.posts.length < feedPlacement.every && (
+            <SponsorSpot position="feed" />
+          )}
+        </div>
       </div>
     </div>
   )

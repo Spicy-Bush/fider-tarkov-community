@@ -175,12 +175,6 @@ func getActiveNotifications(ctx context.Context, q *query.GetActiveNotifications
 		}
 		q.UnreadCount = snapshot.Unread
 		q.ReadCount = snapshot.Read
-		q.TotalCount = snapshot.Unread + snapshot.Read
-		if q.Type == "unread" {
-			q.TotalCount = snapshot.Unread
-		} else if q.Type == "read" {
-			q.TotalCount = snapshot.Read
-		}
 
 		return nil
 	})

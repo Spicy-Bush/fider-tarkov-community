@@ -3,7 +3,6 @@ import { Notification } from "@fider/models"
 
 export interface PaginatedNotifications {
   notifications: Notification[]
-  total: number
   unreadTotal: number
   readTotal: number
   page: number

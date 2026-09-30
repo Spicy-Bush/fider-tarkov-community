@@ -156,7 +156,7 @@ func TestHiddenPostDiscussionVisibility(t *testing.T) {
 				if err := bus.Dispatch(ctx, list); err != nil {
 					t.Fatal(err)
 				}
-				if (count.Result == 1) != visible || (len(list.Result) == 1) != visible || list.TotalCount != count.Result {
+				if (count.Result == 1) != visible || (len(list.Result) == 1) != visible || list.UnreadCount != count.Result {
 					t.Errorf("status %v hidden %v viewer %d notifications: count %d, rows %d", status, hidden, index, count.Result, len(list.Result))
 				}
 

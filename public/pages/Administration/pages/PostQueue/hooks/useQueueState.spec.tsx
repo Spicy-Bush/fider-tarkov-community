@@ -8,7 +8,7 @@ jest.mock("@fider/hooks", () => ({
   useFider: () => ({ settings: { queueDefaultDate: "" }, session: { user: { id: 1 } } }),
 }))
 jest.mock("@fider/services", () => ({
-  actions: { getPost: jest.fn(), getPostAttachments: jest.fn() },
+  actions: { getPost: jest.fn(), getPostAttachments: jest.fn(), searchPosts: jest.fn() },
   PAGINATION: { QUEUE_LIMIT: 20 },
 }))
 
@@ -60,4 +60,33 @@ test("a late edit completion does not replace a different selected post", () => 
   act(() => result.current.selectPost(next))
   act(() => result.current.updatePost({ id: 1, title: "Saved title", description: "Saved content" }))
   expect(result.current.selectedPost).toBe(next)
+})
+
+test("sorting keeps the list visible and ignores a superseded response", async () => {
+  let complete!: (value: Awaited<ReturnType<typeof actions.searchPosts>>) => void
+  jest.mocked(actions.searchPosts).mockReturnValueOnce(new Promise((resolve) => { complete = resolve }))
+  const newest = { ...original, id: 2, number: 2 }
+  jest.mocked(actions.searchPosts).mockResolvedValueOnce({
+    ok: true, data: [newest], headers: new Headers({ "X-Total-Count": "1" }),
+  })
+  const { result } = renderHook(useQueueState)
+  act(() => result.current.setPosts([original]))
+
+  let first!: Promise<void>
+  act(() => { first = result.current.loadPosts() })
+  expect(result.current.posts).toEqual([original])
+  expect(result.current.isLoading).toBe(true)
+
+  act(() => result.current.setSortOption("oldest"))
+  await act(async () => result.current.loadPosts())
+  expect(jest.mocked(actions.searchPosts).mock.calls[0][1]?.signal?.aborted).toBe(true)
+
+  await act(async () => {
+    complete({ ok: true, data: [original], headers: new Headers({ "X-Total-Count": "20" }) })
+    await first
+  })
+
+  expect(result.current.posts).toEqual([newest])
+  expect(result.current.total).toBe(1)
+  expect(result.current.isLoading).toBe(false)
 })

@@ -66,7 +66,7 @@ export const DiscussionCommentCard = React.memo(function DiscussionCommentCard(p
       throw new Error(result.error.errors?.[0]?.message || "Could not delete this comment.")
     }
 
-    props.onChanged(result.data, "delete")
+    props.onChanged({ ...comment, state: "deleted" }, "delete")
     setDeleting(false)
   })
 

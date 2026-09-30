@@ -48,7 +48,6 @@ func GetAllNotifications() web.HandlerFunc {
 
 		return c.Ok(web.Map{
 			"notifications": q.Result,
-			"total":         q.TotalCount,
 			"page":          q.Page,
 			"perPage":       q.PerPage,
 			"unreadTotal":   q.UnreadCount,
@@ -104,7 +103,8 @@ func Notifications() web.HandlerFunc {
 			Title: "Notifications",
 			Data: web.Map{
 				"notifications": q.Result,
-				"total":         q.TotalCount,
+				"unreadTotal":   q.UnreadCount,
+				"readTotal":     q.ReadCount,
 				"page":          q.Page,
 				"perPage":       q.PerPage,
 			},

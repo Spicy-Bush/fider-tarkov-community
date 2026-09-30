@@ -1,64 +1,82 @@
 import React from "react"
 import { Button } from "@fider/components"
 import { SponsorshipPackage } from "@fider/models"
-import { VStack } from "@fider/components/layout"
-import { heroiconsSpeakerphone as IconSpeaker } from "@fider/icons.generated"
-import { Icon } from "@fider/components"
+import { SponsorPlacement } from "@fider/models/sponsorBooking"
 
 interface AdvertisePageProps {
   packages: SponsorshipPackage[]
+  placements: SponsorPlacement[]
   contact: string
 }
 
-const AdvertisePage: React.FC<AdvertisePageProps> = (props) => {
-  const packages = props.packages || []
-  const contact = props.contact || "contact@tarkov.community"
-  const mailto = `mailto:${contact}?subject=${encodeURIComponent("Sponsorship inquiry - tarkov.community")}`
+export default function AdvertisePage({ packages, placements, contact }: AdvertisePageProps) {
+  const subject = encodeURIComponent("Sponsorship enquiry - tarkov.community")
+  const mailto = `mailto:${contact}?subject=${subject}`
 
   return (
-    <div id="p-advertise" className="page container w-max-4xl py-10 pb-24">
-      <VStack spacing={6}>
-        <div className="flex items-center gap-3">
-          <Icon sprite={IconSpeaker} className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-bold tracking-tight">Advertise</h1>
-        </div>
-        <p className="text-muted text-base leading-relaxed">
-          Reach Escape from Tarkov players on tarkov.community with native feed placements and
-          contextual slots. Packages below describe what we offer - no public pricing. Tell us
-          your goals and we will follow up with availability and rates.
+    <div id="p-advertise" className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 sm:py-16">
+      <header className="grid max-w-2xl gap-4">
+        <h1 className="text-large">Sponsor Tarkov Community</h1>
+        <p className="m-0 text-lg leading-relaxed text-muted">
+          Reach Tarkov players and help keep this community page running!
         </p>
+      </header>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          {packages.length === 0 ? (
-            <p className="text-muted col-span-full">
-              Packages will appear here once configured. You can still reach out to discuss a custom placement.
-            </p>
-          ) : (
-            packages.map((pkg) => (
-              <div key={pkg.id} className="rounded-panel border border-border bg-elevated p-4">
-                <h2 className="text-lg font-semibold mb-1">{pkg.name}</h2>
-                {pkg.description ? <p className="text-muted text-sm mb-3 whitespace-pre-wrap">{pkg.description}</p> : null}
-                <ul className="text-sm text-muted space-y-1">
-                  {pkg.slots ? <li>Slots: {pkg.slots}</li> : null}
-                  {pkg.durationDays > 0 ? <li>Typical duration: {pkg.durationDays} days</li> : null}
-                </ul>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="rounded-panel border border-primary/30 bg-accent-light/40 p-5">
-          <h2 className="text-lg font-semibold mb-2">Get in touch</h2>
-          <p className="text-muted text-sm mb-4">
-            Email us with your brand, preferred dates, and creative format (image URL or HTML). We do not list dollar amounts on this page.
+      <section aria-label="Placements" className="my-10 grid gap-8 border-y border-border py-8 sm:grid-cols-2 sm:gap-12">
+        <article className="flex flex-col gap-2">
+          <div aria-hidden="true" className="mb-5 flex h-24 items-start rounded border border-border p-3">
+            <div className="h-7 w-full rounded-sm bg-primary/25" />
+          </div>
+          <h2 className="text-title">Community banner</h2>
+          <p className="m-0 leading-relaxed text-muted">
+            A wide image beneath the navigation.
           </p>
-          <Button variant="primary" href={mailto}>
-            Contact {contact}
-          </Button>
-        </div>
-      </VStack>
+        </article>
+        <article className="flex flex-col gap-2">
+          <div aria-hidden="true" className="mb-5 flex h-24 items-end gap-3 rounded border border-border p-3">
+            <div className="h-full w-1/3 rounded-sm bg-primary/25" />
+            <div className="h-7 flex-1 rounded-sm bg-primary/25" />
+          </div>
+          <h2 className="text-title">Sponsor panels</h2>
+          <p className="m-0 leading-relaxed text-muted">
+            Image placements beside the home feed or on post and community Pages.
+          </p>
+        </article>
+      </section>
+
+      {packages.length > 0 && (
+        <section aria-labelledby="sponsor-packages" className="mb-10 grid gap-5">
+          <h2 id="sponsor-packages" className="text-display">Packages</h2>
+          <div className="divide-y divide-border">
+            {packages.map(item => {
+              const slotIDs = item.slots.split(",")
+              const included = placements.filter(placement => slotIDs.includes(placement.id))
+
+              return (
+                <article key={item.id} className="py-5 first:pt-0">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-title">{item.name}</h3>
+                    <span className="text-sm text-muted">{item.durationDays} days</span>
+                  </div>
+                  {item.description && <p className="mb-0 mt-2 whitespace-pre-line text-muted">{item.description}</p>}
+                  {included.length > 0 && (
+                    <p className="mb-0 mt-2 text-sm text-muted">{included.map(placement => placement.name).join(", ")}</p>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="flex max-w-2xl flex-col items-start gap-3">
+        <h2 className="text-display">Plan a campaign</h2>
+        <p className="mb-5 leading-relaxed text-muted">
+          Send your brand, preferred dates and placements to {contact}.
+          We will confirm availability, rates and artwork.
+        </p>
+        <Button variant="primary" href={mailto}>Enquire about sponsorship</Button>
+      </section>
     </div>
   )
 }
-
-export default AdvertisePage

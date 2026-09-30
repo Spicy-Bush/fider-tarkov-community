@@ -200,6 +200,7 @@ export function usePostVote(post: Post) {
     upvotes: shown.upvotes,
     downvotes: shown.downvotes,
     lastActivityAt: snapshot.vote.lastActivityAt,
+    revision: snapshot.vote.revision,
     refresh,
     status: PostStatus.Get(post.status),
     isDisabled: session.isAuthenticated && (!post.permissions.vote || !canVote(sessions.get(session)?.get(key))),

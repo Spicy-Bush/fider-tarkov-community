@@ -20,7 +20,7 @@ function deferred<T>() {
 const item = (id: number, read = false) => ({ id, read, title: `Notification ${id}` } as Notification)
 const page = (items: Notification[], unreadTotal: number, readTotal: number, page = 1) => ({
   ok: true as const,
-  data: { notifications: items, total: items[0]?.read ? readTotal : unreadTotal, unreadTotal, readTotal, page, perPage: 10 },
+  data: { notifications: items, unreadTotal, readTotal, page, perPage: 10 },
 })
 
 async function settle() {

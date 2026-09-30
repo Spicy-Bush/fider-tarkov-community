@@ -113,19 +113,11 @@ export class FiderImpl {
     }
 
     this.pSession = new FiderSession(data)
-    this.syncAdSenseClient()
     return this
   }
 
   public refresh(data: ServerData): void {
     this.pSession.refresh(data)
-    this.syncAdSenseClient()
-  }
-
-  private syncAdSenseClient(): void {
-    if (typeof window === "undefined") return
-
-    window.__adsense_client = (this.settings?.googleAdSense || "").trim()
   }
 
   public get currentLocale(): string {

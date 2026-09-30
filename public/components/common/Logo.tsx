@@ -52,13 +52,9 @@ export const OAuthProviderLogoURL = (logoBlobKey?: string): string | undefined =
 }
 
 export const OAuthProviderLogo = (props: OAuthProviderLogoProps) => {
-  if (props.option.logoBlobKey) {
-    return <img src={OAuthProviderLogoURL(props.option.logoBlobKey)} alt={props.option.displayName} />
-  }
+  const source = props.option.logoBlobKey
+    ? OAuthProviderLogoURL(props.option.logoBlobKey)
+    : props.option.provider && systemProvidersLogo[props.option.provider]
 
-  if (props.option.provider && props.option.provider in systemProvidersLogo) {
-    return <img src={systemProvidersLogo[props.option.provider]} alt={props.option.displayName} />
-  }
-
-  return null
+  return source ? <img src={source} alt={props.option.displayName} width={24} height={24} className="h-6 w-6 shrink-0 object-contain" /> : null
 }

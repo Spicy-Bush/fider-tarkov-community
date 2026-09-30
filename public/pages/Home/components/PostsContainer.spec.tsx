@@ -17,7 +17,6 @@ jest.mock("@fider/services", () => ({
   actions: { searchPosts: jest.fn() },
 }))
 jest.mock("@fider/services/readingPosition", () => ({ savedReadingPosition: jest.fn(), useReadingPosition: jest.fn() }))
-jest.mock("@fider/components/sponsorship", () => ({ useAdSelection: () => ({ ads: {}, loaded: true }) }))
 jest.mock("@lingui/core", () => ({ i18n: { _: (_id: string, options: { message: string }) => options.message } }))
 jest.mock("@fider/components", () => ({
   Input: ({ field, value, onChange }: any) => <input aria-label={field} value={value} onChange={(event) => onChange(event.target.value)} />,

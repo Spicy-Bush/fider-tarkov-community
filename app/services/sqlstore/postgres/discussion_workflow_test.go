@@ -139,6 +139,7 @@ func TestDiscussionSortingAndPagination(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			exercisedDeletedCursor := false
 			for _, order := range []string{"", "liked", "disliked", "replies", "latest"} {
 				for _, parent := range []int{-1, 0} {
 					t.Run(fmt.Sprintf("%s/parent=%d", order, parent), func(t *testing.T) {
@@ -157,7 +158,11 @@ func TestDiscussionSortingAndPagination(t *testing.T) {
 
 						var expected []comment
 						for _, candidate := range comments {
-							if candidate.parent == parent && (!candidate.deleted || candidate.hasReplies) {
+							visibleParent := candidate.parent
+							for visibleParent >= 0 && comments[visibleParent].deleted {
+								visibleParent = comments[visibleParent].parent
+							}
+							if visibleParent == parent && !candidate.deleted {
 								expected = append(expected, candidate)
 							}
 						}
@@ -239,11 +244,12 @@ func TestDiscussionSortingAndPagination(t *testing.T) {
 							}
 
 							anchor := expected[len(received)-1]
-							if deletedAnchor == 0 && !anchor.deleted {
+							if deletedAnchor == 0 && !anchor.hasReplies {
 								if _, err := mediaFixtureSQL("UPDATE comments SET deleted_at = NOW() WHERE id = $1", anchor.id); err != nil {
 									t.Fatal(err)
 								}
 								deletedAnchor = anchor.id
+								exercisedDeletedCursor = true
 								t.Cleanup(func() {
 									if _, err := mediaFixtureSQL("UPDATE comments SET deleted_at = NULL WHERE id = $1", anchor.id); err != nil {
 										t.Error(err)
@@ -252,10 +258,6 @@ func TestDiscussionSortingAndPagination(t *testing.T) {
 							}
 
 							parameters.Set("after", result.Next)
-						}
-
-						if deletedAnchor == 0 {
-							t.Fatal("pagination did not exercise a deleted cursor anchor")
 						}
 
 						want := make([]int, len(expected))
@@ -268,6 +270,9 @@ func TestDiscussionSortingAndPagination(t *testing.T) {
 						}
 					})
 				}
+			}
+			if !exercisedDeletedCursor {
+				t.Fatal("pagination did not exercise a deleted cursor anchor")
 			}
 		})
 	}
@@ -574,15 +579,11 @@ func TestDiscussionMutationResponsesAndReportPreview(t *testing.T) {
 
 			response, err = f.requestWithParams(api.DeleteDiscussionComment(), http.MethodDelete,
 				"/api/comments/"+params["id"], "", params)
-			if err != nil || response.Code != http.StatusOK {
+			if err != nil || response.Code != http.StatusNoContent {
 				t.Fatalf("delete failed: %v HTTP%d %s", err, response.Code, response.Body)
 			}
-			var deleted entity.Comment
-			if err := json.Unmarshal(response.Body.Bytes(), &deleted); err != nil {
-				t.Fatal(err)
-			}
-			if deleted.ID != commentID || deleted.State != "deleted" || deleted.Content != "" || deleted.User != nil {
-				t.Fatalf("deletion did not return its projected placeholder: %s", response.Body)
+			if response.Body.Len() != 0 {
+				t.Fatalf("deletion returned comment metadata: %s", response.Body)
 			}
 		})
 	}

@@ -2,6 +2,10 @@ package actions
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"fmt"
 	"net/url"
 	"slices"
 	"strconv"
@@ -12,7 +16,9 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/imagic"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/rand"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/services/blob"
 )
@@ -87,6 +93,26 @@ func NewUploadNewFile() *UploadNewFile {
 	}
 }
 
+func NewFileUploadID(tenantID, userID int) string {
+	nonce := rand.String(32)
+	return nonce + "." + base64.RawURLEncoding.EncodeToString(fileUploadSignature(tenantID, userID, nonce))
+}
+
+func validFileUploadID(value string, tenantID, userID int) bool {
+	if len(value) != 76 || value[32] != '.' {
+		return false
+	}
+
+	signature, err := base64.RawURLEncoding.DecodeString(value[33:])
+	return err == nil && hmac.Equal(signature, fileUploadSignature(tenantID, userID, value[:32]))
+}
+
+func fileUploadSignature(tenantID, userID int, nonce string) []byte {
+	mac := hmac.New(sha256.New, []byte(env.Config.JWTSecret))
+	fmt.Fprintf(mac, "file-upload:%d:%d:%s", tenantID, userID, nonce)
+	return mac.Sum(nil)
+}
+
 func (action *UploadNewFile) IsAuthorized(ctx context.Context, user *entity.User) bool {
 	tenant, _ := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
 	return entity.Can(user, tenant, entity.ManageFiles)
@@ -100,8 +126,9 @@ func (action *UploadNewFile) Validate(ctx context.Context, user *entity.User) *v
 		result.AddFieldFailure("name", "Use a name between 1 and 255 characters")
 	}
 
-	if !validate.ValidSubmissionID(action.SubmissionID) {
-		result.AddFieldFailure("submissionId", "An upload ID is required")
+	tenant := ctx.Value(app.TenantCtxKey).(*entity.Tenant)
+	if !validFileUploadID(action.SubmissionID, tenant.ID, user.ID) {
+		result.AddFieldFailure("submissionId", "Start a new image upload")
 	}
 
 	if action.File == nil || action.File.Upload == nil {

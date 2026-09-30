@@ -85,7 +85,7 @@ func TestGlobalActionPermissions(t *testing.T) {
 		},
 		{
 			name:       "sponsorship",
-			authorized: (&actions.CreateSponsorshipCampaign{}).IsAuthorized,
+			authorized: (&actions.SaveSponsorCampaign{}).IsAuthorized,
 			roles:      []enum.Role{enum.RoleCollaborator, enum.RoleAdministrator},
 		},
 		{

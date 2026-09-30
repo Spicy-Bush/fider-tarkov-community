@@ -15,12 +15,15 @@ jest.mock("./CommentComposer", () => ({ CommentComposer: () => <form aria-label=
 jest.mock("./DiscussionCommentCard", () => ({
   DiscussionCommentCard: ({ comment, onChanged }: {
     comment: DiscussionComment
-    onChanged: (comment: DiscussionComment, change: "edit") => void
+    onChanged: (comment: DiscussionComment, change: "edit" | "delete") => void
   }) => (
     <article id={`comment-${comment.id}`} data-state={comment.state}>
       <span>{comment.content}</span>
       <button onClick={() => onChanged({ ...comment, content: "Local edit", editedAt: "2026-09-27T00:00:03Z" }, "edit")}>
         Confirm edit {comment.id}
+      </button>
+      <button onClick={() => onChanged({ ...comment, state: "deleted" }, "delete")}>
+        Confirm delete {comment.id}
       </button>
     </article>
   ),
@@ -87,6 +90,34 @@ test("collapsing and reopening a thread preserves its pending reply read", async
   await waitFor(() => expect(screen.queryByRole("button", { name: "Load more comments" })).toBeNull())
 })
 
+test("deleting a parent immediately promotes its replies while refreshing the branch", async () => {
+  const reply = { ...parent, id: 2, parentId: 1, hasReplies: false, content: "Surviving reply" }
+  jest.mocked(loadComments).mockImplementation(async (_owner, _sort, parentId) => ({
+    ok: true,
+    data: { ...page, comments: parentId === 1 ? [reply] : [parent] },
+  }))
+
+  render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
+  fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
+  await screen.findByText("Parent comment")
+  fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
+  await screen.findByText("Surviving reply")
+
+  const refreshed = deferred<Awaited<ReturnType<typeof loadComments>>>()
+  jest.mocked(loadComments).mockReturnValue(refreshed.promise)
+  fireEvent.click(screen.getByRole("button", { name: "Confirm delete 1" }))
+
+  expect(document.getElementById("comment-1")).toBeNull()
+  expect(screen.getByText("Surviving reply")).toBeVisible()
+
+  await act(async () => refreshed.resolve({
+    ok: true,
+    data: { ...page, comments: [{ ...reply, parentId: null }] },
+  }))
+  expect(document.getElementById("comment-1")).toBeNull()
+  expect(screen.getAllByText("Surviving reply")).toHaveLength(1)
+})
+
 test("changing sort supersedes an error from restoration hydration", async () => {
   prepareReadingPosition({
     "discussion:post:1": {
@@ -107,7 +138,6 @@ test("changing sort supersedes an error from restoration hydration", async () =>
   render(<Discussion ownerPermissions={ownerPermissions} owner={owner} />)
   await screen.findByText("Old hydration failure")
   fireEvent.change(screen.getByRole("combobox", { name: "Sort discussion" }), { target: { value: "latest" } })
-  fireEvent.click(screen.getByRole("button", { name: "Load more comments" }))
 
   await screen.findByText("Current sorted comment")
   expect(screen.queryByText("Old hydration failure")).toBeNull()
@@ -203,7 +233,13 @@ test.each(["visible", "deleted"] as const)("a later-started context read preserv
       }],
     },
   }))
-  await waitFor(() => expect(document.getElementById("comment-1")).toHaveAttribute("data-state", state))
+  await waitFor(() => {
+    if (state === "deleted") {
+      expect(document.getElementById("comment-1")).toBeNull()
+    } else {
+      expect(document.getElementById("comment-1")).toHaveAttribute("data-state", state)
+    }
+  })
   await act(async () => context.resolve({
     ok: true,
     data: {
@@ -213,7 +249,11 @@ test.each(["visible", "deleted"] as const)("a later-started context read preserv
     },
   }))
 
-  expect(document.getElementById("comment-1")).toHaveAttribute("data-state", state)
+  if (state === "deleted") {
+    expect(document.getElementById("comment-1")).toBeNull()
+  } else {
+    expect(document.getElementById("comment-1")).toHaveAttribute("data-state", state)
+  }
   if (state === "visible") {
     expect(screen.getByText("Newer server state")).toBeVisible()
   }
@@ -290,7 +330,11 @@ test.each(["visible", "deleted"] as const)("an earlier-started read can carry ne
     },
   }))
 
-  expect(document.getElementById("comment-1")).toHaveAttribute("data-state", state)
+  if (state === "deleted") {
+    expect(document.getElementById("comment-1")).toBeNull()
+  } else {
+    expect(document.getElementById("comment-1")).toHaveAttribute("data-state", state)
+  }
   expect(screen.queryByText("Older snapshot")).toBeNull()
   if (state === "visible") {
     expect(screen.getByText("Newer edit")).toBeVisible()

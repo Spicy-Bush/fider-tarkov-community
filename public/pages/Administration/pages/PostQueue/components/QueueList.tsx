@@ -90,7 +90,7 @@ export const QueueList: React.FC<QueueListProps> = ({
         </HStack>
       </div>
 
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="flex-1 overflow-y-auto min-h-0" aria-busy={isLoading}>
         {newPostIds.size > 0 && (
           <button 
             className="flex items-center justify-center gap-2 w-full py-2 px-3 bg-success-light border-none border-b border-success-light text-success font-medium text-sm cursor-pointer hover:bg-success-medium transition-colors [&_svg]:text-success"
@@ -102,7 +102,7 @@ export const QueueList: React.FC<QueueListProps> = ({
             </span>
           </button>
         )}
-        {isLoading ? (
+        {isLoading && posts.length === 0 ? (
           <div className="py-8 text-center">
             <Loader />
           </div>

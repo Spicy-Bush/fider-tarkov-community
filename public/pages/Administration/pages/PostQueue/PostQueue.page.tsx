@@ -97,6 +97,23 @@ const PostQueuePage: React.FC<PostQueuePageProps> = (props) => {
     state.setSortOption(newSort)
   }, [state.setPage, state.setSortOption])
 
+  const handlePostChanged = async (postNumber: number) => {
+    await Promise.all([
+      state.loadPostDetails(postNumber, true),
+      state.loadPosts(),
+    ])
+  }
+
+  const handlePostDeleted = async (postID: number) => {
+    state.setPosts((posts) => posts.filter((post) => post.id !== postID))
+
+    if (state.selectedPostRef.current?.id === postID) {
+      actions.handleDeselectPost()
+    }
+
+    await state.loadPosts()
+  }
+
   useEffect(() => {
     if (state.selectedPost) {
       state.loadPostDetails(state.selectedPost.number)
@@ -182,6 +199,8 @@ const PostQueuePage: React.FC<PostQueuePageProps> = (props) => {
         onDuplicateSelected={actions.handleDuplicateSelected}
         onDuplicateReset={actions.handleDuplicateReset}
         onPostUpdated={state.updatePost}
+        onPostChanged={handlePostChanged}
+        onPostDeleted={handlePostDeleted}
         onContentCopied={actions.handleContentCopied}
         onOriginalPostSaved={actions.handleOriginalPostSaved}
         onOriginalPostCancelled={actions.handleOriginalPostCancelled}

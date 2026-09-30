@@ -174,13 +174,27 @@ func BenchmarkDiscussionDeepChainHTTP(b *testing.B) {
 		b.Fatal("deep discussion did not return its single root")
 	}
 
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for iteration := 0; iteration < b.N; iteration++ {
-		response, err := f.requestWithParams(api.ListDiscussion(), http.MethodGet, path, "", params)
-		if err != nil || response.Code != http.StatusOK {
-			b.Fatalf("read failed: %v, HTTP %d", err, response.Code)
+	for _, state := range []string{"visible", "promoted"} {
+		if state == "promoted" {
+			_, err := mediaFixtureSQL(`
+                UPDATE comments SET deleted_at = NOW()
+                WHERE post_id = $1 AND id IN (
+                    SELECT id FROM comments WHERE post_id = $1 ORDER BY id OFFSET 1 LIMIT 1000
+                )
+            `, post.Result.ID)
+			if err != nil {
+				b.Fatal(err)
+			}
 		}
+
+		b.Run(state, func(b *testing.B) {
+			b.ReportAllocs()
+			for iteration := 0; iteration < b.N; iteration++ {
+				response, err := f.requestWithParams(api.ListDiscussion(), http.MethodGet, path, "", params)
+				if err != nil || response.Code != http.StatusOK {
+					b.Fatalf("read failed: %v, HTTP %d", err, response.Code)
+				}
+			}
+		})
 	}
 }

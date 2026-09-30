@@ -413,8 +413,8 @@ func TestDiscussionNotificationInboxVisibility(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if count.Result != want || list.TotalCount != want || len(list.Result) != want {
-			t.Fatalf("expected %d visible notifications, got count=%d total=%d rows=%d", want, count.Result, list.TotalCount, len(list.Result))
+		if count.Result != want || list.UnreadCount != want || len(list.Result) != want {
+			t.Fatalf("expected %d visible notifications, got count=%d unread=%d rows=%d", want, count.Result, list.UnreadCount, len(list.Result))
 		}
 
 		get := &query.GetNotificationByID{ID: notification.Result.ID}

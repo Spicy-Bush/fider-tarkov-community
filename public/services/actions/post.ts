@@ -97,8 +97,9 @@ export const unsubscribe = async (postNumber: number): Promise<Result> => {
   return http.delete(`/api/posts/${postNumber}/subscription`).then(http.event("post", "unsubscribe"))
 }
 
-export const listVotes = async (postNumber: number): Promise<Result<Vote[]>> => {
-  return http.get<Vote[]>(`/api/posts/${postNumber}/votes`)
+export const listVotes = async (postNumber: number, options?: { preview?: boolean; signal?: AbortSignal }): Promise<Result<Vote[]>> => {
+  const query = options?.preview ? "?preview=true" : ""
+  return http.get<Vote[]>(`/api/posts/${postNumber}/votes${query}`, { signal: options?.signal })
 }
 
 export const getTaggableUsers = async (nameFilter: string): Promise<Result<UserNames[]>> => {

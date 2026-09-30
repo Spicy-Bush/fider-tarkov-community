@@ -2,6 +2,7 @@ import React from "react"
 import { UserPermissions } from "@fider/models"
 import { UserRole, VisualRole } from "@fider/models/identity"
 import { classSet } from "@fider/services/utils"
+import { useCurrentUser } from "@fider/hooks/use-fider"
 
 interface UserNameProps {
   user: {
@@ -17,6 +18,7 @@ interface UserNameProps {
 }
 
 export const UserName = (props: UserNameProps) => {
+  const currentUser = useCurrentUser()
   const clickable = props.clickable !== undefined ? props.clickable : true
   const visualRole = props.user.visualRole
   const vrClass = visualRole ? `vr-${visualRole}` : ""
@@ -34,7 +36,7 @@ export const UserName = (props: UserNameProps) => {
     return (
       <>
         <div className="font-semibold inline-flex items-center">
-          <a href={`/profile/${props.user.id}`} className={classSet({ "hover:underline": true, [vrClass]: !!vrClass })}>
+          <a href={props.user.id === currentUser?.id ? "/profile" : `/profile/${props.user.id}`} className={classSet({ "hover:underline": true, [vrClass]: !!vrClass })}>
             <span>{userName}</span>
             {visualRoleSpan}
           </a>

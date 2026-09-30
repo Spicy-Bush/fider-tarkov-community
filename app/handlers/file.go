@@ -9,6 +9,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
@@ -96,6 +97,16 @@ func UploadFile() web.HandlerFunc {
 			return c.Failure(err)
 		}
 		return c.Ok(upload.Result)
+	}
+}
+
+func NewFileUploadID() web.HandlerFunc {
+	return func(c *web.Context) error {
+		if !entity.Can(c.User(), c.Tenant(), entity.ManageFiles) && !entity.Can(c.User(), c.Tenant(), entity.ManageSponsorship) {
+			return c.Forbidden()
+		}
+
+		return c.Ok(actions.NewFileUploadID(c.Tenant().ID, c.User().ID))
 	}
 }
 

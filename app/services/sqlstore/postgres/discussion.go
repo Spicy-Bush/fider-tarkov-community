@@ -2,10 +2,8 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"sort"
-	"time"
+	"fmt"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -191,9 +189,9 @@ func loadDiscussion(ctx context.Context, q *query.GetDiscussion) error {
 const commentDetails = `
     SELECT c.id, COALESCE(c.post_id, 0) AS post_id, COALESCE(c.page_id, 0) AS page_id,
            -selected.position AS sort_score,
-           c.parent_id, c.content, c.created_at, c.edited_at,
+           %s AS parent_id, c.content, c.created_at, c.edited_at,
            c.deleted_at IS NOT NULL AS deleted, c.moderation_pending, c.moderation_data,
-           EXISTS (SELECT 1 FROM comments child WHERE child.parent_id = c.id) AS has_replies,
+           %s AS has_replies,
            u.id AS user_id, u.name AS user_name, u.email AS user_email,
            u.role AS user_role, u.visual_role AS user_visual_role, u.status AS user_status,
            u.avatar_type AS user_avatar_type, u.avatar_bkey AS user_avatar_bkey,
@@ -211,12 +209,14 @@ const commentDetails = `
     JOIN comments c ON c.id = selected.id AND c.tenant_id = $1
     JOIN users u ON u.id = c.user_id AND u.tenant_id = c.tenant_id
     LEFT JOIN users e ON e.id = c.edited_by_id AND e.tenant_id = c.tenant_id
+    WHERE %s
     ORDER BY selected.position, c.created_at DESC, c.id DESC
 `
 
 func readComments(ctx context.Context, trx *dbx.Trx, selection string, args ...any) ([]*entity.Comment, error) {
 	var records []*dbComment
-	if err := trx.Select(&records, "WITH RECURSIVE selected AS ("+selection+") "+commentDetails, args...); err != nil {
+	details := fmt.Sprintf(commentDetails, "c.parent_id", "EXISTS (SELECT 1 FROM comments child WHERE child.parent_id = c.id)", "TRUE")
+	if err := trx.Select(&records, "WITH RECURSIVE selected AS ("+selection+") "+details, args...); err != nil {
 		return nil, err
 	}
 
@@ -246,20 +246,20 @@ func getDiscussionComments(ctx context.Context, q *query.GetDiscussionComments) 
 
 		if len(q.IDs) > 0 {
 			var err error
-			q.Result, err = readComments(ctx, trx, `
-                SELECT id, 0 AS position FROM comments
-                WHERE tenant_id = $1 AND `+pq.QuoteIdentifier(ownerColumn)+` = $3
-                  AND id = ANY($4::integer[])
+			q.Result, err = readVisibleComments(ctx, trx, ownerColumn, `
+                SELECT id, 0 AS position FROM discussion_comments
+                WHERE visible AND id = ANY($4::integer[])
             `, tenant.ID, viewerID, q.Discussion.Owner.ID, pq.Array(q.IDs))
 			return err
 		}
 
 		if q.ParentID != nil {
 			var exists bool
-			if err := trx.Scalar(&exists, `SELECT EXISTS (
-                SELECT 1 FROM comments WHERE tenant_id = $1 AND id = $2
-                AND `+pq.QuoteIdentifier(ownerColumn)+` = $3
-            )`, tenant.ID, *q.ParentID, q.Discussion.Owner.ID); err != nil {
+			args := []any{tenant.ID, viewerID, q.Discussion.Owner.ID, *q.ParentID}
+			source := discussionSource(ctx, ownerColumn, &args)
+			if err := trx.Scalar(&exists, source+` SELECT EXISTS (
+                SELECT 1 FROM discussion_comments WHERE id = $4 AND visible
+            )`, args...); err != nil {
 				return err
 			}
 			if !exists {
@@ -267,12 +267,7 @@ func getDiscussionComments(ctx context.Context, q *query.GetDiscussionComments) 
 			}
 		}
 
-		candidates := `
-            SELECT c.id, c.created_at, c.deleted_at FROM comments c
-            WHERE c.tenant_id = $1 AND c.` + pq.QuoteIdentifier(ownerColumn) + ` = $3
-              AND (c.parent_id = $4 OR ($4::integer IS NULL AND c.parent_id IS NULL))
-              AND (c.deleted_at IS NULL OR EXISTS (SELECT 1 FROM comments child WHERE child.parent_id = c.id))
-        `
+		candidates := visibleDiscussionChildren("$4")
 		if q.Sort == "replies" {
 			var err error
 			q.Result, err = readCommentsByReplyCount(ctx, trx, q, candidates, ownerColumn, tenant.ID, viewerID)
@@ -309,14 +304,14 @@ func getDiscussionComments(ctx context.Context, q *query.GetDiscussionComments) 
 		}
 
 		var err error
-		q.Result, err = readComments(ctx, trx, selection, parameters...)
+		q.Result, err = readVisibleComments(ctx, trx, ownerColumn, selection, parameters...)
 		return err
 	})
 }
 
 func readCommentsByReplyCount(ctx context.Context, trx *dbx.Trx, q *query.GetDiscussionComments, candidates, ownerColumn string, tenantID, viewerID int) ([]*entity.Comment, error) {
 	if q.AfterID == 0 {
-		first, err := readComments(ctx, trx, "SELECT id, 0 AS position FROM ("+candidates+") candidates LIMIT 2", tenantID, viewerID, q.Discussion.Owner.ID, q.ParentID)
+		first, err := readVisibleComments(ctx, trx, ownerColumn, "SELECT id, 0 AS position FROM ("+candidates+") candidates LIMIT 2", tenantID, viewerID, q.Discussion.Owner.ID, q.ParentID)
 		if err != nil {
 			return nil, err
 		}
@@ -330,88 +325,9 @@ func readCommentsByReplyCount(ctx context.Context, trx *dbx.Trx, q *query.GetDis
 	if err != nil {
 		return nil, err
 	}
-	if !selection.Uncached {
-		return readComments(ctx, trx, `
-            SELECT id, -score AS position FROM UNNEST($3::integer[], $4::bigint[]) ranked(id, score)
-        `, tenantID, viewerID, pq.Array(selection.IDs), pq.Array(selection.Scores))
-	}
-
-	rows, err := trx.Query(`
-        SELECT id, COALESCE(parent_id, 0), deleted_at IS NOT NULL,
-               CASE WHEN parent_id IS NOT DISTINCT FROM $3::integer THEN created_at END
-        FROM comments WHERE tenant_id = $1 AND `+pq.QuoteIdentifier(ownerColumn)+` = $2
-          AND id > COALESCE($3::integer, 0)
-        ORDER BY id DESC
-    `, tenantID, q.Discussion.Owner.ID, q.ParentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	type rankedComment struct {
-		ID        int
-		Score     int64
-		CreatedAt time.Time
-	}
-	var ranked []rankedComment
-	descendants := make(map[int]int64)
-	var rawID, rawParentID int64
-	var deleted bool
-	var createdAt sql.NullTime
-	for rows.Next() {
-		if err := rows.Scan(&rawID, &rawParentID, &deleted, &createdAt); err != nil {
-			return nil, err
-		}
-		id, parentID := int(rawID), int(rawParentID)
-
-		// Parents precede replies by ID, so each subtree is complete before its parent.
-		count, hasReplies := descendants[id]
-		delete(descendants, id)
-		if createdAt.Valid && (!deleted || hasReplies) {
-			ranked = append(ranked, rankedComment{ID: id, Score: count, CreatedAt: createdAt.Time})
-		}
-		if parentID != 0 {
-			if !deleted {
-				count++
-			}
-			descendants[parentID] += count
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-
-	sort.Slice(ranked, func(left, right int) bool {
-		if ranked[left].Score != ranked[right].Score {
-			return ranked[left].Score > ranked[right].Score
-		}
-		if !ranked[left].CreatedAt.Equal(ranked[right].CreatedAt) {
-			return ranked[left].CreatedAt.After(ranked[right].CreatedAt)
-		}
-		return ranked[left].ID > ranked[right].ID
-	})
-
-	ids := make([]int, 0, 26)
-	scores := make([]int64, 0, 26)
-	for _, comment := range ranked {
-		if q.AfterID != 0 {
-			if comment.Score > int64(q.AfterScore) || (comment.Score == int64(q.AfterScore) &&
-				(comment.CreatedAt.After(q.After) || (comment.CreatedAt.Equal(q.After) && comment.ID >= q.AfterID))) {
-				continue
-			}
-		}
-		ids = append(ids, comment.ID)
-		scores = append(scores, comment.Score)
-		if len(ids) == 26 {
-			break
-		}
-	}
-	return readComments(ctx, trx, `
-        SELECT id, -score AS position FROM UNNEST($3::integer[], $4::bigint[]) ranked(id, score)
-    `, tenantID, viewerID, pq.Array(ids), pq.Array(scores))
+	return readVisibleComments(ctx, trx, ownerColumn, `
+        SELECT id, -score AS position FROM UNNEST($4::integer[], $5::bigint[]) ranked(id, score)
+    `, tenantID, viewerID, q.Discussion.Owner.ID, pq.Array(selection.IDs), pq.Array(selection.Scores))
 }
 
 func getCommentAncestors(ctx context.Context, q *query.GetCommentAncestors) error {
@@ -430,20 +346,30 @@ func getCommentAncestors(ctx context.Context, q *query.GetCommentAncestors) erro
 		}
 
 		var err error
-		q.Result, err = readComments(ctx, trx, `
-            SELECT id, parent_id, 0 AS position FROM comments WHERE tenant_id = $1 AND id = $3
-              AND `+pq.QuoteIdentifier(ownerColumn)+` = $4
+		q.Result, err = readVisibleComments(ctx, trx, ownerColumn, `
+            SELECT id, 0 AS position FROM discussion_comments WHERE id = $4 AND visible
             UNION ALL
-            SELECT parent.id, parent.parent_id, child.position - 1
-            FROM comments parent JOIN selected child ON parent.id = child.parent_id
-            WHERE parent.tenant_id = $1 AND child.position > -2
-        `, tenant.ID, viewerID, q.CommentID, q.Discussion.Owner.ID)
+			SELECT parent.parent_id, child.position - 1
+			FROM selected child
+			JOIN LATERAL (`+visibleDiscussionParent("child.id")+`) parent ON parent.parent_id IS NOT NULL
+			WHERE child.position > -2
+        `, tenant.ID, viewerID, q.Discussion.Owner.ID, q.CommentID)
+		if err == nil && len(q.Result) == 0 {
+			return app.ErrNotFound
+		}
 		return err
 	})
 }
 
 func getDiscussionChainReplies(ctx context.Context, q *query.GetDiscussionChainReplies) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		if !q.Discussion.CanView(user, tenant) {
+			return app.ErrNotFound
+		}
+		ownerColumn := "post_id"
+		if q.Discussion.Owner.Kind == "page" {
+			ownerColumn = "page_id"
+		}
 		viewerID := 0
 		if user != nil {
 			viewerID = user.ID
@@ -451,28 +377,24 @@ func getDiscussionChainReplies(ctx context.Context, q *query.GetDiscussionChainR
 
 		// Unbranched replies travel together to avoid a network round trip for each level.
 		var err error
-		q.Result, err = readComments(ctx, trx, `
+		q.Result, err = readVisibleComments(ctx, trx, ownerColumn, `
             WITH RECURSIVE chain AS (
-                SELECT unnest($3::integer[]) AS id, 0 AS depth
+                SELECT id, 0 AS depth FROM discussion_comments WHERE id = ANY($4::integer[]) AND visible
                 UNION ALL
                 SELECT child.id, parent.depth + 1
                 FROM chain parent
                 JOIN LATERAL (
                     SELECT MIN(id) AS id FROM (
-                        SELECT id FROM comments c
-                        WHERE c.tenant_id = $1 AND c.parent_id = parent.id
-                          AND (c.deleted_at IS NULL OR EXISTS (
-                              SELECT 1 FROM comments reply WHERE reply.parent_id = c.id
-                          ))
+                        SELECT id FROM (`+visibleDiscussionChildren("parent.id")+`) visible
                         LIMIT 2
                     ) children
                     HAVING COUNT(*) = 1
                 ) child ON TRUE
-                WHERE parent.depth < $4
+                WHERE parent.depth < $5
             )
             SELECT id, depth AS position FROM chain
             WHERE depth > 0 ORDER BY depth, id LIMIT 100
-        `, tenant.ID, viewerID, pq.Array(q.ParentIDs), q.Depth)
+        `, tenant.ID, viewerID, q.Discussion.Owner.ID, pq.Array(q.ParentIDs), q.Depth)
 		return err
 	})
 }

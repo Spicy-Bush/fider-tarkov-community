@@ -39,8 +39,7 @@ import { VoteSection } from "./components/VoteSection"
 import { DeletePostModal } from "./components/DeletePostModal"
 import { ResponseModal } from "./components/ResponseModal"
 import { VotesPanel } from "./components/VotesPanel"
-import { AdSlot } from "@fider/components/sponsorship/AdSlot"
-import { useAdSelection } from "@fider/components/sponsorship/useAdSelection"
+import { SponsorSpot } from "@fider/components/sponsorship/SponsorProvider"
 import { useShowPostState } from "@fider/pages/ShowPost/hooks/useShowPostState"
 import { prepareDraftImages } from "@fider/services/draftImages"
 
@@ -67,9 +66,6 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
   })
   
   const vote = usePostVote(props.post)
-  const { ads: postAds, loaded: postAdLoaded, error: postAdError } = useAdSelection([
-    { instanceId: "post-below-title", placementId: "post_below_title" },
-  ])
   
   const handleCommentAdded = useCallback(() => {
     void vote.refresh()
@@ -339,22 +335,16 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
                   )}
                 </VStack>
 
-                <AdSlot
-                  instanceId="post-below-title"
-                  placementId="post_below_title"
-                  ad={postAdLoaded && !postAdError ? (postAds["post-below-title"] ?? null) : undefined}
-                  selectFailed={postAdError}
-                  className="my-3"
-                />
-
                 <ResponseDetails status={props.post.status} response={props.post.response} previousStatus={props.post.archivedSettings?.previousStatus} />
               </VStack>
 
+              <SponsorSpot position="before" />
               <DiscussionPanel
                 post={props.post}
                 subscribed={props.subscribed}
                 onCommentAdded={handleCommentAdded}
               />
+              <SponsorSpot position="after" />
               <div className="mt-4 flex items-center justify-between">
                 <Button variant="secondary" onClick={handleScrollToTop}>
                   <Icon sprite={IconChevronUp} />
@@ -366,7 +356,7 @@ const ShowPostPage: React.FC<ShowPostPageProps> = (props) => {
             </div>
           </div>
           <div className="lg:col-start-1 lg:col-end-2 lg:row-start-1 min-w-0 bg-elevated rounded-panel p-4 h-fit">
-            <VotesPanel post={props.post} votes={props.votes} />
+            <VotesPanel post={props.post} votes={props.votes} revision={vote.revision} />
           </div>
         </div>
       </div>

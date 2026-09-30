@@ -8,7 +8,7 @@ import { notify } from "@fider/services"
 import { EmbeddedPostsList } from "@fider/components/page/EmbeddedPostsList"
 import { Discussion } from "@fider/components/discussion/Discussion"
 import { Reactions } from "@fider/components/post/Reactions"
-import { AdSlot, useAdSelection } from "@fider/components/sponsorship"
+import { SponsorSpot } from "@fider/components/sponsorship/SponsorProvider"
 
 interface ViewPageProps {
   page: Page
@@ -24,9 +24,6 @@ const ViewPage = ({ page, discussionPermissions }: ViewPageProps) => {
   const emojiSelectorRef = useRef<HTMLDivElement>(null)
   const { toc, activeId, scrollTo } = useTableOfContents(contentRef, page.title, "page-title")
   const [reactionCounts, setReactionCounts] = useState(page.reactionCounts || [])
-  const { ads: pageAds, loaded: pageAdLoaded, error: pageAdError } = useAdSelection([
-    { instanceId: "pages-header", placementId: "pages_header" },
-  ])
 
   const readingTime = useMemo(() => Math.max(1, Math.ceil(page.content.split(/\s+/).length / 250)), [page.content])
 
@@ -221,14 +218,6 @@ const ViewPage = ({ page, discussionPermissions }: ViewPageProps) => {
             {page.authors && page.authors.length > 0 && <span>By {page.authors.map((author) => author.name).join(", ")}</span>}
           </HStack>
 
-          <AdSlot
-            instanceId="pages-header"
-            placementId="pages_header"
-            ad={pageAdLoaded && !pageAdError ? (pageAds["pages-header"] ?? null) : undefined}
-            selectFailed={pageAdError}
-            className="mb-6"
-          />
-
           <div ref={contentRef} className="c-markdown mb-8 min-w-0 max-w-full">
             {contentParts.map((part, index) => {
               if (part.type === "text") {
@@ -256,10 +245,12 @@ const ViewPage = ({ page, discussionPermissions }: ViewPageProps) => {
             </Button>
           </HStack>
 
+          <SponsorSpot position="before" />
           <Discussion
             owner={{ kind: "page", id: page.id, title: page.title, url: `/pages/${page.slug}` }}
             ownerPermissions={discussionPermissions}
           />
+          <SponsorSpot position="after" />
         </div>
 
       </div>

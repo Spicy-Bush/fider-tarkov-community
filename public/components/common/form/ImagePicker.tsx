@@ -108,10 +108,10 @@ export function ImagePicker(props: ImagePickerProps) {
         accept="image/png, image/jpeg, image/jpg, image/webp"
         className="hidden"
       />
-      {!props.image && props.onSelect && (
-        <Button variant="secondary" onClick={() => input.current?.click()} disabled={props.disabled} loading={props.reading}>
+      {props.onSelect && (
+        <Button variant="secondary" className={props.image ? "ml-3 align-bottom" : undefined} onClick={() => input.current?.click()} disabled={props.disabled} loading={props.reading}>
           <Icon sprite={IconPhotograph} />
-          <span className="sr-only">Select image</span>
+          <span className={props.image ? "" : "sr-only"}>{props.image ? "Replace image" : "Select image"}</span>
         </Button>
       )}
       {props.children}

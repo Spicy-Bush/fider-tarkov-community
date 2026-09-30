@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/api"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
@@ -16,6 +17,9 @@ import (
 )
 
 func TestServerCapabilityDataProjection(t *testing.T) {
+	bus.AddHandler(func(ctx context.Context, q *query.GetSponsorPlacements) error {
+		return nil
+	})
 	bus.AddHandler(func(ctx context.Context, q *query.GetUserProfileStanding) error {
 		return nil
 	})
@@ -47,6 +51,9 @@ func TestServerCapabilityDataProjection(t *testing.T) {
 	})
 	bus.AddHandler(func(ctx context.Context, q *query.ListPostVotes) error {
 		q.Result = []*entity.Vote{{User: &entity.VoteUser{ID: 2}, VoteType: enum.VoteTypeDown}}
+		if q.Preview {
+			q.Result[0].VoteType = 0
+		}
 		return nil
 	})
 	bus.AddHandler(func(ctx context.Context, q *query.CountUnreadNotifications) error {
@@ -113,8 +120,23 @@ func TestServerCapabilityDataProjection(t *testing.T) {
 				if err := json.Unmarshal(response.Body.Bytes(), &post); err != nil {
 					t.Fatal(err)
 				}
-				if len(post.Props.Votes) != 1 || (post.Props.Votes[0].VoteType == enum.VoteTypeDown) != (test.votes && !locked) {
-					t.Fatal("vote direction projection disagrees with capability")
+				if len(post.Props.Votes) != 1 || post.Props.Votes[0].VoteType != 0 {
+					t.Fatal("avatar preview included a vote direction")
+				}
+
+				status, _ = server().AddParam("number", 1).Execute(api.ListVotes())
+				if (status == http.StatusOK) != (test.votes && !locked) {
+					t.Fatalf("full voter list disagrees with capability: status=%d", status)
+				}
+
+				status, response = server().WithURL("http://demo.test.fider.io/api/posts/1/votes?preview=true").
+					AddParam("number", 1).Execute(api.ListVotes())
+				var preview []*entity.Vote
+				if err := json.Unmarshal(response.Body.Bytes(), &preview); err != nil {
+					t.Fatal(err)
+				}
+				if status != http.StatusOK || len(preview) != 1 || preview[0].VoteType != 0 {
+					t.Fatal("voter preview differs from the page preview")
 				}
 
 				reportReads, queueReads := 0, 0
@@ -143,6 +165,43 @@ func TestServerCapabilityDataProjection(t *testing.T) {
 					t.Fatal("queue count projection disagrees with capability")
 				}
 			})
+		}
+	}
+}
+
+func TestFileUploadIdentityPermissions(t *testing.T) {
+	for _, role := range []enum.Role{0, enum.RoleVisitor, enum.RoleHelper, enum.RoleModerator, enum.RoleCollaborator, enum.RoleAdministrator} {
+		for _, granted := range []bool{false, true} {
+			tenant := *mock.DemoTenant
+			if granted && role != 0 {
+				tenant.RolePermissions = entity.RolePermissions{
+					role: {entity.ManageSponsorship: true},
+				}
+			}
+
+			var viewer *entity.User
+			if role != 0 {
+				viewer = &entity.User{ID: 1, Role: role, Status: enum.UserActive}
+			}
+			server := mock.NewServer().OnTenant(&tenant)
+			if viewer != nil {
+				server = server.AsUser(viewer)
+			}
+			status, response := server.Execute(handlers.NewFileUploadID())
+			allowed := entity.Can(viewer, &tenant, entity.ManageFiles) || entity.Can(viewer, &tenant, entity.ManageSponsorship)
+			want := http.StatusForbidden
+			if allowed {
+				want = http.StatusOK
+			}
+			if status != want {
+				t.Fatalf("role %v granted=%v: HTTP %d, want %d", role, granted, status, want)
+			}
+			if allowed {
+				var id string
+				if err := json.Unmarshal(response.Body.Bytes(), &id); err != nil || len(id) != 76 {
+					t.Fatalf("invalid issued identity: %v", err)
+				}
+			}
 		}
 	}
 }

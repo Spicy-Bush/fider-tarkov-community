@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
@@ -32,6 +33,47 @@ type savedPostFilters struct {
 
 // Index is the default home page
 func Index() web.HandlerFunc {
+	return homePage(false)
+}
+
+func SponsorPreview() web.HandlerFunc {
+	return func(c *web.Context) error {
+		c.Response.Header().Set("X-Frame-Options", "SAMEORIGIN")
+		policy := c.Response.Header().Get("Content-Security-Policy")
+		c.Response.Header().Set("Content-Security-Policy", strings.Replace(policy, "frame-ancestors 'none'", "frame-ancestors 'self'", 1))
+
+		switch c.QueryParam("pageType") {
+		case "post":
+			posts := &query.SearchPosts{Limit: "1", View: "newest"}
+			if err := bus.Dispatch(c, posts); err != nil {
+				return c.Failure(err)
+			}
+
+			if len(posts.Result) == 0 {
+				return c.NotFound()
+			}
+
+			c.AddParam("number", fmt.Sprint(posts.Result[0].Number))
+			return postDetails(true)(c)
+		case "page":
+			pages := &query.ListPages{Limit: 1, Status: []entity.PageStatus{entity.PageStatusPublished}}
+			if err := bus.Dispatch(c, pages); err != nil {
+				return c.Failure(err)
+			}
+
+			if len(pages.Result) == 0 {
+				return c.NotFound()
+			}
+
+			c.AddParam("slug", pages.Result[0].Slug)
+			return viewPage(true)(c)
+		default:
+			return homePage(true)(c)
+		}
+	}
+}
+
+func homePage(sponsorPreview bool) web.HandlerFunc {
 	return func(c *web.Context) error {
 		c.SetCanonicalURL("")
 
@@ -132,10 +174,12 @@ func Index() web.HandlerFunc {
 			Page:        "Home/Home.page",
 			Description: description,
 			Data: web.Map{
-				"posts":          searchPosts.Result,
-				"tags":           tags.Result,
-				"countPerStatus": counts.Result,
-				"savedFiltersAt": savedFiltersAt,
+				"sponsorPreview":    sponsorPreview,
+				"posts":             searchPosts.Result,
+				"tags":              tags.Result,
+				"countPerStatus":    counts.Result,
+				"savedFiltersAt":    savedFiltersAt,
+				"sponsorPlacements": sponsorPlacements(c),
 				"initialFilters": web.Map{
 					"query":      searchPosts.Query,
 					"view":       searchPosts.View,
@@ -155,6 +199,10 @@ func Index() web.HandlerFunc {
 
 // PostDetails shows details of given Post by id
 func PostDetails() web.HandlerFunc {
+	return postDetails(false)
+}
+
+func postDetails(sponsorPreview bool) web.HandlerFunc {
 	return func(c *web.Context) error {
 		number, err := c.ParamAsInt("number")
 		if err != nil {
@@ -176,30 +224,16 @@ func PostDetails() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		// Get votes for avatar display
-		listVotes := &query.ListPostVotes{PostID: getPost.Result.ID, Limit: 8, IncludeEmail: false}
+		listVotes := &query.ListPostVotes{PostID: getPost.Result.ID, Preview: true}
 		if err := bus.Dispatch(c, listVotes); err != nil {
 			return c.Failure(err)
-		}
-
-		votes := listVotes.Result
-		if !entity.Can(c.User(), c.Tenant(), entity.ViewPostVotes) {
-			// Create anonymous votes without VoteType for regular users
-			votes = make([]*entity.Vote, len(listVotes.Result))
-			for i, v := range listVotes.Result {
-				votes[i] = &entity.Vote{
-					User:      v.User,
-					CreatedAt: v.CreatedAt,
-					// VoteType intentionally omitted (will be zero value)
-				}
-			}
 		}
 
 		data := web.Map{
 			"subscribed":    isSubscribed.Result,
 			"post":          getPost.Result,
 			"tags":          getAllTags.Result,
-			"votes":         votes,
+			"votes":         listVotes.Result,
 			"attachments":   getAttachments.Result,
 			"reportReasons": getReportReasons.Result,
 		}
@@ -219,6 +253,8 @@ func PostDetails() web.HandlerFunc {
 			}
 		}
 
+		data["sponsorPlacements"] = sponsorPlacements(c)
+		data["sponsorPreview"] = sponsorPreview
 		return c.Page(http.StatusOK, web.Props{
 			Page:        "ShowPost/ShowPost.page",
 			Title:       getPost.Result.Title,

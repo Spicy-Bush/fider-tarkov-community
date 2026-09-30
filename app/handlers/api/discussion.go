@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
 	"slices"
 	"strconv"
 	"time"
@@ -160,7 +161,7 @@ func ListDiscussion() web.HandlerFunc {
 		}
 
 		if comments.ParentID != nil && depth > 1 {
-			chain := &query.GetDiscussionChainReplies{Depth: depth - 1}
+			chain := &query.GetDiscussionChainReplies{Discussion: owner.Result, Depth: depth - 1}
 			for _, comment := range response.Comments {
 				if comment.HasReplies {
 					chain.ParentIDs = append(chain.ParentIDs, comment.ID)
@@ -311,7 +312,7 @@ func DeleteDiscussionComment() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		return CommentResponse(c, operation.Discussion, operation.Result)
+		return c.NoContent(http.StatusNoContent)
 	}
 }
 

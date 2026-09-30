@@ -28,6 +28,7 @@ export interface SystemSettings {
   navigationLinks?: NavigationLink[]
   /** Publisher client id from GOOGLE_ADSENSE (e.g. ca-pub-...). Empty = AdSense off. */
   googleAdSense?: string
+  googleAnalytics?: string
 }
 
 export interface UserSettings {

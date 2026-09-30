@@ -350,7 +350,6 @@ func SetResponse() web.HandlerFunc {
 
 			c.Enqueue(tasks.NotifyAboutStatusChange(getPost.Result, prevStatus))
 
-
 			return c.Ok(web.Map{})
 		})
 	}
@@ -375,7 +374,6 @@ func DeletePost() web.HandlerFunc {
 			}
 
 			c.Enqueue(tasks.TriggerDeleteWebhook(action.Post))
-
 
 			return c.Ok(web.Map{})
 		})
@@ -425,6 +423,11 @@ func Unsubscribe() web.HandlerFunc {
 // ListVotes returns a list of all votes on given post
 func ListVotes() web.HandlerFunc {
 	return func(c *web.Context) error {
+		preview := c.QueryParam("preview") == "true"
+		if !preview && !entity.Can(c.User(), c.Tenant(), entity.ViewPostVotes) {
+			return c.Forbidden()
+		}
+
 		number, err := c.ParamAsInt("number")
 		if err != nil {
 			return c.NotFound()
@@ -435,7 +438,7 @@ func ListVotes() web.HandlerFunc {
 			return c.Failure(err)
 		}
 
-		listVotes := &query.ListPostVotes{PostID: getPost.Result.ID, IncludeEmail: false}
+		listVotes := &query.ListPostVotes{PostID: getPost.Result.ID, Preview: preview}
 		err = bus.Dispatch(c, listVotes)
 		if err != nil {
 			return c.Failure(err)
@@ -466,7 +469,6 @@ func addOrRemove(c *web.Context, getCommand func(post *entity.Post, user *entity
 		if err != nil {
 			return c.Failure(err)
 		}
-
 
 		return c.Ok(web.Map{})
 	})

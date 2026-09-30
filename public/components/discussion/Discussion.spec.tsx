@@ -115,3 +115,25 @@ test("deep replies reveal four levels followed by ten more per expansion", () =>
   const collapsed = discussionRows({ comments, branches }, { 5: true }, undefined, { 5: true, 15: true })
   expect(collapsed).toHaveLength(5)
 })
+
+test("sponsorship follows a whole thread without joining its collapse rail", () => {
+  const state = {
+    comments: { 1: comment(1), 2: comment(2, 1), 3: comment(3) },
+    branches: {
+      0: { ids: [1, 3], page: {} },
+      1: { ids: [2], page: {} },
+    },
+  }
+
+  expect(discussionRows(state, {}, undefined, {}, 1)).toEqual([
+    { kind: "comment", id: 1, depth: 0, end: 2, collapsed: false },
+    { kind: "comment", id: 2, depth: 1, end: 2, collapsed: false },
+    { kind: "sponsor", parentId: 0, depth: 0 },
+    { kind: "comment", id: 3, depth: 0, end: 4, collapsed: false },
+  ])
+
+  const collapsed = discussionRows(state, { 1: true }, undefined, {}, 1)
+  expect(collapsed[0]).toMatchObject({ end: 1, collapsed: true })
+  expect(collapsed[1].kind).toBe("sponsor")
+  expect(discussionRows(state, {}, 1, {}, 1).some(row => row.kind === "sponsor")).toBe(false)
+})

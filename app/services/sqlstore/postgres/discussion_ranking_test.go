@@ -224,7 +224,7 @@ func TestDiscussionTreePreparationCancellationAndOversize(t *testing.T) {
 		t.Fatalf("healthy preparation did not recover: %+v, %v", selection, err)
 	}
 
-	oversized, err := readDiscussionTree(reader, key, "post_id", 2)
+	oversized, err := readDiscussionTree(reader, key, "post_id", 2, nil, nil)
 	if err != nil || !oversized.Oversized || len(oversized.Ranks) != 0 {
 		t.Fatalf("the bounded read returned a partial tree: %+v, %v", oversized, err)
 	}

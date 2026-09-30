@@ -4,7 +4,7 @@ import { ImageUpload } from "@fider/models"
 import { Failure } from "@fider/services"
 import {
   deleteFiles, FileInfo, fileRequestFailure, FileUploadRequest, FileUsageResponse,
-  getFileUsage, pruneFiles, PruneFilesRequest, renameFile, uploadFile, FileRemoval,
+  getFileUsage, pruneFiles, PruneFilesRequest, renameFile, uploadFile, newFileUploadID, FileRemoval,
 } from "@fider/services/actions/file"
 import { FileCheckbox } from "./FileControls"
 
@@ -72,8 +72,14 @@ export const UploadFileDialog = (props: { isOpen: boolean; onClose: () => void; 
         return
       }
       if (!submission.current) {
+        const identity = await newFileUploadID()
+        if (!identity.ok) {
+          setError(identity.error)
+          return
+        }
+
         submission.current = {
-          submissionId: Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, "0")).join(""),
+          submissionId: identity.data,
           name: uploadName,
           file,
           uploadType: type,
@@ -95,7 +101,7 @@ export const UploadFileDialog = (props: { isOpen: boolean; onClose: () => void; 
       props.onClose()
     } catch (cause) {
       const failure = fileRequestFailure(cause, "The upload could not be confirmed. Retry to check the same upload.")
-      setUnconfirmed(true)
+      setUnconfirmed(!!submission.current)
       setError(failure)
     } finally {
       setBusy(false)

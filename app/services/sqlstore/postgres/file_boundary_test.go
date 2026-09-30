@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
@@ -17,10 +18,11 @@ import (
 func TestFileCommandsReceiveValidatedInputs(t *testing.T) {
 	f := newPostWorkflow(t)
 	f.user.Role = enum.RoleAdministrator
+	identity := actions.NewFileUploadID(f.tenant.ID, f.user.ID)
 	calls := 0
 	bus.AddHandler(func(ctx context.Context, upload *cmd.UploadImageFile) error {
 		calls++
-		if upload.Name != "Upload name" || upload.Type != enum.FileUploadPublic || (upload.SubmissionID != "file-operation" && upload.SubmissionID != strings.Repeat("x", 128)) {
+		if upload.Name != "Upload name" || upload.Type != enum.FileUploadPublic || upload.SubmissionID != identity {
 			t.Errorf("upload input was not normalized: %+v", upload)
 		}
 		return nil
@@ -50,11 +52,12 @@ func TestFileCommandsReceiveValidatedInputs(t *testing.T) {
 	}
 
 	valid := map[string]any{
-		"submissionId": "file-operation", "name": "  Upload name  ",
+		"submissionId": identity, "name": "  Upload name  ",
 		"uploadType": "attachment", "file": pngAttachment(t, 4),
 	}
 	request(handlers.UploadFile(), valid, http.StatusOK)
-	valid["submissionId"] = strings.Repeat("x", 128)
+	identity = actions.NewFileUploadID(f.tenant.ID, f.user.ID)
+	valid["submissionId"] = identity
 	request(handlers.UploadFile(), valid, http.StatusOK)
 	request(handlers.RenameFile(), map[string]any{"blobKey": "files/example", "name": "  Renamed image  "}, http.StatusOK)
 	if calls != 3 {
@@ -67,6 +70,8 @@ func TestFileCommandsReceiveValidatedInputs(t *testing.T) {
 	}{
 		{"name", "  "}, {"name", strings.Repeat("x", 256)},
 		{"submissionId", ""}, {"submissionId", "a\x00b"}, {"submissionId", strings.Repeat("x", 129)},
+		{"submissionId", actions.NewFileUploadID(f.tenant.ID, f.user.ID+1)},
+		{"submissionId", actions.NewFileUploadID(f.tenant.ID+1, f.user.ID)},
 		{"uploadType", "../../private"}, {"file", nil},
 	} {
 		body := make(map[string]any, len(valid))

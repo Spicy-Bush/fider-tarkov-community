@@ -19,7 +19,6 @@ type GetActiveNotifications struct {
 	Type        string
 	Page        int
 	PerPage     int
-	TotalCount  int
 	UnreadCount int
 	ReadCount   int
 }

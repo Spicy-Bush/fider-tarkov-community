@@ -108,7 +108,7 @@ func expectedCSP(nonce, cdnHost string) string {
 		"base-uri 'self'",
 		"default-src 'self'",
 		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.paddle.com " + cdnHost,
-		"script-src 'self' 'unsafe-inline' 'nonce-" + nonce + "' " +
+		"script-src 'self' 'unsafe-inline' 'nonce-" + nonce + "' 'strict-dynamic' " +
 			"https://ep1.adtrafficquality.google https://www.google-analytics.com https://*.paddle.com " +
 			"https://*.googletagmanager.com https://pagead2.googlesyndication.com " +
 			"https://static.cloudflareinsights.com https://*.cloudflare.com " + cdnHost,
@@ -119,8 +119,9 @@ func expectedCSP(nonce, cdnHost string) string {
 		"media-src 'none'",
 		"connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com " +
 			"https://*.googletagmanager.com https://*.g.doubleclick.net " +
+			"https://*.googlesyndication.com https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://www.google.com " +
 			"https://cloudflareinsights.com https://*.cloudflare.com " + cdnHost,
-		"frame-src 'self' https://*.paddle.com https://td.doubleclick.net https://www.googletagmanager.com " +
+		"frame-src 'self' https://*.paddle.com https://*.doubleclick.net https://*.googlesyndication.com https://www.google.com https://www.googletagmanager.com " +
 			"https://www.youtube.com/ https://vk.com/ https://vkvideo.ru/",
 		"frame-ancestors 'none'",
 	}, "; ")

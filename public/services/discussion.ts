@@ -56,7 +56,7 @@ export function editComment(id: number, submission: CommentSubmission, signal?: 
 }
 
 export function deleteComment(id: number) {
-  return retryRequest(() => http.delete<DiscussionComment>(`/api/comments/${id}`, undefined, { notifyOnError: false }))
+  return retryRequest(() => http.delete<void>(`/api/comments/${id}`, undefined, { notifyOnError: false }))
 }
 
 export function setCommentReaction(id: number, emoji: string, active: boolean) {

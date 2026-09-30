@@ -11,6 +11,10 @@ import (
 )
 
 func ViewPage() web.HandlerFunc {
+	return viewPage(false)
+}
+
+func viewPage(sponsorPreview bool) web.HandlerFunc {
 	return func(c *web.Context) error {
 		slug := c.Param("slug")
 
@@ -46,7 +50,9 @@ func ViewPage() web.HandlerFunc {
 			Title:       page.Title,
 			Description: metaDesc,
 			Data: web.Map{
+				"sponsorPreview":        sponsorPreview,
 				"page":                  page,
+				"sponsorPlacements":     sponsorPlacements(c),
 				"subscribed":            isSubscribed.Result,
 				"discussionPermissions": entity.PageDiscussion(page).Permissions(c.User(), c.Tenant()),
 			},

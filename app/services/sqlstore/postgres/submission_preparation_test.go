@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/api"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
@@ -85,7 +86,7 @@ func (f postWorkflow) imageSubmission(t testing.TB, kind, id string) imageSubmis
 	case "file":
 		request.handler = handlers.UploadFile()
 		request.payload = map[string]any{
-			"submissionId": id,
+			"submissionId": actions.NewFileUploadID(f.tenant.ID, f.user.ID),
 			"name":         "Submitted image",
 			"uploadType":   "file",
 			"file":         image,

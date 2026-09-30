@@ -121,6 +121,18 @@ var All = []Owner{
 		Unlink: `UPDATE oauth_providers SET logo_bkey='' WHERE tenant_id=$1 AND logo_bkey=$2 AND $3`,
 	},
 	{
+		Kind: "sponsor", Table: "sponsor_creatives", Tenant: "tenant_id", ID: "id",
+		From: "sponsor_creatives o", Title: "COALESCE(NULLIF(o.data->>'headline', ''), 'Sponsor creative #' || o.id)", URL: "'/admin/sponsorship'",
+		Scope: "CASE WHEN o.data->>'state'='approved' THEN 'active' ELSE 'draft' END",
+		Keys: []string{"image_key", "logo_key"},
+		Unlink: `UPDATE sponsor_creatives SET
+			image_key=CASE WHEN image_key=$2 THEN '' ELSE image_key END,
+			logo_key=CASE WHEN logo_key=$2 THEN '' ELSE logo_key END,
+			data=jsonb_set(data,'{state}','"review"'), revision=revision+1
+			WHERE tenant_id=$1 AND (image_key=$2 OR logo_key=$2)
+			  AND NOT media_reference_blocks(CASE WHEN data->>'state'='approved' THEN 'active' ELSE 'draft' END,$3,$4,$5)`,
+	},
+	{
 		Kind: "creative", Table: "creative_versions", Tenant: "tenant_id", ID: "id",
 		From: "creative_versions o", Title: "'Creative version #' || o.id", URL: "'/admin/sponsorship'",
 		Markup: []string{"image_url", "html"},

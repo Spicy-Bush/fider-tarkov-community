@@ -182,6 +182,10 @@ func TestMediaInventoryFailureDoesNotInferAbsence(t *testing.T) {
 }
 
 func TestMediaInventoryPreservesUploadsAcrossScanCommit(t *testing.T) {
+	previous := env.Config.BlobStorage.Type
+	env.Config.BlobStorage.Type = "sql"
+	t.Cleanup(func() { env.Config.BlobStorage.Type = previous })
+
 	ctx := inventoryFixture(t)
 	ctx = context.WithValue(ctx, app.UserCtxKey, &entity.User{ID: 1, Role: enum.RoleAdministrator, Status: enum.UserActive})
 	blobsql.Service{}.Init()

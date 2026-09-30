@@ -1,6 +1,7 @@
 import React from "react"
 import { UserRole, UserAvatarType } from "@fider/models/identity"
 import { UserPermissions } from "@fider/models"
+import { useCurrentUser } from "@fider/hooks/use-fider"
 
 const AVATAR_COLORS = [
   { bg: "linear-gradient(135deg, #86b0bc 0%, #6a9aa8 100%)", text: "#ffffff" },
@@ -50,6 +51,7 @@ interface AvatarProps {
 }
 
 export const Avatar = (props: AvatarProps) => {
+  const currentUser = useCurrentUser()
   const sizeClass = props.size === "small" ? "h-6 w-6" : props.size === "fill" ? "w-full h-full" : "h-8 w-8"
   const imageSize = props.imageSize ?? 64
   const clickable = props.clickable !== undefined ? props.clickable : true
@@ -67,7 +69,8 @@ export const Avatar = (props: AvatarProps) => {
   )
   
   if (props.user.permissions?.readProfile && props.user.id && clickable) {
-    return <a href={`/profile/${props.user.id}`} className={props.size === "fill" ? "w-full h-full block" : ""}>{avatar}</a>
+    const profileURL = props.user.id === currentUser?.id ? "/profile" : `/profile/${props.user.id}`
+    return <a href={profileURL} className={props.size === "fill" ? "w-full h-full block" : ""}>{avatar}</a>
   }
   
   return avatar

@@ -1,7 +1,11 @@
 /// <reference types="vite/client" />
 
 interface Window {
-  /** Publisher client id mirror of GOOGLE_ADSENSE / settings.googleAdSense. */
-  __adsense_client?: string
-  adsbygoogle?: unknown[]
+  adsbygoogle?: {
+    push: (entry: Record<string, unknown>) => unknown
+    requestNonPersonalizedAds?: number
+  }
+  dataLayer?: IArguments[]
+  gtag?: (...args: unknown[]) => void
+  [key: `ga-disable-${string}`]: boolean
 }

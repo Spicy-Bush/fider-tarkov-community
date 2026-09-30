@@ -11,7 +11,8 @@ import { Tabs, TabPanels } from "@fider/components/common/Tabs"
 
 interface MyNotificationsPageProps {
   notifications: Notification[]
-  total: number
+  unreadTotal: number
+  readTotal: number
   page: number
   perPage: number
 }
@@ -52,8 +53,8 @@ export default class MyNotificationsPage extends React.Component<MyNotifications
       read,
       unreadPage: 1,
       readPage: 1,
-      unreadTotal: 0,
-      readTotal: 0,
+      unreadTotal: props.unreadTotal,
+      readTotal: props.readTotal,
       loading: false,
       purging: false
     }
@@ -140,7 +141,7 @@ export default class MyNotificationsPage extends React.Component<MyNotifications
     
     if (result.ok && result.data) {
       const notifications = result.data.notifications ?? []
-      const { total } = result.data
+      const total = type === "unread" ? result.data.unreadTotal : result.data.readTotal
 
       if (type === "unread") {
         this.setState(prev => {

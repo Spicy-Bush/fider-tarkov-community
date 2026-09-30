@@ -34,6 +34,8 @@ interface QueuePreviewProps {
   onDuplicateSelected: (postNumber: number) => Promise<void>
   onDuplicateReset: () => void
   onPostUpdated: (post: Pick<Post, "id" | "title" | "description">) => void
+  onPostChanged: (postNumber: number) => Promise<void>
+  onPostDeleted: (postID: number) => Promise<void>
   onContentCopied: () => void
   onOriginalPostSaved: () => void
   onOriginalPostCancelled: () => void
@@ -61,6 +63,8 @@ export const QueuePreview: React.FC<QueuePreviewProps> = ({
   onDuplicateSelected,
   onDuplicateReset,
   onPostUpdated,
+  onPostChanged,
+  onPostDeleted,
   onContentCopied,
   onOriginalPostSaved,
   onOriginalPostCancelled,
@@ -182,6 +186,8 @@ export const QueuePreview: React.FC<QueuePreviewProps> = ({
             onDuplicateCancelled={onHideDuplicateSearch}
             onDuplicateReset={onDuplicateReset}
             onPostUpdated={onPostUpdated}
+            onPostChanged={onPostChanged}
+            onPostDeleted={onPostDeleted}
             onContentCopied={onContentCopied}
             onNextPost={onNextPost}
             onUserClick={handleUserClick}

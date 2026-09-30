@@ -71,11 +71,11 @@ export const timeSince = (locale: string, now: Date, date: Date, dateFormat: Dat
 
     const rtf = relativeTimeFormatter
     return (
-      (seconds < 60 && rtf.format(-1 * seconds, "seconds")) ||
-      (minutes < 60 && rtf.format(-1 * minutes, "minutes")) ||
-      (hours < 24 && rtf.format(-1 * hours, "hours")) ||
-      (days < 30 && rtf.format(-1 * days, "days")) ||
-      (days < 365 && rtf.format(-1 * months, "months")) ||
+      (Math.abs(seconds) < 60 && rtf.format(-1 * seconds, "seconds")) ||
+      (Math.abs(minutes) < 60 && rtf.format(-1 * minutes, "minutes")) ||
+      (Math.abs(hours) < 24 && rtf.format(-1 * hours, "hours")) ||
+      (Math.abs(days) < 30 && rtf.format(-1 * days, "days")) ||
+      (Math.abs(days) < 365 && rtf.format(-1 * months, "months")) ||
       rtf.format(-1 * years, "years")
     )
   } catch {

@@ -5,8 +5,7 @@ import { ResponseLozenge } from "@fider/components/post/ShowPostResponse"
 import { heroiconsChatAlt2 as IconChatAlt2 } from "@fider/icons.generated"
 import { HStack, VStack } from "@fider/components/layout"
 import { getVotePosition } from "@fider/components/UserProfile/UserProfileSettings"
-import { AdSlot, FeedNativeAd } from "@fider/components/sponsorship"
-import { FEED_AD_EVERY, PublicAd } from "@fider/models"
+import { SponsorSpot, useSponsorPlacement } from "@fider/components/sponsorship/SponsorProvider"
 
 export interface PendingPost {
   id: number
@@ -21,10 +20,7 @@ interface ListPostsProps {
   tags: Tag[]
   emptyText: string
   loading?: boolean
-  /** When true, insert feed_native AdSlots every FEED_AD_EVERY posts. Default off so SimilarPosts stays clean. */
   insertFeedAds?: boolean
-  /** Page-owned selection map keyed by feed-{i}. Required when insertFeedAds. */
-  feedAds?: Record<string, PublicAd | null | undefined>
   feedAdHeights?: Record<string, number>
 }
 
@@ -110,6 +106,7 @@ const ListPostItem = (props: { post: Post; user?: CurrentUser; tags: Tag[]; vote
 }
 
 export const ListPosts = (props: ListPostsProps) => {
+  const feedPlacement = useSponsorPlacement("feed")
   const [votePosition, setVotePositionState] = useState<"left" | "right">("left")
 
   useEffect(() => {
@@ -153,11 +150,10 @@ export const ListPosts = (props: ListPostsProps) => {
   return (
     <VStack spacing={4} divide>
       {postsWithTags.map(({ post, tags }, index) => {
-        const showAd = insertFeedAds && (index + 1) % FEED_AD_EVERY === 0
-        const feedIndex = Math.floor((index + 1) / FEED_AD_EVERY) - 1
+        const every = feedPlacement?.every
+        const showAd = insertFeedAds && every && (index + 1) % every === 0
+        const feedIndex = every ? Math.floor((index + 1) / every) - 1 : 0
         const instanceId = `feed-${feedIndex}`
-        const ad = props.feedAds?.[instanceId]
-        const pendingHeight = ad === undefined ? props.feedAdHeights?.[instanceId] : undefined
         return (
           <React.Fragment key={post.id}>
             <div
@@ -172,15 +168,7 @@ export const ListPosts = (props: ListPostsProps) => {
               )}
             </div>
             {showAd && (
-              <div data-feed-slot={instanceId} className="[&:empty]:hidden" style={pendingHeight ? { height: pendingHeight } : undefined}>
-                {ad ? (
-                  <FeedNativeAd ad={ad} />
-                ) : pendingHeight ? (
-                  <div className="h-full rounded-card bg-surface-alt" aria-label="Loading advertisement" />
-                ) : (
-                  <AdSlot instanceId={instanceId} placementId="feed_native" ad={ad} placement={{ kind: "native" }} />
-                )}
-              </div>
+              <SponsorSpot position="feed" instance={instanceId} reservedHeight={props.feedAdHeights?.[instanceId]} />
             )}
           </React.Fragment>
         )

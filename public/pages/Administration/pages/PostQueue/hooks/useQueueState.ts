@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react"
 import { Post } from "@fider/models"
-import { actions, PAGINATION } from "@fider/services"
+import { actions, notify, PAGINATION } from "@fider/services"
+import { RequestError } from "@fider/services/http"
 import { useFider } from "@fider/hooks"
 
 export type QueueSortOption = "newest" | "oldest" | "most-wanted" | "least-wanted"
@@ -55,6 +56,9 @@ export const useQueueState = (): UseQueueStateResult => {
   const selectedPostRef = useRef<Post | null>(null)
   const currentUserIdRef = useRef(user.id)
   const postsRef = useRef<Post[]>([])
+  const listRequest = useRef<AbortController>()
+
+  useEffect(() => () => listRequest.current?.abort(), [])
 
   useEffect(() => {
     selectedPostRef.current = selectedPost
@@ -65,26 +69,37 @@ export const useQueueState = (): UseQueueStateResult => {
   }, [posts])
 
   const loadPosts = useCallback(async () => {
+    listRequest.current?.abort()
+    const request = new AbortController()
+    listRequest.current = request
     setIsLoading(true)
-    const result = await actions.searchPosts({
-      statuses: ["open", "planned", "started", "completed"],
-      tags: ["untagged"],
-      limit: perPage,
-      offset: (page - 1) * perPage,
-      view: sortOption,
-      date: defaultDate,
-      includeCount: true,
-    })
-    if (result.ok) {
-      setPosts(result.data || [])
-      const totalCount = result.headers?.get("X-Total-Count")
-      if (totalCount) {
-        setTotal(parseInt(totalCount, 10))
-      } else {
-        setTotal(result.data?.length === perPage ? page * perPage + 1 : page * perPage)
+
+    try {
+      const result = await actions.searchPosts({
+        statuses: ["open", "planned", "started", "completed"],
+        tags: ["untagged"],
+        limit: perPage,
+        offset: (page - 1) * perPage,
+        view: sortOption,
+        date: defaultDate,
+        includeCount: true,
+      }, { signal: request.signal })
+
+      if (!request.signal.aborted && result.ok) {
+        setPosts(result.data)
+        setTotal(Number(result.headers!.get("X-Total-Count")))
+      }
+    } catch (cause) {
+      if (!request.signal.aborted) {
+        if (!(cause instanceof RequestError)) throw cause
+
+        notify.error("Could not load the post queue. Please retry.")
+      }
+    } finally {
+      if (!request.signal.aborted) {
+        setIsLoading(false)
       }
     }
-    setIsLoading(false)
   }, [page, perPage, sortOption, defaultDate])
 
   const loadPostDetails = useCallback(async (postNumber: number, refreshPost = false) => {
