@@ -109,6 +109,9 @@ func TestDiscussionPrivatePageReportOperations(t *testing.T) {
 		t.Fatal(err)
 	}
 	read(true)
+	if _, err := trx.Execute("UPDATE reports SET status = 'pending', assigned_to = NULL WHERE id = $1", report.Result); err != nil {
+		t.Fatal(err)
+	}
 	for _, operation := range operations {
 		if err := bus.Dispatch(ctx, operation.command); err != nil {
 			t.Fatalf("%s failed after access was granted: %v", operation.name, err)

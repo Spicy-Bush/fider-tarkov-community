@@ -228,14 +228,22 @@ func assignReport(ctx context.Context, c *cmd.AssignReport) error {
 			return err
 		}
 
-		_, err := trx.Execute(`
+		if c.AssignToID != user.ID {
+			return validate.Unauthorized()
+		}
+
+		changed, err := trx.Execute(`
 			UPDATE reports 
 			SET assigned_to = $1, assigned_at = NOW(), status = 'in_review'
-			WHERE id = $2 AND tenant_id = $3
+			WHERE id = $2 AND tenant_id = $3 AND status = 'pending'
 		`, c.AssignToID, c.ReportID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to assign report")
 		}
+		if changed == 0 {
+			return app.ErrConflict
+		}
+
 		return nil
 	})
 }
@@ -246,32 +254,44 @@ func unassignReport(ctx context.Context, c *cmd.UnassignReport) error {
 			return err
 		}
 
-		_, err := trx.Execute(`
+		changed, err := trx.Execute(`
 			UPDATE reports 
 			SET assigned_to = NULL, assigned_at = NULL, status = 'pending'
-			WHERE id = $1 AND tenant_id = $2
-		`, c.ReportID, tenant.ID)
+			WHERE id = $1 AND tenant_id = $2 AND status = 'in_review' AND assigned_to = $3
+		`, c.ReportID, tenant.ID, user.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to unassign report")
 		}
+		if changed == 0 {
+			return app.ErrConflict
+		}
+
 		return nil
 	})
 }
 
 func resolveReport(ctx context.Context, c *cmd.ResolveReport) error {
+	if c.Status != enum.ReportStatusResolved && c.Status != enum.ReportStatusDismissed {
+		return validate.Failed("Choose a valid report resolution.")
+	}
+
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if err := authorizeReportChange(ctx, user, c.ReportID); err != nil {
 			return err
 		}
 
-		_, err := trx.Execute(`
+		changed, err := trx.Execute(`
 			UPDATE reports 
 			SET status = $1, resolved_at = NOW(), resolved_by = $2, resolution_note = $3
-			WHERE id = $4 AND tenant_id = $5
+			WHERE id = $4 AND tenant_id = $5 AND status IN ('pending', 'in_review')
 		`, c.Status.String(), user.ID, nullIfEmpty(c.ResolutionNote), c.ReportID, tenant.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to resolve report")
 		}
+		if changed == 0 {
+			return app.ErrConflict
+		}
+
 		return nil
 	})
 }

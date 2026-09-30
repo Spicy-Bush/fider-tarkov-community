@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react"
 import { Report, ReportStatus, ReportType, ReportReason } from "@fider/models"
-import { actions, Fider, Failure } from "@fider/services"
+import { actions, Fider, Failure, Result } from "@fider/services"
 import { SelectOption } from "@fider/components"
 import { i18n } from "@lingui/core"
 import { ViewingUserType } from "./useReportsState"
@@ -143,9 +143,27 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
     setViewingUser(null)
   }, [isNavigating, pushState, selectedReport, setViewingUser])
 
+  const reconcileConflict = useCallback(async (id: number, result: Result) => {
+    if (result.ok || result.status !== 409) return
+
+    const current = await actions.getReport(id)
+    if (!current.ok) return
+
+    const terminal = current.data.status === "resolved" || current.data.status === "dismissed"
+    if (selectedStatusRef.current === "active" && terminal) {
+      removeReport(id)
+    } else {
+      updateReport(current.data)
+    }
+
+    setSelectedReport(selected => selected?.id === id ? current.data : selected)
+    if (terminal) setShowResolveModal(false)
+  }, [selectedStatusRef, removeReport, updateReport, setSelectedReport, setShowResolveModal])
+
   const handleAssign = useCallback(async () => {
     if (!selectedReport) return
     const result = await actions.assignReport(selectedReport.id)
+    await reconcileConflict(selectedReport.id, result)
     if (result.ok) {
       const updatedReport = {
         ...selectedReport,
@@ -155,11 +173,12 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
       setSelectedReport(updatedReport)
       updateReport(updatedReport)
     }
-  }, [selectedReport, setSelectedReport, updateReport])
+  }, [selectedReport, setSelectedReport, updateReport, reconcileConflict])
 
   const handleUnassign = useCallback(async () => {
     if (!selectedReport) return
     const result = await actions.unassignReport(selectedReport.id)
+    await reconcileConflict(selectedReport.id, result)
     if (result.ok) {
       const updatedReport = {
         ...selectedReport,
@@ -169,13 +188,14 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
       setSelectedReport(updatedReport)
       updateReport(updatedReport)
     }
-  }, [selectedReport, setSelectedReport, updateReport])
+  }, [selectedReport, setSelectedReport, updateReport, reconcileConflict])
 
   const handleResolveClick = useCallback(async (status: "resolved" | "dismissed", shiftKey: boolean) => {
     if (!selectedReport) return
 
     if (shiftKey) {
       const result = await actions.resolveReport(selectedReport.id, status)
+      await reconcileConflict(selectedReport.id, result)
       if (result.ok) {
         if (selectedStatusRef.current === "active") {
           removeReport(selectedReport.id)
@@ -190,13 +210,14 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
     setResolveAction(status)
     setResolutionNote("")
     setShowResolveModal(true)
-  }, [selectedReport, selectedStatusRef, updateReport, removeReport, setSelectedReport, setResolveAction, setResolutionNote, setShowResolveModal])
+  }, [selectedReport, selectedStatusRef, updateReport, removeReport, setSelectedReport, setResolveAction, setResolutionNote, setShowResolveModal, reconcileConflict])
 
   const handleResolveSubmit = useCallback(async () => {
     if (!selectedReport) return
 
     setError(undefined)
     const result = await actions.resolveReport(selectedReport.id, resolveAction, resolutionNote)
+    await reconcileConflict(selectedReport.id, result)
     if (result.ok) {
       setShowResolveModal(false)
       if (selectedStatusRef.current === "active") {
@@ -208,7 +229,7 @@ export const useReportsActions = (config: UseReportsActionsConfig): UseReportsAc
     } else {
       setError(result.error)
     }
-  }, [selectedReport, resolveAction, resolutionNote, selectedStatusRef, updateReport, removeReport, setSelectedReport, setShowResolveModal, setError])
+  }, [selectedReport, resolveAction, resolutionNote, selectedStatusRef, updateReport, removeReport, setSelectedReport, setShowResolveModal, setError, reconcileConflict])
 
   const handleCloseResolveModal = useCallback(() => {
     setShowResolveModal(false)
