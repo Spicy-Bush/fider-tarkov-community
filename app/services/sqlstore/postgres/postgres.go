@@ -52,6 +52,7 @@ func (s Service) Init() {
 	bus.AddHandler(deleteSponsorCreative)
 	bus.AddHandler(saveSponsorPlacement)
 	bus.AddHandler(allocateSponsors)
+	bus.AddHandler(purgeSponsorOpportunities)
 	bus.AddHandler(recordSponsorClick)
 	bus.AddHandler(getSponsorReport)
 	bus.AddHandler(saveSponsorExclusion)
@@ -213,7 +214,6 @@ func (s Service) Init() {
 	bus.AddHandler(expireWarning)
 	bus.AddHandler(expireMute)
 	bus.AddHandler(getUsersToNotify)
-
 
 	bus.AddHandler(createReport)
 	bus.AddHandler(assignReport)

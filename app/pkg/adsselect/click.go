@@ -12,29 +12,30 @@ import (
 )
 
 type Click struct {
-	TenantID    int    `json:"tenant"`
-	CampaignID  int    `json:"campaign"`
-	CreativeID  int    `json:"creative"`
-	PlacementID string `json:"placement"`
-	Day         string `json:"day"`
-	Destination string `json:"destination"`
-	Expires     int64  `json:"expires"`
+	OpportunityID string `json:"opportunity"`
+	TenantID      int    `json:"tenant"`
+	Destination   string `json:"destination"`
+	Expires       int64  `json:"expires"`
 }
 
 func (click Click) Token(secret string) (string, error) {
-	encoded, err := json.Marshal(click)
+	return signToken("sponsor-click:", click, secret)
+}
+
+func signToken(purpose string, value any, secret string) (string, error) {
+	encoded, err := json.Marshal(value)
 	if err != nil {
 		return "", err
 	}
 
 	payload := base64.RawURLEncoding.EncodeToString(encoded)
 	signature := hmac.New(sha256.New, []byte(secret))
-	signature.Write([]byte("sponsor-click:" + payload))
+	signature.Write([]byte(purpose + payload))
 	return payload + "." + base64.RawURLEncoding.EncodeToString(signature.Sum(nil)), nil
 }
 
-func ReadClick(token, secret string, tenantID int, now time.Time) (*Click, error) {
-	invalid := errors.New("invalid sponsorship link")
+func readToken(purpose, token, secret string) ([]byte, error) {
+	invalid := errors.New("invalid sponsorship token")
 	payload, supplied, ok := strings.Cut(token, ".")
 	if !ok || len(token) > 8192 {
 		return nil, invalid
@@ -46,7 +47,7 @@ func ReadClick(token, secret string, tenantID int, now time.Time) (*Click, error
 	}
 
 	expected := hmac.New(sha256.New, []byte(secret))
-	expected.Write([]byte("sponsor-click:" + payload))
+	expected.Write([]byte(purpose + payload))
 	if !hmac.Equal(signature, expected.Sum(nil)) {
 		return nil, invalid
 	}
@@ -54,6 +55,16 @@ func ReadClick(token, secret string, tenantID int, now time.Time) (*Click, error
 	encoded, err := base64.RawURLEncoding.DecodeString(payload)
 	if err != nil {
 		return nil, invalid
+	}
+
+	return encoded, nil
+}
+
+func ReadClick(token, secret string, tenantID int, now time.Time) (*Click, error) {
+	invalid := errors.New("invalid sponsorship link")
+	encoded, err := readToken("sponsor-click:", token, secret)
+	if err != nil {
+		return nil, err
 	}
 
 	var click Click
@@ -66,7 +77,7 @@ func ReadClick(token, secret string, tenantID int, now time.Time) (*Click, error
 		return nil, invalid
 	}
 
-	if click.TenantID != tenantID || click.Expires <= now.Unix() {
+	if click.TenantID != tenantID || click.Expires <= now.Unix() || len(click.OpportunityID) != 32 {
 		return nil, invalid
 	}
 

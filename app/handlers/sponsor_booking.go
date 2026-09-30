@@ -13,6 +13,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/log"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/rand"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
@@ -32,6 +33,15 @@ func SponsorClick() web.HandlerFunc {
 		c.Response.Header().Set("Referrer-Policy", "no-referrer")
 		return c.Redirect(click.Destination)
 	}
+}
+
+func sponsorPage(c *web.Context, page adsselect.Page) (string, error) {
+	page.ID = rand.String(32)
+	page.TenantID = c.Tenant().ID
+	page.Session = adsselect.SessionKey(c.SessionID())
+	page.Expires = time.Now().Add(24 * time.Hour).Unix()
+
+	return page.Token(env.Config.JWTSecret)
 }
 
 func sponsorPlacements(c *web.Context) []entity.SponsorPlacement {

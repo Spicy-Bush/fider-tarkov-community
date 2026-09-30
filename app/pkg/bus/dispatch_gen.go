@@ -85,6 +85,7 @@ var cPublishPageEditHandler func(context.Context, *cmd.PublishPageEdit) error
 var cPublishScheduledPagesHandler func(context.Context, *cmd.PublishScheduledPages) error
 var cPurgeExpiredNotificationsHandler func(context.Context, *cmd.PurgeExpiredNotifications) error
 var cPurgeReadNotificationsHandler func(context.Context, *cmd.PurgeReadNotifications) error
+var cPurgeSponsorOpportunitiesHandler func(context.Context, *cmd.PurgeSponsorOpportunities) error
 var cRecordSponsorClickHandler func(context.Context, *cmd.RecordSponsorClick) error
 var cRefreshMediaInventoryHandler func(context.Context, *cmd.RefreshMediaInventory) error
 var cRefreshPageEmbeddedDataHandler func(context.Context, *cmd.RefreshPageEmbeddedData) error
@@ -426,6 +427,8 @@ func registerTypedHandler(handler HandlerFunc) {
 		cPurgeExpiredNotificationsHandler = fn
 	case func(context.Context, *cmd.PurgeReadNotifications) error:
 		cPurgeReadNotificationsHandler = fn
+	case func(context.Context, *cmd.PurgeSponsorOpportunities) error:
+		cPurgeSponsorOpportunitiesHandler = fn
 	case func(context.Context, *cmd.RecordSponsorClick) error:
 		cRecordSponsorClickHandler = fn
 	case func(context.Context, *cmd.RefreshMediaInventory) error:
@@ -1171,6 +1174,11 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.PurgeReadNotifications")
 		}
 		return cPurgeReadNotificationsHandler(ctx, m)
+	case *cmd.PurgeSponsorOpportunities:
+		if cPurgeSponsorOpportunitiesHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.PurgeSponsorOpportunities")
+		}
+		return cPurgeSponsorOpportunitiesHandler(ctx, m)
 	case *cmd.RecordSponsorClick:
 		if cRecordSponsorClickHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.RecordSponsorClick")

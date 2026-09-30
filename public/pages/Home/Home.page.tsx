@@ -17,6 +17,7 @@ import { i18n } from "@lingui/core"
 import { Trans } from "@lingui/react/macro"
 
 export interface HomePageProps {
+  sponsorPage?: string
   posts: Post[]
   tags: Tag[]
   countPerStatus: { [key: string]: number }
@@ -152,6 +153,7 @@ What can we do better? This is the place for you to vote, discuss and share idea
             <>
               {renderMessageBanner()}
               <PostsContainer
+                sponsorPage={props.sponsorPage}
                 posts={props.posts}
                 tags={props.tags}
                 countPerStatus={props.countPerStatus}

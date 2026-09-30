@@ -70,13 +70,15 @@ func BenchmarkSponsorAllocationHistory(b *testing.B) {
 			}
 
 			request := &cmd.AllocateSponsors{
-				Context: entity.SponsorContext{PageType: "home", Language: "en", Device: "desktop"},
+				ExpiresAt:     time.Now().Add(time.Hour),
+				Context:       entity.SponsorContext{PageType: "home", Language: "en", Device: "desktop"},
 				Opportunities: []entity.SponsorOpportunity{{InstanceID: "strip", PlacementID: "strip_desktop"}},
 			}
 			b.ReportAllocs()
 			b.ResetTimer()
 
 			for b.Loop() {
+				request.PageID = rand.String(32)
 				if err := bus.Dispatch(f.ctx, request); err != nil {
 					b.Fatal(err)
 				}

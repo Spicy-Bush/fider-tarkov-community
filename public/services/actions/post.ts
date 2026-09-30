@@ -18,6 +18,7 @@ export const getPostAttachments = async (postNumber: number): Promise<Result<str
 }
 
 export interface SearchPostsParams {
+  sponsorPage?: string
   ids?: number[]
   query?: string
   view?: string
@@ -38,6 +39,7 @@ export const searchPosts = async (
   options?: { signal?: AbortSignal; notifyOnError?: boolean }
 ): Promise<Result<Post[]>> => {
   let qsParams = querystring.stringify({
+    sponsorPage: params.sponsorPage,
     ids: params.ids?.join(","),
     tags: params.tags,
     statuses: params.statuses,

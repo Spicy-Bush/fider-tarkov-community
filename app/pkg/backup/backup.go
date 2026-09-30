@@ -42,6 +42,7 @@ func Create(ctx context.Context) (*bytes.Buffer, error) {
 	excluded := []string{
 		"blobs", "media_thumbnails", "media_inventory", "media_inventory_candidates",
 		"media_reference_changes",
+		"sponsor_opportunities",
 	}
 	indirect := []string{"tenants", "reactions", "page_reactions", "page_subscriptions"}
 	var tables []*struct {

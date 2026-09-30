@@ -76,8 +76,8 @@ function posts(offset: number, count: number): Post[] {
   return Array.from({ length: count }, (_, index) => ({ id: offset + index + 1, title: "fresh" } as Post))
 }
 
-function showPosts(initial = posts(0, 20), criteria = initialFilters) {
-  return render(<PostsContainer posts={initial} initialFilters={criteria} tags={[]} countPerStatus={{ open: 1000 }} />)
+function showPosts(initial = posts(0, 20), criteria = initialFilters, sponsorPage?: string) {
+  return render(<PostsContainer posts={initial} initialFilters={criteria} sponsorPage={sponsorPage} tags={[]} countPerStatus={{ open: 1000 }} />)
 }
 
 function shownIDs(): number[] {
@@ -226,13 +226,13 @@ test("restoring 1000 rows reads only visible records and discards unavailable re
     { ...posts(502, 1)[0], title: "updated 503" },
     { ...posts(500, 1)[0], title: "updated 501" },
   ] })
-  showPosts()
+  showPosts(undefined, undefined, "current-page-grant")
 
   await screen.findByText("501:updated 501")
   expect(screen.getByText("503:updated 503")).toBeInTheDocument()
   expect(shownIDs()).not.toContain(502)
   expect(screen.getByText("800:pending")).toBeInTheDocument()
-  expect(actions.searchPosts).toHaveBeenCalledWith({ ...saved!.filters, ids: [501, 502, 503] }, {
+  expect(actions.searchPosts).toHaveBeenCalledWith({ ...saved!.filters, ids: [501, 502, 503], sponsorPage: "current-page-grant" }, {
     signal: expect.any(AbortSignal),
     notifyOnError: false,
   })

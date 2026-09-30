@@ -152,8 +152,7 @@ export const ListPosts = (props: ListPostsProps) => {
       {postsWithTags.map(({ post, tags }, index) => {
         const every = feedPlacement?.every
         const showAd = insertFeedAds && every && (index + 1) % every === 0
-        const feedIndex = every ? Math.floor((index + 1) / every) - 1 : 0
-        const instanceId = `feed-${feedIndex}`
+        const instanceId = `feed-${post.id}`
         return (
           <React.Fragment key={post.id}>
             <div
@@ -168,7 +167,11 @@ export const ListPosts = (props: ListPostsProps) => {
               )}
             </div>
             {showAd && (
-              <SponsorSpot position="feed" instance={instanceId} reservedHeight={props.feedAdHeights?.[instanceId]} />
+              "pending" in post ? (
+                <div data-feed-slot={instanceId} style={{ height: props.feedAdHeights?.[instanceId] }} />
+              ) : (
+                <SponsorSpot position="feed" instance={instanceId} pageToken={post.sponsorPage} reservedHeight={props.feedAdHeights?.[instanceId]} />
+              )
             )}
           </React.Fragment>
         )

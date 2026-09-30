@@ -13,6 +13,7 @@ export enum PostStatusValue {
 }
 
 export interface Post {
+  sponsorPage?: string
   discussionPermissions: DiscussionPermissions
   permissions: PostPermissions
   id: number

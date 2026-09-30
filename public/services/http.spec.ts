@@ -66,6 +66,7 @@ test("sponsor allocation leaves failure presentation to its owner", async () => 
   const result = await allocateSponsors(
     { pageType: "home", id: 0, language: "en", device: "desktop" },
     [{ instanceId: "feed-0", placementId: "feed_desktop" }],
+    "issued-page-token",
   )
 
   expect(result).toMatchObject({ ok: false, status: 503 })

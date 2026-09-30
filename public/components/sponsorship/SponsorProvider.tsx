@@ -7,7 +7,7 @@ import { SponsorCard } from "./SponsorCard"
 
 type SlotState = { status: "pending" | "failed" } | { status: "ready"; selection: SponsorSelection }
 
-export function createSponsorSelection(context: SponsorContext, placements: SponsorPlacement[], preview = false) {
+export function createSponsorSelection(context: SponsorContext, placements: SponsorPlacement[], preview = false, pageToken = "") {
   let slots: Readonly<Record<string, SlotState>> = {}
   const listeners = new Set<() => void>()
   const queued = new Map<string, SponsorOpportunity>()
@@ -25,7 +25,7 @@ export function createSponsorSelection(context: SponsorContext, placements: Spon
 
       const changed: Record<string, SlotState> = {}
       try {
-        const result = await allocateSponsors(context, batch)
+        const result = await allocateSponsors(context, batch, pageToken)
         for (const item of batch) {
           if (result.ok && !result.data[item.instanceId]) {
             throw new Error(`Missing sponsorship selection for ${item.instanceId}`)
@@ -82,7 +82,7 @@ export function SponsorProvider({ children }: { children: React.ReactNode }) {
   const id = pageType === "post" ? data.props.post.id : pageType === "page" ? data.props.page.id : 0
   const language = Fider.currentLocale.startsWith("ru") ? "ru" : "en"
   const preview = data.props.sponsorPreview === true
-  const key = JSON.stringify([data.tenant.id, pageType, id, language, device, preview, data.props.sponsorPlacements])
+  const key = JSON.stringify([data.tenant.id, pageType, id, language, device, preview, data.props.sponsorPlacements, data.props.sponsorPage])
 
   useEffect(() => {
     const viewport = window.matchMedia("(min-width: 1024px)")
@@ -105,7 +105,7 @@ export function SponsorProvider({ children }: { children: React.ReactNode }) {
       (preview ? p.id === previewPlacement : p.enabled) &&
       p.device === device && (p.pageType === "all" || p.pageType === pageType)
     )
-    setSelection({ key, owner: createSponsorSelection(context, placements, preview) })
+    setSelection({ key, owner: createSponsorSelection(context, placements, preview, data.props.sponsorPage) })
   }, [key])
 
   return (
@@ -123,19 +123,19 @@ export function useSponsorPreview(): boolean {
   return useContext(SponsorOwner)?.preview === true
 }
 
-function SelectedSponsor({ owner, placement, instance, reservedHeight }: { owner: SelectionOwner; placement: SponsorPlacement; instance: string; reservedHeight?: number }) {
+function SelectedSponsor({ owner, placement, instance, pageToken, reservedHeight }: { owner: SelectionOwner; placement: SponsorPlacement; instance: string; pageToken?: string; reservedHeight?: number }) {
   const slots = useSyncExternalStore(owner.subscribe, owner.snapshot, owner.snapshot)
   const element = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const observer = new IntersectionObserver(entries => {
       if (entries.some(entry => entry.isIntersecting)) {
-        owner.request({ instanceId: instance, placementId: placement.id })
+        owner.request({ instanceId: instance, placementId: placement.id, pageToken })
         observer.disconnect()
       }
     }, { rootMargin: "600px" })
     observer.observe(element.current!)
     return () => observer.disconnect()
-  }, [owner, instance, placement.id])
+  }, [owner, instance, placement.id, pageToken])
 
   const slot = slots[instance]
   const pending = !slot || slot.status === "pending"
@@ -153,7 +153,7 @@ function SelectedSponsor({ owner, placement, instance, reservedHeight }: { owner
   )
 }
 
-export function SponsorSpot({ position, instance, reservedHeight, unavailable = false }: { position: string; instance?: string; reservedHeight?: number; unavailable?: boolean }) {
+export function SponsorSpot({ position, instance, pageToken, reservedHeight, unavailable = false }: { position: string; instance?: string; pageToken?: string; reservedHeight?: number; unavailable?: boolean }) {
   const owner = useContext(SponsorOwner)
   const placement = owner?.placements.find(p => p.position === position)
   if (!owner || !placement) return null
@@ -161,7 +161,7 @@ export function SponsorSpot({ position, instance, reservedHeight, unavailable = 
   if (owner.preview) return <PreviewSponsor owner={owner} placement={placement} unavailable={unavailable} />
   if (unavailable) return null
 
-  return <SelectedSponsor owner={owner} placement={placement} instance={instance ?? placement.id} reservedHeight={reservedHeight} />
+  return <SelectedSponsor owner={owner} placement={placement} instance={instance ?? placement.id} pageToken={pageToken} reservedHeight={reservedHeight} />
 }
 
 function PreviewSponsor({ owner, placement, unavailable }: { owner: SelectionOwner; placement: SponsorPlacement; unavailable: boolean }) {

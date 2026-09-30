@@ -12,6 +12,7 @@ import { RequestError } from "@fider/services/http"
 import { savedReadingPosition, useReadingPosition } from "@fider/services/readingPosition"
 
 interface PostsContainerProps {
+  sponsorPage?: string
   user?: CurrentUser
   posts: Post[]
   tags: Tag[]
@@ -124,7 +125,7 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
     let failure: string | undefined
 
     try {
-      const response = await actions.searchPosts({ ...filters, offset: previous.nextOffset }, {
+      const response = await actions.searchPosts({ ...filters, offset: previous.nextOffset, sponsorPage: props.sponsorPage }, {
         signal: current.signal,
         notifyOnError: false,
       })
@@ -163,7 +164,7 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
 
       current.abort()
     }
-  }, [filters, list])
+  }, [filters, list, props.sponsorPage])
 
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {
@@ -206,7 +207,7 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
     const current = new AbortController()
     const hydrate = async () => {
       try {
-        const result = await actions.searchPosts({ ...filters, ids }, {
+        const result = await actions.searchPosts({ ...filters, ids, sponsorPage: props.sponsorPage }, {
           signal: current.signal,
           notifyOnError: false,
         })
@@ -238,7 +239,7 @@ export const PostsContainer: React.FC<PostsContainerProps> = (props) => {
 
     void hydrate()
     return () => current.abort()
-  }, [filters, list.filters, list.posts, visible, recordsError])
+  }, [filters, list.filters, list.posts, visible, recordsError, props.sponsorPage])
 
   useLayoutEffect(() => {
     if (readingDone.current) {

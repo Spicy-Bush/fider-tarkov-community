@@ -7,6 +7,8 @@ import (
 	"image"
 	"image/png"
 	"net/http"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,8 +18,10 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/adsselect"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/rand"
 )
 
@@ -128,6 +132,7 @@ func TestSponsorClickReporting(t *testing.T) {
 	}
 
 	allocation := &cmd.AllocateSponsors{
+		PageID: rand.String(32), ExpiresAt: time.Now().Add(time.Hour),
 		Context:       entity.SponsorContext{PageType: "home", Language: "en", Device: "desktop"},
 		Opportunities: []entity.SponsorOpportunity{{InstanceID: "strip", PlacementID: placement.Placement.ID}},
 	}
@@ -140,9 +145,49 @@ func TestSponsorClickReporting(t *testing.T) {
 		t.Fatal("allocated sponsorship has no click link")
 	}
 
+	errors := make(chan error, 16)
+	var workers sync.WaitGroup
+	for range 8 {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			retry := *allocation
+			if err := bus.Dispatch(f.ctx, &retry); err != nil {
+				errors <- err
+			} else if retry.Result["strip"].ClickURL != link {
+				errors <- fmt.Errorf("allocation retry changed its link")
+			}
+		}()
+	}
+	workers.Wait()
+
 	response, err := f.requestWithParams(handlers.SponsorClick(), http.MethodGet, link, "", nil)
 	if err != nil || response.Code != http.StatusTemporaryRedirect || response.Header().Get("Location") != destination {
 		t.Fatalf("click did not retain its destination: %d %s, %v", response.Code, response.Header().Get("Location"), err)
+	}
+
+	click, err := adsselect.ReadClick(strings.TrimPrefix(link, "/sponsorship/click?token="), env.Config.JWTSecret, f.tenant.ID, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 8 {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			if err := bus.Dispatch(f.ctx, &cmd.RecordSponsorClick{Click: *click}); err != nil {
+				errors <- err
+			}
+		}()
+	}
+	workers.Wait()
+	close(errors)
+	for err := range errors {
+		t.Error(err)
+	}
+
+	response, err = f.requestWithParams(handlers.SponsorClick(), http.MethodGet, link, "", nil)
+	if err != nil || response.Header().Get("Location") != destination {
+		t.Fatalf("repeated click stopped redirecting: %v", err)
 	}
 
 	report := &query.GetSponsorReport{CampaignID: campaign.ID}
@@ -152,6 +197,21 @@ func TestSponsorClickReporting(t *testing.T) {
 
 	if len(report.Allocations) != 1 || report.Allocations[0].Clicks != 1 || report.Allocations[0].Allocated != 1 {
 		t.Fatalf("click changed delivery counts or was not attributed: %+v", report.Allocations)
+	}
+
+	allocation.PageID = rand.String(32)
+	if err := bus.Dispatch(f.ctx, allocation); err != nil {
+		t.Fatal(err)
+	}
+	nextLink := allocation.Result["strip"].ClickURL
+	if nextLink == link {
+		t.Fatal("distinct page views shared one click receipt")
+	}
+	if _, err := f.requestWithParams(handlers.SponsorClick(), http.MethodGet, nextLink, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := bus.Dispatch(f.ctx, report); err != nil || report.Allocations[0].Clicks != 2 || report.Allocations[0].Allocated != 2 {
+		t.Fatalf("distinct opportunity was not counted: %+v, %v", report.Allocations, err)
 	}
 }
 
@@ -219,6 +279,7 @@ func TestSponsorArtworkReplacement(t *testing.T) {
 		Placement: entity.SponsorPlacement{ID: "strip_desktop", Enabled: true, Position: "navigation", Empty: "none"},
 	}
 	selection := &cmd.AllocateSponsors{
+		PageID: rand.String(32), ExpiresAt: time.Now().Add(time.Hour),
 		Context:       entity.SponsorContext{PageType: "home", Device: "desktop", Language: "en"},
 		Opportunities: []entity.SponsorOpportunity{{InstanceID: "strip", PlacementID: "strip_desktop"}},
 	}
@@ -236,12 +297,24 @@ func TestSponsorArtworkReplacement(t *testing.T) {
 		Campaign:     *edit.Result,
 		Creative:     &approved,
 	}
+	selection.PageID = rand.String(32)
 	if err := bus.Dispatch(f.ctx, publish, selection); err != nil {
 		t.Fatal(err)
 	}
 	if selection.Result["strip"].Creative.ImageKey != second.BlobKey {
 		t.Fatal("approved replacement was not delivered")
 	}
+
+	renamed := *publish.Result
+	renamed.Advertiser = "Renamed sponsor"
+	rename := &cmd.SaveSponsorCampaign{SubmissionID: rand.String(32), Campaign: renamed}
+	if err := bus.Dispatch(f.ctx, rename, selection); err != nil {
+		t.Fatal(err)
+	}
+	if selection.Result["strip"].Advertiser != renamed.Advertiser || selection.Result["strip"].Creative.ImageKey != second.BlobKey {
+		t.Fatal("retry used stale campaign details or changed its artwork")
+	}
+	publish.Result = rename.Result
 
 	for _, failure := range []string{"stale artwork", "unavailable image", "wrong campaign"} {
 		t.Run(failure, func(t *testing.T) {
@@ -312,6 +385,7 @@ func TestSponsorDeliverySharesAndRecovery(t *testing.T) {
 	allocated := 0
 	for n := 0; n < 100; n++ {
 		request := &cmd.AllocateSponsors{
+			PageID: rand.String(32), ExpiresAt: time.Now().Add(time.Hour),
 			Context:       entity.SponsorContext{PageType: "home", Language: "en", Device: "desktop"},
 			Opportunities: []entity.SponsorOpportunity{{InstanceID: "strip", PlacementID: "strip_desktop"}},
 		}
@@ -344,6 +418,7 @@ func TestSponsorDeliverySharesAndRecovery(t *testing.T) {
 	}
 
 	request := &cmd.AllocateSponsors{
+		PageID: rand.String(32), ExpiresAt: time.Now().Add(time.Hour),
 		Context:       entity.SponsorContext{PageType: "home", Language: "en", Device: "desktop"},
 		Opportunities: []entity.SponsorOpportunity{{InstanceID: "strip", PlacementID: "strip_desktop"}},
 	}
@@ -424,6 +499,7 @@ func TestSponsorImageAcrossStripAndFeed(t *testing.T) {
 		allocated := 0
 		for batch := 0; batch < 4; batch++ {
 			request := &cmd.AllocateSponsors{
+				PageID: rand.String(32), ExpiresAt: time.Now().Add(time.Hour),
 				Context: entity.SponsorContext{PageType: "home", Device: placement.Device, Language: "en"},
 			}
 			for i := 0; i < 25; i++ {

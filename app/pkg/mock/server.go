@@ -35,6 +35,10 @@ func createServer() *Server {
 		q.Result = []*entity.NavigationLink{}
 		return nil
 	})
+	bus.AddHandler(func(ctx context.Context, q *query.GetSponsorPlacements) error {
+		q.Result = []entity.SponsorPlacement{}
+		return nil
+	})
 
 	engine := web.New()
 

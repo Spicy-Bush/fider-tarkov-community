@@ -5,6 +5,7 @@ import (
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/adsselect"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/markdown"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
@@ -45,11 +46,17 @@ func viewPage(sponsorPreview bool) web.HandlerFunc {
 			}
 		}
 
+		pageToken, err := sponsorPage(c, adsselect.Page{Kind: "page", ContentID: page.ID})
+		if err != nil {
+			return err
+		}
+
 		return c.Page(http.StatusOK, web.Props{
 			Page:        "Page/ViewPage.page",
 			Title:       page.Title,
 			Description: metaDesc,
 			Data: web.Map{
+				"sponsorPage":           pageToken,
 				"sponsorPreview":        sponsorPreview,
 				"page":                  page,
 				"sponsorPlacements":     sponsorPlacements(c),

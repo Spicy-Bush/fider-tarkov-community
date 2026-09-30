@@ -21,8 +21,8 @@ export const deleteSponsorCreative = (id: number) =>
 export const saveSponsorPlacement = (placement: SponsorPlacement, submissionId: string) =>
   http.post<SponsorPlacement>("/api/sponsorship/placements", { placement, submissionId }, { notifyOnError: false })
 
-export const allocateSponsors = (context: SponsorContext, opportunities: SponsorOpportunity[]) =>
-  http.post<Record<string, SponsorSelection>>("/api/sponsorship/select", { context, opportunities }, { notifyOnError: false })
+export const allocateSponsors = (context: SponsorContext, opportunities: SponsorOpportunity[], pageToken: string) =>
+  http.post<Record<string, SponsorSelection>>("/api/sponsorship/select", { context, opportunities, pageToken }, { notifyOnError: false })
 
 export const getSponsorReport = (id: number) => http.get<SponsorReport>(`/api/sponsorship/bookings/${id}/report`, { notifyOnError: false })
 

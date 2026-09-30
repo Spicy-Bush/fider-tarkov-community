@@ -3,11 +3,15 @@ package api
 import (
 	"net/http"
 	"slices"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/cmd"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/adsselect"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/proxy"
@@ -51,7 +55,7 @@ func SaveSponsorCampaign() web.HandlerFunc {
 		if command.DraftCampaign != nil {
 			return c.Ok(web.Map{
 				"kind":     "conflict",
-					"fields":   command.Conflicts,
+				"fields":   command.Conflicts,
 				"problems": append([]string{}, command.Problems...),
 				"saved":    web.Map{"campaign": command.Result, "creative": command.CreativeResult},
 				"draft":    web.Map{"campaign": command.DraftCampaign, "creative": command.DraftCreative},
@@ -120,6 +124,7 @@ func trustedSponsorCountry(request *http.Request, trustedNetwork string) string 
 func AllocateSponsors() web.HandlerFunc {
 	return func(c *web.Context) error {
 		var body struct {
+			PageToken     string                      `json:"pageToken"`
 			Context       entity.SponsorContext       `json:"context"`
 			Opportunities []entity.SponsorOpportunity `json:"opportunities"`
 		}
@@ -128,22 +133,55 @@ func AllocateSponsors() web.HandlerFunc {
 		}
 
 		viewer := body.Context
+		page, err := adsselect.ReadPage(body.PageToken, env.Config.JWTSecret, c.Tenant().ID, c.SessionID(), time.Now())
+		if err != nil || page.Kind != viewer.PageType || page.ContentID != viewer.ID {
+			return c.Forbidden()
+		}
+
 		if !slices.Contains([]string{"home", "post", "page"}, viewer.PageType) || !slices.Contains([]string{"en", "ru"}, viewer.Language) || !slices.Contains([]string{"desktop", "mobile"}, viewer.Device) || viewer.ID < 0 || len(body.Opportunities) > 32 {
 			return c.BadRequest(web.Map{"message": "Invalid sponsorship context."})
 		}
 
 		seen := make(map[string]bool)
+		placements := &query.GetSponsorPlacements{}
+		if err := bus.Dispatch(c, placements); err != nil {
+			return c.Failure(err)
+		}
 		for _, opportunity := range body.Opportunities {
-			validPlacement := slices.ContainsFunc(entity.SponsorPlacements, func(p entity.SponsorPlacement) bool { return p.ID == opportunity.PlacementID })
-			if !validPlacement || opportunity.InstanceID == "" || len(opportunity.InstanceID) > 100 || seen[opportunity.InstanceID] {
+			placementIndex := slices.IndexFunc(placements.Result, func(p entity.SponsorPlacement) bool { return p.ID == opportunity.PlacementID })
+			if placementIndex < 0 || seen[opportunity.InstanceID] {
 				return c.BadRequest(web.Map{"message": "Choose unique instances of supported placements."})
+			}
+
+			placement := placements.Result[placementIndex]
+			if placement.Device != viewer.Device || (placement.PageType != "all" && placement.PageType != page.Kind) {
+				return c.Forbidden()
+			}
+			if placement.Position == "feed" {
+				grant := page
+				if opportunity.PageToken != "" {
+					grant, err = adsselect.ReadPage(opportunity.PageToken, env.Config.JWTSecret, c.Tenant().ID, c.SessionID(), time.Now())
+					if err != nil || grant.ID != page.ID || grant.Kind != "home" {
+						return c.Forbidden()
+					}
+				}
+
+				postID, err := strconv.Atoi(strings.TrimPrefix(opportunity.InstanceID, "feed-"))
+				if err != nil || opportunity.InstanceID != "feed-"+strconv.Itoa(postID) || !slices.Contains(grant.PostIDs, postID) {
+					return c.Forbidden()
+				}
+			} else if opportunity.InstanceID != placement.ID {
+				return c.Forbidden()
 			}
 
 			seen[opportunity.InstanceID] = true
 		}
 
 		viewer.Country = trustedSponsorCountry(c.Request.Original(), env.Config.SponsorCountryProxy)
-		command := &cmd.AllocateSponsors{Context: viewer, Opportunities: body.Opportunities}
+		command := &cmd.AllocateSponsors{
+			PageID: page.ID, ExpiresAt: time.Unix(page.Expires, 0),
+			Context: viewer, Opportunities: body.Opportunities,
+		}
 		if err := bus.Dispatch(c, command); err != nil {
 			return c.Failure(err)
 		}

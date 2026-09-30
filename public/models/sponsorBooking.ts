@@ -103,6 +103,7 @@ export interface SponsorContext {
 }
 
 export interface SponsorOpportunity {
+  pageToken?: string
   instanceId: string
   placementId: string
 }

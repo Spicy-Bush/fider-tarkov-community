@@ -11,6 +11,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/adsselect"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/csv"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/markdown"
@@ -163,6 +164,15 @@ func homePage(sponsorPreview bool) web.HandlerFunc {
 			return c.Failure(err)
 		}
 
+		postIDs := make([]int, len(searchPosts.Result))
+		for index, post := range searchPosts.Result {
+			postIDs[index] = post.ID
+		}
+		pageToken, err := sponsorPage(c, adsselect.Page{Kind: "home", PostIDs: postIDs})
+		if err != nil {
+			return err
+		}
+
 		description := ""
 		if c.Tenant().WelcomeMessage != "" {
 			description = markdown.PlainText(c.Tenant().WelcomeMessage)
@@ -174,6 +184,7 @@ func homePage(sponsorPreview bool) web.HandlerFunc {
 			Page:        "Home/Home.page",
 			Description: description,
 			Data: web.Map{
+				"sponsorPage":       pageToken,
 				"sponsorPreview":    sponsorPreview,
 				"posts":             searchPosts.Result,
 				"tags":              tags.Result,
@@ -253,6 +264,12 @@ func postDetails(sponsorPreview bool) web.HandlerFunc {
 			}
 		}
 
+		pageToken, err := sponsorPage(c, adsselect.Page{Kind: "post", ContentID: getPost.Result.ID})
+		if err != nil {
+			return err
+		}
+
+		data["sponsorPage"] = pageToken
 		data["sponsorPlacements"] = sponsorPlacements(c)
 		data["sponsorPreview"] = sponsorPreview
 		return c.Page(http.StatusOK, web.Props{

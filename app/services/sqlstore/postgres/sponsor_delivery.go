@@ -14,6 +14,8 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/adsselect"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/rand"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/lib/pq"
 )
 
@@ -21,6 +23,14 @@ type sponsorCandidate struct {
 	campaign *entity.SponsorCampaign
 	creative *entity.SponsorCreative
 	share    int
+}
+
+type sponsorOpportunity struct {
+	ID          string `db:"id" json:"id"`
+	PlacementID string `db:"placement_id" json:"placement"`
+	InstanceID  string `db:"instance_id" json:"instance"`
+	CampaignID  int    `db:"campaign_id" json:"campaign"`
+	CreativeID  int    `db:"creative_id" json:"creative"`
 }
 
 func readSponsorCandidates(trx *dbx.Trx, tenantID int, viewer entity.SponsorContext, placements []string, now time.Time) (map[string][]sponsorCandidate, error) {
@@ -86,6 +96,10 @@ func readSponsorCandidates(trx *dbx.Trx, tenantID int, viewer entity.SponsorCont
 }
 
 func allocateSponsors(ctx context.Context, c *cmd.AllocateSponsors) error {
+	if len(c.PageID) != 32 || c.ExpiresAt.Before(time.Now()) {
+		return validate.Failed("A current sponsorship page is required.")
+	}
+
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
 		if err := lockSponsorConfiguration(trx, tenant.ID, false); err != nil {
 			return err
@@ -124,6 +138,26 @@ func allocateSponsors(ctx context.Context, c *cmd.AllocateSponsors) error {
 			return nil
 		}
 
+		if _, err := trx.Execute(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, fmt.Sprintf("sponsor-page:%d:%s", tenant.ID, c.PageID)); err != nil {
+			return err
+		}
+
+		var saved []*sponsorOpportunity
+		instanceIDs := make([]string, 0, len(c.Opportunities))
+		for _, opportunity := range c.Opportunities {
+			instanceIDs = append(instanceIDs, opportunity.InstanceID)
+		}
+		if err := trx.Select(&saved, `
+			SELECT id, instance_id, placement_id, COALESCE(campaign_id,0) AS campaign_id, COALESCE(creative_id,0) AS creative_id
+			FROM sponsor_opportunities WHERE tenant_id=$1 AND page_id=$2 AND instance_id=ANY($3)
+		`, tenant.ID, c.PageID, pq.Array(instanceIDs)); err != nil {
+			return err
+		}
+		previous := make(map[string]*sponsorOpportunity, len(saved))
+		for _, row := range saved {
+			previous[row.PlacementID+":"+row.InstanceID] = row
+		}
+
 		requested := make([]string, 0, len(c.Opportunities))
 		for _, opportunity := range c.Opportunities {
 			requested = append(requested, opportunity.PlacementID)
@@ -137,6 +171,7 @@ func allocateSponsors(ctx context.Context, c *cmd.AllocateSponsors) error {
 
 		var campaignIDs, creativeIDs, eligible, allocated, expected []int64
 		var placementIDs []string
+		var receipts []*sponsorOpportunity
 		for _, placement := range placements.Result {
 			if !placement.Enabled || placement.Device != c.Context.Device || (placement.PageType != "all" && placement.PageType != c.Context.PageType) {
 				continue
@@ -145,6 +180,10 @@ func allocateSponsors(ctx context.Context, c *cmd.AllocateSponsors) error {
 			var instances []string
 			for _, opportunity := range c.Opportunities {
 				if opportunity.PlacementID == placement.ID {
+					if _, exists := previous[placement.ID+":"+opportunity.InstanceID]; exists {
+						continue
+					}
+
 					instances = append(instances, opportunity.InstanceID)
 				}
 			}
@@ -183,41 +222,19 @@ func allocateSponsors(ctx context.Context, c *cmd.AllocateSponsors) error {
 			queue := adsselect.Schedule(shares)
 			counts := make([]int64, len(candidates))
 			for offset, instance := range instances {
-				selection := entity.SponsorSelection{Kind: placement.Empty, Placement: placement}
+				receipt := &sponsorOpportunity{
+					ID: rand.String(32), PlacementID: placement.ID, InstanceID: instance,
+				}
 				winner := queue[(cursor+int64(offset))%100]
 				if winner < len(candidates) {
 					candidate := candidates[winner]
+					receipt.CampaignID = candidate.campaign.ID
+					receipt.CreativeID = candidate.creative.ID
 					counts[winner]++
-					expires := candidate.campaign.EndAt
-					deadlines := []*time.Time{candidate.creative.EndAt}
-					if candidate.creative.OfferCode != "" {
-						deadlines = append(deadlines, candidate.creative.OfferExpires)
-					}
-
-					for _, deadline := range deadlines {
-						if deadline != nil && deadline.Before(expires) {
-							expires = *deadline
-						}
-					}
-
-					selection.Kind = "sponsor"
-					selection.Advertiser = candidate.campaign.Advertiser
-					selection.Creative = &candidate.creative.SponsorArtwork
-					selection.ExpiresAt = &expires
-					click := adsselect.Click{
-						TenantID: tenant.ID, CampaignID: candidate.campaign.ID, CreativeID: candidate.creative.ID,
-						PlacementID: placement.ID, Day: now.Format("2006-01-02"),
-						Destination: candidate.creative.Destination, Expires: expires.Unix(),
-					}
-					token, err := click.Token(env.Config.JWTSecret)
-					if err != nil {
-						return err
-					}
-
-					selection.ClickURL = "/sponsorship/click?token=" + token
 				}
 
-				c.Result[instance] = selection
+				previous[placement.ID+":"+instance] = receipt
+				receipts = append(receipts, receipt)
 			}
 
 			for i, candidate := range candidates {
@@ -227,6 +244,71 @@ func allocateSponsors(ctx context.Context, c *cmd.AllocateSponsors) error {
 				eligible = append(eligible, int64(len(instances)))
 				allocated = append(allocated, counts[i])
 				expected = append(expected, int64(len(instances)*candidate.share))
+			}
+		}
+
+		for _, placement := range placements.Result {
+			if !placement.Enabled || placement.Device != c.Context.Device || (placement.PageType != "all" && placement.PageType != c.Context.PageType) {
+				continue
+			}
+
+			for _, opportunity := range c.Opportunities {
+				receipt := previous[placement.ID+":"+opportunity.InstanceID]
+				if receipt == nil || opportunity.PlacementID != placement.ID {
+					continue
+				}
+
+				selection := entity.SponsorSelection{Kind: placement.Empty, Placement: placement}
+				if receipt.CampaignID != 0 {
+					selection.Kind = "none"
+				}
+
+				for _, candidate := range byPlacement[placement.ID] {
+					if candidate.campaign.ID != receipt.CampaignID || candidate.creative.ID != receipt.CreativeID {
+						continue
+					}
+
+					expires := min(candidate.campaign.EndAt.Unix(), c.ExpiresAt.Unix())
+					if candidate.creative.EndAt != nil {
+						expires = min(expires, candidate.creative.EndAt.Unix())
+					}
+					if candidate.creative.OfferCode != "" && candidate.creative.OfferExpires != nil {
+						expires = min(expires, candidate.creative.OfferExpires.Unix())
+					}
+
+					click := adsselect.Click{
+						OpportunityID: receipt.ID, TenantID: tenant.ID,
+						Destination: candidate.creative.Destination, Expires: expires,
+					}
+					token, err := click.Token(env.Config.JWTSecret)
+					if err != nil {
+						return err
+					}
+
+					expiresAt := time.Unix(expires, 0)
+					selection.Kind = "sponsor"
+					selection.Advertiser = candidate.campaign.Advertiser
+					selection.Creative = &candidate.creative.SponsorArtwork
+					selection.ExpiresAt = &expiresAt
+					selection.ClickURL = "/sponsorship/click?token=" + token
+					break
+				}
+
+				c.Result[opportunity.InstanceID] = selection
+			}
+		}
+
+		if len(receipts) > 0 {
+			encoded, err := json.Marshal(receipts)
+			if err != nil {
+				return err
+			}
+			if _, err := trx.Execute(`
+				INSERT INTO sponsor_opportunities (tenant_id, id, page_id, placement_id, instance_id, expires_at, campaign_id, creative_id, day)
+				SELECT $1, id, $2, placement, instance, $3, NULLIF(campaign,0), NULLIF(creative,0), $5
+				FROM jsonb_to_recordset($4) AS r(id text, placement text, instance text, campaign integer, creative integer)
+			`, tenant.ID, c.PageID, c.ExpiresAt, string(encoded), now.Format("2006-01-02")); err != nil {
+				return err
 			}
 		}
 
@@ -250,12 +332,24 @@ func allocateSponsors(ctx context.Context, c *cmd.AllocateSponsors) error {
 
 func recordSponsorClick(ctx context.Context, c *cmd.RecordSponsorClick) error {
 	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
-		click := c.Click
 		_, err := trx.Execute(`
-			UPDATE sponsor_allocations SET clicks=clicks+1
-			WHERE tenant_id=$1 AND campaign_id=$2 AND creative_id=$3 AND placement_id=$4
-			  AND day=$5 AND allocated>0
-		`, tenant.ID, click.CampaignID, click.CreativeID, click.PlacementID, click.Day)
+			WITH consumed AS (
+				UPDATE sponsor_opportunities SET clicked=true
+				WHERE tenant_id=$1 AND id=$2 AND NOT clicked AND expires_at > NOW()
+				RETURNING campaign_id, creative_id, placement_id, day
+			)
+			UPDATE sponsor_allocations a SET clicks=a.clicks+1
+			FROM consumed c
+			WHERE a.tenant_id=$1 AND a.campaign_id=c.campaign_id AND a.creative_id=c.creative_id
+			  AND a.placement_id=c.placement_id AND a.day=c.day AND a.allocated>0
+		`, tenant.ID, c.Click.OpportunityID)
+		return err
+	})
+}
+
+func purgeSponsorOpportunities(ctx context.Context, c *cmd.PurgeSponsorOpportunities) error {
+	return using(ctx, func(ctx context.Context, trx *dbx.Trx, tenant *entity.Tenant, user *entity.User) error {
+		_, err := trx.Execute(`DELETE FROM sponsor_opportunities WHERE expires_at < NOW()`)
 		return err
 	})
 }

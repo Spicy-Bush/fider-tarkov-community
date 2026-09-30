@@ -105,6 +105,7 @@ type SponsorContext struct {
 }
 
 type SponsorOpportunity struct {
+	PageToken   string `json:"pageToken"`
 	InstanceID  string `json:"instanceId"`
 	PlacementID string `json:"placementId"`
 }

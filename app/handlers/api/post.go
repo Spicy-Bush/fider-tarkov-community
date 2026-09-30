@@ -15,7 +15,9 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/adsselect"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/sse"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
@@ -149,6 +151,28 @@ func SearchPosts() web.HandlerFunc {
 				if err := bus.Dispatch(c, countQuery); err == nil {
 					c.Response.Header().Set("X-Total-Count", strconv.Itoa(countQuery.Result))
 				}
+			}
+		}
+
+		if token := c.QueryParam("sponsorPage"); token != "" {
+			page, err := adsselect.ReadPage(token, env.Config.JWTSecret, c.Tenant().ID, c.SessionID(), time.Now())
+			if err == nil && page.Kind == "home" && len(searchPosts.Result) > 0 {
+				page.PostIDs = make([]int, len(searchPosts.Result))
+				for index, post := range searchPosts.Result {
+					page.PostIDs[index] = post.ID
+				}
+
+				postToken, err := page.Token(env.Config.JWTSecret)
+				if err != nil {
+					return err
+				}
+				posts := make([]*entity.Post, len(searchPosts.Result))
+				for index, post := range searchPosts.Result {
+					copy := *post
+					copy.SponsorPage = postToken
+					posts[index] = &copy
+				}
+				searchPosts.Result = posts
 			}
 		}
 

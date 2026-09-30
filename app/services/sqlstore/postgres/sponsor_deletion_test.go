@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/handlers/api"
@@ -14,6 +15,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/dbx"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/rand"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -49,6 +51,7 @@ func TestSponsorDeletionPreservesReportsAndSharedImages(t *testing.T) {
 	placement.Placement.Enabled = true
 	placement.Placement.Empty = "none"
 	allocation := &cmd.AllocateSponsors{
+		PageID: rand.String(32), ExpiresAt: time.Now().Add(time.Hour),
 		Context:       entity.SponsorContext{PageType: "home", Language: "en", Device: "desktop"},
 		Opportunities: []entity.SponsorOpportunity{{InstanceID: "strip", PlacementID: "strip_desktop"}},
 	}
@@ -67,6 +70,7 @@ func TestSponsorDeletionPreservesReportsAndSharedImages(t *testing.T) {
 		}
 	}
 
+	allocation.PageID = rand.String(32)
 	if err := bus.Dispatch(f.ctx, allocation); err != nil {
 		t.Fatal(err)
 	}

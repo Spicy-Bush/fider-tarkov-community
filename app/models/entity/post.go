@@ -9,6 +9,7 @@ import (
 
 // Post represents an post on a tenant board
 type Post struct {
+	SponsorPage       string                `json:"sponsorPage,omitempty"`
 	ID                int                   `json:"id"`
 	Number            int                   `json:"number"`
 	Title             string                `json:"title"`

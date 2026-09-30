@@ -9,9 +9,10 @@ import (
 func TestSponsorClickLink(t *testing.T) {
 	now := time.Now()
 	click := Click{
-		TenantID: 12, CampaignID: 34, CreativeID: 56, PlacementID: "feed_mobile", Day: "2026-09-30",
+		OpportunityID: strings.Repeat("a", 32),
+		TenantID:      12,
 		Destination: "https://example.com/offer?utm_source=tarkov.community&utm_campaign=launch%20week#details",
-		Expires: now.Add(time.Hour).Unix(),
+		Expires:     now.Add(time.Hour).Unix(),
 	}
 	token, err := click.Token("test-secret")
 	if err != nil {

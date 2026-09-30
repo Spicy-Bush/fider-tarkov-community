@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"time"
+
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/dto"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/entity"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/adsselect"
@@ -42,10 +44,14 @@ type DeleteSponsorCreative struct {
 }
 
 type AllocateSponsors struct {
+	PageID        string
+	ExpiresAt     time.Time
 	Context       entity.SponsorContext
 	Opportunities []entity.SponsorOpportunity
 	Result        map[string]entity.SponsorSelection
 }
+
+type PurgeSponsorOpportunities struct{}
 
 type SaveSponsorExclusion struct {
 	SubmissionID string
