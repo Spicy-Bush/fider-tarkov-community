@@ -51,6 +51,35 @@ func TestTenantStorage_Add_Activate(t *testing.T) {
 	Expect(getByDomain.Result.IsPrivate).IsFalse()
 }
 
+func TestTenantStorageNullableCNAME(t *testing.T) {
+	SetupDatabaseTest(t)
+	defer TeardownDatabaseTest()
+
+	for _, cname := range []any{nil, "", "feedback.example.test"} {
+		if _, err := trx.Execute("UPDATE tenants SET cname=$1 WHERE id=$2", cname, jonSnow.Tenant.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		first := &query.GetFirstTenant{}
+		domain := &query.GetTenantByDomain{Domain: "demo"}
+		user := &query.GetUserByID{UserID: jonSnow.ID}
+		if err := bus.Dispatch(demoTenantCtx, first, domain, user); err != nil {
+			t.Fatal(err)
+		}
+
+		want, _ := cname.(string)
+		if first.Result.CNAME != want || domain.Result.CNAME != want || user.Result.Tenant.ID != demoTenant.ID {
+			t.Fatalf("CNAME %v was not preserved", cname)
+		}
+		if want != "" {
+			domain.Domain = want
+			if err := bus.Dispatch(demoTenantCtx, domain); err != nil || domain.Result.ID != demoTenant.ID {
+				t.Fatalf("custom domain lookup failed: %v", err)
+			}
+		}
+	}
+}
+
 func TestTenantStorage_SingleTenant_Add(t *testing.T) {
 	ctx := SetupDatabaseTest(t)
 	defer TeardownDatabaseTest()

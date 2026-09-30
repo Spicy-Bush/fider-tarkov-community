@@ -25,7 +25,7 @@ type dbTenant struct {
 	ID                 int            `db:"id"`
 	Name               string         `db:"name"`
 	Subdomain          string         `db:"subdomain"`
-	CNAME              string         `db:"cname"`
+	CNAME              dbx.NullString `db:"cname"`
 	Invitation         string         `db:"invitation"`
 	WelcomeMessage     string         `db:"welcome_message"`
 	Status             int            `db:"status"`
@@ -50,7 +50,7 @@ func (t *dbTenant) toModel() *entity.Tenant {
 		ID:                 t.ID,
 		Name:               t.Name,
 		Subdomain:          t.Subdomain,
-		CNAME:              t.CNAME,
+		CNAME:              t.CNAME.String,
 		Invitation:         t.Invitation,
 		WelcomeMessage:     t.WelcomeMessage,
 		Status:             enum.TenantStatus(t.Status),
