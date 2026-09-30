@@ -29,17 +29,4 @@ jest.mock("@lingui/react", () => ({
   },
 }))
 
-// Mock for marked (ESM module that Jest can't handle)
-jest.mock("marked", () => {
-  class MarkedMock {
-    parse(markdown: string): string {
-      return `<p>${markdown}</p>`
-    }
-    use(options: any): MarkedMock {
-      return this
-    }
-  }
-  return {
-    Marked: MarkedMock,
-  }
-})
+jest.mock("marked", () => jest.requireActual("../node_modules/marked/lib/marked.umd.js"))

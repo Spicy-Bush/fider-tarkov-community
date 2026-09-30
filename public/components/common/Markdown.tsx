@@ -13,21 +13,21 @@ interface MarkdownProps {
 }
 
 export const Markdown = React.memo((props: MarkdownProps) => {
-  const html = useMemo(() => {
+  const content = useMemo(() => {
     if (!props.text) return null
-    const parsed = props.style === "full" 
-      ? markdown.full(props.text, props.embedImages || false)
-      : markdown.plainText(props.text)
-    return props.maxLength ? truncate(parsed, props.maxLength) : parsed
+
+    if (props.style === "full") {
+      return markdown.full(props.text, props.embedImages || false)
+    }
+
+    const text = markdown.plainText(props.text)
+    return props.maxLength ? truncate(text, props.maxLength) : text
   }, [props.text, props.style, props.maxLength, props.embedImages])
 
-  if (!html) return null
+  if (!content) return null
 
   const className = `c-markdown wrap-break-word ${props.className || ""}`
   const tagName = props.style === "plainText" ? "p" : "div"
 
-  return React.createElement(tagName, {
-    className,
-    dangerouslySetInnerHTML: { __html: html },
-  })
+  return React.createElement(tagName, { className }, content)
 })

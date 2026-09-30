@@ -1,27 +1,6 @@
-import { Marked } from "marked"
-import DOMPurify from "dompurify"
-import { decodeHTML, escapeUTF8 as escapeHTML } from "entities"
-
-if (DOMPurify.isSupported) {
-  DOMPurify.setConfig({
-    USE_PROFILES: { html: true },
-    ADD_TAGS: ["iframe", "img"],
-    ADD_ATTR: [
-      "allow",
-      "allowfullscreen",
-      "frameborder",
-      "sandbox",
-      "src",
-      "width",
-      "height",
-      "title",
-      "target",
-      "href",
-      "alt",
-      "class",
-    ],
-  })
-}
+import { createElement, Fragment, ReactNode } from "react"
+import { Marked, MarkedToken, Token, Tokens } from "marked"
+import { decodeHTML } from "entities"
 
 const safeHref = (input: string): string | null => {
   const href = decodeHTML(input).trim()
@@ -37,9 +16,14 @@ const safeHref = (input: string): string | null => {
   return href
 }
 
-const defaultLink = (href: string, title: string | null | undefined, html: string): string => {
-  const titleAttr = title ? ` title="${escapeHTML(decodeHTML(title))}"` : ""
-  return `<a class="text-link" href="${escapeHTML(href)}"${titleAttr} rel="noopener nofollow" target="_blank">${html}</a>`
+const defaultLink = (href: string, title: string | null | undefined, children: ReactNode): ReactNode => {
+  return createElement("a", {
+    className: "text-link",
+    href,
+    title: title ? decodeHTML(title) : undefined,
+    rel: "noopener nofollow",
+    target: "_blank",
+  }, children)
 }
 
 const videoEmbed = (href: string): { src: string; title: string; allow: string } | null => {
@@ -102,138 +86,195 @@ const videoEmbed = (href: string): { src: string; title: string; allow: string }
   }
 }
 
-const createFullMarked = (embedImages: boolean) => {
-  const marked = new Marked({
-    gfm: true,
-    breaks: true,
-  })
+const fullMarked = new Marked({ gfm: true, breaks: true })
 
-  marked.use({
-    extensions: [{
-      name: "mention",
-      level: "inline",
-      start: (source) => source.indexOf("@{"),
-      tokenizer(source) {
-        const match = /^@\{(?:[^{}"\\]|"(?:\\.|[^"\\])*")*\}/.exec(source)
-        if (!match) {
-          return undefined
-        }
-
-        try {
-          const mention = JSON.parse(match[0].slice(1))
-          if (typeof mention.name === "string") {
-            return { type: "mention", raw: match[0], name: mention.name }
-          }
-        } catch {
-          return undefined
-        }
-
+fullMarked.use({
+  extensions: [{
+    name: "mention",
+    level: "inline",
+    start: (source) => source.indexOf("@{"),
+    tokenizer(source) {
+      const match = /^@\{(?:[^{}"\\]|"(?:\\.|[^"\\])*")*\}/.exec(source)
+      if (!match) {
         return undefined
-      },
-      renderer: (token) => `<span class="mention">@${escapeHTML(token.name)}</span>`,
-    }],
-    renderer: {
-      html({ text }) {
-        return escapeHTML(text)
-      },
-      image({ href: input, title, text }) {
-        const href = safeHref(input)
-        if (!href) {
-          return escapeHTML(decodeHTML(text))
-        }
+      }
 
-        if (!embedImages) {
-          const titleText = decodeHTML(title || text) || href
-          return defaultLink(href, title, escapeHTML(titleText))
+      try {
+        const mention = JSON.parse(match[0].slice(1))
+        if (typeof mention.name === "string") {
+          return { type: "mention", raw: match[0], name: mention.name }
         }
+      } catch {
+        return undefined
+      }
 
-        const titleAttr = title ? ` title="${escapeHTML(decodeHTML(title))}"` : ""
-        const altAttr = text ? ` alt="${escapeHTML(decodeHTML(text))}"` : ""
-        return `<img src="${escapeHTML(href)}"${titleAttr}${altAttr} class="max-w-full rounded-card" />`
-      },
-      link({ href: input, title, text, tokens }) {
-        const html = this.parser.parseInline(tokens)
-        const href = safeHref(input)
-        if (!href) {
-          return html
-        }
-
-        const video = videoEmbed(href)
-        if (video) {
-          return `<iframe style="width: 100%; height: auto; aspect-ratio: 16/9;" src="${escapeHTML(video.src)}" frameborder="0" allow="${video.allow}" allowfullscreen sandbox="allow-same-origin allow-scripts allow-presentation" title="${video.title}"></iframe>`
-        }
-
-        const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(?:[?#]|$)/i.test(href) || href.includes("/static/images/")
-        if (embedImages && isImage && input === text) {
-          return `<img src="${escapeHTML(href)}" class="max-w-full rounded-card my-4" />`
-        }
-
-        return defaultLink(href, title, html)
-      },
+      return undefined
     },
-  })
-
-  return marked
-}
-
-const fullMarked = createFullMarked(false)
-const fullMarkedWithEmbeds = createFullMarked(true)
+  }],
+})
 
 const plainTextMarked = new Marked({
   gfm: true,
   breaks: true,
 })
 
-plainTextMarked.use({
-  renderer: {
-    link({ text }) {
-      return text
-    },
-    image() {
+const renderTokens = (tokens: Token[], embedImages: boolean): ReactNode =>
+  createElement(Fragment, null, ...tokens.map(token => renderToken(token, embedImages)))
+
+type Mention = { type: "mention"; name: string }
+
+const renderToken = (source: Token, embedImages: boolean): ReactNode => {
+  const token = source as MarkedToken | Mention
+
+  switch (token.type) {
+    case "space":
+    case "def":
+      return null
+
+    case "mention":
+      return createElement("span", { className: "mention" }, "@" + token.name)
+
+    case "html":
+      return token.text
+
+    case "text":
+    case "escape":
+      return "tokens" in token && token.tokens ? renderTokens(token.tokens, embedImages) : decodeHTML(token.text)
+
+    case "codespan":
+      return createElement("code", null, token.text)
+
+    case "code": {
+      const language = (token.lang || "").split(/\s+/)[0]
+      return createElement("pre", null, createElement("code", {
+        className: language ? "language-" + language : undefined,
+      }, token.text.replace(/\n$/, "") + "\n"))
+    }
+
+    case "hr":
+    case "br":
+      return createElement(token.type)
+
+    case "checkbox":
+      return createElement("input", { type: "checkbox", checked: token.checked, disabled: true })
+
+    case "heading":
+      return createElement(["h1", "h2", "h3", "h4", "h5", "h6"][token.depth - 1], null, renderTokens(token.tokens, embedImages))
+
+    case "paragraph":
+    case "blockquote":
+    case "strong":
+    case "em":
+    case "del": {
+      const tag = token.type === "paragraph" ? "p" : token.type
+      return createElement(tag, null, renderTokens(token.tokens, embedImages))
+    }
+
+    case "list": {
+      const start = token.ordered && token.start !== 1 ? token.start : undefined
+      const items = token.items.map(item => createElement("li", null, renderTokens(item.tokens, embedImages)))
+      return createElement(token.ordered ? "ol" : "ul", { start }, ...items)
+    }
+
+    case "table": {
+      const row = (cells: Tokens.TableCell[]) => {
+        const children = cells.map(cell => createElement(cell.header ? "th" : "td", {
+          align: cell.align || undefined,
+        }, renderTokens(cell.tokens, embedImages)))
+
+        return createElement("tr", null, ...children)
+      }
+
+      return createElement("table", null,
+        createElement("thead", null, row(token.header)),
+        token.rows.length ? createElement("tbody", null, ...token.rows.map(row)) : null)
+    }
+
+    case "image": {
+      const href = safeHref(token.href)
+      const alt = decodeHTML(token.text)
+      if (!href) {
+        return alt
+      }
+
+      if (!embedImages) {
+        return defaultLink(href, token.title, decodeHTML(token.title || token.text) || href)
+      }
+
+      return createElement("img", {
+        src: href,
+        title: token.title ? decodeHTML(token.title) : undefined,
+        alt,
+        className: "max-w-full rounded-card",
+      })
+    }
+
+    case "link": {
+      const children = renderTokens(token.tokens, embedImages)
+      const href = safeHref(token.href)
+      if (!href) {
+        return children
+      }
+
+      const video = videoEmbed(href)
+      if (video) {
+        return createElement("iframe", {
+          src: video.src,
+          title: video.title,
+          allow: video.allow,
+          allowFullScreen: true,
+          frameBorder: "0",
+          sandbox: "allow-same-origin allow-scripts allow-presentation",
+          style: { width: "100%", height: "auto", aspectRatio: "16/9" },
+        })
+      }
+
+      const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(?:[?#]|$)/i.test(href) || href.includes("/static/images/")
+      if (embedImages && isImage && token.href === token.text) {
+        return createElement("img", { src: href, className: "max-w-full rounded-card my-4" })
+      }
+
+      return defaultLink(href, token.title, children)
+    }
+
+    default:
+      throw new Error("Unsupported Markdown token: " + token.type)
+  }
+}
+
+export const full = (input: string, embedImages = false): ReactNode => renderTokens(fullMarked.lexer(input), embedImages)
+
+const tokenText = (source: Token): string => {
+  const token = source as MarkedToken
+
+  switch (token.type) {
+    case "space":
+    case "hr":
+    case "image":
+    case "def":
+    case "checkbox":
       return ""
-    },
-    br() {
+
+    case "br":
       return " "
-    },
-    strong({ text }) {
-      return text
-    },
-    list({ items }) {
-      return items.map(item => item.text).join(" ")
-    },
-    listitem({ text }) {
-      return `${text} `
-    },
-    heading({ text }) {
-      return text
-    },
-    paragraph({ text }) {
-      return ` ${text} `
-    },
-    code({ text }) {
-      return text
-    },
-    codespan({ text }) {
-      return text
-    },
-    html({ text }) {
-      return text
-    },
-    del({ text }) {
-      return text
-    },
-  },
-})
 
-const sanitize = (input: string) => DOMPurify.isSupported ? DOMPurify.sanitize(input) : input
+    case "list":
+      return token.items.map(item => decodeHTML(item.text)).join(" ")
 
-export const full = (input: string, embedImages = false): string => {
-  const marked = embedImages ? fullMarkedWithEmbeds : fullMarked
-  const parsed = marked.parse(input) as string
-  return sanitize(parsed).trim()
+    case "table": {
+      const rows = [token.header, ...token.rows]
+      return rows.map(row => row.map(cell => cell.tokens.map(tokenText).join("")).join(" ")).join(" ")
+    }
+
+    case "paragraph":
+      return " " + decodeHTML(token.text) + " "
+
+    default:
+      return decodeHTML(token.text)
+  }
 }
 
 export const plainText = (input: string): string => {
   const escaped = input.replace(/</g, "&lt;").replace(/>/g, "&gt;")
-  return sanitize(plainTextMarked.parse(escaped) as string).trim()
+  return plainTextMarked.lexer(escaped).map(tokenText).join("").trim()
 }

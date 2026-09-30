@@ -355,10 +355,7 @@ const EditPageEditor = (props: EditPagePageProps) => {
                 {title || "Untitled Page"}
               </h1>
             </div>
-            <div
-              className="c-markdown max-w-none"
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-            />
+            <div className="c-markdown max-w-none">{renderMarkdown(content)}</div>
           </div>
         </div>
       </div>

@@ -1,11 +1,10 @@
 import { full, plainText } from "./markdown"
-
-jest.mock("marked", () => jest.requireActual("../../node_modules/marked/lib/marked.umd.js"))
-jest.mock("dompurify", () => ({ isSupported: false }))
+import React from "react"
+import { renderToStaticMarkup } from "react-dom/server.node"
 
 const render = (source: string, embedImages = false): HTMLElement => {
   const element = document.createElement("div")
-  element.innerHTML = full(source, embedImages)
+  element.innerHTML = renderToStaticMarkup(React.createElement(React.Fragment, null, full(source, embedImages)))
   return element
 }
 
@@ -20,13 +19,37 @@ test.each([
   `[link](<https://example.test/"onmouseover="alert(1)>)`,
   `<iframe src="javascript:alert(1)"></iframe>`,
   `<meta http-equiv="refresh" content="0;url=/signout">`,
-])("renders untrusted Markdown as inert content without DOMPurify: %s", (source) => {
+])("renders untrusted Markdown as inert content: %s", (source) => {
   const element = render(source, true)
 
   expect(element.querySelector("script, meta, object, form, iframe")).toBeNull()
   for (const node of element.querySelectorAll("*")) {
     expect(node.getAttributeNames().some((name) => name.startsWith("on"))).toBe(false)
   }
+})
+
+test("preserves completed and incomplete task lists", () => {
+  const element = render("- [x] done\n- [ ] todo")
+  const tasks = Array.from(element.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))
+
+  expect(tasks.map((task) => task.checked)).toEqual([true, false])
+  expect(tasks.every((task) => task.disabled)).toBe(true)
+})
+
+test("preserves headings, nested lists, aligned tables and code blocks", () => {
+  const element = render([
+    "## Heading",
+    "3. Third\n4. Fourth\n   - nested",
+    "| left | right |\n| :--- | ---: |\n| a | b |",
+    "```js\nconst value = '<tag>';\n```",
+  ].join("\n\n"))
+
+  expect(element.querySelector("h2")?.textContent).toBe("Heading")
+  expect(element.querySelector("ol")?.start).toBe(3)
+  expect(element.querySelector("ol ul li")?.textContent).toBe("nested")
+  expect(Array.from(element.querySelectorAll("th")).map(cell => cell.align)).toEqual(["left", "right"])
+  expect(Array.from(element.querySelectorAll("td")).map(cell => cell.textContent)).toEqual(["a", "b"])
+  expect(element.querySelector("pre code.language-js")?.textContent).toBe("const value = '<tag>';\n")
 })
 
 test.each([
@@ -116,7 +139,7 @@ test("keeps nonembedded images as links and raw HTML inert in both styles", () =
   expect(image.querySelector("a")?.textContent).toBe("A & B")
 
   const element = document.createElement("div")
-  element.innerHTML = plainText("<script>alert(1)</script> and **words**")
+  element.textContent = plainText("<script>alert(1)</script> and **words**")
   expect(element.querySelector("script")).toBeNull()
   expect(element.textContent).toContain("<script>alert(1)</script>")
 })

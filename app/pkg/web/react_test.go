@@ -64,6 +64,7 @@ func TestReactRenderer_RendersUntrustedMarkdownWithoutBrowserAPIs(t *testing.T) 
 		`[video](https://www.youtube.com/watch?v=abc_123-xyz&t=30s)`,
 		`[video](https://vk.com/video-123_456?t=30)`,
 		`[malformed](https://youtube.com/watch?v=%E0%A4%A)`,
+		"- [x] done\n- [ ] todo",
 	}, "\n\n")
 	post := &entity.Post{
 		ID:          1,
@@ -112,8 +113,10 @@ func TestReactRenderer_RendersUntrustedMarkdownWithoutBrowserAPIs(t *testing.T) 
 		`src="https://www.youtube.com/embed/abc_123-xyz?start=30"`,
 		`src="https://vk.com/video_ext.php?oid=-123&amp;id=456&amp;t=30"`,
 		`>malformed</a>`,
+		`<input type="checkbox" disabled="" checked=""/>`,
+		`<input type="checkbox" disabled=""/>`,
 	} {
-		if !strings.Contains(html, expected) {
+		if !strings.Contains(strings.ReplaceAll(html, "&#34;", "&quot;"), expected) {
 			t.Errorf("SSR omitted Markdown fragment %q", expected)
 		}
 	}
@@ -204,7 +207,7 @@ func TestReactRenderer_RenderPages(t *testing.T) {
 		{
 			name: "Post with Unicode and markdown", page: "ShowPost/ShowPost.page", locale: "en",
 			props: web.Map{
-				"post": post,
+				"post":     post,
 				"comments": []web.Map{}, "tags": []web.Map{}, "votes": []web.Map{},
 				"attachments": []string{}, "subscribed": false,
 			},

@@ -39,7 +39,7 @@ export default defineConfig({
         },
         manualChunks: {
           vendor: ["react", "react-dom", "@lingui/core", "@lingui/react"],
-          markdown: ["marked", "dompurify"],
+          markdown: ["marked"],
         },
       },
     },
