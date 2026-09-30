@@ -30,8 +30,13 @@ func PostQueuePage() web.HandlerFunc {
 func QueuePostHeartbeat() web.HandlerFunc {
 	return func(c *web.Context) error {
 		postID, err := c.ParamAsInt("id")
-		if err != nil {
+		if err != nil || postID < 1 {
 			return c.NotFound()
+		}
+
+		post := &query.GetPostByID{PostID: postID}
+		if err := bus.Dispatch(c, post); err != nil {
+			return c.Failure(err)
 		}
 
 		if err := updateViewerPresence(c, sse.ChannelQueue, postID); err != nil {
