@@ -16,7 +16,6 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/enum"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
-	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/sse"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/validate"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
@@ -83,11 +82,7 @@ func SearchPosts() web.HandlerFunc {
 		}
 
 		if clientLimitParam == "" || clientLimitParam == "all" {
-			if env.Config.Environment == "development" {
-				effectiveLimit = 9999
-			} else {
-				effectiveLimit = maxLimit
-			}
+			effectiveLimit = maxLimit
 		} else {
 			clientLimit, err := strconv.Atoi(clientLimitParam)
 			if err != nil {
