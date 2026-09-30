@@ -48,6 +48,8 @@ func (s Service) Init() {
 	bus.AddHandler(getSponsorManagement)
 	bus.AddHandler(getSponsorPlacements)
 	bus.AddHandler(saveSponsorCampaign)
+	bus.AddHandler(deleteSponsorCampaign)
+	bus.AddHandler(deleteSponsorCreative)
 	bus.AddHandler(saveSponsorPlacement)
 	bus.AddHandler(allocateSponsors)
 	bus.AddHandler(recordSponsorClick)

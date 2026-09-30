@@ -3,7 +3,7 @@ import { Button, Input, Modal, Moment, TextArea } from "@fider/components"
 import { Tabs, TabPanels } from "@fider/components/common/Tabs"
 import { PageConfig } from "@fider/components/layouts"
 import { SponsorCampaign, SponsorCampaignSave, SponsorCreative, SponsorExclusion, SponsorManagement, SponsorSaveConflict } from "@fider/models/sponsorBooking"
-import { saveSponsorCampaign, saveSponsorExclusion } from "@fider/services/actions/sponsorBooking"
+import { deleteSponsorCampaign, deleteSponsorCreative, saveSponsorCampaign, saveSponsorExclusion } from "@fider/services/actions/sponsorBooking"
 import { Fider, uploadedImageURL } from "@fider/services"
 import { BookingEditor, newSponsorCampaign } from "./Sponsorship/BookingEditor"
 import { newSponsorCreative } from "./Sponsorship/CreativeEditor"
@@ -36,6 +36,8 @@ type BookingView =
   | { kind: "list" }
   | { kind: "campaign"; id: number }
   | { kind: "edit"; campaign: SponsorCampaign; creative?: SponsorCreative; conflict?: SponsorSaveConflict }
+
+type DeleteTarget = { kind: "campaign" | "artwork"; id: number; campaignID: number; name: string }
 
 function Exclusions({ exclusions, onChanged }: { exclusions: SponsorExclusion[]; onChanged: (exclusions: SponsorExclusion[]) => void }) {
   const [draft, setDraft] = useState<SponsorExclusion>({ pageType: "post", id: 0, reason: "" })
@@ -99,6 +101,7 @@ export default function ManageSponsorshipPage({ management, packages, edit }: { 
   })
   const workspace = useRef<HTMLDivElement>(null)
   const [previewID, setPreviewID] = useState<number>()
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>()
   const selected = view.kind === "campaign" ? data.campaigns.find(campaign => campaign.id === view.id) : undefined
   const preview = data.creatives.find(item => item.id === previewID)
   const previewCampaign = preview ? data.campaigns.find(campaign => campaign.id === preview.campaignId)! : undefined
@@ -145,6 +148,16 @@ export default function ManageSponsorshipPage({ management, packages, edit }: { 
       for (const problem of result.problems) notify.error(problem)
       setView({ kind: "edit", campaign: result.saved.campaign, creative: result.saved.creative ?? undefined, conflict: result })
     }
+  })
+
+  const remove = useSponsorSave(async (target: DeleteTarget) => {
+    const result = target.kind === "campaign"
+      ? await deleteSponsorCampaign(target.id)
+      : await deleteSponsorCreative(target.id)
+
+    return result.ok ? { ok: true as const, data: target } : result
+  }, target => {
+    window.location.assign(bookingURL(target.kind === "campaign" ? 0 : target.campaignID, 1))
   })
 
   const repeat = (campaign: SponsorCampaign) => {
@@ -241,6 +254,11 @@ export default function ManageSponsorshipPage({ management, packages, edit }: { 
                     <div className="flex flex-wrap gap-2">
                       <Button variant="primary" disabled={changeState.disabled} href={bookingURL(selected.id) + "&edit=1"}>Edit campaign</Button>
                       <Button disabled={changeState.disabled} onClick={() => repeat(selected)}>Repeat campaign</Button>
+                      <Button variant="danger" disabled={changeState.disabled} onClick={() => setDeleteTarget({
+                        kind: "campaign", id: selected.id, campaignID: selected.id, name: selected.name,
+                      })}>
+                        Delete campaign
+                      </Button>
                       {(selected.state === "booked" || selected.state === "paused") && (
                         <Button disabled={changeState.disabled} onClick={() => changeState.submit({
                           baseCampaign: selected,
@@ -268,6 +286,11 @@ export default function ManageSponsorshipPage({ management, packages, edit }: { 
                         <div className="flex flex-wrap gap-2">
                           <Button onClick={() => setPreviewID(item.id)}>Preview</Button>
                           <Button disabled={changeState.disabled} onClick={() => editCampaign(selected, item)}>Edit artwork</Button>
+                          <Button variant="danger" disabled={changeState.disabled} onClick={() => setDeleteTarget({
+                            kind: "artwork", id: item.id, campaignID: selected.id, name: item.headline || `Artwork #${item.id}`,
+                          })}>
+                            Delete artwork
+                          </Button>
                         </div>
                       </article>
                     ))}
@@ -286,6 +309,41 @@ export default function ManageSponsorshipPage({ management, packages, edit }: { 
           )
         }}
       </TabPanels>
+      <Modal.Window
+        isOpen={!!deleteTarget}
+        canClose={!remove.disabled}
+        onClose={() => { if (!remove.disabled) setDeleteTarget(undefined) }}
+        labelledBy="delete-sponsor-title"
+        manageHistory={false}
+        size="small"
+      >
+        {deleteTarget && (
+          <>
+            <Modal.Header>
+              <h2 id="delete-sponsor-title" className="m-0 text-title">Delete {deleteTarget.kind}</h2>
+            </Modal.Header>
+            <Modal.Content>
+              <p className="m-0">
+                {deleteTarget.kind === "campaign"
+                  ? `Delete ${deleteTarget.name} and all its artwork?`
+                  : `Delete ${deleteTarget.name}?`}
+                {" This cannot be undone."}
+              </p>
+            </Modal.Content>
+            <Modal.Footer>
+              <div className="flex justify-end gap-2">
+                <Button disabled={remove.disabled} onClick={() => setDeleteTarget(undefined)}>Cancel</Button>
+                <Button variant="danger" loading={remove.busy} onClick={() => {
+                  if (remove.uncertain) void remove.retry()
+                  else void remove.submit(deleteTarget)
+                }}>
+                  {remove.uncertain ? "Retry delete" : "Delete"}
+                </Button>
+              </div>
+            </Modal.Footer>
+          </>
+        )}
+      </Modal.Window>
       <Modal.Window isOpen={!!preview} onClose={() => setPreviewID(undefined)} labelledBy="saved-sponsor-preview" manageHistory={false} size="large" center={false}>
         {preview && (
           <>

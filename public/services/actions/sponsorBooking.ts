@@ -12,6 +12,12 @@ export const uploadSponsorImage = (file: ImageUpload, submissionId: string) =>
 export const saveSponsorCampaign = (value: SponsorCampaignEdit, submissionId: string) =>
   http.post<SponsorSaveResult>("/api/sponsorship/bookings", { ...value, submissionId }, { notifyOnError: false })
 
+export const deleteSponsorCampaign = (id: number) =>
+  http.delete(`/api/sponsorship/bookings/${id}`, undefined, { notifyOnError: false })
+
+export const deleteSponsorCreative = (id: number) =>
+  http.delete(`/api/sponsorship/artwork/${id}`, undefined, { notifyOnError: false })
+
 export const saveSponsorPlacement = (placement: SponsorPlacement, submissionId: string) =>
   http.post<SponsorPlacement>("/api/sponsorship/placements", { placement, submissionId }, { notifyOnError: false })
 

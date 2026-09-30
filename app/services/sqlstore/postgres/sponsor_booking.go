@@ -69,7 +69,7 @@ func readSponsorCampaigns(trx *dbx.Trx, tenantID int) ([]*entity.SponsorCampaign
 	var rows []*sponsorRecord
 	if err := trx.Select(&rows, `
 		SELECT id, revision, state, start_at, end_at, confirm_by, data
-		FROM sponsor_campaigns WHERE tenant_id=$1 ORDER BY id
+		FROM sponsor_campaigns WHERE tenant_id=$1 AND state<>'deleted' ORDER BY id
 	`, tenantID); err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func readSponsorCampaign(trx *dbx.Trx, tenantID, id int) (*entity.SponsorCampaig
 	var row sponsorRecord
 	if err := trx.Get(&row, `
 		SELECT id, revision, state, start_at, end_at, confirm_by, data
-		FROM sponsor_campaigns WHERE tenant_id=$1 AND id=$2
+		FROM sponsor_campaigns WHERE tenant_id=$1 AND id=$2 AND state<>'deleted'
 	`, tenantID, id); err != nil {
 		return nil, err
 	}
@@ -402,7 +402,7 @@ func getSponsorManagement(ctx context.Context, q *query.GetSponsorManagement) er
 				FROM sponsor_campaigns campaign
 				JOIN (
 					SELECT id FROM sponsor_campaigns
-					WHERE tenant_id=$1 AND ($2='' OR data->>'name' ILIKE '%' || $2 || '%'
+					WHERE tenant_id=$1 AND state<>'deleted' AND ($2='' OR data->>'name' ILIKE '%' || $2 || '%'
 					    OR data->>'advertiser' ILIKE '%' || $2 || '%')
 					ORDER BY id DESC LIMIT 26 OFFSET $3
 				) page ON page.id=campaign.id

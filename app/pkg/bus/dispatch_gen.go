@@ -55,6 +55,8 @@ var cDeletePushSubscriptionHandler func(context.Context, *cmd.DeletePushSubscrip
 var cDeletePushSubscriptionByEndpointHandler func(context.Context, *cmd.DeletePushSubscriptionByEndpoint) error
 var cDeleteReportHandler func(context.Context, *cmd.DeleteReport) error
 var cDeleteReportReasonHandler func(context.Context, *cmd.DeleteReportReason) error
+var cDeleteSponsorCampaignHandler func(context.Context, *cmd.DeleteSponsorCampaign) error
+var cDeleteSponsorCreativeHandler func(context.Context, *cmd.DeleteSponsorCreative) error
 var cDeleteSponsorshipPackageHandler func(context.Context, *cmd.DeleteSponsorshipPackage) error
 var cDeleteTagHandler func(context.Context, *cmd.DeleteTag) error
 var cDeleteWarningHandler func(context.Context, *cmd.DeleteWarning) error
@@ -364,6 +366,10 @@ func registerTypedHandler(handler HandlerFunc) {
 		cDeleteReportHandler = fn
 	case func(context.Context, *cmd.DeleteReportReason) error:
 		cDeleteReportReasonHandler = fn
+	case func(context.Context, *cmd.DeleteSponsorCampaign) error:
+		cDeleteSponsorCampaignHandler = fn
+	case func(context.Context, *cmd.DeleteSponsorCreative) error:
+		cDeleteSponsorCreativeHandler = fn
 	case func(context.Context, *cmd.DeleteSponsorshipPackage) error:
 		cDeleteSponsorshipPackageHandler = fn
 	case func(context.Context, *cmd.DeleteTag) error:
@@ -1015,6 +1021,16 @@ func dispatchTyped(ctx context.Context, msg Msg) error {
 			return fmt.Errorf("handler not registered: cmd.DeleteReportReason")
 		}
 		return cDeleteReportReasonHandler(ctx, m)
+	case *cmd.DeleteSponsorCampaign:
+		if cDeleteSponsorCampaignHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.DeleteSponsorCampaign")
+		}
+		return cDeleteSponsorCampaignHandler(ctx, m)
+	case *cmd.DeleteSponsorCreative:
+		if cDeleteSponsorCreativeHandler == nil {
+			return fmt.Errorf("handler not registered: cmd.DeleteSponsorCreative")
+		}
+		return cDeleteSponsorCreativeHandler(ctx, m)
 	case *cmd.DeleteSponsorshipPackage:
 		if cDeleteSponsorshipPackageHandler == nil {
 			return fmt.Errorf("handler not registered: cmd.DeleteSponsorshipPackage")

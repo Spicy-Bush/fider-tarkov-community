@@ -38,7 +38,7 @@ export function useSponsorSave<T, R>(
       owner.update(uncertain && identity
         ? { phase: "uncertain", value, identity, error }
         : { phase: "idle", error })
-      notify.error(error.errors?.map(item => item.message).join(" ") || "The save could not be confirmed. Please retry.")
+      notify.error(error.errors?.map(item => item.message).join(" ") || "The request could not be confirmed. Please retry.")
     }
 
     try {
@@ -66,7 +66,7 @@ export function useSponsorSave<T, R>(
         throw cause
       }
 
-      failed({ errors: [{ message: "The save could not be confirmed. Retry to check the same save." }], cause }, true)
+      failed({ errors: [{ message: "The request could not be confirmed. Please retry." }], cause }, true)
     }
   }
 

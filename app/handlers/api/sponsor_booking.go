@@ -79,6 +79,36 @@ func SaveSponsorPlacement() web.HandlerFunc {
 	}
 }
 
+func DeleteSponsorCampaign() web.HandlerFunc {
+	return func(c *web.Context) error {
+		id, err := c.ParamAsInt("id")
+		if err != nil || id < 1 {
+			return c.BadRequest(web.Map{"message": "Choose a valid campaign."})
+		}
+
+		if err := bus.Dispatch(c, &cmd.DeleteSponsorCampaign{ID: id}); err != nil {
+			return c.Failure(err)
+		}
+
+		return c.NoContent(http.StatusNoContent)
+	}
+}
+
+func DeleteSponsorCreative() web.HandlerFunc {
+	return func(c *web.Context) error {
+		id, err := c.ParamAsInt("id")
+		if err != nil || id < 1 {
+			return c.BadRequest(web.Map{"message": "Choose valid artwork."})
+		}
+
+		if err := bus.Dispatch(c, &cmd.DeleteSponsorCreative{ID: id}); err != nil {
+			return c.Failure(err)
+		}
+
+		return c.NoContent(http.StatusNoContent)
+	}
+}
+
 func trustedSponsorCountry(request *http.Request, trustedNetwork string) string {
 	prefix, err := netip.ParsePrefix(trustedNetwork)
 	if err != nil {

@@ -408,6 +408,8 @@ func routes(r *web.Engine) *web.Engine {
 		sponsorship.Get("/admin/sponsorship", handlers.SponsorManagementPage())
 		sponsorship.Get("/admin/sponsorship/preview", handlers.SponsorPreview())
 		sponsorship.Post("/api/sponsorship/bookings", api.SaveSponsorCampaign())
+		sponsorship.Delete("/api/sponsorship/bookings/:id", api.DeleteSponsorCampaign())
+		sponsorship.Delete("/api/sponsorship/artwork/:id", api.DeleteSponsorCreative())
 		sponsorship.Post("/api/sponsorship/images", api.UploadSponsorImage())
 		sponsorship.Post("/api/sponsorship/placements", api.SaveSponsorPlacement())
 		sponsorship.Get("/api/sponsorship/bookings/:id/report", api.SponsorReport())

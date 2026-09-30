@@ -33,6 +33,14 @@ type SaveSponsorPlacement struct {
 	Result       entity.SponsorPlacement
 }
 
+type DeleteSponsorCampaign struct {
+	ID int
+}
+
+type DeleteSponsorCreative struct {
+	ID int
+}
+
 type AllocateSponsors struct {
 	Context       entity.SponsorContext
 	Opportunities []entity.SponsorOpportunity

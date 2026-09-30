@@ -41,7 +41,7 @@ func readSponsorCreative(trx *dbx.Trx, tenantID, id int) (*entity.SponsorCreativ
 	var row sponsorCreativeRecord
 	if err := trx.Get(&row, `
 		SELECT id, campaign_id, revision, image_key, logo_key, data
-		FROM sponsor_creatives WHERE tenant_id=$1 AND id=$2
+		FROM sponsor_creatives WHERE tenant_id=$1 AND id=$2 AND data->>'state'<>'deleted'
 	`, tenantID, id); err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func readSponsorCreatives(trx *dbx.Trx, tenantID, campaignID, page int) ([]*enti
 	var rows []*sponsorCreativeRecord
 	if err := trx.Select(&rows, `
 		SELECT id, campaign_id, revision, image_key, logo_key, data
-		FROM sponsor_creatives WHERE tenant_id=$1 AND campaign_id=$2
+		FROM sponsor_creatives WHERE tenant_id=$1 AND campaign_id=$2 AND data->>'state'<>'deleted'
 		ORDER BY id DESC LIMIT 26 OFFSET $3
 	`, tenantID, campaignID, (page-1)*25); err != nil {
 		return nil, err
