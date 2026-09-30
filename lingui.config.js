@@ -4,7 +4,7 @@ export default {
   catalogs: [
     {
       path: "<rootDir>/locale/{locale}/client",
-      include: ["<rootDir>/public/**/*.{ts,tsx}"],
+      include: ["<rootDir>/public"],
     },
   ],
   compileNamespace: "es",

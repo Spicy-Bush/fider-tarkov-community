@@ -226,7 +226,7 @@ export const TagsPanel = (props: TagsPanelProps) => {
         ) : <div />}
         <div className="flex gap-2">
           <Button variant="secondary" size="small" onClick={onSubtitleClick}>
-            <Trans id="action.close">Done</Trans>
+            <Trans id="action.done">Done</Trans>
           </Button>
           {props.onNextPost && (
             <Button variant="primary" size="small" onClick={props.onNextPost} className="hidden max-lg:inline-flex">

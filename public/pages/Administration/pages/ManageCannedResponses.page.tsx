@@ -241,7 +241,7 @@ const ManageCannedResponsesPage: React.FC<ManageCannedResponsesPageProps> = (pro
     const ids = newReasons.map((r) => r.id)
     const result = await actions.reorderReportReasons(ids)
     if (!result.ok) {
-      notify.error(i18n._("reportReasons.reorder.error", { message: "Failed to reorder report reasons" }))
+      notify.error(i18n._({ id: "reportReasons.reorder.error", message: "Failed to reorder report reasons" }))
       loadReasons()
     }
   }

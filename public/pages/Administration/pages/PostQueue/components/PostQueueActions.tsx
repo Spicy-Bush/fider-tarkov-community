@@ -162,7 +162,7 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
         )}
         {canChangeStatus && (
           <Button size="small" variant="secondary" onClick={() => setShowStatusModal(true)}>
-            <Trans id="action.changestatus">Status</Trans>
+            <Trans id="label.status">Status</Trans>
           </Button>
         )}
         {post.permissions.respond.includes(PostStatusValue.Declined) && (
@@ -310,14 +310,14 @@ export const PostQueueActions: React.FC<PostQueueActionsProps> = ({
           <Form error={error}>
             {locked ? (
               <p>
-                <Trans id="modal.unlockpost.text">
+                <Trans id="modal.unlockpost.summary">
                   Unlocking this post will allow users to comment, vote, and edit it again.
                 </Trans>
               </p>
             ) : (
               <>
                 <p>
-                  <Trans id="modal.lockpost.text">
+                  <Trans id="modal.lockpost.summary">
                     Locking this post will prevent users from commenting, voting, or editing it.
                   </Trans>
                 </p>
