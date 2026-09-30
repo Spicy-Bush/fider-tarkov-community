@@ -124,6 +124,17 @@ func Sitemap() web.HandlerFunc {
 	}
 }
 
+func AdsTXT() web.HandlerFunc {
+	return func(c *web.Context) error {
+		content := strings.TrimSpace(env.Config.AdsTXT)
+		if content == "" {
+			return c.NoContent(http.StatusNotFound)
+		}
+
+		return c.String(http.StatusOK, content+"\n")
+	}
+}
+
 func RobotsTXT() web.HandlerFunc {
 	robotsFile := "robots.txt"
 	if env.IsDevelopment() {

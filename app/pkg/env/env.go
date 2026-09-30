@@ -154,6 +154,7 @@ type config struct {
 	}
 	GoogleAnalytics     string `env:"GOOGLE_ANALYTICS"`
 	GoogleAdSense       string `env:"GOOGLE_ADSENSE"`
+	AdsTXT              string `env:"ADS_TXT"`
 	SponsorCountryProxy string `env:"SPONSOR_COUNTRY_PROXY"`
 }
 

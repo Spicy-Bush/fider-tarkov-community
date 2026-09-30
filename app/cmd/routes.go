@@ -46,6 +46,8 @@ func routes(r *web.Engine) *web.Engine {
 		assets.Static("/misc/*filepath", "misc")
 	}
 
+	r.Get("/ads.txt", handlers.AdsTXT())
+
 	r.Use(middlewares.Session())
 
 	r.Get("/robots.txt", handlers.RobotsTXT())
