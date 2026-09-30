@@ -225,8 +225,9 @@ func TestManagePermissionsPage(t *testing.T) {
 	Expect(len(page.Props.BaseLocks["administrator"])).Equals(len(page.Props.Permissions["administrator"]))
 	Expect(page.Props.BaseLocks["administrator"]["manageAuthentication"]).Equals("Administrators have every permission")
 	Expect(page.Props.BaseLocks["visitor"]).Equals(map[string]string{
-		"manageAuthentication": "Only administrators can manage authentication",
-		"exportBackup":         "Only administrators can export full backups",
+		"manageAuthentication":  "Only administrators can manage authentication",
+		"exportBackup":          "Only administrators can export full backups",
+		"manageRolePermissions": "Visitors cannot manage role permissions",
 	})
 }
 

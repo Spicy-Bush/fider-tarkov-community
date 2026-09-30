@@ -102,6 +102,9 @@ func (overrides RolePermissions) Grants(role enum.Role, permission Permission) b
 	if isAdministratorOnlyPermission(permission) {
 		return false
 	}
+	if permission == ManageRolePermissions && role == enum.RoleVisitor {
+		return false
+	}
 
 	if granted, ok := overrides[role][permission]; ok {
 		return granted
@@ -130,6 +133,9 @@ func (overrides RolePermissions) GrantedByRole() map[enum.Role][]Permission {
 func RolePermissionLock(viewer *User, tenant *Tenant, role enum.Role, permission Permission) string {
 	if role == enum.RoleAdministrator {
 		return "Administrators have every permission"
+	}
+	if permission == ManageRolePermissions && role == enum.RoleVisitor {
+		return "Visitors cannot manage role permissions"
 	}
 	if isAdministratorOnlyPermission(permission) {
 		if permission == ExportBackup {

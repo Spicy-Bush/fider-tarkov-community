@@ -61,6 +61,28 @@ func activeUser(role enum.Role) *entity.User {
 	return &entity.User{ID: 1, Role: role, Status: enum.UserActive}
 }
 
+func TestVisitorCannotReceiveRolePermissionManagement(t *testing.T) {
+	tenant := &entity.Tenant{Status: enum.TenantActive, RolePermissions: entity.RolePermissions{
+		enum.RoleVisitor: {entity.ManageRolePermissions: true},
+	}}
+	if entity.Can(activeUser(enum.RoleVisitor), tenant, entity.ManageRolePermissions) {
+		t.Fatal("stored Visitor override granted role management")
+	}
+
+	for _, role := range entity.PermissionRoles {
+		if entity.RolePermissionLock(activeUser(role), tenant, enum.RoleVisitor, entity.ManageRolePermissions) == "" {
+			t.Errorf("%s can delegate role management to Visitors", role)
+		}
+	}
+
+	_, blocked := tenant.RolePermissions.ApplyChanges(activeUser(enum.RoleAdministrator), tenant, []entity.RolePermissionChange{
+		{Role: enum.RoleVisitor, Permission: entity.ManageRolePermissions, Granted: true},
+	})
+	if blocked == "" {
+		t.Fatal("Visitor grant was accepted")
+	}
+}
+
 func TestDefaultRolePermissionsMatchLegacyRules(t *testing.T) {
 	settings := []*entity.GeneralSettings{
 		{},
@@ -124,8 +146,8 @@ func TestAuthenticationAdministrationCannotBeDelegated(t *testing.T) {
 			if entity.Can(viewer, tenant, entity.ManageAuthentication) != (role == enum.RoleAdministrator) {
 				t.Fatal("an override changed administrator-only authentication access")
 			}
-			if !entity.Can(viewer, tenant, entity.ManageRolePermissions) {
-				t.Fatal("matrix editing cannot be delegated independently")
+			if entity.Can(viewer, tenant, entity.ManageRolePermissions) != (role != enum.RoleVisitor) {
+				t.Fatal("matrix editing delegation did not respect the role boundary")
 			}
 
 			if role != enum.RoleAdministrator {
