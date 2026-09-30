@@ -1,5 +1,5 @@
 x-common-env: &fider-env
-  GO_ENV: ${env_string}
+  GO_ENV: production
   TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
   SPONSOR_COUNTRY_PROXY: ${SPONSOR_COUNTRY_PROXY:-}
   # Public Host Name
