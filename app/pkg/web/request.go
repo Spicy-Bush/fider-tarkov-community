@@ -10,6 +10,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/crawler"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/errors"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/proxy"
 )
 
 // Request wraps the http request object
@@ -26,13 +27,17 @@ type Request struct {
 // WrapRequest returns Fider wrapper of HTTP Request
 func WrapRequest(request *http.Request) Request {
 	protocol := "http"
-	if request.TLS != nil || request.Header.Get("X-Forwarded-Proto") == "https" {
+	if request.TLS != nil || proxy.Header(request, "X-Forwarded-Proto", env.Config.TrustedProxies) == "https" {
 		protocol = "https"
 	}
 
 	host := request.Host
-	if !env.IsSingleHostMode() && request.Header.Get("X-Forwarded-Host") != "" {
-		host = request.Header.Get("X-Forwarded-Host")
+	forwardedHost := proxy.Header(request, "X-Forwarded-Host", env.Config.TrustedProxies)
+	if !env.IsSingleHostMode() && forwardedHost != "" {
+		authority, err := url.Parse("https://" + forwardedHost)
+		if err == nil && authority.Host == forwardedHost && authority.User == nil && authority.Hostname() != "" {
+			host = forwardedHost
+		}
 	}
 
 	fullURL := protocol + "://" + host + request.RequestURI

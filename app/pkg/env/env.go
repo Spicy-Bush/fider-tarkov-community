@@ -3,6 +3,7 @@ package env
 import (
 	"fmt"
 	"io/fs"
+	"net/netip"
 	"net/url"
 	"os"
 	"path"
@@ -44,13 +45,14 @@ type config struct {
 		IdleTimeout       time.Duration `env:"HTTP_IDLE_TIMEOUT,default=120s,strict"`
 		CompressResponses bool          `env:"HTTP_COMPRESS_RESPONSES,default=true"`
 	}
-	Port                        string `env:"PORT,default=3000"`
-	HostMode                    string `env:"HOST_MODE,default=single"`
-	HostDomain                  string `env:"HOST_DOMAIN"`
-	BaseURL                     string `env:"BASE_URL"`
-	Locale                      string `env:"LOCALE,default=en"`
-	JWTSecret                   string `env:"JWT_SECRET,required"`
-	PostCreationWithTagsEnabled bool   `env:"POST_CREATION_WITH_TAGS_ENABLED,default=false"`
+	Port                        string   `env:"PORT,default=3000"`
+	HostMode                    string   `env:"HOST_MODE,default=single"`
+	HostDomain                  string   `env:"HOST_DOMAIN"`
+	BaseURL                     string   `env:"BASE_URL"`
+	TrustedProxies              []string `env:"TRUSTED_PROXIES"`
+	Locale                      string   `env:"LOCALE,default=en"`
+	JWTSecret                   string   `env:"JWT_SECRET,required"`
+	PostCreationWithTagsEnabled bool     `env:"POST_CREATION_WITH_TAGS_ENABLED,default=false"`
 	Paddle                      struct {
 		IsSandbox      bool   `env:"PADDLE_SANDBOX,default=false"`
 		VendorID       string `env:"PADDLE_VENDOR_ID"`
@@ -150,8 +152,8 @@ type config struct {
 		SexualThreshold   float64 `env:"OPENAI_MODERATION_SEXUAL_THRESHOLD,default=0.5"`
 		SelfHarmThreshold float64 `env:"OPENAI_MODERATION_SELFHARM_THRESHOLD,default=0.5"`
 	}
-	GoogleAnalytics string `env:"GOOGLE_ANALYTICS"`
-	GoogleAdSense   string `env:"GOOGLE_ADSENSE"`
+	GoogleAnalytics     string `env:"GOOGLE_ANALYTICS"`
+	GoogleAdSense       string `env:"GOOGLE_ADSENSE"`
 	SponsorCountryProxy string `env:"SPONSOR_COUNTRY_PROXY"`
 }
 
@@ -170,6 +172,12 @@ func Reload() {
 	err := envdecode.Decode(&Config)
 	if err != nil {
 		panic(errors.Wrap(err, "failed to parse environment variables"))
+	}
+
+	for _, network := range Config.TrustedProxies {
+		if _, err := netip.ParsePrefix(network); err != nil {
+			panic(errors.Wrap(err, "invalid TRUSTED_PROXIES network"))
+		}
 	}
 
 	if IsSingleHostMode() {

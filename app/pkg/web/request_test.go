@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	. "github.com/Spicy-Bush/fider-tarkov-community/app/pkg/assert"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -58,6 +59,9 @@ func TestRequest_WithPort(t *testing.T) {
 
 func TestRequest_BehindTLSTerminationProxy(t *testing.T) {
 	RegisterT(t)
+	previous := env.Config.TrustedProxies
+	env.Config.TrustedProxies = []string{"127.0.0.1/32"}
+	t.Cleanup(func() { env.Config.TrustedProxies = previous })
 
 	header := make(http.Header)
 	header.Set("X-Forwarded-Host", "feedback.mycompany.com")
@@ -65,9 +69,10 @@ func TestRequest_BehindTLSTerminationProxy(t *testing.T) {
 
 	req := web.WrapRequest(
 		&http.Request{
-			Method: "GET",
-			Header: header,
-			Host:   "demo.test.fider.io",
+			Method:     "GET",
+			Header:     header,
+			Host:       "demo.test.fider.io",
+			RemoteAddr: "127.0.0.1:40000",
 		},
 	)
 
@@ -76,6 +81,36 @@ func TestRequest_BehindTLSTerminationProxy(t *testing.T) {
 	Expect(req.URL.Scheme).Equals("https")
 	Expect(req.IsSecure).Equals(true)
 	Expect(req.IsAPI()).IsFalse()
+}
+
+func TestRequestForwardedAuthorityRequiresTrustedPeer(t *testing.T) {
+	previous := env.Config
+	env.Config.HostMode = "multi"
+	env.Config.TrustedProxies = []string{"127.0.0.1/32"}
+	t.Cleanup(func() { env.Config = previous })
+
+	for _, test := range []struct {
+		name string
+		peer string
+		host string
+		want string
+	}{
+		{"direct", "192.0.2.1:8000", "other.example", "http://original.example"},
+		{"trusted", "127.0.0.1:8000", "other.example:8443", "https://other.example:8443"},
+		{"multiple hosts", "127.0.0.1:8000", "other.example, original.example", "https://original.example"},
+		{"userinfo", "127.0.0.1:8000", "original.example@other.example", "https://original.example"},
+		{"path", "127.0.0.1:8000", "other.example/path", "https://original.example"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := &http.Request{Host: "original.example", RemoteAddr: test.peer, Header: make(http.Header)}
+			request.Header.Set("X-Forwarded-Host", test.host)
+			request.Header.Set("X-Forwarded-Proto", "https")
+			wrapped := web.WrapRequest(request)
+			if wrapped.BaseURL() != test.want {
+				t.Fatalf("got %s, wanted %s", wrapped.BaseURL(), test.want)
+			}
+		})
+	}
 }
 
 func TestIsCustomDomain(t *testing.T) {

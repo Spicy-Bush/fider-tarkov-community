@@ -3,33 +3,22 @@ package crawler
 import (
 	"net"
 	"net/http"
-	"strings"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/proxy"
 )
 
 func GetRealIP(r *http.Request) net.IP {
-	if cfIP := r.Header.Get("CF-Connecting-IP"); cfIP != "" {
+	if cfIP := proxy.Header(r, "CF-Connecting-IP", env.Config.TrustedProxies); cfIP != "" {
 		if ip := net.ParseIP(cfIP); ip != nil {
 			return ip
 		}
 	}
 
-	if env.IsDevelopment() {
-		if xRealIP := r.Header.Get("X-Real-IP"); xRealIP != "" {
-			if ip := net.ParseIP(xRealIP); ip != nil {
-				return ip
-			}
-		}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return nil
 	}
-
-	host := r.RemoteAddr
-	if idx := strings.LastIndex(host, ":"); idx != -1 {
-		host = host[:idx]
-	}
-	host = strings.TrimPrefix(host, "[")
-	host = strings.TrimSuffix(host, "]")
 
 	return net.ParseIP(host)
 }
-

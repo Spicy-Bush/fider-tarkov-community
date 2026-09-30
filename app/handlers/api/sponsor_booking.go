@@ -1,9 +1,7 @@
 package api
 
 import (
-	"net"
 	"net/http"
-	"net/netip"
 	"slices"
 
 	"github.com/Spicy-Bush/fider-tarkov-community/app/actions"
@@ -12,6 +10,7 @@ import (
 	"github.com/Spicy-Bush/fider-tarkov-community/app/models/query"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/bus"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/env"
+	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/proxy"
 	"github.com/Spicy-Bush/fider-tarkov-community/app/pkg/web"
 )
 
@@ -110,22 +109,7 @@ func DeleteSponsorCreative() web.HandlerFunc {
 }
 
 func trustedSponsorCountry(request *http.Request, trustedNetwork string) string {
-	prefix, err := netip.ParsePrefix(trustedNetwork)
-	if err != nil {
-		return ""
-	}
-
-	host, _, err := net.SplitHostPort(request.RemoteAddr)
-	if err != nil {
-		return ""
-	}
-
-	peer, err := netip.ParseAddr(host)
-	if err != nil || !prefix.Contains(peer.Unmap()) {
-		return ""
-	}
-
-	country := request.Header.Get("CF-IPCountry")
+	country := proxy.Header(request, "CF-IPCountry", []string{trustedNetwork})
 	if len(country) != 2 || country == "XX" || country[0] < 'A' || country[0] > 'Z' || country[1] < 'A' || country[1] > 'Z' {
 		return ""
 	}
