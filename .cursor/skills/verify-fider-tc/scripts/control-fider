@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# control-fider: launch / doctor / drive / tear down a disposable local
+# tarkov.community (Fider fork) instance for verification. Never targets prod.
+#
+#   control-fider build              # npm ci (if needed) + make build -> ./fider
+#   control-fider up   [RUN_ID]      # Postgres + MailHog + fider (migrate, then serve), seed admin
+#   control-fider doctor             # read-only health / ownership check
+#   control-fider drive <script.mjs> [args]   # run a Playwright script with FIDER_* env set
+#   control-fider down               # stop ONLY what `up` started (by recorded PID)
+#
+# State: /tmp/fider-verify-$RUN_ID (pg data, logs, pids). Evidence: $EVIDENCE_ROOT/$RUN_ID (survives down).
+set -euo pipefail
+SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$SKILL_DIR/../../.." && pwd)"
+CUR=/tmp/fider-verify-current           # symlink to the active run dir
+APP_PORT="${FIDER_VERIFY_PORT:-3311}"
+PG_PORT="${FIDER_VERIFY_PG_PORT:-56543}"
+SMTP_PORT="${FIDER_VERIFY_SMTP_PORT:-11125}"
+MH_PORT="${FIDER_VERIFY_MH_PORT:-18125}"
+EVIDENCE_ROOT="${EVIDENCE_ROOT:-/workspace/verify-artifacts/fider-tc}"
+PGBIN="$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1)"
+MAILHOG="${MAILHOG:-$(command -v MailHog || echo "$HOME/.local/bin/MailHog")}"
+export GOMODCACHE="${GOMODCACHE:-/workspace/.vs-cache/gomod}" GOFLAGS="${GOFLAGS:--modcacherw}"
+ADMIN_EMAIL="admin@verify.local"
+
+die(){ echo "control-fider: $*" >&2; exit 1; }
+port_free(){ ! (exec 3<>/dev/tcp/127.0.0.1/"$1") 2>/dev/null; }
+rundir(){ [ -L "$CUR" ] || die "no active run (run 'up' first)"; readlink -f "$CUR"; }
+
+app_env(){
+  cat <<E
+GO_ENV=development
+BASE_URL=http://localhost:$APP_PORT
+PORT=$APP_PORT
+HOST_MODE=single
+DATABASE_URL=postgres://fider:fider_pw@127.0.0.1:$PG_PORT/fider?sslmode=disable
+JWT_SECRET=verify-only-not-a-real-secret-0123456789abcdef
+EMAIL_NOREPLY=noreply@verify.local
+EMAIL_SMTP_HOST=127.0.0.1
+EMAIL_SMTP_PORT=$SMTP_PORT
+LOG_LEVEL=INFO
+LOG_SQL=false
+OPENAI_MODERATION_ENABLED=false
+METRICS_ENABLED=false
+E
+}
+
+cmd_build(){
+  cd "$REPO"
+  [ -d node_modules ] || npm ci --no-audit --no-fund
+  make build
+  npx playwright install chromium-headless-shell >/dev/null
+  echo "built $REPO/fider @ $(git rev-parse --short HEAD)"
+}
+
+cmd_up(){
+  [ -x "$REPO/fider" ] || die "no ./fider binary; run 'control-fider build'"
+  [ -n "$PGBIN" ] || die "postgres binaries not found (sudo apt-get install -y postgresql)"
+  [ -x "$MAILHOG" ] || die "MailHog not found (see SKILL.md Launch)"
+  if [ -L "$CUR" ] && [ -d "$(readlink -f "$CUR")" ]; then die "a run is already active at $(readlink -f "$CUR"); run 'down' first"; fi
+  for p in "$APP_PORT" "$PG_PORT" "$SMTP_PORT" "$MH_PORT"; do port_free "$p" || die "port $p already in use - not ours, refusing"; done
+  RUN_ID="${1:-$(date +%Y%m%d-%H%M%S)}"
+  D="/tmp/fider-verify-$RUN_ID"; mkdir -p "$D" "$EVIDENCE_ROOT/$RUN_ID"; ln -sfn "$D" "$CUR"
+  echo "$RUN_ID" > "$D/run_id"; app_env > "$D/app.env"
+  # Postgres (own data dir + port, unix socket in run dir)
+  "$PGBIN/initdb" -D "$D/pg" -U fider --auth=trust >"$D/initdb.log" 2>&1
+  "$PGBIN/pg_ctl" -D "$D/pg" -o "-p $PG_PORT -k $D -c listen_addresses=127.0.0.1" -l "$D/pg.log" -w start >/dev/null
+  head -1 "$D/pg/postmaster.pid" > "$D/pg.pid"
+  "$PGBIN/createdb" -h 127.0.0.1 -p "$PG_PORT" -U fider fider
+  "$PGBIN/psql" -qh 127.0.0.1 -p "$PG_PORT" -U fider -c "ALTER USER fider PASSWORD 'fider_pw'" fider
+  # MailHog (in-memory)
+  nohup "$MAILHOG" -smtp-bind-addr 127.0.0.1:$SMTP_PORT -api-bind-addr 127.0.0.1:$MH_PORT -ui-bind-addr 127.0.0.1:$MH_PORT >"$D/mailhog.log" 2>&1 &
+  echo $! > "$D/mailhog.pid"
+  # Migrate then serve (same order as the Dockerfile CMD)
+  ( cd "$REPO" && env $(cat "$D/app.env" | xargs) ./fider migrate ) >"$D/migrate.log" 2>&1 || { tail "$D/migrate.log"; die "migrate failed"; }
+  ( cd "$REPO" && exec env $(cat "$D/app.env" | xargs) ./fider ) >"$D/fider.log" 2>&1 &
+  echo $! > "$D/fider.pid"
+  for i in $(seq 1 60); do curl -fs "http://localhost:$APP_PORT/_health" >/dev/null 2>&1 && break; sleep 1; done
+  curl -fs "http://localhost:$APP_PORT/_health" >/dev/null || { tail "$D/fider.log"; die "fider never became healthy"; }
+  # Seed: create the site + admin through the real /signup UI and MailHog magic link
+  ( cd "$REPO" && FIDER_RUN_DIR="$D" FIDER_URL="http://localhost:$APP_PORT" MAILHOG_API="http://127.0.0.1:$MH_PORT" ADMIN_EMAIL="$ADMIN_EMAIL" \
+      node "$SKILL_DIR/scripts/seed.mjs" ) || die "seed failed"
+  echo "READY run=$RUN_ID url=http://localhost:$APP_PORT mailhog=http://127.0.0.1:$MH_PORT evidence=$EVIDENCE_ROOT/$RUN_ID"
+}
+
+cmd_doctor(){
+  D="$(rundir)"; RUN_ID="$(cat "$D/run_id")"; ok=1
+  chk(){ if eval "$2" >/dev/null 2>&1; then echo "ok   $1"; else echo "FAIL $1"; ok=0; fi; }
+  chk "fider pid $(cat "$D/fider.pid") alive"      "kill -0 $(cat "$D/fider.pid")"
+  chk "postgres pid $(cat "$D/pg.pid") alive"      "kill -0 $(cat "$D/pg.pid")"
+  chk "mailhog pid $(cat "$D/mailhog.pid") alive"  "kill -0 $(cat "$D/mailhog.pid")"
+  chk "port $APP_PORT owned by our fider"          "ss -ltnpH 'sport = :$APP_PORT' | grep -q pid=$(cat "$D/fider.pid"),"
+  chk "/_health 200"                               "curl -fs http://localhost:$APP_PORT/_health"
+  chk "BASE_URL is localhost (never prod)"         "grep -q '^BASE_URL=http://localhost:' $D/app.env"
+  chk "admin session file present"                 "test -s $D/admin-state.json"
+  srv=$(curl -fs "http://localhost:$APP_PORT/" | grep -o 'id="server-data"[^>]*>[^<]*' | sed 's/^[^>]*>//' || true)
+  build=$(printf '%s' "$srv" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log((j.settings&&(j.settings.version||j.settings.commitHash))||"?")}catch{console.log("?")}})')
+  echo "info run=$RUN_ID repo_head=$(git -C "$REPO" rev-parse --short HEAD) server_build=$build"
+  [ $ok = 1 ] && echo DOCTOR OK || { echo DOCTOR FAIL; exit 1; }
+}
+
+cmd_drive(){
+  D="$(rundir)"; RUN_ID="$(cat "$D/run_id")"; s="$1"; shift
+  [ -f "$s" ] || s="$SKILL_DIR/scripts/$s"
+  cd "$REPO" && FIDER_RUN_DIR="$D" FIDER_URL="http://localhost:$APP_PORT" MAILHOG_API="http://127.0.0.1:$MH_PORT" \
+    EVIDENCE_DIR="$EVIDENCE_ROOT/$RUN_ID" ADMIN_EMAIL="$ADMIN_EMAIL" \
+    PSQL="$PGBIN/psql -h 127.0.0.1 -p $PG_PORT -U fider -d fider -At" node "$s" "$@"
+}
+
+cmd_psql(){ "$PGBIN/psql" -h 127.0.0.1 -p "$PG_PORT" -U fider -d fider "$@"; }
+
+cmd_down(){
+  [ -L "$CUR" ] || { echo "nothing to tear down"; return 0; }
+  D="$(readlink -f "$CUR")"
+  for n in fider mailhog; do
+    if [ -s "$D/$n.pid" ]; then p=$(cat "$D/$n.pid"); kill "$p" 2>/dev/null || true
+      for i in $(seq 1 20); do kill -0 "$p" 2>/dev/null || break; sleep 0.25; done; kill -9 "$p" 2>/dev/null || true; fi
+  done
+  [ -d "$D/pg" ] && "$PGBIN/pg_ctl" -D "$D/pg" -m fast -w stop >/dev/null 2>&1 || true
+  RUN_ID="$(cat "$D/run_id" 2>/dev/null || echo ?)"
+  cp "$D"/*.log "$EVIDENCE_ROOT/$RUN_ID/" 2>/dev/null || true   # keep logs with the evidence
+  rm -rf "$D" "$CUR"
+  echo "down: removed $D; evidence kept at $EVIDENCE_ROOT/$RUN_ID"
+}
+
+case "${1:-}" in
+  build) cmd_build;; up) shift; cmd_up "$@";; doctor) cmd_doctor;; drive) shift; cmd_drive "$@";;
+  psql) shift; cmd_psql "$@";; down) cmd_down;;
+  *) sed -n 2,11p "$0"; exit 2;;
+esac
