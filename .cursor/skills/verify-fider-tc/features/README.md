@@ -29,9 +29,9 @@ Each feature file has an H1 and a one-paragraph description, then exactly four H
 
 ## Features
 
-- [Post list, filters and search](./post-list.md): the home composer, list, search box, tag filter, sort and the empty state.
-- [Post page: votes and comments](./post-page.md): show post, upvote/downvote, the discussion composer and sort.
-- [Admin tags management](./admin-tags.md): create, edit and delete public/private tags, and visitor visibility. **Proven** (`drive-admin-tags.mjs`).
-- [Post status change](./post-status.md): the staff Respond action, the status select and the status on the post and list.
-- [Sponsorship / ads admin](./sponsorship.md): ManageSponsorship tabs, campaigns, placements, the public slot and the AdSense fallback.
+- [Post list, filters and search](./post-list.md) (**docs only, not driven**): the home composer, list, search box, tag filter, sort and the empty state.
+- [Post page: votes and comments](./post-page.md) (**docs only, not driven**): show post, upvote/downvote, the discussion composer and sort.
+- [Admin tags management](./admin-tags.md): create, edit and delete public/private tags, and visitor visibility. **Proven** for tag creation and anonymous tag-list visibility (`drive-admin-tags.mjs`); post filtering by tag is not proven.
+- [Post status change](./post-status.md) (**docs only, not driven**): the staff Respond action, the status select and the status on the post and list.
+- [Sponsorship / ads admin](./sponsorship.md) (**docs only, not driven**): ManageSponsorship tabs, campaigns, placements, the public slot and the AdSense fallback.
 - EN vs RU locale isn't a separate feature, because production runs one tenant per locale. See the `locale-*` sub-features in [post-list](./post-list.md) and [sponsorship](./sponsorship.md).

@@ -3,13 +3,15 @@ import { chromium } from "@playwright/test"
 import { execSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
+import { assertLocalUrl } from "./guard.mjs"
 
 export const URL_ = process.env.FIDER_URL
 export const MH = process.env.MAILHOG_API
 export const RUN = process.env.FIDER_RUN_DIR
 export const EVID = process.env.EVIDENCE_DIR
 export const ADMIN = process.env.ADMIN_EMAIL
-if (!URL_ || !URL_.startsWith("http://localhost:")) throw new Error(`refusing non-local FIDER_URL=${URL_}`)
+assertLocalUrl(URL_, "FIDER_URL")
+assertLocalUrl(MH, "MAILHOG_API")
 
 export const sql = (q) => execSync(`${process.env.PSQL} -c ${JSON.stringify(q)}`, { encoding: "utf8" }).trim()
 
@@ -22,7 +24,7 @@ export async function latestLink(to, pathPart, tries = 20) {
       const body = m.Content.Body.replace(/=\r?\n/g, "").replace(/=3D/gi, "=")
       const re = new RegExp(`https?://[^"'\\s<>]*${pathPart.replace(/\//g, "\\/")}\\?k=[A-Za-z0-9_-]+`)
       const hit = body.match(re)
-      if (hit) return hit[0]
+      if (hit) return assertLocalUrl(hit[0], "magic link").href
     }
     await new Promise((r) => setTimeout(r, 500))
   }

@@ -22,14 +22,14 @@ Preconditions:
 - Baseline run is up, `doctor` is OK, and you're using the admin storageState.
 - No tag exists with the chosen name. Use a unique name per run.
 
-- **Proven journey.** Run `control-fider drive drive-admin-tags.mjs "Verify Tag"`. It writes `admin-tags/{01-before.aria.txt,02-form-filled.png,03-save-response.json,04-after-reload.png,04-after-reload.aria.txt,05-anon-home.png,06-db-row.txt,result.json}` and exits 0 with `"pass":true`.
+- **Proven journey.** Run `control-fider drive drive-admin-tags.mjs "Verify Tag"`. It writes `admin-tags/{01-before.aria.txt,02-form-filled.png,03-save-response.json,04-after-reload.png,04-after-reload.aria.txt,05-anon-home.png,05b-anon-tags.json,03b-save-response-private.json,06-db-row.txt,result.json}` and exits 0 with `"pass":true`.
 - **Open form.** Click `getByRole("button", { name: "Add new" })`. The `Name` textbox, the `Color` textbox (prefilled with a random hex) and the `Public`/`Private` radios appear, with `Private` checked by default.
 - **Fill.** Fill `getByRole("textbox", { name: "Name" })` and `.check()` `#visibility-public`. The preview chip updates.
 - **Save.** Click `getByRole("button", { name: "Save" })`. `POST /api/tags` returns 200 with `{ id, name, slug, color, isPublic }`.
 - **Persisted.** `page.reload()`. The name is listed under **Public Tags** with **Edit** and **Delete** buttons.
-- **Visitor sees it.** In an anonymous context, `#server-data` on `/` contains `"slug":"<slug>"`.
+- **Visitor sees it.** In an anonymous context, `#server-data` `.props.tags` on `/` has an entry with `slug == <slug>` and `isPublic == true`. This proves tag visibility only, not that filtering posts by tag works.
 - **DB.** `select id,name,slug,color,is_public from tags where slug='<slug>'` ends in `|t`.
-- **Private variant.** Leave `Private` checked. The anonymous `#server-data` must **not** contain the slug.
+- **Private variant.** The journey also creates `<name> private` with `#visibility-private`. Its slug must be absent from the anonymous `.props.tags`, and its DB row must end in `|f`.
 
 ## Gotchas
 

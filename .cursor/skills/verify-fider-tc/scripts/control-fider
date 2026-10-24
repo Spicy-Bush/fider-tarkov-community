@@ -55,7 +55,7 @@ cmd_build(){
 
 cmd_up(){
   [ -x "$REPO/fider" ] || die "no ./fider binary; run 'control-fider build'"
-  [ -n "$PGBIN" ] || die "postgres binaries not found (sudo apt-get install -y postgresql)"
+  [ -n "$PGBIN" ] || die "postgres binaries not found (ask the box owner to install postgresql; see SKILL.md Launch)"
   [ -x "$MAILHOG" ] || die "MailHog not found (see SKILL.md Launch)"
   if [ -L "$CUR" ] && [ -d "$(readlink -f "$CUR")" ]; then die "a run is already active at $(readlink -f "$CUR"); run 'down' first"; fi
   for p in "$APP_PORT" "$PG_PORT" "$SMTP_PORT" "$MH_PORT"; do port_free "$p" || die "port $p already in use - not ours, refusing"; done
@@ -91,17 +91,17 @@ cmd_doctor(){
   chk "mailhog pid $(cat "$D/mailhog.pid") alive"  "kill -0 $(cat "$D/mailhog.pid")"
   chk "port $APP_PORT owned by our fider"          "ss -ltnpH 'sport = :$APP_PORT' | grep -q pid=$(cat "$D/fider.pid"),"
   chk "/_health 200"                               "curl -fs http://localhost:$APP_PORT/_health"
-  chk "BASE_URL is localhost (never prod)"         "grep -q '^BASE_URL=http://localhost:' $D/app.env"
+  # effective value: read from the running fider process, not from the env file we wrote
+  chk "fider process BASE_URL is exactly http://localhost:$APP_PORT" "tr '\\0' '\\n' < /proc/$(cat "$D/fider.pid")/environ | grep -qx 'BASE_URL=http://localhost:$APP_PORT'"
   chk "admin session file present"                 "test -s $D/admin-state.json"
-  srv=$(curl -fs "http://localhost:$APP_PORT/" | grep -o 'id="server-data"[^>]*>[^<]*' | sed 's/^[^>]*>//' || true)
-  build=$(printf '%s' "$srv" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log((j.settings&&(j.settings.version||j.settings.commitHash))||"?")}catch{console.log("?")}})')
-  echo "info run=$RUN_ID repo_head=$(git -C "$REPO" rev-parse --short HEAD) server_build=$build"
+  echo "info run=$RUN_ID repo_head=$(git -C "$REPO" rev-parse --short HEAD)"
   [ $ok = 1 ] && echo DOCTOR OK || { echo DOCTOR FAIL; exit 1; }
 }
 
 cmd_drive(){
   D="$(rundir)"; RUN_ID="$(cat "$D/run_id")"; s="$1"; shift
-  [ -f "$s" ] || s="$SKILL_DIR/scripts/$s"
+  # resolve before the cd: relative paths mean relative to the caller's cwd, else a bare name in scripts/
+  if [ -f "$s" ]; then s="$(realpath "$s")"; elif [ -f "$SKILL_DIR/scripts/$s" ]; then s="$SKILL_DIR/scripts/$s"; else die "script not found: $s"; fi
   cd "$REPO" && FIDER_RUN_DIR="$D" FIDER_URL="http://localhost:$APP_PORT" MAILHOG_API="http://127.0.0.1:$MH_PORT" \
     EVIDENCE_DIR="$EVIDENCE_ROOT/$RUN_ID" ADMIN_EMAIL="$ADMIN_EMAIL" \
     PSQL="$PGBIN/psql -h 127.0.0.1 -p $PG_PORT -U fider -d fider -At" node "$s" "$@"

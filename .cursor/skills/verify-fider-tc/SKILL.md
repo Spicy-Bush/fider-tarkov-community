@@ -12,22 +12,34 @@ Everything lives in `.cursor/skills/verify-fider-tc/`:
 | Path | What |
 |------|------|
 | `scripts/control-fider` | `build`, `up [RUN_ID]`, `doctor`, `drive <script.mjs> [args]`, `psql [args]`, `down` |
-| `scripts/lib.mjs` | Playwright helpers: `launch({admin, locale})`, `latestLink(to, path)` (MailHog), `sql(q)`, `evidence(feature)` |
+| `scripts/lib.mjs` | Playwright helpers: `launch({admin, locale})`, `latestLink(to, path)` (MailHog), `sql(q)`, `evidence(feature)`. Refuses any `FIDER_URL`/`MAILHOG_API` that `guard.mjs` rejects. |
+| `scripts/guard.mjs`, `scripts/test-guard.mjs` | Loopback URL guard, and its positive/negative tests (`node scripts/test-guard.mjs`, no env needed) |
 | `scripts/seed.mjs` | Run by `up`: creates the site + administrator through `/signup` and the MailHog verify link |
 | `scripts/drive-admin-tags.mjs` | Proven journey for [admin-tags](features/admin-tags.md) |
 | `features/` | The feature map. Read `features/README.md` before driving anything. |
 
 Run every command from the repo root.
 
+## What this proves, and what it does not
+
+- **Proven:** only [admin-tags](features/admin-tags.md) (`drive-admin-tags.mjs`). It proves a public tag created in the admin UI is saved, listed after reload, in the DB, and listed in an anonymous visitor's tag list, and that a private tag is not. It does **not** prove post filtering by tag.
+- **Docs only, never driven:** `post-list`, `post-page`, `post-status` and `sponsorship` in `features/`. Treat them as recipes to try, not as evidence that those features work.
+- **Environment gaps vs prod:** the local Postgres is whatever the box has (17 at the time of writing), while prod runs 12. The stack runs `HOST_MODE=single` (one tenant), while prod runs one tenant per locale on separate hosts. Behaviour that depends on Postgres 12 specifics, multi-tenant routing or EN/RU host selection is not covered by this proof.
+
 ## Launch
 
 The box has no Docker, so the stack runs natively. `dev-compose.yml` (pgdev/mailhog/minio on the external `bw-services` network) is the human dev setup, and verification does not use it.
 
-One-time box prerequisites. Check each before installing it:
+One-time box prerequisites. Check each before installing it. This skill never uses `sudo`.
+
+- Postgres server binaries (`initdb`, `pg_ctl`) and `make` must already be on the box. If `ls /usr/lib/postgresql/*/bin/initdb` finds nothing, ask the box owner to install `postgresql` and `make` and to stop the system cluster (`service postgresql stop`), because a root install is out of this skill's scope.
+- MailHog is pinned to v1.0.1 and verified by sha256 before it is installed into the user-writable `~/.local/bin` (upstream publishes no checksum file, so the hash below was computed from the GitHub release asset when this was written):
 
 ```bash
-ls /usr/lib/postgresql/*/bin/initdb || sudo apt-get install -y postgresql make   # then: sudo service postgresql stop (don't leave the system cluster running)
-test -x ~/.local/bin/MailHog || { mkdir -p ~/.local/bin && curl -sSL -o ~/.local/bin/MailHog https://github.com/mailhog/MailHog/releases/download/v1.0.1/MailHog_linux_amd64 && chmod +x ~/.local/bin/MailHog; }
+MH_SHA=e2ed634ded49929f089b20045581955ed217672078fd86082dd7a6c67c5d09c7
+test -x ~/.local/bin/MailHog || { mkdir -p ~/.local/bin && t=$(mktemp) \
+  && curl -fsSL -o "$t" https://github.com/mailhog/MailHog/releases/download/v1.0.1/MailHog_linux_amd64 \
+  && echo "$MH_SHA  $t" | sha256sum -c - && install -m 755 "$t" ~/.local/bin/MailHog; rm -f "$t"; }
 ```
 
 Build. This runs `npm ci` if needed, `make build` (lingui + SSR + vite + `go build` → `./fider`), and installs Playwright's chromium-headless-shell for the repo's `@playwright/test` 1.57:
@@ -66,11 +78,11 @@ Read-only. Run it first, and again whenever something looks off:
 .cursor/skills/verify-fider-tc/scripts/control-fider doctor
 ```
 
-It checks that the fider, postgres and mailhog PIDs it recorded are alive, that `:3311` is owned by *our* fider PID, that `/_health` returns 200, that `BASE_URL` is localhost (never prod), and that the admin session file exists. It prints `repo_head` and ends with `DOCTOR OK`. `server_build` shows `?` for local builds, because no `COMMITHASH` is passed. Compare `repo_head` with `git rev-parse --short HEAD` after rebuilding.
+It checks that the fider, postgres and mailhog PIDs it recorded are alive, that `:3311` is owned by *our* fider PID, that `/_health` returns 200, that the running fider process's own `BASE_URL` (read from `/proc/<pid>/environ`) is exactly `http://localhost:<port>` (never prod), and that the admin session file exists. It prints `repo_head` and ends with `DOCTOR OK`. `repo_head` is the checkout, not the running binary: after changing app code, run `build` and restart the stack.
 
 ## Drive
 
-The harness is Playwright (`@playwright/test` from the repo's `node_modules`), headless chromium, run as Node ESM scripts through `control-fider drive`. That command exports `FIDER_URL`, `FIDER_RUN_DIR`, `EVIDENCE_DIR`, `MAILHOG_API`, `ADMIN_EMAIL` and `PSQL`. `lib.mjs` throws on any non-`http://localhost:` URL.
+The harness is Playwright (`@playwright/test` from the repo's `node_modules`), headless chromium, run as Node ESM scripts through `control-fider drive`. That command exports `FIDER_URL`, `FIDER_RUN_DIR`, `EVIDENCE_DIR`, `MAILHOG_API`, `ADMIN_EMAIL` and `PSQL`. `lib.mjs` parses both URLs with `new URL()` and throws unless the scheme is `http`, the host is exactly `localhost` or `127.0.0.1`, the port is explicit, and there is no userinfo (so `http://localhost:80@evil/` is refused). `node .cursor/skills/verify-fider-tc/scripts/test-guard.mjs` runs the negative tests.
 
 ```bash
 .cursor/skills/verify-fider-tc/scripts/control-fider drive drive-admin-tags.mjs "Verify Tag"
