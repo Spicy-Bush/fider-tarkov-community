@@ -22,14 +22,16 @@ Preconditions:
 
 - A post exists, created via the composer in [post-list](./post-list.md). The author has auto-voted, so the count is `1`.
 
-- **View.** Go to the post. `getByRole("heading", { level: 1 })` equals the title, and the vote count text is `1`.
+- **View.** Go to the post. `getByRole("main").getByRole("heading", { level: 1 })` equals the title (the header site title is also an h1), and the vote count text is `1`.
 - **Vote toggle.** Click `getByRole("button", { name: "Upvote" })`. The count and Voters list change. Check with `select count(*) from post_votes where post_id=(select id from posts where number=<n>)`.
-- **Comment.** Type into the comment editor under "Leave a comment". `getByRole("button", { name: "Submit comment" })` becomes enabled. Click it. The comment text appears inside `getByRole("region", { name: "Discussion" })`. Check with `select content from comments`.
+- **Comment.** Click the editor, `getByRole("region", { name: "Discussion" }).locator("[contenteditable=true]")`, and type. `getByRole("button", { name: "Submit comment" })` becomes enabled. Click it. The comment text appears inside `getByRole("region", { name: "Discussion" })`. Check with `select content from comments`.
 - **Visitor view.** In an anonymous context, the comment and vote count are visible, and voting opens the sign-in modal.
 - **Proof.** Save `post-page/after.aria.txt`, `post-page/after.png`, and the DB rows.
 
 ## Gotchas
 
-- `Submit comment` is disabled until the editor has content. The editor is a rich-text area, so use `click()` then `keyboard.type()`, because `fill()` may not trigger it.
+- `Submit comment` is disabled until the editor has content. The editor is a rich-text area, so use `click()` then `keyboard.type()`, because `fill()` may not trigger it. "Leave a comment" is placeholder text, and clicking it times out.
+- The comment shows in the Discussion region before the save finishes. Wait for the comment `POST` response before checking the DB or the anonymous view.
+- The author's first **Upvote** click removes the auto-vote, so the count goes from `1` to `0`.
 - The author's own vote is created automatically when the post is created. Account for it in the before count.
 - Mentions (`@`) open a selector popup that can swallow Enter.

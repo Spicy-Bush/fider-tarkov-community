@@ -121,7 +121,7 @@ It kills only the PIDs it recorded (fider, then MailHog), stops Postgres with `p
 
 ## Gotchas
 
-- **`/signup` crashes on an empty DB (TC bug, `dev` @ 5e08abbd).** `public/hooks/useAccountDraft.ts` builds ``${fider.session.tenant.id}:...`` while the tenant is null, so the page shows "Shoot! Well, this is unexpected… Cannot read properties of null (reading 'id')". `seed.mjs` detects this, logs `seed: SIGNUP_UI_BROKEN`, and falls back to the exact `POST /api/tenants` JSON call the signup page makes. Activation still goes through the real MailHog `/signup/verify` link. Once the bug is fixed, the seed uses the UI path automatically (`seed: signup via /signup UI`).
+- **`/signup` crashes on an empty DB (TC bug, still present on `dev` @ bcddec5).** `public/hooks/useAccountDraft.ts` builds ``${fider.session.tenant.id}:...`` while the tenant is null, so the page shows "Shoot! Well, this is unexpected… Cannot read properties of null (reading 'id')". `seed.mjs` detects this, logs `seed: SIGNUP_UI_BROKEN`, and falls back to the exact `POST /api/tenants` JSON call the signup page makes. Activation still goes through the real MailHog `/signup/verify` link. Once the bug is fixed, the seed uses the UI path automatically (`seed: signup via /signup UI`).
 - Mutations must send JSON `Accept`/`Content-Type` (CSRF/ajax gate). The UI does this. Hand-written `page.request` calls must too.
 - Fresh DBs have no tags, posts, sponsorship packages or campaigns. Each journey creates its own fixtures with unique names, and `down` discards the whole DB.
 - The admin is created as `administrator` with the email `admin@verify.local`. Helper and moderator journeys need extra users invited through `/admin/members`.

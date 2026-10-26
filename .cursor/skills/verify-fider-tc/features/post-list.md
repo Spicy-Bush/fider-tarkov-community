@@ -24,7 +24,7 @@ Preconditions:
 - Baseline is up and you're using the admin storageState.
 - Create two posts first: one with a unique word in the title and one tagged with a public tag from [admin-tags](./admin-tags.md).
 
-- **Compose.** Fill `#input-title` (15 chars or more), then fill `getByRole("textbox", { name: "Describe your suggestion..." })` (empty or 150 chars or more). Click `getByRole("button", { name: "Submit" })`. The text "Submitting in 30s..." appears with **Send Now** and **Cancel**. Click `getByRole("button", { name: "Send Now" })`. The URL becomes `/posts/<n>/<slug>`.
+- **Compose.** Fill `#input-title` (15 chars or more), then fill `getByRole("textbox", { name: "Describe your suggestion..." })` with 150 to 1000 chars. The description is required. Click `getByRole("button", { name: "Submit" })`. The text "Submitting in 30s..." appears with **Send Now** and **Cancel**. Click `getByRole("button", { name: "Send Now" })`. The URL becomes `/posts/<n>/<slug>`.
 - **List.** Go to `/`. Both posts are listed, and the empty-state paragraph is gone.
 - **Search.** Type the unique word into the list search box. Only the matching post remains. A nonsense query shows the empty state.
 - **Tag filter.** Go to `/?tags=<slug>` or use the tag filter. Only the tagged post remains.
@@ -34,6 +34,7 @@ Preconditions:
 ## Gotchas
 
 - The submit button stays disabled until the title has 15 or more characters and the description is empty or has 150 or more (tenant general settings). Don't shorten the journey to get around it.
+- An empty description enables **Submit**, but the server rejects it (`POST /api/posts` 400) after the countdown, showing "Missing Translation: property.description is required." and a **Pending submissions** draft picker. Always fill a description of 150 chars or more.
 - The 30s countdown is real. Either click **Send Now** or wait 30s or more. A fixed short sleep never posts.
 - EN and RU are separate tenants and deployments in production. The local run proves locale rendering on one tenant and doesn't prove EN/RU data parity.
 - Search is debounced. Wait for the list to change rather than using a fixed sleep.
