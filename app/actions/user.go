@@ -132,8 +132,8 @@ func (action *ChangeUserVisualRole) Validate(ctx context.Context, user *entity.U
 // ChangeUserEmail is the action used to change current user's email
 type ChangeUserEmail struct {
 	Email           string `json:"email" format:"lower"`
-	VerificationKey string
-	Requestor       *entity.User
+	VerificationKey string `json:"-"`
+	Requestor       *entity.User `json:"-"`
 }
 
 func NewChangeUserEmail() *ChangeUserEmail {

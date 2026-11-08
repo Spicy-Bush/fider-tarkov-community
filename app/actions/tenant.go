@@ -22,11 +22,11 @@ type CreateTenant struct {
 	Token           string `json:"token"`
 	Name            string `json:"name"`
 	Email           string `json:"email" format:"lower"`
-	VerificationKey string
+	VerificationKey string `json:"-"`
 	TenantName      string `json:"tenantName"`
 	LegalAgreement  bool   `json:"legalAgreement"`
 	Subdomain       string `json:"subdomain" format:"lower"`
-	UserClaims      *jwt.OAuthClaims
+	UserClaims      *jwt.OAuthClaims `json:"-"`
 }
 
 func NewCreateTenant() *CreateTenant {
