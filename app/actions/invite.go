@@ -20,9 +20,9 @@ type InviteUsers struct {
 	Subject        string   `json:"subject"`
 	Message        string   `json:"message"`
 	Recipients     []string `json:"recipients" format:"lower"`
-	IsSampleInvite bool
+	IsSampleInvite bool `json:"-"`
 
-	Invitations []*UserInvitation
+	Invitations []*UserInvitation `json:"-"`
 }
 
 // IsAuthorized returns true if current user is authorized to perform this action

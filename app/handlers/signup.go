@@ -54,7 +54,7 @@ func CreateTenant() web.HandlerFunc {
 			return c.HandleValidation(result)
 		}
 
-		socialSignUp := action.Token != ""
+		socialSignUp := action.UserClaims != nil
 
 		status := enum.TenantPending
 		if socialSignUp {
